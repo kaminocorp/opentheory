@@ -17,9 +17,10 @@ This release establishes the frontend root at `frontend/` as a Next.js applicati
 
 ### Frontend Structure
 
-- Added `frontend/package.json` configured for Next.js, React, TypeScript, Tailwind CSS, TanStack Query, lucide icons, ESLint, and local scripts.
+- Added `frontend/package.json` and `frontend/package-lock.json` configured for Next.js, React, TypeScript, Tailwind CSS, TanStack Query, lucide icons, ESLint, and local scripts.
 - Added `frontend/README.md` with local setup and verification commands.
 - Added `frontend/.env.example` with `NEXT_PUBLIC_API_BASE_URL` for the FastAPI API prefix.
+- Added `frontend/.gitignore` for Next.js build output, dependencies, local env files, and TypeScript build cache files.
 - Added Next.js, TypeScript, PostCSS, Tailwind, and ESLint configuration files.
 - Added the application source under `frontend/src/` with:
   - `app/` for App Router pages and global styling
@@ -36,6 +37,14 @@ This release establishes the frontend root at `frontend/` as a Next.js applicati
   - `GET /api/v1/projects`
   - `GET /api/v1/projects/{project_id}`
 - Added loading, empty, and backend-error states for project reads.
+
+### Tooling And Verification
+
+- Installed frontend dependencies with npm.
+- Verified the scaffold with:
+  - `npm run typecheck`
+  - `npm run lint`
+  - `npm run build`
 
 ---
 
