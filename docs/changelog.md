@@ -2,7 +2,40 @@
 
 ## Index
 
+- `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.2.0
+
+Initial frontend scaffold for OpenTheory.
+
+### Summary
+
+This release establishes the frontend root at `frontend/` as a Next.js application aligned with `docs/techstack.md`. It is intentionally minimal but product-shaped: the first screen is a research project surface that connects to the FastAPI project endpoints instead of a generic starter page.
+
+### Frontend Structure
+
+- Added `frontend/package.json` configured for Next.js, React, TypeScript, Tailwind CSS, TanStack Query, lucide icons, ESLint, and local scripts.
+- Added `frontend/README.md` with local setup and verification commands.
+- Added `frontend/.env.example` with `NEXT_PUBLIC_API_BASE_URL` for the FastAPI API prefix.
+- Added Next.js, TypeScript, PostCSS, Tailwind, and ESLint configuration files.
+- Added the application source under `frontend/src/` with:
+  - `app/` for App Router pages and global styling
+  - `components/` for shell and project UI
+  - `lib/` for backend API access
+  - `providers/` for TanStack Query setup
+  - `types/` for shared frontend domain types
+
+### Product Surface
+
+- Added the root project index page.
+- Added a project detail route at `/projects/[projectId]`.
+- Added typed reads for:
+  - `GET /api/v1/projects`
+  - `GET /api/v1/projects/{project_id}`
+- Added loading, empty, and backend-error states for project reads.
 
 ---
 
