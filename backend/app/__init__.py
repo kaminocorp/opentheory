@@ -1,0 +1,1 @@
+"""OpenTheory backend application."""
