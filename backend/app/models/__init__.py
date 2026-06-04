@@ -6,6 +6,7 @@ from app.models.claim import Claim
 from app.models.contribution import Contribution
 from app.models.evidence import Evidence
 from app.models.funding import FundingAllocation
+from app.models.links import CheckpointRef, ClaimEvidenceLink
 from app.models.project import Project
 from app.models.thread import Thread
 from app.models.validation import Validation
@@ -15,7 +16,9 @@ __all__ = [
     "Artifact",
     "Branch",
     "Checkpoint",
+    "CheckpointRef",
     "Claim",
+    "ClaimEvidenceLink",
     "Contribution",
     "Evidence",
     "FundingAllocation",

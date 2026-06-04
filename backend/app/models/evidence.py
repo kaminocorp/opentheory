@@ -34,3 +34,8 @@ class Evidence(IdMixin, TimestampMixin, Base):
 
     project = relationship("Project", back_populates="evidence")
     thread = relationship("Thread", back_populates="evidence")
+    claim_links = relationship(
+        "ClaimEvidenceLink",
+        back_populates="evidence",
+        cascade="all, delete-orphan",
+    )

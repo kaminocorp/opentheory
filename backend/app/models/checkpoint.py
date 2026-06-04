@@ -61,3 +61,8 @@ class Checkpoint(IdMixin, TimestampMixin, Base):
     )
     validations = relationship("Validation", back_populates="checkpoint")
     contributions = relationship("Contribution", back_populates="checkpoint")
+    refs = relationship(
+        "CheckpointRef",
+        back_populates="checkpoint",
+        cascade="all, delete-orphan",
+    )

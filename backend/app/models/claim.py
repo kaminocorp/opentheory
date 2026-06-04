@@ -37,3 +37,8 @@ class Claim(IdMixin, TimestampMixin, Base):
     project = relationship("Project", back_populates="claims")
     thread = relationship("Thread", back_populates="claims")
     validations = relationship("Validation", back_populates="claim")
+    evidence_links = relationship(
+        "ClaimEvidenceLink",
+        back_populates="claim",
+        cascade="all, delete-orphan",
+    )
