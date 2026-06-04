@@ -35,11 +35,17 @@ class Checkpoint(IdMixin, TimestampMixin, Base):
         ForeignKey("actors.id", ondelete="SET NULL"),
         index=True,
     )
-    stage: Mapped[ThreadStage] = mapped_column(
+    # Research-flow stage is optional metadata, not platform law (see docs/primitives.md):
+    # a human may record a checkpoint without committing to a research-flow stage.
+    stage: Mapped[ThreadStage | None] = mapped_column(
         Enum(ThreadStage, name="thread_stage"),
-        nullable=False,
+        nullable=True,
     )
     summary: Mapped[str] = mapped_column(Text, nullable=False)
+    # Free-form JSON payload authored by the user (0.3.2). No structured schema is
+    # enforced beyond "valid JSON object"; the legacy research-git fields below
+    # (inputs/outputs/tool_invocations/evidence_refs) remain for later releases.
+    content: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     inputs: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     outputs: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     tool_invocations: Mapped[list[dict[str, Any]]] = mapped_column(

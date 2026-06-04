@@ -1,9 +1,14 @@
 import os
+from collections.abc import AsyncIterator
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.pool import NullPool
 
 from app.db.base import Base
@@ -17,11 +22,12 @@ TEST_DB_URL = os.getenv("TEST_DATABASE_URL") or os.getenv("DATABASE_URL")
 
 
 @pytest_asyncio.fixture
-async def client() -> AsyncClient:
-    """An httpx client bound to the app with a real (test) database session.
+async def db_engine() -> AsyncIterator[AsyncEngine]:
+    """A per-test engine with a freshly created (and torn-down) schema.
 
-    Creates all tables before the test and drops them after, so each test runs against
-    a clean schema. Skips if no database is configured or reachable.
+    Skips if no database is configured or reachable. The ``client`` and
+    ``session_factory`` fixtures share this one engine so HTTP writes and direct DB
+    assertions see the same data.
     """
     if not TEST_DB_URL:
         pytest.skip("No TEST_DATABASE_URL/DATABASE_URL set; skipping DB-backed test")
@@ -37,10 +43,27 @@ async def client() -> AsyncClient:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    session_maker = async_sessionmaker(engine, expire_on_commit=False)
+    yield engine
 
-    async def override_get_db():
-        async with session_maker() as session:
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+    await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def session_factory(db_engine: AsyncEngine) -> async_sessionmaker:
+    """An async session factory bound to the test engine for direct DB assertions."""
+    return async_sessionmaker(db_engine, expire_on_commit=False)
+
+
+@pytest_asyncio.fixture
+async def client(
+    db_engine: AsyncEngine, session_factory: async_sessionmaker
+) -> AsyncIterator[AsyncClient]:
+    """An httpx client bound to the app, sharing the test engine's schema/data."""
+
+    async def override_get_db() -> AsyncIterator:
+        async with session_factory() as session:
             yield session
 
     app = create_app()
@@ -49,7 +72,3 @@ async def client() -> AsyncClient:
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-    await engine.dispose()

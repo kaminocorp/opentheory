@@ -21,7 +21,7 @@ async def attach_evidence(
     db: DbSession,
     actor: ActingActor,
 ) -> EvidenceRead:
-    return await evidence_service.attach_evidence(db, claim_id, payload)
+    return await evidence_service.attach_evidence(db, claim_id, payload, actor)
 
 
 @router.get(

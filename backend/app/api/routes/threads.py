@@ -4,7 +4,7 @@ from fastapi import APIRouter, status
 
 from app.api.deps import ActingActor, DbSession
 from app.models.thread import Thread
-from app.schemas.thread import ThreadCreate, ThreadRead
+from app.schemas.thread import ThreadCreate, ThreadRead, ThreadSummary
 from app.services import threads as thread_service
 
 router = APIRouter()
@@ -22,15 +22,15 @@ async def create_thread(
     db: DbSession,
     actor: ActingActor,
 ) -> Thread:
-    return await thread_service.create_thread(db, project_id, payload)
+    return await thread_service.create_thread(db, project_id, payload, actor)
 
 
 @router.get(
     "/projects/{project_id}/threads",
-    response_model=list[ThreadRead],
+    response_model=list[ThreadSummary],
     tags=["threads"],
 )
-async def list_threads(project_id: UUID, db: DbSession) -> list[Thread]:
+async def list_threads(project_id: UUID, db: DbSession) -> list[ThreadSummary]:
     return await thread_service.list_threads(db, project_id)
 
 

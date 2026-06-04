@@ -1,7 +1,8 @@
-"""DB-free checks that the 0.3.1 routes are wired and shaped correctly.
+"""DB-free checks that the 0.3.1/0.3.2 routes are wired and shaped correctly.
 
-These run without a database and verify the OpenAPI surface: the new paths exist and
-the write endpoints declare the X-Dev-Actor-Id header.
+These run without a database and verify the OpenAPI surface: the new paths exist, the
+write endpoints declare the X-Dev-Actor-Id header, and the append-only checkpoint
+endpoints expose no update/delete methods.
 """
 
 from app.main import create_app
@@ -10,6 +11,13 @@ WRITE_PATHS = [
     "/api/v1/projects/{project_id}/threads",
     "/api/v1/threads/{thread_id}/claims",
     "/api/v1/claims/{claim_id}/evidence",
+    "/api/v1/projects/{project_id}/checkpoints",
+]
+
+# Checkpoints and their refs are append-only: no endpoint may mutate them.
+APPEND_ONLY_PATHS = [
+    "/api/v1/projects/{project_id}/checkpoints",
+    "/api/v1/checkpoints/{checkpoint_id}",
 ]
 
 
@@ -24,8 +32,19 @@ def test_new_paths_exist() -> None:
     assert "get" in paths["/api/v1/projects/{project_id}/threads"]
     assert "get" in paths["/api/v1/threads/{thread_id}"]
     assert "get" in paths["/api/v1/claims/{claim_id}"]
+    assert "get" in paths["/api/v1/projects/{project_id}/checkpoints"]
+    assert "get" in paths["/api/v1/checkpoints/{checkpoint_id}"]
+    assert "get" in paths["/api/v1/projects/{project_id}/overview"]
     for path in WRITE_PATHS:
         assert "post" in paths[path], f"missing POST for {path}"
+
+
+def test_checkpoints_expose_no_mutation_methods() -> None:
+    # Append-only at the API surface: GET/POST only, never PUT/PATCH/DELETE.
+    paths = _openapi_paths()
+    for path in APPEND_ONLY_PATHS:
+        methods = set(paths[path])
+        assert methods <= {"get", "post"}, f"{path} exposes mutation methods: {methods}"
 
 
 def test_write_endpoints_require_dev_actor_header() -> None:

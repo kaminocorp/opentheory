@@ -7,7 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.models.project import Project
-from app.schemas.project import ProjectCreate, ProjectRead
+from app.schemas.project import ProjectCreate, ProjectOverview, ProjectRead
+from app.services import projects as project_service
 
 router = APIRouter()
 DbSession = Annotated[AsyncSession, Depends(get_db)]
@@ -34,3 +35,8 @@ async def get_project(project_id: UUID, db: DbSession) -> Project:
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
     return project
+
+
+@router.get("/{project_id}/overview", response_model=ProjectOverview)
+async def get_project_overview(project_id: UUID, db: DbSession) -> ProjectOverview:
+    return await project_service.get_project_overview(db, project_id)

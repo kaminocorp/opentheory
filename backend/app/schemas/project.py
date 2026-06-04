@@ -24,3 +24,18 @@ class ProjectRead(ProjectBase):
     id: UUID
     created_at: datetime
     updated_at: datetime
+
+
+class ProjectCounts(BaseModel):
+    """Aggregate counts shown at a glance on the workspace header (0.3.4)."""
+
+    threads: int
+    claims: int
+    evidence: int
+    checkpoints: int
+
+
+class ProjectOverview(ProjectRead):
+    """Project detail enriched with aggregate ledger counts."""
+
+    counts: ProjectCounts

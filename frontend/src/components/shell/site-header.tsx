@@ -1,5 +1,7 @@
-import { FlaskConical, Search, UserCircle } from "lucide-react";
+import { FlaskConical, Search } from "lucide-react";
 import Link from "next/link";
+
+import { DevActorSwitcher } from "@/components/shell/dev-actor-switcher";
 
 export function SiteHeader() {
   return (
@@ -26,14 +28,7 @@ export function SiteHeader() {
           >
             Projects
           </Link>
-          <button
-            className="grid size-10 place-items-center rounded-md border border-line bg-white/70 text-ink/70 hover:text-ink"
-            type="button"
-            aria-label="Account"
-            title="Account"
-          >
-            <UserCircle className="size-5" aria-hidden="true" />
-          </button>
+          <DevActorSwitcher />
         </nav>
       </div>
     </header>

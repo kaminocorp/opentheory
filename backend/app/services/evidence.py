@@ -4,10 +4,12 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.actor import Actor
 from app.models.claim import Claim
 from app.models.evidence import Evidence
 from app.models.links import ClaimEvidenceLink
 from app.schemas.evidence import EvidenceCreate, EvidenceRead
+from app.services import contributions
 
 # Authoritative validation of relation_kind lives here (the column is a plain VARCHAR;
 # the Pydantic Literal is a convenience that mirrors this set).
@@ -35,7 +37,7 @@ def _to_read(evidence: Evidence, relation_kind: str, link_id: UUID) -> EvidenceR
 
 
 async def attach_evidence(
-    db: AsyncSession, claim_id: UUID, payload: EvidenceCreate
+    db: AsyncSession, claim_id: UUID, payload: EvidenceCreate, actor: Actor
 ) -> EvidenceRead:
     if payload.relation_kind not in RELATION_KINDS:
         raise HTTPException(
@@ -66,6 +68,14 @@ async def attach_evidence(
         relation_kind=payload.relation_kind,
     )
     db.add(link)
+    contributions.record_contribution(
+        db,
+        project_id=claim.project_id,
+        actor=actor,
+        action=contributions.ACTION_CREATE_EVIDENCE,
+        target_type="evidence",
+        target_id=evidence.id,
+    )
     await db.commit()
     await db.refresh(evidence)
     await db.refresh(link)

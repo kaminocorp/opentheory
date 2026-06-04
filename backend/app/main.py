@@ -3,9 +3,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import api_router
 from app.core.config import settings
+from app.models.append_only import register_append_only_guards
 
 
 def create_app() -> FastAPI:
+    # Append-only ORM guards are registered on import of app.models, but we call the
+    # idempotent registrar explicitly here so the ledger invariant never depends on
+    # import order or an incidental side effect.
+    register_append_only_guards()
+
     app = FastAPI(title=settings.app_name)
 
     if settings.backend_cors_origins:

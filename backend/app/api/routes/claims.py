@@ -22,7 +22,7 @@ async def create_claim(
     db: DbSession,
     actor: ActingActor,
 ) -> Claim:
-    return await claim_service.create_claim(db, thread_id, payload)
+    return await claim_service.create_claim(db, thread_id, payload, actor)
 
 
 @router.get(

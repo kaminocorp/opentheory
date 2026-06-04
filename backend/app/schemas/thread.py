@@ -26,3 +26,9 @@ class ThreadRead(ThreadBase):
     project_id: UUID
     created_at: datetime
     updated_at: datetime
+
+
+class ThreadSummary(ThreadRead):
+    """Thread plus its claim count, for the workspace thread list (0.3.4)."""
+
+    claim_count: int

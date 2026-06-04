@@ -1,4 +1,5 @@
 from app.models.actor import Actor
+from app.models.append_only import AppendOnlyError
 from app.models.artifact import Artifact
 from app.models.branch import Branch
 from app.models.checkpoint import Checkpoint, checkpoint_parent
@@ -13,6 +14,7 @@ from app.models.validation import Validation
 
 __all__ = [
     "Actor",
+    "AppendOnlyError",
     "Artifact",
     "Branch",
     "Checkpoint",

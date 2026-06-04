@@ -4,12 +4,16 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.actor import Actor
 from app.models.claim import Claim
 from app.models.thread import Thread
 from app.schemas.claim import ClaimCreate
+from app.services import contributions
 
 
-async def create_claim(db: AsyncSession, thread_id: UUID, payload: ClaimCreate) -> Claim:
+async def create_claim(
+    db: AsyncSession, thread_id: UUID, payload: ClaimCreate, actor: Actor
+) -> Claim:
     thread = await db.get(Thread, thread_id)
     if thread is None:
         raise HTTPException(
@@ -24,6 +28,15 @@ async def create_claim(db: AsyncSession, thread_id: UUID, payload: ClaimCreate) 
         **payload.model_dump(),
     )
     db.add(claim)
+    await db.flush()  # assign claim.id before recording the contribution
+    contributions.record_contribution(
+        db,
+        project_id=thread.project_id,
+        actor=actor,
+        action=contributions.ACTION_CREATE_CLAIM,
+        target_type="claim",
+        target_id=claim.id,
+    )
     await db.commit()
     await db.refresh(claim)
     return claim
