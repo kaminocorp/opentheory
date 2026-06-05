@@ -1,10 +1,18 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.enums import ClaimKind, ClaimStatus
+from app.schemas.validation import ValidationRead
+
+# Derived display signal for a claim (0.4.4, plan Decision #5). Computed from validation
+# history; it does NOT mutate the stored ``Claim.status`` — confidence stays explainable.
+#   contested  — has an unretracted contradicts/failed validation
+#   validated  — has a passing validation and is not contested
+#   none       — no decisive signal yet
+ClaimSignal = Literal["none", "contested", "validated"]
 
 
 class ClaimBase(BaseModel):
@@ -28,3 +36,8 @@ class ClaimRead(ClaimBase):
     thread_id: UUID | None
     created_at: datetime
     updated_at: datetime
+    # Enriched (0.4.4): the claim's validation history (oldest first) and the derived
+    # signal. Constructed explicitly in the service — never via from_attributes on the
+    # ORM (which would lazy-load the ``Claim.validations`` relationship).
+    validations: list[ValidationRead] = Field(default_factory=list)
+    signal: ClaimSignal = "none"

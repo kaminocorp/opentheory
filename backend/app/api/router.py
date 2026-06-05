@@ -2,12 +2,14 @@ from fastapi import APIRouter
 
 from app.api.routes import (
     actors,
+    branches,
     checkpoints,
     claims,
     evidence,
     health,
     projects,
     threads,
+    validations,
 )
 
 api_router = APIRouter()
@@ -20,3 +22,5 @@ api_router.include_router(threads.router)
 api_router.include_router(claims.router)
 api_router.include_router(evidence.router)
 api_router.include_router(checkpoints.router)
+api_router.include_router(validations.router)
+api_router.include_router(branches.router)

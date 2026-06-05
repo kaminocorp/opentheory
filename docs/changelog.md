@@ -2,12 +2,174 @@
 
 ## Index
 
+- `0.4.5` — Post-`0.4.0` review fixes: order-aware claim `signal` (a contradiction after a retract re-contests), corrected a stale overview-counts test that would have failed on a live DB, sealed-branch recording UX, typed the checkpoint ref validator, and removed dead frontend exports. No new features, schema, or migration.
+- `0.4.4` — Read-model enrichment + polish: claim validation history with a derived `signal`, project overview branch/validation counts + contradictions summary, per-branch checkpoint counts, and the workspace surfaces for all of it. Completes `0.4.0`.
+- `0.4.3` — Frontend validation + branch surfaces: record validations on claims/checkpoints, a branch bar that forks/closes and scopes the ledger timeline, and contradiction indicators. Third phase of `0.4.0`.
+- `0.4.2` — Branch write path: fork from a checkpoint, record checkpoints on a branch, close as dead-end/superseded — all through the checkpoint chokepoint; adds `checkpoints.branch_id` (migration `0003`). Second phase of `0.4.0`.
+- `0.4.1` — Validation write path: record an immutable assessment of a claim/checkpoint/branch through the checkpoint chokepoint, attributed by a `validate` contribution. First phase of `0.4.0`.
 - `0.3.4` — Enriched ledger read models: project aggregate counts, per-thread claim counts, and a checkpoint timeline showing author, action, and referenced claims/evidence. Completes `0.3.0`.
 - `0.3.3` — Three-panel research workspace (threads / claims+evidence / checkpoint timeline) wired to all create/read flows, plus a localStorage-backed dev-actor switcher attached as `X-Dev-Actor-Id`.
 - `0.3.2` — Checkpoint service as the sole append-only ledger write path, ORM-enforced append-only on checkpoints/refs/funding, and automatic contribution recording for all four create flows.
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.4.5
+
+Review-driven correctness and polish on the completed `0.4.0 — Validation And Branching` slice. No new features, no schema change, no migration — a hardening pass from a full read-through of the `0.4.x` diff against the plan and completion docs.
+
+### Summary
+
+A review of the `0.4.x` implementation found the design sound but surfaced one real correctness bug (the claim signal ignored the *order* of validations), one latent test failure (a `0.3.4` assertion not updated when `0.4.4` widened the counts shape), and a few polish items. All are fixed; the suite, lint, and frontend build stay green.
+
+### Correctness
+
+- **Order-aware claim `signal`.** `compute_signal` now walks the validation history chronologically (oldest first) instead of treating it as an unordered set. Previously, a single `retract` *anywhere* in the history cleared every contradiction — so a `contradicts` recorded *after* a `retract` was wrongly shown as not-contested. Now the latest decisive event wins: `contradicts`/`failed` contests, a later `retract` clears it, a still-later `contradicts` re-contests. The derivation remains a pure display signal (plan Decision #5) — `Claim.status` is still never mutated. (`app/services/claims.py`.)
+
+### Tests
+
+- **Fixed a stale assertion** in `tests/test_read_models.py::test_project_overview_counts`: it asserted `counts == {threads, claims, evidence, checkpoints}`, but `0.4.4` added `validations` and `branches` to `ProjectCounts`. The DB-backed test is skipped offline (no database configured), so this went unnoticed — it would have failed on the first real-DB run. Now asserts the full six-key shape.
+- **Added an order-aware signal case** to `test_claim_read_validation_history_and_signal`: `contradicts → retract → contradicts` ends `contested` (locks in the fix above).
+
+### Polish
+
+- **Sealed-branch recording UX.** The checkpoint timeline panel now takes a `lineSealed` flag (derived in `ProjectWorkspace` from the selected branch's status): on a closed/dead-end line it hides the "new checkpoint" affordance and explains that the line is preserved, not extended — instead of offering a form whose submit the backend rejects with `400`. (`project-workspace.tsx`, `checkpoint-timeline-panel.tsx`.)
+- **Removed dead frontend exports:** the unused `getBranch` and `listClaimValidations` API-client functions and the `BranchDetail` type (claim validation history has been embedded in the claim read since `0.4.4`; the branch list drives the UI). The backend `GET /branches/{id}` detail endpoint stays — it's a legitimate, tested read for API consumers. (`lib/api.ts`, `types/research.ts`.)
+- **Typed the checkpoint ref validator:** `_validate_refs(..., refs: list[CheckpointRefInput])` (was a bare `list` with a comment). (`app/services/checkpoints.py`.)
+
+### Tooling And Verification
+
+- `uv run ruff check .` (clean), `uv run pytest` (`5 passed, 31 skipped` — DB-backed tests still skip without a database), and `npm run typecheck` / `lint` / `build` (all pass).
+
+### Still gating a production push (unchanged from `0.4.4`)
+
+These are not regressions introduced here — they are the standing items before `0.4.0` is truly prod-ready, restated so they aren't lost:
+
+- **The 31 DB-backed tests have never run against Postgres**, and no migration has been applied to a live database. This is the `0.4.0` Definition-of-Done gate: stand up Postgres, `uv run alembic upgrade head`, and get the DB-backed suite green.
+- **No authentication/authorization** — `X-Dev-Actor-Id` lets any caller act as any actor. Acceptable for an internal/demo deploy; a blocker for a public one. Deferred to `0.6.0`.
+
+---
+
+## 0.4.4
+
+Read-model enrichment and polish — makes research integrity legible at a glance. Fourth and final phase of `0.4.0 — Validation And Branching`. Backend read models + frontend rendering; no new write paths and no migration. See `docs/completions/0.4.4-read-model-and-polish.md`.
+
+### Summary
+
+Enriches the read side so the workspace shows what's been assessed, what's contested, and which lines are alive vs. abandoned. The claim read now embeds its validation history and a server-derived `signal` (`contested` / `validated` / `none`) computed from that history — without mutating the stored `Claim.status` (plan Decision #5). The project overview gains a validation count, branch-status counts, and a contradictions summary. The branch list carries per-branch checkpoint counts.
+
+### Backend Read Models
+
+- `ClaimRead` now includes `validations` (history, oldest first) and `signal`; the claims service constructs reads explicitly (never via `from_attributes` on the ORM, which would lazy-load the relationship) and batches validation lookups (no N+1, reusing the validations service).
+- `GET /projects/{id}/overview` adds `counts.validations`, `counts.branches`, `branch_counts` (open / dead-end / closed), and `contradictions` (contested claims).
+- Branch list (`GET /projects/{id}/branches`) returns `BranchSummary` with a per-branch `checkpoint_count` (single grouped outer-join query).
+- Shared `compute_signal` lives in the claims service and is reused by the overview's contradictions detection. No schema/migration change.
+
+### Frontend Rendering
+
+- Claim cards render validation history (outcome badges + notes + actor) and a `contested` / `validated` chip from the server `signal`; the claim read's embedded data replaces the separate per-claim validations fetch.
+- Workspace header shows six aggregate counts (adds Validations, Branches) and an ember "contested claims" strip listing the contradictions.
+- The branch bar shows per-branch checkpoint counts and, for the selected line, its fork point and count.
+
+### Tooling And Verification
+
+- Extended `tests/test_read_models.py` (DB-backed: claim history + signal incl. retract-clears-contradiction, overview branch/validation counts + contradictions, branch `checkpoint_count`).
+- Verified with `uv run ruff check .` (clean), `uv run pytest` (`5 passed, 31 skipped`), and `npm run typecheck` / `lint` / `build` (all pass).
+
+### End-To-End Manual Verification Path (the `0.4.0` slice)
+
+Once a database is configured (`DATABASE_URL` set, `uv run alembic upgrade head` applied), the full `0.4.0` flow is reproducible from the UI alone, on top of the `0.3.0` slice:
+
+1. Open a project that already has a thread, a claim, and at least one checkpoint (the `0.3.0` flow), with a dev actor selected (top-right switcher).
+2. On a claim, click **Validate**, choose `contradicts`, and submit. The claim shows a **contested** chip and an outcome badge; the header **Validations** count and the **contested claims** strip update; a `validate` checkpoint appears in the timeline.
+3. Record another validation on the same claim with `retract` — the **contested** chip clears (history is preserved, oldest first).
+4. In the branch bar, **Fork** a branch from a checkpoint (name + reason). It is auto-selected; the **Branches** count and the branch's checkpoint count update.
+5. With the branch selected, record a checkpoint — it lands on the branch line (the main-line timeline is unchanged when you switch back to **Main line**).
+6. **Close branch** as a dead-end with a reason. The branch chip is struck through and marked `dead end`; `branch_counts.dead_end` increments; the closing reason is preserved (recorded, not deleted).
+7. Confirm append-only/provenance: `PUT`/`DELETE` on validations and checkpoints are absent; an ORM update/delete of a `Validation` raises `AppendOnlyError`; recording a checkpoint on the closed branch returns `400`.
+
+This exercises every `0.4.0` primitive end-to-end: validation (recorded through a checkpoint, attributed) and branching (fork → branch checkpoint → close as dead-end), with the contradiction and dead-end states surfaced.
+
+---
+
+## 0.4.3
+
+Frontend validation and branch surfaces. Third phase of `0.4.0 — Validation And Branching`. Frontend only. See `docs/completions/0.4.3-frontend-validation-and-branches.md`.
+
+### Summary
+
+Surfaces the `0.4.1`/`0.4.2` write paths in the research workspace: record validations on claims and checkpoints, fork/close branches, scope the checkpoint timeline to a branch line, and flag contested claims. Built on the existing TanStack Query reads/mutations + query-key invalidation; no new client-state library.
+
+### Product Surface
+
+- Shared validation controls: an outcome→icon/colour vocabulary, an `OutcomeBadge`, and a reusable `RecordValidationForm` used on both claims (with inline history) and checkpoints (record-only — no per-checkpoint history endpoint).
+- A branch bar above the panels: a **Main line** chip plus a chip per branch (dead-ends struck through), a **Fork** form anchored on a chosen checkpoint, and a **Close branch** form (dead-end / closed, required reason). Selecting a branch scopes the checkpoint timeline and new-checkpoint `branch_id` to that line; the claims panel stays thread-scoped (branches scope the ledger line, not the claim set, in this model).
+- A client-side contradiction indicator on claims (superseded by the server `signal` in `0.4.4`).
+
+### Frontend Structure
+
+- Added `src/components/workspace/validation-controls.tsx` and `branch-bar.tsx`; extended the claim and checkpoint panels and the project workspace; extended `lib/api.ts`, `types/research.ts`, and the query keys with validations and branches.
+
+### Tooling And Verification
+
+- Verified with `npm run typecheck`, `lint`, and `build` (all pass). Live click-through deferred until a database is configured, consistent with the backend phases.
+
+---
+
+## 0.4.2
+
+Branch write path. Second phase of `0.4.0 — Validation And Branching`. Backend + one migration. See `docs/completions/0.4.2-branch-write-path.md`.
+
+### Summary
+
+Activates the `Branch` primitive: fork a parallel line from a checkpoint, record checkpoints on it, and close it as a dead-end/superseded — all recorded through the single checkpoint chokepoint. Merge is deferred (plan Decision #3); `BranchStatus.MERGED` stays reserved.
+
+### Schema
+
+- Added `checkpoints.branch_id` (nullable, FK → `branches.id` `ON DELETE SET NULL`, indexed). `NULL` = the project main line (plan Decision #2); existing checkpoints become main-line. Migration `0003_checkpoint_branch_id` (`down_revision = 0002_checkpoint_content`).
+- This is the second FK between `checkpoints` and `branches`, so all relationships spanning the two tables now pin `foreign_keys` explicitly.
+
+### API
+
+- `POST /api/v1/projects/{id}/branches` (fork from a checkpoint), `GET /api/v1/projects/{id}/branches`, `GET /api/v1/branches/{branch_id}` (detail incl. its checkpoints), `POST /api/v1/branches/{branch_id}/close` (outcome `dead_end`/`closed` + reason).
+- `CheckpointCreate` accepts an optional `branch_id`; the chokepoint validates it is an in-project, **open** branch before stamping it.
+
+### Service Layer
+
+- Added `app/services/branches.py` (`create_branch`, `close_branch`, `list_branches`, `get_branch`), composing with the checkpoint chokepoint; `create_branch`/`close_branch` actions added to the contributions module. The fork's first checkpoint is recorded on the branch (parented on the fork point); the close checkpoint is main-line and references the branch (atomicity over stamping — see the completion doc).
+
+### Tooling And Verification
+
+- Added `tests/test_branches.py` (DB-backed). Verified with `uv run ruff check .` (clean), `uv run pytest` (DB-backed tests skip until a database is configured), `configure_mappers()` (dual-FK relationships), and offline Alembic checks (`0003` loads as head, renders the expected DDL).
+
+---
+
+## 0.4.1
+
+Validation write path. First phase of `0.4.0 — Validation And Branching`. Backend only; no migration. See `docs/completions/0.4.1-validation-write-path.md`.
+
+### Summary
+
+Activates the `Validation` primitive as a first-class, immutable assessment recorded **through** the checkpoint chokepoint (plan Decision #1): recording a validation writes the `Validation` row and, in the same transaction, mints a checkpoint referencing the validated target (`role=validated`) and the validation (`role=recorded`), attributed by a `validate` contribution.
+
+### API
+
+- `POST /api/v1/projects/{id}/validations` (requires `X-Dev-Actor-Id`), `GET /api/v1/projects/{id}/validations`, `GET /api/v1/claims/{claim_id}/validations`, `GET /api/v1/validations/{validation_id}`. GET/POST only — no mutation methods.
+- Targets follow the model: `claim` / `checkpoint` / `branch` / `artifact` (plan Decision #4; `artifact` wired but untested until artifact writes land). No `evidence` target.
+
+### Service Layer
+
+- Added `app/services/validations.py`; extended `CheckpointService.create_checkpoint` minimally (service-supplied `extra_refs` + an optional `contribution_action`) so the validation flow goes through the one chokepoint. Added `validation`/`branch` to the checkpoint-ref vocabulary.
+
+### Append-Only Enforcement
+
+- Added `Validation` to the ORM append-only guard set (`Checkpoint`, `CheckpointRef`, `FundingAllocation`, `Validation`): a re-assessment is a new row, never an edit.
+
+### Tooling And Verification
+
+- Added `tests/test_validations.py` (DB-backed) and extended `tests/test_wiring.py`. Verified with `uv run ruff check .` (clean) and `uv run pytest` (`5 passed`, DB-backed tests skip until a database is configured). No migration (the `validations` table is in the `0001` baseline).
 
 ---
 

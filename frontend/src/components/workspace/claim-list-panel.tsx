@@ -1,15 +1,16 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ListChecks, Paperclip, Plus, X } from "lucide-react";
+import { AlertTriangle, ListChecks, Paperclip, Plus, ShieldCheck, X } from "lucide-react";
 import { useState } from "react";
 
 import { attachEvidence, createClaim, listClaims, listEvidence } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import { useDevActor } from "@/providers/dev-actor-provider";
-import type { ClaimKind, RelationKind } from "@/types/research";
+import type { Claim, ClaimKind, RelationKind } from "@/types/research";
 
 import { PanelEmpty, PanelError, PanelLoading } from "./panel-state";
+import { OutcomeBadge, RecordValidationForm } from "./validation-controls";
 
 const CLAIM_KINDS: ClaimKind[] = [
   "hypothesis",
@@ -150,6 +151,7 @@ function ClaimListPanelInner({ projectId, threadId }: { projectId: string; threa
                 {claim.kind} · {claim.status}
               </p>
               <ClaimEvidence projectId={projectId} claimId={claim.id} />
+              <ClaimValidations projectId={projectId} threadId={threadId} claim={claim} />
             </li>
           ))}
         </ul>
@@ -301,6 +303,80 @@ function ClaimEvidence({ projectId, claimId }: { projectId: string; claimId: str
             {attachMutation.isPending ? "Attaching…" : "Attach evidence"}
           </button>
         </form>
+      ) : null}
+    </div>
+  );
+}
+
+function ClaimValidations({
+  projectId,
+  threadId,
+  claim,
+}: {
+  projectId: string;
+  threadId: string;
+  claim: Claim;
+}) {
+  const [recording, setRecording] = useState(false);
+
+  // History and signal are embedded in the claim read (0.4.4) — no separate fetch. The
+  // contradiction indicator uses the server-derived signal.
+  const validations = claim.validations;
+  const contested = claim.signal === "contested";
+
+  return (
+    <div className="mt-3 border-t border-line pt-3">
+      <div className="flex items-center justify-between">
+        <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.1em] text-ink/50">
+          <ShieldCheck className="size-3.5 text-signal" aria-hidden="true" />
+          Validations
+          {contested ? (
+            <span className="inline-flex items-center gap-1 rounded bg-ember/10 px-1.5 py-0.5 text-[10px] font-semibold text-ember">
+              <AlertTriangle className="size-3" aria-hidden="true" />
+              contested
+            </span>
+          ) : claim.signal === "validated" ? (
+            <span className="inline-flex items-center gap-1 rounded bg-signal/10 px-1.5 py-0.5 text-[10px] font-semibold text-signal">
+              validated
+            </span>
+          ) : null}
+        </span>
+        <button
+          type="button"
+          onClick={() => setRecording((v) => !v)}
+          className="text-xs font-medium text-signal hover:text-ink"
+        >
+          {recording ? "Cancel" : "Validate"}
+        </button>
+      </div>
+
+      {validations.length === 0 ? (
+        <p className="mt-2 text-xs text-ink/45">Not yet validated.</p>
+      ) : (
+        <ul className="mt-2 grid gap-1.5">
+          {validations.map((v) => (
+            <li key={v.id} className="flex items-center gap-2 text-xs">
+              <OutcomeBadge outcome={v.outcome} />
+              {v.notes ? (
+                <span className="min-w-0 flex-1 truncate text-ink/55">{v.notes}</span>
+              ) : (
+                <span className="flex-1" />
+              )}
+              {v.actor ? <span className="shrink-0 text-ink/40">{v.actor.display_name}</span> : null}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {recording ? (
+        <RecordValidationForm
+          projectId={projectId}
+          targetType="claim"
+          targetId={claim.id}
+          invalidateKey={queryKeys.claims(threadId)}
+          onDone={() => setRecording(false)}
+          compact
+        />
       ) : null}
     </div>
   );

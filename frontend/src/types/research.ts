@@ -52,6 +52,21 @@ export type ProjectCounts = {
   claims: number;
   evidence: number;
   checkpoints: number;
+  validations: number;
+  branches: number;
+};
+
+export type BranchStatusCounts = {
+  open: number;
+  dead_end: number;
+  closed: number;
+};
+
+// A contested claim surfaced on the overview (0.4.4).
+export type ContradictionItem = {
+  claim_id: string;
+  thread_id: string | null;
+  statement: string;
 };
 
 export type ProjectOverview = {
@@ -64,6 +79,8 @@ export type ProjectOverview = {
   created_at: string;
   updated_at: string;
   counts: ProjectCounts;
+  branch_counts: BranchStatusCounts;
+  contradictions: ContradictionItem[];
 };
 
 export type ClaimKind =
@@ -82,6 +99,9 @@ export type ClaimStatus =
   | "validated"
   | "retracted";
 
+// Derived display signal (0.4.4): computed from validation history, server-side.
+export type ClaimSignal = "none" | "contested" | "validated";
+
 export type Claim = {
   id: string;
   project_id: string;
@@ -94,6 +114,9 @@ export type Claim = {
   claim_metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+  // Embedded validation history (oldest first) and derived signal (0.4.4).
+  validations: Validation[];
+  signal: ClaimSignal;
 };
 
 export type RelationKind = "support" | "weaken" | "context";
@@ -129,6 +152,8 @@ export type Checkpoint = {
   id: string;
   project_id: string;
   thread_id: string | null;
+  // The branch this checkpoint sits on; null = the project main line (0.4.2).
+  branch_id: string | null;
   author_id: string | null;
   author: ActorSummary | null;
   contribution_kind: string | null;
@@ -171,6 +196,79 @@ export type EvidenceCreate = {
 
 export type CheckpointCreate = {
   thread_id?: string | null;
+  branch_id?: string | null;
   summary: string;
   notes?: string | null;
+};
+
+// --- Validations (0.4.1) ----------------------------------------------------
+
+export type ValidationOutcome =
+  | "passed"
+  | "failed"
+  | "inconclusive"
+  | "needs_reproduction"
+  | "contradicts"
+  | "retract";
+
+// Targets a human can validate in 0.4.x (artifact is wired backend-side but has no
+// write flow yet, so it is omitted from the UI).
+export type ValidationTargetType = "claim" | "checkpoint" | "branch";
+
+export type Validation = {
+  id: string;
+  project_id: string;
+  actor_id: string | null;
+  actor: ActorSummary | null;
+  target_type: string | null;
+  target_id: string | null;
+  outcome: ValidationOutcome;
+  notes: string | null;
+  // The checkpoint this validation was recorded through (0.4.1).
+  recording_checkpoint_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ValidationCreate = {
+  target_type: ValidationTargetType;
+  target_id: string;
+  outcome: ValidationOutcome;
+  notes?: string | null;
+};
+
+// --- Branches (0.4.2) -------------------------------------------------------
+
+export type BranchStatus = "open" | "merged" | "closed" | "dead_end";
+
+export type Branch = {
+  id: string;
+  project_id: string;
+  thread_id: string | null;
+  forked_from_checkpoint_id: string | null;
+  name: string;
+  reason: string | null;
+  status: BranchStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+// Branch list rows carry their checkpoint count (0.4.4).
+export type BranchSummary = Branch & {
+  checkpoint_count: number;
+};
+
+export type BranchCreate = {
+  from_checkpoint_id: string;
+  name: string;
+  reason?: string | null;
+  thread_id?: string | null;
+};
+
+// Only the two closing outcomes are accepted by the API.
+export type BranchCloseOutcome = "dead_end" | "closed";
+
+export type BranchClose = {
+  outcome: BranchCloseOutcome;
+  reason?: string | null;
 };

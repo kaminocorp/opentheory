@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { GitCommitHorizontal, Plus, X } from "lucide-react";
+import { GitCommitHorizontal, Plus, ShieldCheck, X } from "lucide-react";
 import { useState } from "react";
 
 import { createCheckpoint, listCheckpoints } from "@/lib/api";
@@ -9,10 +9,16 @@ import { queryKeys } from "@/lib/query-keys";
 import { useDevActor } from "@/providers/dev-actor-provider";
 
 import { PanelEmpty, PanelError, PanelLoading } from "./panel-state";
+import { RecordValidationForm } from "./validation-controls";
 
 type CheckpointTimelinePanelProps = {
   projectId: string;
   selectedThreadId: string | null;
+  // null = main line; otherwise the branch this timeline is scoped to (0.4.3).
+  selectedBranchId: string | null;
+  // The selected line is closed/dead-end: it's preserved, not extended, so recording is
+  // disabled (the backend would reject a checkpoint on a sealed branch with 400).
+  lineSealed?: boolean;
 };
 
 function formatTimestamp(iso: string): string {
@@ -29,17 +35,26 @@ function formatTimestamp(iso: string): string {
 export function CheckpointTimelinePanel({
   projectId,
   selectedThreadId,
+  selectedBranchId,
+  lineSealed = false,
 }: CheckpointTimelinePanelProps) {
   const { actorId, hydrated } = useDevActor();
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [summary, setSummary] = useState("");
   const [notes, setNotes] = useState("");
+  const [validatingId, setValidatingId] = useState<string | null>(null);
 
   const checkpointsQuery = useQuery({
     queryKey: queryKeys.checkpoints(projectId),
     queryFn: () => listCheckpoints(projectId),
   });
+
+  // Scope the timeline to the selected line: a checkpoint is on the main line when its
+  // branch_id is null, otherwise on its branch (0.4.3).
+  const checkpoints = (checkpointsQuery.data ?? []).filter(
+    (checkpoint) => (checkpoint.branch_id ?? null) === selectedBranchId,
+  );
 
   const createMutation = useMutation({
     mutationFn: (actor: string) =>
@@ -47,6 +62,7 @@ export function CheckpointTimelinePanel({
         projectId,
         {
           thread_id: selectedThreadId,
+          branch_id: selectedBranchId,
           summary: summary.trim(),
           notes: notes.trim() || null,
         },
@@ -70,18 +86,27 @@ export function CheckpointTimelinePanel({
           <GitCommitHorizontal className="size-4 text-signal" aria-hidden="true" />
           Checkpoints
         </h2>
-        <button
-          type="button"
-          onClick={() => setAdding((v) => !v)}
-          className="grid size-7 place-items-center rounded-md border border-line text-ink/65 hover:text-ink"
-          aria-label={adding ? "Cancel new checkpoint" : "New checkpoint"}
-          title={adding ? "Cancel" : "New checkpoint"}
-        >
-          {adding ? <X className="size-4" aria-hidden="true" /> : <Plus className="size-4" aria-hidden="true" />}
-        </button>
+        {lineSealed ? null : (
+          <button
+            type="button"
+            onClick={() => setAdding((v) => !v)}
+            className="grid size-7 place-items-center rounded-md border border-line text-ink/65 hover:text-ink"
+            aria-label={adding ? "Cancel new checkpoint" : "New checkpoint"}
+            title={adding ? "Cancel" : "New checkpoint"}
+          >
+            {adding ? <X className="size-4" aria-hidden="true" /> : <Plus className="size-4" aria-hidden="true" />}
+          </button>
+        )}
       </header>
 
-      {adding ? (
+      {lineSealed ? (
+        <p className="rounded-md border border-dashed border-line bg-paper/50 p-2.5 text-xs leading-5 text-ink/55">
+          This line is closed — its checkpoints are preserved, not extended. Switch to the
+          main line or an open branch to record a new checkpoint.
+        </p>
+      ) : null}
+
+      {adding && !lineSealed ? (
         <form
           className="grid gap-2 rounded-md border border-line bg-paper/60 p-3"
           onSubmit={(event) => {
@@ -90,7 +115,8 @@ export function CheckpointTimelinePanel({
           }}
         >
           <p className="text-xs text-ink/55">
-            {selectedThreadId ? "Scoped to the selected thread." : "Project-level checkpoint."}
+            {selectedBranchId ? "Recorded on the selected branch." : "Recorded on the main line."}
+            {selectedThreadId ? " Scoped to the selected thread." : ""}
           </p>
           <input
             value={summary}
@@ -125,14 +151,15 @@ export function CheckpointTimelinePanel({
         <PanelLoading label="Loading checkpoints" />
       ) : checkpointsQuery.isError ? (
         <PanelError label="Could not load checkpoints." />
-      ) : (checkpointsQuery.data ?? []).length === 0 ? (
+      ) : checkpoints.length === 0 ? (
         <PanelEmpty icon={<GitCommitHorizontal className="size-5" aria-hidden="true" />}>
-          No checkpoints yet. Record one after a meaningful move — proposing a hypothesis,
-          attaching evidence, or validating a result — to mark it in the ledger.
+          {selectedBranchId
+            ? "No checkpoints on this branch yet. Record one to extend the line, or validate a claim."
+            : "No checkpoints on the main line yet. Record one after a meaningful move — proposing a hypothesis, attaching evidence, or validating a result — to mark it in the ledger."}
         </PanelEmpty>
       ) : (
         <ol className="grid gap-2">
-          {(checkpointsQuery.data ?? []).map((checkpoint) => (
+          {checkpoints.map((checkpoint) => (
             <li
               key={checkpoint.id}
               className="relative rounded-md border border-line bg-white/60 p-3 pl-4"
@@ -178,6 +205,28 @@ export function CheckpointTimelinePanel({
                 {checkpoint.thread_id ? <span>· thread-scoped</span> : null}
                 {checkpoint.parent_ids.length > 0 ? (
                   <span>· {checkpoint.parent_ids.length} parent{checkpoint.parent_ids.length === 1 ? "" : "s"}</span>
+                ) : null}
+              </div>
+
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setValidatingId((current) => (current === checkpoint.id ? null : checkpoint.id))
+                  }
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-signal hover:text-ink"
+                >
+                  <ShieldCheck className="size-3" aria-hidden="true" />
+                  {validatingId === checkpoint.id ? "Cancel" : "Validate"}
+                </button>
+                {validatingId === checkpoint.id ? (
+                  <RecordValidationForm
+                    projectId={projectId}
+                    targetType="checkpoint"
+                    targetId={checkpoint.id}
+                    onDone={() => setValidatingId(null)}
+                    compact
+                  />
                 ) : null}
               </div>
             </li>

@@ -50,6 +50,9 @@ class CheckpointCreate(BaseModel):
     """
 
     thread_id: UUID | None = None
+    # The branch this checkpoint is recorded on (0.4.2). None = the project main line; a
+    # value must reference an open branch in this project (validated in the service layer).
+    branch_id: UUID | None = None
     summary: str = Field(min_length=1)
     stage: ThreadStage | None = None
     content: dict[str, Any] = Field(default_factory=dict)
@@ -64,6 +67,7 @@ class CheckpointRead(BaseModel):
     id: UUID
     project_id: UUID
     thread_id: UUID | None
+    branch_id: UUID | None
     author_id: UUID | None
     # Enriched provenance (0.3.4): the creating actor and the kind of contribution this
     # checkpoint recorded. None if the author actor was removed.

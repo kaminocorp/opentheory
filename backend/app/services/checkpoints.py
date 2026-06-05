@@ -20,34 +20,44 @@ from sqlalchemy.orm import selectinload
 
 from app.models.actor import Actor
 from app.models.artifact import Artifact
+from app.models.branch import Branch
 from app.models.checkpoint import Checkpoint
 from app.models.claim import Claim
 from app.models.contribution import Contribution
+from app.models.enums import BranchStatus
 from app.models.evidence import Evidence
 from app.models.links import CheckpointRef
 from app.models.project import Project
 from app.models.thread import Thread
+from app.models.validation import Validation
 from app.schemas.checkpoint import (
     ActorSummary,
     CheckpointCreate,
     CheckpointRead,
+    CheckpointRefInput,
     CheckpointRefRead,
 )
 from app.services import contributions
 
 # Allowed checkpoint-ref target types -> the model whose existence/project we verify,
-# plus the attribute used as the human-readable label (0.3.4 enriched read).
+# plus the attribute used as the human-readable label (0.3.4 enriched read). 0.4.1 adds
+# ``validation`` and ``branch`` so the validation flow (and later branch flows) can record
+# refs that resolve labels like any other primitive.
 _REF_TARGET_MODELS: dict[str, type] = {
     "claim": Claim,
     "evidence": Evidence,
     "artifact": Artifact,
     "thread": Thread,
+    "branch": Branch,
+    "validation": Validation,
 }
 _REF_LABEL_ATTR: dict[str, str] = {
     "claim": "statement",
     "evidence": "title",
     "artifact": "name",
     "thread": "title",
+    "branch": "name",
+    "validation": "outcome",
 }
 CHECKPOINT_TARGET_TYPES: frozenset[str] = frozenset(_REF_TARGET_MODELS)
 
@@ -63,6 +73,7 @@ def _to_read(
         id=checkpoint.id,
         project_id=checkpoint.project_id,
         thread_id=checkpoint.thread_id,
+        branch_id=checkpoint.branch_id,
         author_id=checkpoint.author_id,
         author=author,
         contribution_kind=contribution_kind,
@@ -174,7 +185,7 @@ async def _validate_parents(
 
 
 async def _validate_refs(
-    db: AsyncSession, project_id: UUID, refs: list  # list[CheckpointRefInput]
+    db: AsyncSession, project_id: UUID, refs: list[CheckpointRefInput]
 ) -> None:
     for ref in refs:
         model = _REF_TARGET_MODELS.get(ref.target_type)
@@ -207,7 +218,20 @@ async def create_checkpoint(
     project_id: UUID,
     payload: CheckpointCreate,
     actor: Actor,
+    *,
+    extra_refs: list[CheckpointRefInput] | None = None,
+    contribution_action: str | None = None,
 ) -> CheckpointRead:
+    """Create the project's sole kind of ledger write: an immutable checkpoint.
+
+    ``extra_refs`` are service-supplied refs (e.g. the validation flow adds a
+    ``validated`` ref to the target and a ``recorded`` ref to the validation). They are
+    trusted — unlike client ``payload.refs`` they are not re-validated here, because the
+    calling service has already validated the underlying rows in the same transaction.
+    ``contribution_action`` overrides the recorded contribution's action (default
+    ``create_checkpoint``) so flows like ``validate`` attribute correctly while still
+    going through this one chokepoint.
+    """
     project = await db.get(Project, project_id)
     if project is None:
         raise HTTPException(
@@ -228,12 +252,33 @@ async def create_checkpoint(
                 detail="Thread belongs to a different project",
             )
 
+    if payload.branch_id is not None:
+        branch = await db.get(Branch, payload.branch_id)
+        if branch is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Branch not found",
+            )
+        if branch.project_id != project_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Branch belongs to a different project",
+            )
+        # Only an open branch can receive new checkpoints; a closed/dead-end/merged line
+        # is sealed (its dead ends are preserved, not extended).
+        if branch.status != BranchStatus.OPEN:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Branch is not open (status: {branch.status.value})",
+            )
+
     parents = await _validate_parents(db, project_id, payload.parent_ids)
     await _validate_refs(db, project_id, payload.refs)
 
     checkpoint = Checkpoint(
         project_id=project_id,
         thread_id=payload.thread_id,
+        branch_id=payload.branch_id,
         author_id=actor.id,
         stage=payload.stage,
         summary=payload.summary,
@@ -244,7 +289,7 @@ async def create_checkpoint(
     db.add(checkpoint)
     await db.flush()  # assign checkpoint.id before refs/contribution
 
-    for ref in payload.refs:
+    for ref in [*payload.refs, *(extra_refs or [])]:
         db.add(
             CheckpointRef(
                 checkpoint_id=checkpoint.id,
@@ -258,7 +303,7 @@ async def create_checkpoint(
         db,
         project_id=project_id,
         actor=actor,
-        action=contributions.ACTION_CREATE_CHECKPOINT,
+        action=contribution_action or contributions.ACTION_CREATE_CHECKPOINT,
         target_type="checkpoint",
         target_id=checkpoint.id,
         checkpoint_id=checkpoint.id,
@@ -275,6 +320,19 @@ async def list_checkpoints(db: AsyncSession, project_id: UUID) -> list[Checkpoin
     result = await db.execute(
         select(Checkpoint)
         .where(Checkpoint.project_id == project_id)
+        .options(selectinload(Checkpoint.parents), selectinload(Checkpoint.refs))
+        .order_by(Checkpoint.created_at.desc())
+    )
+    return await _enrich(db, list(result.scalars()))
+
+
+async def list_checkpoints_for_branch(
+    db: AsyncSession, branch_id: UUID
+) -> list[CheckpointRead]:
+    """Checkpoints recorded on a branch (newest first); used by the branch detail read."""
+    result = await db.execute(
+        select(Checkpoint)
+        .where(Checkpoint.branch_id == branch_id)
         .options(selectinload(Checkpoint.parents), selectinload(Checkpoint.refs))
         .order_by(Checkpoint.created_at.desc())
     )

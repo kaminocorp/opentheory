@@ -2,6 +2,10 @@ import type { Project } from "@/types/project";
 import type {
   Actor,
   ActorCreate,
+  Branch,
+  BranchClose,
+  BranchCreate,
+  BranchSummary,
   Checkpoint,
   CheckpointCreate,
   Claim,
@@ -12,6 +16,8 @@ import type {
   Thread,
   ThreadCreate,
   ThreadSummary,
+  Validation,
+  ValidationCreate,
 } from "@/types/research";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
@@ -137,4 +143,36 @@ export function createCheckpoint(
   actorId: string,
 ): Promise<Checkpoint> {
   return request<Checkpoint>(`/projects/${projectId}/checkpoints`, writeInit(actorId, payload));
+}
+
+// --- Validations ------------------------------------------------------------
+
+export function createValidation(
+  projectId: string,
+  payload: ValidationCreate,
+  actorId: string,
+): Promise<Validation> {
+  return request<Validation>(`/projects/${projectId}/validations`, writeInit(actorId, payload));
+}
+
+// --- Branches ---------------------------------------------------------------
+
+export function listBranches(projectId: string): Promise<BranchSummary[]> {
+  return request<BranchSummary[]>(`/projects/${projectId}/branches`);
+}
+
+export function createBranch(
+  projectId: string,
+  payload: BranchCreate,
+  actorId: string,
+): Promise<Branch> {
+  return request<Branch>(`/projects/${projectId}/branches`, writeInit(actorId, payload));
+}
+
+export function closeBranch(
+  branchId: string,
+  payload: BranchClose,
+  actorId: string,
+): Promise<Branch> {
+  return request<Branch>(`/branches/${branchId}/close`, writeInit(actorId, payload));
 }

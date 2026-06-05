@@ -3,7 +3,6 @@ from uuid import UUID
 from fastapi import APIRouter, status
 
 from app.api.deps import ActingActor, DbSession
-from app.models.claim import Claim
 from app.schemas.claim import ClaimCreate, ClaimRead
 from app.services import claims as claim_service
 
@@ -21,7 +20,7 @@ async def create_claim(
     payload: ClaimCreate,
     db: DbSession,
     actor: ActingActor,
-) -> Claim:
+) -> ClaimRead:
     return await claim_service.create_claim(db, thread_id, payload, actor)
 
 
@@ -30,10 +29,10 @@ async def create_claim(
     response_model=list[ClaimRead],
     tags=["claims"],
 )
-async def list_claims(thread_id: UUID, db: DbSession) -> list[Claim]:
+async def list_claims(thread_id: UUID, db: DbSession) -> list[ClaimRead]:
     return await claim_service.list_claims(db, thread_id)
 
 
 @router.get("/claims/{claim_id}", response_model=ClaimRead, tags=["claims"])
-async def get_claim(claim_id: UUID, db: DbSession) -> Claim:
+async def get_claim(claim_id: UUID, db: DbSession) -> ClaimRead:
     return await claim_service.get_claim(db, claim_id)

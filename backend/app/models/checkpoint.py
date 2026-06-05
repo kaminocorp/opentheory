@@ -35,6 +35,16 @@ class Checkpoint(IdMixin, TimestampMixin, Base):
         ForeignKey("actors.id", ondelete="SET NULL"),
         index=True,
     )
+    # The line of exploration this checkpoint sits on (0.4.2). NULL = the project's main
+    # line; a non-null value places the checkpoint on a Branch. SET NULL on branch delete
+    # keeps the checkpoint (append-only) while detaching it. Note: this is the *second* FK
+    # between checkpoints and branches (branches.forked_from_checkpoint_id is the first),
+    # so every relationship spanning the two tables must pin ``foreign_keys`` explicitly.
+    branch_id: Mapped[UUID | None] = mapped_column(
+        PgUUID(as_uuid=True),
+        ForeignKey("branches.id", ondelete="SET NULL"),
+        index=True,
+    )
     # Research-flow stage is optional metadata, not platform law (see docs/primitives.md):
     # a human may record a checkpoint without committing to a research-flow stage.
     stage: Mapped[ThreadStage | None] = mapped_column(
@@ -59,6 +69,13 @@ class Checkpoint(IdMixin, TimestampMixin, Base):
     project = relationship("Project", back_populates="checkpoints")
     thread = relationship("Thread", back_populates="checkpoints")
     author = relationship("Actor", back_populates="checkpoints")
+    # The branch this checkpoint is on (via checkpoints.branch_id); pinned because two FKs
+    # span checkpoints<->branches.
+    branch = relationship(
+        "Branch",
+        back_populates="checkpoints",
+        foreign_keys=[branch_id],
+    )
     parents = relationship(
         "Checkpoint",
         secondary=checkpoint_parent,

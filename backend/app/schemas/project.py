@@ -27,15 +27,35 @@ class ProjectRead(ProjectBase):
 
 
 class ProjectCounts(BaseModel):
-    """Aggregate counts shown at a glance on the workspace header (0.3.4)."""
+    """Aggregate counts shown at a glance on the workspace header (0.3.4; +0.4.4)."""
 
     threads: int
     claims: int
     evidence: int
     checkpoints: int
+    validations: int = 0
+    branches: int = 0
+
+
+class BranchStatusCounts(BaseModel):
+    """Branches broken down by lifecycle status (0.4.4)."""
+
+    open: int = 0
+    dead_end: int = 0
+    closed: int = 0
+
+
+class ContradictionItem(BaseModel):
+    """A contested claim: one carrying an unretracted contradicts/failed validation (0.4.4)."""
+
+    claim_id: UUID
+    thread_id: UUID | None
+    statement: str
 
 
 class ProjectOverview(ProjectRead):
-    """Project detail enriched with aggregate ledger counts."""
+    """Project detail enriched with aggregate ledger counts and integrity summaries."""
 
     counts: ProjectCounts
+    branch_counts: BranchStatusCounts = Field(default_factory=BranchStatusCounts)
+    contradictions: list[ContradictionItem] = Field(default_factory=list)

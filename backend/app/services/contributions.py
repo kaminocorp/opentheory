@@ -21,6 +21,9 @@ ACTION_CREATE_THREAD = "create_thread"
 ACTION_CREATE_CLAIM = "create_claim"
 ACTION_CREATE_EVIDENCE = "create_evidence"
 ACTION_CREATE_CHECKPOINT = "create_checkpoint"
+ACTION_VALIDATE = "validate"  # 0.4.1: recording a validation (through the checkpoint chokepoint)
+ACTION_CREATE_BRANCH = "create_branch"  # 0.4.2: forking a branch from a checkpoint
+ACTION_CLOSE_BRANCH = "close_branch"  # 0.4.2: closing a branch as dead-end/superseded
 
 
 def record_contribution(

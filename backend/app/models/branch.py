@@ -37,5 +37,16 @@ class Branch(IdMixin, TimestampMixin, Base):
 
     project = relationship("Project", back_populates="branches")
     thread = relationship("Thread", back_populates="branches")
-    forked_from_checkpoint = relationship("Checkpoint")
+    # The checkpoint this branch forked from (via branches.forked_from_checkpoint_id).
+    # Pinned because checkpoints.branch_id (0.4.2) adds a second FK between the two tables.
+    forked_from_checkpoint = relationship(
+        "Checkpoint",
+        foreign_keys="Branch.forked_from_checkpoint_id",
+    )
+    # The checkpoints recorded on this branch (via checkpoints.branch_id).
+    checkpoints = relationship(
+        "Checkpoint",
+        back_populates="branch",
+        foreign_keys="Checkpoint.branch_id",
+    )
     validations = relationship("Validation", back_populates="branch")

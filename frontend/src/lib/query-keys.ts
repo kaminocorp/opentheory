@@ -10,4 +10,5 @@ export const queryKeys = {
   claims: (threadId: string) => ["claims", threadId] as const,
   evidence: (claimId: string) => ["evidence", claimId] as const,
   checkpoints: (projectId: string) => ["checkpoints", projectId] as const,
+  branches: (projectId: string) => ["branches", projectId] as const,
 };

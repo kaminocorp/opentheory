@@ -12,12 +12,18 @@ WRITE_PATHS = [
     "/api/v1/threads/{thread_id}/claims",
     "/api/v1/claims/{claim_id}/evidence",
     "/api/v1/projects/{project_id}/checkpoints",
+    "/api/v1/projects/{project_id}/validations",
+    "/api/v1/projects/{project_id}/branches",
+    "/api/v1/branches/{branch_id}/close",
 ]
 
-# Checkpoints and their refs are append-only: no endpoint may mutate them.
+# Checkpoints/refs and validations are append-only: no endpoint may mutate them.
 APPEND_ONLY_PATHS = [
     "/api/v1/projects/{project_id}/checkpoints",
     "/api/v1/checkpoints/{checkpoint_id}",
+    "/api/v1/projects/{project_id}/validations",
+    "/api/v1/claims/{claim_id}/validations",
+    "/api/v1/validations/{validation_id}",
 ]
 
 
@@ -35,6 +41,11 @@ def test_new_paths_exist() -> None:
     assert "get" in paths["/api/v1/projects/{project_id}/checkpoints"]
     assert "get" in paths["/api/v1/checkpoints/{checkpoint_id}"]
     assert "get" in paths["/api/v1/projects/{project_id}/overview"]
+    assert "get" in paths["/api/v1/projects/{project_id}/validations"]
+    assert "get" in paths["/api/v1/claims/{claim_id}/validations"]
+    assert "get" in paths["/api/v1/validations/{validation_id}"]
+    assert "get" in paths["/api/v1/projects/{project_id}/branches"]
+    assert "get" in paths["/api/v1/branches/{branch_id}"]
     for path in WRITE_PATHS:
         assert "post" in paths[path], f"missing POST for {path}"
 
