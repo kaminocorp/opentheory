@@ -11,8 +11,12 @@ from app.core.config import settings
 from app.db.base import Base
 from app.models import *  # noqa: F403
 
+# Migrations run over the direct/session connection when MIGRATION_DATABASE_URL is set
+# (DDL + schema introspection prefer a stable, non-pooled session); otherwise the app URL.
+migration_url = settings.migration_database_url or settings.database_url
+
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.database_url)
+config.set_main_option("sqlalchemy.url", migration_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -22,7 +26,7 @@ target_metadata = Base.metadata
 
 def run_migrations_offline() -> None:
     context.configure(
-        url=settings.database_url,
+        url=migration_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -41,7 +45,7 @@ def do_run_migrations(connection: Connection) -> None:
 
 async def run_migrations_online() -> None:
     configuration = config.get_section(config.config_ini_section, {})
-    configuration["sqlalchemy.url"] = settings.database_url
+    configuration["sqlalchemy.url"] = migration_url
     connectable = async_engine_from_config(
         configuration,
         prefix="sqlalchemy.",

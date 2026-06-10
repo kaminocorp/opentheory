@@ -1,7 +1,8 @@
 from functools import lru_cache
+from typing import Annotated
 
 from pydantic import AnyHttpUrl, Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -13,7 +14,15 @@ class Settings(BaseSettings):
     database_url: str = Field(
         default="postgresql+asyncpg://postgres:postgres@localhost:5432/opentheory"
     )
-    backend_cors_origins: list[AnyHttpUrl] = []
+    # Optional separate connection for Alembic migrations. The app runs over the Supabase
+    # transaction pooler (:6543), but DDL + schema introspection prefer a stable, non-pooled
+    # session, so migrations use this direct/session URL when set. Falls back to database_url.
+    migration_database_url: str | None = None
+    # NoDecode: skip pydantic-settings' default JSON decoding of this complex (list) field so
+    # the comma-splitting validator below receives the raw env string (e.g. "http://a,http://b")
+    # instead of crashing on json.loads. Without it, a non-JSON BACKEND_CORS_ORIGINS env value
+    # raises before any validator runs.
+    backend_cors_origins: Annotated[list[AnyHttpUrl], NoDecode] = []
 
     @field_validator("backend_cors_origins", mode="before")
     @classmethod

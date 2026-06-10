@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.4.6` — First live database: provisioned the managed Postgres, applied migrations `0001→0003` to a real database for the first time, and hardened the connection config for a pooled cloud Postgres (app over the transaction pooler, Alembic over a direct connection). Fixes two latent config bugs the first populated `.env` exposed (CORS origins parsing + origin trailing-slash match). No new features or schema; closes the infrastructure half of the `0.4.0` DoD gate.
 - `0.4.5` — Post-`0.4.0` review fixes: order-aware claim `signal` (a contradiction after a retract re-contests), corrected a stale overview-counts test that would have failed on a live DB, sealed-branch recording UX, typed the checkpoint ref validator, and removed dead frontend exports. No new features, schema, or migration.
 - `0.4.4` — Read-model enrichment + polish: claim validation history with a derived `signal`, project overview branch/validation counts + contradictions summary, per-branch checkpoint counts, and the workspace surfaces for all of it. Completes `0.4.0`.
 - `0.4.3` — Frontend validation + branch surfaces: record validations on claims/checkpoints, a branch bar that forks/closes and scopes the ledger timeline, and contradiction indicators. Third phase of `0.4.0`.
@@ -13,6 +14,43 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.4.6
+
+First live database. Stands up the chosen managed Postgres (Supabase, per `docs/techstack.md`), applies the existing migrations to a real database for the first time, and hardens the connection configuration for a pooled cloud Postgres. Also fixes two latent configuration bugs that only surface once a populated `.env` exists. No new features, no schema change, no new migration — this closes the **infrastructure half** of the `0.4.0 — Validation And Branching` Definition-of-Done gate.
+
+### Summary
+
+Through `0.4.5` the backend had never connected to a real database: migrations were verified offline and the DB-backed tests skipped. This phase provisions the database, applies `0001 → 0003` against it, and proves both connection paths the app needs (pooled runtime + direct migrations). Bringing up a real `.env` for the first time also flushed out two dormant configuration bugs, both fixed.
+
+### Database
+
+- Applied migrations `0001_baseline → 0002_checkpoint_content → 0003_checkpoint_branch_id` to a live managed Postgres — the first time the schema has been created on a real database. `alembic current` reports `0003` at head and the expected public tables are present.
+
+### Connection Configuration (dual path)
+
+- **App runtime → transaction pooler.** The application engine connects through the connection pooler in transaction mode for connection scalability. asyncpg's prepared-statement cache is disabled (`connect_args={"statement_cache_size": 0}`) so it is safe behind a transaction-mode pooler (which reassigns server connections per transaction). At the platform's current query scale the lost statement caching is negligible, and parameter binding — i.e. injection safety — is unaffected. (`app/db/session.py`.)
+- **Migrations → direct connection.** Added an optional `migration_database_url` setting (`MIGRATION_DATABASE_URL`); Alembic prefers it and falls back to `database_url`. DDL and schema introspection run over a stable, non-pooled session — the Prisma `url`/`directUrl` split. (`app/core/config.py`, `alembic/env.py`.)
+- **TLS.** Connection URLs carry `?ssl=require`, which the SQLAlchemy asyncpg dialect maps to asyncpg's `ssl` argument (not the psycopg `sslmode`, which asyncpg does not understand). Connection secrets live only in the gitignored `.env`; `.env.example` documents the shape.
+
+### Latent Config Bugs Fixed (surfaced by the first populated `.env`)
+
+- **CORS origins parsing.** `backend_cors_origins` is a `list` field, and pydantic-settings JSON-decodes complex fields *before* validators run — so a plain `BACKEND_CORS_ORIGINS=http://localhost:3000` raised a JSON error at startup. Annotated the field with pydantic-settings' `NoDecode` so the existing comma-splitting validator receives the raw string. Dormant until now because the empty-default path skipped the decode. (`app/core/config.py`.)
+- **CORS origin trailing-slash mismatch.** `str(AnyHttpUrl(...))` normalizes to `http://localhost:3000/`, but browsers send the `Origin` header without the trailing slash and Starlette matches origins exactly — so every preflight would have failed. Strip the trailing slash when building `allow_origins`. (`app/main.py`.)
+
+### Tooling And Verification
+
+- `uv run alembic upgrade head` applied all three migrations to the live database; `alembic current` → `0003` (head).
+- Verified the app's transaction-pooler path connects and queries with no prepared-statement errors, and that the migrated schema is visible over it.
+- In-process smoke test against the live database: `GET /api/v1/health` → `200`, `GET /api/v1/projects` → `200 []` (empty, pre-seed).
+- `uv run ruff check .` clean; `uv run pytest` → `5 passed, 31 skipped` (DB-backed tests still skip — see below).
+
+### Still gating a production push
+
+- **The 31 DB-backed tests still need to be run green** against a *separate* test database. The test fixture creates and `drop_all`s the schema per test, so `TEST_DATABASE_URL` must never point at the live/seeded database. This is the remaining half of the `0.4.0` DoD gate; the infrastructure half (DB stood up, migrations applied, both connection modes proven) is now done.
+- **No authentication/authorization** — `X-Dev-Actor-Id` lets any caller act as any actor. Deferred to `0.6.0`.
 
 ---
 

@@ -15,9 +15,12 @@ def create_app() -> FastAPI:
     app = FastAPI(title=settings.app_name)
 
     if settings.backend_cors_origins:
+        # str(AnyHttpUrl(...)) normalizes with a trailing slash ("http://localhost:3000/"),
+        # but browsers send the Origin header without one ("http://localhost:3000") and
+        # Starlette's CORS matches origins exactly — so strip the slash or every preflight fails.
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=[str(origin) for origin in settings.backend_cors_origins],
+            allow_origins=[str(origin).rstrip("/") for origin in settings.backend_cors_origins],
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
