@@ -13,7 +13,7 @@ The product is currently a *human-operable* research ledger. Agents are explicit
 - `docs/research-git.md` — the git-for-research ledger semantics (checkpoint = commit, branch, merge, diff, blame, tag).
 - `docs/techstack.md` — stack choices and the rationale/boundaries behind them.
 - `docs/vision.md` — product vision and example research domains.
-- `docs/plans/` — versioned implementation plans; `0.3.0` is the active release.
+- `docs/plans/` — versioned implementation plans. `0.4.0` (validation and branching) is shipped through `0.4.5`; `docs/plans/roadmap-next-steps.md` points at what's next. `docs/changelog.md` is the per-phase ledger of what landed and why.
 
 ## Architecture
 
@@ -29,7 +29,11 @@ database    Supabase Postgres
 
 ### Backend layering (`backend/app/`)
 
-Requests flow `api/routes/` → `services/` → `models/`. Keep route handlers thin; domain logic and invariant enforcement belong in the service layer (the planned checkpoint service is the chokepoint for all ledger writes).
+Requests flow `api/routes/` → `services/` → `models/`. Keep route handlers thin; domain logic and invariant enforcement belong in the service layer.
+
+**The checkpoint service (`services/checkpoints.py`) is the chokepoint for all ledger writes.** `create_checkpoint` is the *only* code path that writes a `Checkpoint`; in one transaction it validates project/thread/branch/parent/ref context, writes the `checkpoint_refs` rows, links parents, and auto-records a `Contribution`. Other write flows **compose** with it rather than minting checkpoints themselves: e.g. `create_validation` writes its `Validation` row, then calls `create_checkpoint(..., extra_refs=[...], contribution_action="validate")` to record the event through the chokepoint. Two patterns to preserve:
+- **The chokepoint owns the single `commit`.** Helper writers (`contributions.record_contribution`, and composing services like validation/branch) `db.add(...)` to the caller's session and never commit, so the whole flow is one atomic transaction — if any part fails, nothing orphans.
+- `extra_refs` passed by a composing service are *trusted* (not re-validated), because that service already validated the underlying rows in the same transaction; client-supplied `payload.refs` are always validated.
 
 - `core/config.py` — `Settings` (pydantic-settings) loaded from `.env`; access via the module-level `settings` singleton.
 - `db/base.py` — `Base` plus `IdMixin` (UUID pk) and `TimestampMixin`; every model composes these.
@@ -45,13 +49,15 @@ The core graph (see `docs/primitives.md` for full relationships):
 `Project` → has many `Thread`, `Claim`, `Artifact`, `Evidence`, `Checkpoint`, `Branch`, `Validation`, `Contribution`, `FundingAllocation`. `Actor` performs actions (`human` | `agent` | `system`) and authors `Checkpoint`s, makes `Contribution`s, performs `Validation`s, and creates `FundingAllocation`s.
 
 Invariants that must be preserved in code:
-- **`Checkpoint` and `FundingAllocation` are append-only.** Corrections, reversals, and retractions are *new* records, never edits or deletes.
+- **Append-only is ORM-enforced, not just convention.** `models/append_only.py` registers `before_update`/`before_delete` mapper guards on `Checkpoint`, `CheckpointRef`, `FundingAllocation`, and `Validation`, raising `AppendOnlyError` so the invariant holds even if the route layer is bypassed. Corrections, reversals, and retractions are *new* records (a re-assessment is a new `Validation` row, never an edit). Caveat: the guards fire on the ORM unit-of-work only — bulk Core `UPDATE`/`DELETE` and DDL (`drop_all` in tests) bypass them by design.
 - `Claim` is first-class; confidence is explainable through evidence/validation history, not a naked score.
 - `Evidence` and `Artifact` are separately addressable and content-addressed where possible (pin external evidence with URI + retrieval timestamp + hash).
 - Branches preserve parallel exploration and dead ends — abandonment is *recorded*, not deleted.
 - Workflow stages (`ThreadStage`: decompose → hypothesize → formalize → design → execute → validate → integrate) are optional metadata, not hard-coded platform law.
 
 All enums live in `models/enums.py` as `StrEnum` and map to **named** Postgres enum types (e.g. `Enum(ClaimStatus, name="claim_status")`) — keep the `name=` stable, since it becomes the DB type name. Note metadata columns are named `<entity>_metadata` (e.g. `claim_metadata`) to avoid SQLAlchemy's reserved `metadata` attribute.
+
+**The acting actor.** Every write resolves an `Actor` from the `X-Dev-Actor-Id` request header via the `ActingActor` dependency (`api/deps.py`); the handler passes it down so the service can attribute the `Contribution`. There is no auth yet (real identity is planned for `0.6.0`) — a missing/malformed header or unknown actor id is rejected, so write endpoints must declare the dependency rather than inventing an actor.
 
 ### Frontend (`frontend/src/`)
 
@@ -72,6 +78,11 @@ uv run fastapi dev app/main.py       # run dev server (localhost:8000)
 uv run ruff check .                  # lint (ruff, line-length 100, rules E/F/I/UP/B)
 uv run pytest                        # run all tests
 uv run pytest tests/test_app.py::test_health_endpoint   # single test
+
+# DB-backed tests (test_checkpoints, test_validations, test_branches, test_read_models,
+# test_research_flow) auto-skip unless TEST_DATABASE_URL (or DATABASE_URL) points at a
+# reachable Postgres — see tests/conftest.py. Without one, pytest is green but mostly
+# skipped; set the env var before trusting a passing run for ledger/service changes.
 
 uv run alembic revision --autogenerate -m "message"     # create migration
 uv run alembic upgrade head                             # apply migrations
@@ -96,4 +107,4 @@ npm run build        # next build
 - Python targets 3.12+; use modern typing (`X | None`, `list[...]`, `StrEnum`). Async throughout — DB access is async SQLAlchemy.
 - Database writes that touch the ledger must go through the backend application/service layer, never direct DB writes, so append-only invariants and contribution recording are enforced.
 - Migrations are owned by the backend; the frontend has no direct database access.
-- Versioning is tracked in `docs/changelog.md` and `docs/plans/`. Releases are scoped as small, deployable/demoable phases (see the `0.3.x` phase map). Update the changelog when completing a release-scoped change.
+- Versioning is tracked in `docs/changelog.md` and `docs/plans/`. Releases are scoped as small, deployable/demoable phases (e.g. `0.4.1`–`0.4.5` each landed one slice of `0.4.0`). Update the changelog when completing a release-scoped change.
