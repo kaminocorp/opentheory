@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.4.7` — Developer convenience: a root `Makefile` wrapping the common backend (`uv`) and frontend (`npm`) tasks — `make dev`, `make migrate`, `make test`, `make fe`, etc. No app code, schema, or behavior change.
 - `0.4.6` — First live database: provisioned the managed Postgres, applied migrations `0001→0003` to a real database for the first time, and hardened the connection config for a pooled cloud Postgres (app over the transaction pooler, Alembic over a direct connection). Fixes two latent config bugs the first populated `.env` exposed (CORS origins parsing + origin trailing-slash match). No new features or schema; closes the infrastructure half of the `0.4.0` DoD gate.
 - `0.4.5` — Post-`0.4.0` review fixes: order-aware claim `signal` (a contradiction after a retract re-contests), corrected a stale overview-counts test that would have failed on a live DB, sealed-branch recording UX, typed the checkpoint ref validator, and removed dead frontend exports. No new features, schema, or migration.
 - `0.4.4` — Read-model enrichment + polish: claim validation history with a derived `signal`, project overview branch/validation counts + contradictions summary, per-branch checkpoint counts, and the workspace surfaces for all of it. Completes `0.4.0`.
@@ -14,6 +15,17 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.4.7
+
+Developer convenience only — a root `Makefile` so the common workflows have short, memorable names. No application code, schema, or behavior change.
+
+### Tooling
+
+- Added a root `Makefile` wrapping the existing backend (`uv`) and frontend (`npm`) commands as targets: `make dev` (backend dev server), `make fe` (frontend dev server), `make migrate` / `make migration m="…"` / `make downgrade` (Alembic), `make test`, `make lint`, `make sync`, `make fe-install`. Bare `make` (default goal) prints a self-generated target list from each target's `##` comment.
+- The targets only *wrap* the canonical commands (each is `cd backend && uv run …` or `cd frontend && npm …`), so every guarantee of `uv run` is preserved — correct `.venv`, locked deps — just behind a shorter name. Nothing previously documented changes.
 
 ---
 
