@@ -2,8 +2,9 @@
 
 ## Index
 
+- `0.4.8` — First live deployment: the FastAPI backend on Fly.io and the Next.js frontend on Vercel, both against the live Supabase DB, as an open (no-auth) preview. Adds the deploy scaffolding (Dockerfile, `fly.toml`, runbook) and documents the production connection shape. No app code, schema, or migration change.
 - `0.4.7` — Developer convenience: a root `Makefile` wrapping the common backend (`uv`) and frontend (`npm`) tasks — `make dev`, `make migrate`, `make test`, `make fe`, etc. No app code, schema, or behavior change.
-- `0.4.6` — First live database: provisioned the managed Postgres, applied migrations `0001→0003` to a real database for the first time, and hardened the connection config for a pooled cloud Postgres (app over the transaction pooler, Alembic over a direct connection). Fixes two latent config bugs the first populated `.env` exposed (CORS origins parsing + origin trailing-slash match). No new features or schema; closes the infrastructure half of the `0.4.0` DoD gate.
+- `0.4.6` — First live database: provisioned the managed Postgres, applied migrations `0001→0003`, and hardened the connection config for a pooled cloud Postgres (app over the transaction pooler, Alembic over a direct connection). No new features or schema.
 - `0.4.5` — Post-`0.4.0` review fixes: order-aware claim `signal` (a contradiction after a retract re-contests), corrected a stale overview-counts test that would have failed on a live DB, sealed-branch recording UX, typed the checkpoint ref validator, and removed dead frontend exports. No new features, schema, or migration.
 - `0.4.4` — Read-model enrichment + polish: claim validation history with a derived `signal`, project overview branch/validation counts + contradictions summary, per-branch checkpoint counts, and the workspace surfaces for all of it. Completes `0.4.0`.
 - `0.4.3` — Frontend validation + branch surfaces: record validations on claims/checkpoints, a branch bar that forks/closes and scopes the ledger timeline, and contradiction indicators. Third phase of `0.4.0`.
@@ -15,6 +16,54 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.4.8
+
+First live deployment. Stands up the running product for the first time: the FastAPI backend on Fly.io and the Next.js frontend on Vercel, both pointed at the already-live Supabase database (`0.4.6`). Deployed as an **open preview** — there is no authentication yet (`X-Dev-Actor-Id` is not a credential), so the surface is intentionally world-readable/writable until `0.6.0`. No application code, schema, or migration change — this is deployment scaffolding plus the deploy itself.
+
+### Summary
+
+Through `0.4.7` the apps built clean but had never been deployed — there was zero deployment config in the repo. This phase adds the backend container + Fly configuration, documents the production connection shape, and takes the full stack live against the live DB (empty — no seed data; projects are created through the UI). The Vercel frontend is managed manually via the dashboard.
+
+### Deployment Scaffolding (new)
+
+- `backend/Dockerfile` — uv-based image (`ghcr.io/astral-sh/uv:python3.12-bookworm-slim`); dependencies install from the locked manifest in a cached layer (`uv sync --frozen --no-dev`); production entrypoint `fastapi run app/main.py` on `0.0.0.0:8000`.
+- `backend/fly.toml` — app `opentheory-backend`, internal port 8000, `force_https`, a `/api/v1/health` HTTP check, scale-to-zero (`min_machines_running = 0`), and `release_command = "alembic upgrade head"` so migrations run in an ephemeral machine *before* traffic shifts (a bad migration aborts the deploy; the app never races to migrate on boot).
+- `backend/.dockerignore` — keeps `.env`/secrets, the local venv, caches, and tests out of the build context/image.
+
+### Configuration
+
+- `backend/.env.example` now documents the production connection shapes: the app over the Supabase **transaction pooler** (`:6543`, `asyncpg`, `ssl=require`), Alembic over the **direct** connection (`:5432`) via `MIGRATION_DATABASE_URL`, and `BACKEND_CORS_ORIGINS` as the deployed frontend origin. Reuses the dual-connection design proven in `0.4.6`; no new settings.
+
+### What Went Live
+
+- **Backend** → Fly.io app `opentheory-backend`: <https://opentheory-backend.fly.dev/api/v1> (region `iad`, single scale-to-zero machine). Secrets (`DATABASE_URL`, `MIGRATION_DATABASE_URL`, `BACKEND_CORS_ORIGINS`) set via `fly secrets`, never committed.
+- **Frontend** → Vercel: <https://opentheory.vercel.app> (root directory `frontend/`, `NEXT_PUBLIC_API_BASE_URL` → the Fly backend).
+- **Database** → the existing live Supabase Postgres at migration `0003` (unchanged).
+
+### Verification
+
+- Remote Docker build succeeded; the `alembic upgrade head` release step completed against the live DB (a no-op at head — confirms the direct-connection migration path works from Fly).
+- Public smoke test: `GET /api/v1/health` → `200 {"status":"ok"}`, `GET /api/v1/projects` → `200 []`.
+- Simulated browser preflight from the Vercel origin returns `access-control-allow-origin: https://opentheory.vercel.app` — the CORS loop is closed. (End-to-end frontend page load left to a visual check.)
+
+### Operational Notes / Gotchas
+
+- Fly provisions an **HA pair** on first deploy even with `min_machines_running = 0` (that setting governs how many stay *running* when idle, not how many are *created*); the second machine stuck in `created` made `fly deploy` report a timeout though the service was healthy. Destroyed the extra — one machine is plenty for a scale-to-zero preview.
+- `NEXT_PUBLIC_*` is baked at **build** time, so changing the backend URL requires a frontend *redeploy*, not just an env edit.
+- `fly secrets import < .env` would clobber `APP_ENV=production` (from `fly.toml [env]`) with the local `.env` value — only the DB/CORS keys are imported.
+
+### Documentation
+
+- `docs/deploy.md` — full runbook (backend → frontend → CORS) with the production connection-string shapes and troubleshooting (IPv6 migration fallback, CORS, prepared-statement errors).
+- `docs/design_blueprint.md` and `docs/executing/0.6.0-auth-and-funding.md` also landed in this window — a Kamino console design system, and the `0.6.0` auth + funding implementation plan. These are forward-looking planning/design references, **not** part of this deployment release.
+
+### Still Gating A Production Push (unchanged)
+
+- **The 31 DB-backed tests still have not run green against Postgres** — the standing `0.4.0` Definition-of-Done gate (needs a *separate* `TEST_DATABASE_URL`; the fixture `drop_all`s, so it must never point at the live DB).
+- **No authentication/authorization** — `X-Dev-Actor-Id` lets any caller act as any actor; the open preview is world-writable. Deferred to `0.6.0`.
 
 ---
 

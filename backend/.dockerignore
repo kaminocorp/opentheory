@@ -1,0 +1,16 @@
+# Keep secrets, local virtualenvs, caches, and tests out of the build context/image.
+.env
+.env.*
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+tests/
+.git/
+.gitignore
+Dockerfile
+.dockerignore
+README.md
