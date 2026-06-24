@@ -9,9 +9,14 @@ export type Actor = {
   display_name: string;
   external_id: string | null;
   actor_metadata: Record<string, unknown>;
+  // Queryable authorization roles (0.6.1); `internal` (Kamino) gates native funding.
+  roles: string[];
   created_at: string;
   updated_at: string;
 };
+
+// GET /me — the resolved acting actor (incl. roles), driving the identity menu + write gating.
+export type Me = Actor;
 
 export type ThreadStage =
   | "decompose"
@@ -81,6 +86,8 @@ export type ProjectOverview = {
   counts: ProjectCounts;
   branch_counts: BranchStatusCounts;
   contradictions: ContradictionItem[];
+  // Budget derived from the funding ledger (0.6.3); null if not yet loaded.
+  budget: ProjectBudget | null;
 };
 
 export type ClaimKind =
@@ -271,4 +278,45 @@ export type BranchCloseOutcome = "dead_end" | "closed";
 export type BranchClose = {
   outcome: BranchCloseOutcome;
   reason?: string | null;
+};
+
+// --- Funding (0.6.3) --------------------------------------------------------
+// Monetary amounts are Decimals serialized as strings (e.g. "500.00") to preserve precision.
+
+export type FundingKind = "top_up" | "grant" | "refund" | "adjustment";
+export type FundingSource = "native" | "stripe";
+export type FundingStatus = "pending" | "settled" | "failed" | "refunded";
+
+export type Funding = {
+  id: string;
+  project_id: string;
+  actor_id: string | null;
+  actor: ActorSummary | null;
+  amount: string;
+  currency: string;
+  kind: FundingKind;
+  source: FundingSource;
+  status: FundingStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FundingCreate = {
+  amount: string;
+  currency?: string;
+  kind?: FundingKind;
+  source?: FundingSource;
+  notes?: string | null;
+};
+
+// Budget derived from the funding ledger: funded = Σ settled; spent = 0 until agents (0.7.0).
+export type ProjectBudget = {
+  project_id: string;
+  currency: string;
+  funded: string;
+  spent: string;
+  available: string;
+  by_source: Record<string, string>;
+  by_status: Record<string, string>;
 };

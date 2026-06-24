@@ -41,7 +41,7 @@ async def attach_evidence(
 ) -> EvidenceRead:
     if payload.relation_kind not in RELATION_KINDS:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"relation_kind must be one of {sorted(RELATION_KINDS)}",
         )
 

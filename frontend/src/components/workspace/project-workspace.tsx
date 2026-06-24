@@ -11,6 +11,7 @@ import { queryKeys } from "@/lib/query-keys";
 import { BranchBar } from "./branch-bar";
 import { CheckpointTimelinePanel } from "./checkpoint-timeline-panel";
 import { ClaimListPanel } from "./claim-list-panel";
+import { FundingPanel } from "./funding-panel";
 import { ThreadListPanel } from "./thread-list-panel";
 
 type ProjectWorkspaceProps = {
@@ -134,6 +135,8 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
           </div>
         ) : null}
       </header>
+
+      <FundingPanel projectId={projectId} />
 
       <BranchBar
         projectId={projectId}

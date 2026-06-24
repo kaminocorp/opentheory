@@ -6,7 +6,7 @@ import { useState } from "react";
 
 import { createCheckpoint, listCheckpoints } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
-import { useDevActor } from "@/providers/dev-actor-provider";
+import { useActingIdentity } from "@/lib/use-identity";
 
 import { PanelEmpty, PanelError, PanelLoading } from "./panel-state";
 import { RecordValidationForm } from "./validation-controls";
@@ -38,7 +38,7 @@ export function CheckpointTimelinePanel({
   selectedBranchId,
   lineSealed = false,
 }: CheckpointTimelinePanelProps) {
-  const { actorId, hydrated } = useDevActor();
+  const { canWrite, hydrated, signInHint } = useActingIdentity();
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [summary, setSummary] = useState("");
@@ -57,17 +57,13 @@ export function CheckpointTimelinePanel({
   );
 
   const createMutation = useMutation({
-    mutationFn: (actor: string) =>
-      createCheckpoint(
-        projectId,
-        {
-          thread_id: selectedThreadId,
-          branch_id: selectedBranchId,
-          summary: summary.trim(),
-          notes: notes.trim() || null,
-        },
-        actor,
-      ),
+    mutationFn: () =>
+      createCheckpoint(projectId, {
+        thread_id: selectedThreadId,
+        branch_id: selectedBranchId,
+        summary: summary.trim(),
+        notes: notes.trim() || null,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.checkpoints(projectId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.overview(projectId) });
@@ -77,7 +73,7 @@ export function CheckpointTimelinePanel({
     },
   });
 
-  const canSubmit = Boolean(actorId) && summary.trim().length > 0;
+  const canSubmit = canWrite && summary.trim().length > 0;
 
   return (
     <section className="flex flex-col gap-3 rounded-lg border border-line bg-white/70 p-4 shadow-panel">
@@ -111,7 +107,7 @@ export function CheckpointTimelinePanel({
           className="grid gap-2 rounded-md border border-line bg-paper/60 p-3"
           onSubmit={(event) => {
             event.preventDefault();
-            if (canSubmit && !createMutation.isPending) createMutation.mutate(actorId!);
+            if (canSubmit && !createMutation.isPending) createMutation.mutate();
           }}
         >
           <p className="text-xs text-ink/55">
@@ -131,8 +127,8 @@ export function CheckpointTimelinePanel({
             rows={2}
             className="rounded-md border border-line bg-white/80 px-2 py-1.5 text-sm outline-none focus:border-signal"
           />
-          {!actorId && hydrated ? (
-            <p className="text-xs text-ember">Select an actor (top right) to record checkpoints.</p>
+          {!canWrite && hydrated ? (
+            <p className="text-xs text-ember">{signInHint} to record checkpoints.</p>
           ) : null}
           {createMutation.isError ? (
             <p className="text-xs text-ember">{(createMutation.error as Error).message}</p>

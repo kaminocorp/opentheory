@@ -4,6 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.enums import ProjectStatus
+from app.schemas.funding import ProjectBudget
 
 
 class ProjectBase(BaseModel):
@@ -59,3 +60,5 @@ class ProjectOverview(ProjectRead):
     counts: ProjectCounts
     branch_counts: BranchStatusCounts = Field(default_factory=BranchStatusCounts)
     contradictions: list[ContradictionItem] = Field(default_factory=list)
+    # Budget derived from the funding ledger (0.6.3): funded / spent / available + breakdowns.
+    budget: ProjectBudget | None = None

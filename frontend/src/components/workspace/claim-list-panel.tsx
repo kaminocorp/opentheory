@@ -6,7 +6,7 @@ import { useState } from "react";
 
 import { attachEvidence, createClaim, listClaims, listEvidence } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
-import { useDevActor } from "@/providers/dev-actor-provider";
+import { useActingIdentity } from "@/lib/use-identity";
 import type { Claim, ClaimKind, RelationKind } from "@/types/research";
 
 import { PanelEmpty, PanelError, PanelLoading } from "./panel-state";
@@ -43,7 +43,7 @@ export function ClaimListPanel({ projectId, threadId }: ClaimListPanelProps) {
 }
 
 function ClaimListPanelInner({ projectId, threadId }: { projectId: string; threadId: string }) {
-  const { actorId, hydrated } = useDevActor();
+  const { canWrite, hydrated, signInHint } = useActingIdentity();
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [kind, setKind] = useState<ClaimKind>("hypothesis");
@@ -55,7 +55,7 @@ function ClaimListPanelInner({ projectId, threadId }: { projectId: string; threa
   });
 
   const createMutation = useMutation({
-    mutationFn: (actor: string) => createClaim(threadId, { kind, statement: statement.trim() }, actor),
+    mutationFn: () => createClaim(threadId, { kind, statement: statement.trim() }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.claims(threadId) });
       // the thread list shows a claim count, and the header shows aggregate counts
@@ -66,7 +66,7 @@ function ClaimListPanelInner({ projectId, threadId }: { projectId: string; threa
     },
   });
 
-  const canSubmit = Boolean(actorId) && statement.trim().length > 0;
+  const canSubmit = canWrite && statement.trim().length > 0;
 
   return (
     <section className="flex flex-col gap-3 rounded-lg border border-line bg-white/70 p-4 shadow-panel">
@@ -91,7 +91,7 @@ function ClaimListPanelInner({ projectId, threadId }: { projectId: string; threa
           className="grid gap-2 rounded-md border border-line bg-paper/60 p-3"
           onSubmit={(event) => {
             event.preventDefault();
-            if (canSubmit && !createMutation.isPending) createMutation.mutate(actorId!);
+            if (canSubmit && !createMutation.isPending) createMutation.mutate();
           }}
         >
           <select
@@ -111,8 +111,8 @@ function ClaimListPanelInner({ projectId, threadId }: { projectId: string; threa
             placeholder="Claim statement"
             className="h-9 rounded-md border border-line bg-white/80 px-2 text-sm outline-none focus:border-signal"
           />
-          {!actorId && hydrated ? (
-            <p className="text-xs text-ember">Select an actor (top right) to record claims.</p>
+          {!canWrite && hydrated ? (
+            <p className="text-xs text-ember">{signInHint} to record claims.</p>
           ) : null}
           {createMutation.isError ? (
             <p className="text-xs text-ember">{(createMutation.error as Error).message}</p>
@@ -161,7 +161,7 @@ function ClaimListPanelInner({ projectId, threadId }: { projectId: string; threa
 }
 
 function ClaimEvidence({ projectId, claimId }: { projectId: string; claimId: string }) {
-  const { actorId, hydrated } = useDevActor();
+  const { canWrite, hydrated, signInHint } = useActingIdentity();
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
@@ -175,17 +175,13 @@ function ClaimEvidence({ projectId, claimId }: { projectId: string; claimId: str
   });
 
   const attachMutation = useMutation({
-    mutationFn: (actor: string) =>
-      attachEvidence(
-        claimId,
-        {
-          title: title.trim(),
-          source_type: sourceType.trim() || "note",
-          uri: uri.trim() || null,
-          relation_kind: relationKind,
-        },
-        actor,
-      ),
+    mutationFn: () =>
+      attachEvidence(claimId, {
+        title: title.trim(),
+        source_type: sourceType.trim() || "note",
+        uri: uri.trim() || null,
+        relation_kind: relationKind,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.evidence(claimId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.overview(projectId) });
@@ -195,7 +191,7 @@ function ClaimEvidence({ projectId, claimId }: { projectId: string; claimId: str
     },
   });
 
-  const canSubmit = Boolean(actorId) && title.trim().length > 0;
+  const canSubmit = canWrite && title.trim().length > 0;
   const evidence = evidenceQuery.data ?? [];
 
   return (
@@ -255,7 +251,7 @@ function ClaimEvidence({ projectId, claimId }: { projectId: string; claimId: str
           className="mt-2 grid gap-2 rounded-md border border-line bg-paper/60 p-2.5"
           onSubmit={(event) => {
             event.preventDefault();
-            if (canSubmit && !attachMutation.isPending) attachMutation.mutate(actorId!);
+            if (canSubmit && !attachMutation.isPending) attachMutation.mutate();
           }}
         >
           <input
@@ -289,8 +285,8 @@ function ClaimEvidence({ projectId, claimId }: { projectId: string; claimId: str
             placeholder="URI (optional)"
             className="h-8 rounded border border-line bg-white/80 px-2 text-xs outline-none focus:border-signal"
           />
-          {!actorId && hydrated ? (
-            <p className="text-[11px] text-ember">Select an actor to attach evidence.</p>
+          {!canWrite && hydrated ? (
+            <p className="text-[11px] text-ember">{signInHint} to attach evidence.</p>
           ) : null}
           {attachMutation.isError ? (
             <p className="text-[11px] text-ember">{(attachMutation.error as Error).message}</p>

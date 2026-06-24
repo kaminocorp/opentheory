@@ -28,6 +28,7 @@ from app.schemas.project import (
     ProjectRead,
 )
 from app.services import claims as claim_service
+from app.services import funding as funding_service
 from app.services import validations as validation_service
 
 
@@ -94,4 +95,5 @@ async def get_project_overview(db: AsyncSession, project_id: UUID) -> ProjectOve
         counts=counts,
         branch_counts=branch_counts,
         contradictions=await _contradictions(db, project_id),
+        budget=await funding_service.project_budget(db, project_id),
     )

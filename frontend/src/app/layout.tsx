@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+import { AuthProvider } from "@/providers/auth-provider";
 import { DevActorProvider } from "@/providers/dev-actor-provider";
 import { QueryProvider } from "@/providers/query-provider";
 
@@ -20,7 +21,9 @@ export default function RootLayout({ children }: RootLayoutProps) {
     <html lang="en">
       <body>
         <QueryProvider>
-          <DevActorProvider>{children}</DevActorProvider>
+          <AuthProvider>
+            <DevActorProvider>{children}</DevActorProvider>
+          </AuthProvider>
         </QueryProvider>
       </body>
     </html>

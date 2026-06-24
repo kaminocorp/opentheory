@@ -10,6 +10,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.108.2",
     "@tanstack/react-query": "^5.62.8",
     "lucide-react": "^0.468.0",
     "next": "^15.1.0",

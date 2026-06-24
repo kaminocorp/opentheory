@@ -14,7 +14,7 @@ import { useState } from "react";
 
 import { createValidation } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
-import { useDevActor } from "@/providers/dev-actor-provider";
+import { useActingIdentity } from "@/lib/use-identity";
 import type { ValidationOutcome, ValidationTargetType } from "@/types/research";
 
 // Outcome → label, icon, and palette (the app's signal/ember/ink/paper tokens). Shared by
@@ -71,18 +71,19 @@ export function RecordValidationForm({
   onDone,
   compact = false,
 }: RecordValidationFormProps) {
-  const { actorId, hydrated } = useDevActor();
+  const { canWrite, hydrated, signInHint } = useActingIdentity();
   const queryClient = useQueryClient();
   const [outcome, setOutcome] = useState<ValidationOutcome>("passed");
   const [notes, setNotes] = useState("");
 
   const mutation = useMutation({
-    mutationFn: (actor: string) =>
-      createValidation(
-        projectId,
-        { target_type: targetType, target_id: targetId, outcome, notes: notes.trim() || null },
-        actor,
-      ),
+    mutationFn: () =>
+      createValidation(projectId, {
+        target_type: targetType,
+        target_id: targetId,
+        outcome,
+        notes: notes.trim() || null,
+      }),
     onSuccess: () => {
       if (invalidateKey) queryClient.invalidateQueries({ queryKey: invalidateKey });
       // A validation mints a checkpoint and bumps the project's checkpoint count.
@@ -93,7 +94,7 @@ export function RecordValidationForm({
     },
   });
 
-  const canSubmit = Boolean(actorId);
+  const canSubmit = canWrite;
   const field = compact ? "h-8 text-xs" : "h-9 text-sm";
 
   return (
@@ -101,7 +102,7 @@ export function RecordValidationForm({
       className="mt-2 grid gap-2 rounded-md border border-line bg-paper/60 p-2.5"
       onSubmit={(event) => {
         event.preventDefault();
-        if (canSubmit && !mutation.isPending) mutation.mutate(actorId!);
+        if (canSubmit && !mutation.isPending) mutation.mutate();
       }}
     >
       <select
@@ -121,8 +122,8 @@ export function RecordValidationForm({
         placeholder="Notes (optional)"
         className={`${field} rounded-md border border-line bg-white/80 px-2 outline-none focus:border-signal`}
       />
-      {!actorId && hydrated ? (
-        <p className="text-[11px] text-ember">Select an actor (top right) to record validations.</p>
+      {!canWrite && hydrated ? (
+        <p className="text-[11px] text-ember">{signInHint} to record validations.</p>
       ) : null}
       {mutation.isError ? (
         <p className="text-[11px] text-ember">{(mutation.error as Error).message}</p>

@@ -4,6 +4,8 @@ from collections.abc import AsyncIterator
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     async_sessionmaker,
@@ -11,14 +13,49 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import NullPool
 
+from app.core.config import settings
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import create_app
 
-# DB-backed tests run only when a Postgres URL is configured. Until a database is
-# chosen (Supabase vs. self-hosted), these tests skip cleanly so the suite stays green.
-# Prefer TEST_DATABASE_URL; fall back to DATABASE_URL.
-TEST_DB_URL = os.getenv("TEST_DATABASE_URL") or os.getenv("DATABASE_URL")
+# The suite exercises the 0.3.x X-Dev-Actor-Id attribution path; enable it process-wide so
+# writes resolve without an IdP (matches the plan's "auth_dev_header_enabled True in test").
+# Auth-specific tests flip individual auth settings via monkeypatch (auto-restored).
+settings.auth_dev_header_enabled = True
+
+# DB-backed tests run only when a Postgres URL is configured; otherwise they skip cleanly so the
+# suite stays green. Prefer an explicit TEST_DATABASE_URL (a deliberate opt-in, trusted for any
+# host); fall back to DATABASE_URL only for a *local* host.
+#
+# SAFETY: the fixtures run `DROP SCHEMA public CASCADE` on every test, so pointing them at a real
+# database destroys it. Because the live DB's env var is literally named DATABASE_URL, honoring
+# that fallback unconditionally means a stray `export DATABASE_URL=<prod>` before `pytest` would
+# wipe production. So the implicit fallback is accepted only when it targets localhost; to run the
+# destructive suite against any non-local database, set TEST_DATABASE_URL explicitly.
+_LOCAL_DB_HOSTS = {"localhost", "127.0.0.1", "::1", ""}
+
+
+def _resolve_test_db_url() -> str | None:
+    explicit = os.getenv("TEST_DATABASE_URL")
+    if explicit:
+        return explicit
+    fallback = os.getenv("DATABASE_URL")
+    if not fallback:
+        return None
+    try:
+        host = make_url(fallback).host or ""
+    except Exception:
+        return None
+    return fallback if host in _LOCAL_DB_HOSTS else None
+
+
+TEST_DB_URL = _resolve_test_db_url()
+
+
+async def _reset_schema(conn) -> None:  # type: ignore[no-untyped-def]
+    """Drop and recreate the ``public`` schema — a clean slate that ignores FK cycles."""
+    await conn.execute(text("DROP SCHEMA public CASCADE"))
+    await conn.execute(text("CREATE SCHEMA public"))
 
 
 @pytest_asyncio.fixture
@@ -30,7 +67,10 @@ async def db_engine() -> AsyncIterator[AsyncEngine]:
     assertions see the same data.
     """
     if not TEST_DB_URL:
-        pytest.skip("No TEST_DATABASE_URL/DATABASE_URL set; skipping DB-backed test")
+        pytest.skip(
+            "No usable test database. Set TEST_DATABASE_URL (a non-local DATABASE_URL is "
+            "ignored here — the fixtures DROP SCHEMA, so they must never touch the live DB)."
+        )
 
     engine = create_async_engine(TEST_DB_URL, poolclass=NullPool)
     try:
@@ -40,13 +80,20 @@ async def db_engine() -> AsyncIterator[AsyncEngine]:
         await engine.dispose()
         pytest.skip("Configured database is not reachable; skipping DB-backed test")
 
+    # Reset to a pristine schema before creating, so a previous aborted run can't leave
+    # tables/enums behind that would collide. ``branches`` and ``checkpoints`` form a
+    # foreign-key cycle (branches.forked_from_checkpoint_id <-> checkpoints.branch_id), which
+    # ``Base.metadata.drop_all`` cannot topologically sort — so we reset the whole ``public``
+    # schema instead of dropping table-by-table. ``create_all`` handles the cycle natively
+    # (it emits the cyclic FK as a post-create ALTER).
     async with engine.begin() as conn:
+        await _reset_schema(conn)
         await conn.run_sync(Base.metadata.create_all)
 
     yield engine
 
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        await _reset_schema(conn)
     await engine.dispose()
 
 

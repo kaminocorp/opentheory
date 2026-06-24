@@ -6,7 +6,9 @@ from app.api.routes import (
     checkpoints,
     claims,
     evidence,
+    funding,
     health,
+    me,
     projects,
     threads,
     validations,
@@ -14,6 +16,7 @@ from app.api.routes import (
 
 api_router = APIRouter()
 api_router.include_router(health.router, tags=["health"])
+api_router.include_router(me.router, tags=["auth"])
 api_router.include_router(projects.router, prefix="/projects", tags=["projects"])
 api_router.include_router(actors.router, prefix="/actors", tags=["actors"])
 # Threads/claims/evidence/checkpoints span nested paths (e.g. /projects/{id}/threads
@@ -24,3 +27,4 @@ api_router.include_router(evidence.router)
 api_router.include_router(checkpoints.router)
 api_router.include_router(validations.router)
 api_router.include_router(branches.router)
+api_router.include_router(funding.router)

@@ -6,7 +6,7 @@ import { useState } from "react";
 
 import { createThread, listThreads } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
-import { useDevActor } from "@/providers/dev-actor-provider";
+import { useActingIdentity } from "@/lib/use-identity";
 
 import { PanelEmpty, PanelError, PanelLoading } from "./panel-state";
 
@@ -21,7 +21,7 @@ export function ThreadListPanel({
   selectedThreadId,
   onSelectThread,
 }: ThreadListPanelProps) {
-  const { actorId, hydrated } = useDevActor();
+  const { canWrite, hydrated, signInHint } = useActingIdentity();
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
@@ -33,10 +33,9 @@ export function ThreadListPanel({
   });
 
   const createMutation = useMutation({
-    // actorId is captured by value at submit time (passed to mutate), not by reference,
-    // so switching actors mid-flight can't send a stale/null header.
-    mutationFn: (actor: string) =>
-      createThread(projectId, { title: title.trim(), question: question.trim() }, actor),
+    // The acting actor rides on the request (bearer token / dev header), resolved server-side.
+    mutationFn: () =>
+      createThread(projectId, { title: title.trim(), question: question.trim() }),
     onSuccess: (thread) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.threads(projectId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.overview(projectId) });
@@ -47,7 +46,7 @@ export function ThreadListPanel({
     },
   });
 
-  const canSubmit = Boolean(actorId) && title.trim().length > 0 && question.trim().length > 0;
+  const canSubmit = canWrite && title.trim().length > 0 && question.trim().length > 0;
 
   return (
     <section className="flex flex-col gap-3 rounded-lg border border-line bg-white/70 p-4 shadow-panel">
@@ -72,7 +71,7 @@ export function ThreadListPanel({
           className="grid gap-2 rounded-md border border-line bg-paper/60 p-3"
           onSubmit={(event) => {
             event.preventDefault();
-            if (canSubmit && !createMutation.isPending) createMutation.mutate(actorId!);
+            if (canSubmit && !createMutation.isPending) createMutation.mutate();
           }}
         >
           <input
@@ -87,8 +86,8 @@ export function ThreadListPanel({
             placeholder="Sub-question"
             className="h-9 rounded-md border border-line bg-white/80 px-2 text-sm outline-none focus:border-signal"
           />
-          {!actorId && hydrated ? (
-            <p className="text-xs text-ember">Select an actor (top right) to create threads.</p>
+          {!canWrite && hydrated ? (
+            <p className="text-xs text-ember">{signInHint} to create threads.</p>
           ) : null}
           {createMutation.isError ? (
             <p className="text-xs text-ember">{(createMutation.error as Error).message}</p>

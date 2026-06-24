@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, IdMixin, TimestampMixin
-from app.models.enums import FundingKind, FundingStatus
+from app.models.enums import FundingKind, FundingSource, FundingStatus
 
 
 class FundingAllocation(IdMixin, TimestampMixin, Base):
@@ -27,6 +27,12 @@ class FundingAllocation(IdMixin, TimestampMixin, Base):
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     kind: Mapped[FundingKind] = mapped_column(
         Enum(FundingKind, name="funding_kind"),
+        nullable=False,
+    )
+    # Where the budget came from (0.6.3): native (Kamino comps) vs stripe (external). Orthogonal
+    # to `kind` (the accounting category). Native is gated to internal actors in the service.
+    source: Mapped[FundingSource] = mapped_column(
+        Enum(FundingSource, name="funding_source"),
         nullable=False,
     )
     status: Mapped[FundingStatus] = mapped_column(

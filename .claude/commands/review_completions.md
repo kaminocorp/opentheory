@@ -1,0 +1,1 @@
+We just finished implementing all phases outlined in docs/completions (and possibly changelog.md). Thoroughly review and assess our implementation to ensure that code quality is 9/10, that everything is functionally sound and that we're ok to push to prod.

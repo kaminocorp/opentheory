@@ -2,6 +2,9 @@
 
 ## Index
 
+- `0.6.2` — Second pre-prod review hardening on `0.6.0`/`0.6.1` (no features, schema, or migration). Closes the funding write path against `source=stripe` (now native-only until `0.7.0`; `422` otherwise), stops a stale `X-Dev-Actor-Id` leaking in production, and first runs the DB-test gate on a real Postgres (`52 passed`).
+- `0.6.1` — Pre-prod review hardening on `0.6.0` (no features, schema, or migration). Two security fixes: closes an unauthenticated PII leak (`GET /actors` exposed every actor's email and roles — now dev-gated) and an open redirect (CWE-601) in `/auth/callback`. Hardens the test harness against a stray `DATABASE_URL` wiping production.
+- `0.6.0` — Authentication and funding. A verified Supabase JWT (`Actor.external_id`, JIT-provisioned, queryable `roles`) replaces the unverified `X-Dev-Actor-Id` header, preserving the `ActingActor` contract. Activates `FundingAllocation` as a source-aware, contribution-only write (native gated to `internal`) that mints no checkpoint. Migrations `0004`, `0005`.
 - `0.4.8` — First live deployment: the FastAPI backend on Fly.io and the Next.js frontend on Vercel, both against the live Supabase DB, as an open (no-auth) preview. Adds the deploy scaffolding (Dockerfile, `fly.toml`, runbook) and documents the production connection shape. No app code, schema, or migration change.
 - `0.4.7` — Developer convenience: a root `Makefile` wrapping the common backend (`uv`) and frontend (`npm`) tasks — `make dev`, `make migrate`, `make test`, `make fe`, etc. No app code, schema, or behavior change.
 - `0.4.6` — First live database: provisioned the managed Postgres, applied migrations `0001→0003`, and hardened the connection config for a pooled cloud Postgres (app over the transaction pooler, Alembic over a direct connection). No new features or schema.
@@ -16,6 +19,109 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.6.2
+
+A second pre-production review pass on the `0.6.0`/`0.6.1` auth + funding slice — a full read-through of the working tree with every verification claim **re-run, not trusted**. The single highest-value outcome: the `0.4.0`/`0.6.0` DB-test gate (a suite that had only ever *skipped* in CI for want of a Postgres) was **stood up against a throwaway local Postgres 14 and reproduced green** — turning "the docs say 51 passed" into a watched pass. The review found the slice sound and the `0.6.1` security fixes correctly in place, and surfaced one money-path write gap plus two correctness/hygiene items, all fixed here. No new features, no schema change, no migration.
+
+### Funding — closed an open write path to the public ledger
+
+- **`source=stripe` funding is no longer creatable over the API.** `0.6.0` only gated *native* funding on the `internal` role, so any *authenticated* actor could `POST /projects/{id}/funding` with `source=stripe` and an arbitrary amount (up to `Numeric(12,2)` ≈ 10 billion) — born `pending`, attributed to them as a `fund` `Contribution`, and shown in the **publicly-readable** funding history (`GET /funding`), with **no real Stripe settlement behind it** until `0.7.0`. It was excluded from `funded` so it could not inflate a budget, but it was an open spam/clutter vector into a public read that nothing legitimate exercises (the frontend only ever submits `native`). `create_funding` now accepts only `source=native` and rejects anything else with `422` (`"Only native funding is available in this release; Stripe lands in 0.7.0"`). The `FundingSource.STRIPE` enum value, the `pending` status, and the budget-exclusion logic are all **kept** so `0.7.0` can light up real Checkout/webhooks without a schema change. (`app/services/funding.py`.)
+
+### Correctness & hygiene
+
+- **`DevActorProvider` no longer leaks a stale dev header in production.** The mount effect read `localStorage["opentheory.dev-actor-id"]` and pushed it as `X-Dev-Actor-Id` on every request **unconditionally** — so a browser that had previously run in dev mode would attach the header in a production build. It was *inert* (the backend ignores the header when `auth_dev_header_enabled=False`, and a verified bearer token always takes precedence), but identity providers should not cross the mode boundary. The effect now early-returns when `AUTH_DEV` (`NEXT_PUBLIC_AUTH_DEV`) is off — still marking `hydrated` so write-gating settles, but never reading localStorage or calling `setDevActorId`. (`src/providers/dev-actor-provider.tsx`.)
+- **The budget's inferred accounting currency is now deterministic.** `project_budget` derives its `currency` from the last settled allocation it iterates; with no `ORDER BY` that was whatever order the rows came back in. The query now orders `created_at` ascending, so the inferred unit is deterministically the **most recent** settled allocation's currency (last-write-wins). Single-currency funding is unaffected; this only removes nondeterminism under the acknowledged-out-of-scope multi-currency case. (`app/services/funding.py`.)
+- **Replaced the deprecated `HTTP_422_UNPROCESSABLE_ENTITY`** with `HTTP_422_UNPROCESSABLE_CONTENT` (Starlette renamed it; the old name emitted `DeprecationWarning`s in the test run) across the three services that raise it. No behavior change — same `422`. (`app/services/checkpoints.py`, `evidence.py`, `validations.py`.)
+
+### Tests
+
+- **Split `test_stripe_funding_is_pending_and_excluded_from_funded`** (which depended on the now-closed API path) into two, so closing the stripe path did **not** shrink coverage: `test_stripe_funding_via_api_is_rejected` (stripe create → `422`, nothing written) and `test_pending_allocation_excluded_from_funded`, which inserts a `pending` allocation **directly via the ORM** (legal — the append-only guard fires on update/delete, not insert) and asserts the budget excludes it from `funded`/`available` while `by_status` still tallies it and `by_source` stays settled-only. Net `+1` test (`51 → 52`). (`tests/test_funding.py`.)
+
+### Considered and deliberately not done
+
+- **A DB-level `CHECK` that a `Contribution` references exactly one of `checkpoint_id` / `funding_allocation_id`** was floated during review and **rejected on inspection**: the `0.3.x` create flows (thread / claim / evidence) record contributions with **both** FKs `NULL` (those creates are not checkpoint- or funding-events), so "exactly one" is the wrong invariant and "at most one" is marginal — and either would need a migration. Kept `0.6.2` migration-free. The xor between the two FKs remains a service-layer property, with append-only as the ORM-enforced backstop.
+- **Carried forward unchanged from `0.6.1`'s "left as-is":** HS256 shared-secret JWT verification (`supabase_jwks_url` reserved for the asymmetric-key swap); the `internal` role granted only at JIT provisioning (add internal emails to the allowlist *before* first login); multi-currency budgets summing in one unit; public funding/budget reads exposing amounts + funder *display names* only (`ActorSummary` — no email), acceptable for the preview posture.
+
+### Verification (independently reproduced, not cited)
+
+- **Backend, against a throwaway local Postgres 14:** `uv run pytest` → **`52 passed`** with **no warnings** (the DB-backed `test_auth` / `test_funding` and the previously-skipped ledger suite all *executing*); `ruff check .` clean.
+- **Migrations, against a scratch DB:** `0001 → 0005` applies; `alembic current` → `0005 (head)`; downgrade `0005→0004→0003` then re-upgrade round-trips; **`alembic check` → no drift** both before and after the round-trip; `actors.roles` and `funding_allocations.source` land exactly as the ORM declares them.
+- **Safety:** confirmed the env-var override resolves Alembic to the local DB before running any DDL (the `.env` points `DATABASE_URL`/`MIGRATION_DATABASE_URL` at the live Supabase DB; exported env vars win over dotenv).
+- **Frontend:** `npm run typecheck` and `npm run lint` pass.
+
+### Still gating the production push (operational, not code)
+
+- **`AUTH_DEV_HEADER_ENABLED=false` in production** — the single most important deploy invariant. If it is ever truthy in prod, the `X-Dev-Actor-Id` path reopens and any caller can act as any actor. (The setting defaults to `False`, so it is safe-by-default — never override it on Fly.)
+- **Set `SUPABASE_JWT_SECRET` and `INTERNAL_ACTOR_EMAILS`** as Fly secrets (without the secret every token is `401`; without the allowlist no one is `internal`). Add internal emails **before** those users first sign in.
+- **`alembic upgrade head` through `0005`** against prod (wired as Fly's `release_command`); Vercel `NEXT_PUBLIC_SUPABASE_URL` / `_ANON_KEY` set with `NEXT_PUBLIC_AUTH_DEV` unset.
+
+---
+
+## 0.6.1
+
+Pre-production review hardening on the `0.6.0` auth + funding slice (mirrors how `0.4.5` hardened `0.4.0`). A full read-through of the `0.6.0` diff — the security- and money-critical backend scrutinized directly, the frontend covered by parallel reviewers, every verification claim re-run — found the design sound but surfaced two real security gaps and a high-blast-radius test-harness footgun, plus a few correctness/UX polishes. No new features, no schema change, no migration. Backend `ruff` clean and `5 passed, 46 skipped` (DB-backed tests safely skip); frontend `typecheck` / `lint` / `build` pass.
+
+### Security
+
+- **Closed an unauthenticated PII leak — `GET /actors`.** `0.6.0` made identity real (JIT provisioning stores the verified email in `actor_metadata` and the IdP subject in `external_id`), but the `0.3.x` actor-list endpoint stayed open and returns `ActorRead` — so an anonymous `GET /api/v1/actors` exposed **every user's email, IdP subject, and roles** (an email-harvesting vector). The leak was in pre-existing, untouched code that only became dangerous once the new feature changed the data it exposes. Gated the list behind `auth_dev_header_enabled` (→ `404` in production), exactly as `POST /actors` already was; the production frontend never calls it (the switcher is `AUTH_DEV`-only). The gate is in the handler, so the route still appears in the OpenAPI spec (the wiring test holds) — only its runtime behavior changes. (`app/api/routes/actors.py`.)
+- **Fixed an open redirect (CWE-601) in `/auth/callback`.** The OAuth/magic-link handler redirected to `${origin}${next}` with `next` taken raw from the query string; because `next` need not start with `/`, `?next=.evil.com` → `https://<app>.evil.com` and `?next=@evil.com` → host `evil.com`, and the redirect fired even with no valid `code` — a phishing primitive on the trusted domain. Added `safeNext()`, which accepts only a single-leading-slash same-origin path (rejects `//…`, `/\…`, and non-slash values) and otherwise defaults to `/`. (`src/app/auth/callback/route.ts`.)
+
+### Test-harness safety
+
+- **A stray `DATABASE_URL` can no longer let the schema-reset fixture wipe production.** `conftest` resolved the test DB as `TEST_DATABASE_URL or DATABASE_URL`, and the fixtures run `DROP SCHEMA public CASCADE` per test — so because the live DB's env var is literally `DATABASE_URL`, a single `export DATABASE_URL=<prod>` before `pytest` would have destroyed it. The **implicit** `DATABASE_URL` fallback is now honored only for a local host (`localhost` / `127.0.0.1` / `::1`); an explicit `TEST_DATABASE_URL` is still trusted for any host (a deliberate opt-in). Verified both ways: a remote `…pooler.supabase.com` fallback is refused *before any connection*; a `localhost` fallback is accepted and connected. (`tests/conftest.py`.)
+
+### Frontend correctness & polish
+
+- **`canWrite` now requires a resolved backend actor.** It was `hasCredential` alone, so write controls enabled before — or despite a failed — `GET /me`. It is now `hasCredential && meQuery.isSuccess`, the same source of truth as `isInternal`, and the `hydrated` flag waits for `/me` to settle so the "sign in to contribute" hint never flashes for an already-credentialed user mid-fetch. (The backend was always the real enforcement point; this aligns the UI with it.) (`src/lib/use-identity.ts`.)
+- **The callback surfaces exchange failures** instead of bouncing the user onto a page that thinks they're signed in: a failed `exchangeCodeForSession` redirects to `/?auth_error=…`. (`src/app/auth/callback/route.ts`.)
+- **Minor:** the funding currency input is bounded (`maxLength={3}` + an `aria-label`); the `NEXT_PUBLIC_AUTH_DEV` note in `.env.example` now states it is inert without the backend's `AUTH_DEV_HEADER_ENABLED`, so the real gate is unambiguous. (`funding-panel.tsx`, `frontend/.env.example`.)
+
+### Reviewed and deliberately left as-is
+
+- **Native funding's `internal` role is granted only at JIT provisioning.** Adding an email to `INTERNAL_ACTOR_EMAILS` *after* a user's first login won't retroactively grant the role (re-evaluating on every login is a `0.7.0` decision). Operational note: add an internal email to the allowlist **before** that person first signs in.
+- **HS256 shared-secret JWT verification** — Supabase is steering new projects toward asymmetric signing keys; the legacy shared secret still works and `supabase_jwks_url` is reserved for the swap. Forward-compat only.
+- **Multi-currency budgets** sum in one inferred unit (acknowledged out of scope); public funding/budget reads expose amounts + funder display names (`ActorSummary` only — no email), acceptable for the current preview posture.
+
+### Still gating the production push
+
+- **The DB-backed suite (`test_auth` + `test_funding` + the rest) must be run green against a throwaway Postgres.** This pass re-ran lint, the non-DB suite, and the frontend build, but could not reproduce the `0.6.0` "`51 passed` against real Postgres" claim without a test database (the only configured DB is the live one). Run `TEST_DATABASE_URL=<throwaway> uv run pytest` before tagging.
+- **Deploy config:** Fly secrets `SUPABASE_JWT_SECRET`, `INTERNAL_ACTOR_EMAILS`, `AUTH_DEV_HEADER_ENABLED=false`; Vercel `NEXT_PUBLIC_SUPABASE_URL` / `_ANON_KEY` with `NEXT_PUBLIC_AUTH_DEV` unset; `alembic upgrade head` through `0005` (wired as Fly's `release_command`).
+
+---
+
+## 0.6.0
+
+Authentication and funding — real verified identity, then the funding write path, in that order. Replaces the unverified `X-Dev-Actor-Id` dev header with a Supabase-issued JWT mapped onto the existing `Actor` model, and activates `FundingAllocation` (the last core primitive with a model but no write path) as a money-stubbed, source-aware, contribution-only ledger write. Full details in `docs/completions/0.6.0-auth-and-funding.md`. Real Stripe settlement and compute *spend* remain deferred to `0.7.0`.
+
+### Prerequisite — closed the `0.4.0` DB-test gate
+
+- Through `0.4.7` the DB-backed suite had only ever *skipped*. Running it against a real Postgres for the first time exposed a latent **test-harness** bug: `Base.metadata.drop_all` cannot topologically sort the `branches`↔`checkpoints` foreign-key cycle (the dual-FK from `0.4.2`), so every teardown errored and leftover rows cascaded into failures. Fixed in `tests/conftest.py` by resetting the schema (`DROP SCHEMA public CASCADE; CREATE SCHEMA public`) in setup + teardown instead of dropping table-by-table. Test-infrastructure only — no app code. The DB-backed suite now executes green; auth/funding are built on a verified service layer.
+
+### Verified identity (`0.6.1`)
+
+- **`actors.roles`** (migration `0004_actor_roles`) — an `ARRAY(String)` queryable-authorization column (server default `'{}'`); an `internal` (Kamino) role gates native funding. A mutable identity attribute, **not** append-only guarded.
+- **`app/core/auth.py`** — a swappable verification adapter: verifies a Supabase HS256 JWT (signature/audience/expiry) and returns `(subject, email, display_name)`. Swapping IdP changes only this file + config.
+- **`app/api/deps.py`** — `get_acting_actor` now resolves a verified bearer token to one `Actor` by `external_id == sub`, **JIT-provisioning** on first login (idempotent on the unique `external_id`); falls back to the `X-Dev-Actor-Id` path only behind `auth_dev_header_enabled` (local/test). **The `ActingActor` contract and every service are unchanged.** Adds `require_internal`.
+- `GET /me` (resolved actor + roles); `POST /actors` retired to `404` in production (kept behind the dev flag). New config: `supabase_jwt_secret`, `supabase_jwt_audience`, `auth_dev_header_enabled`, `internal_actor_emails`. Adds `pyjwt`.
+
+### Frontend auth (`0.6.2`)
+
+- Supabase Auth (`@supabase/ssr`): sign-in/out (OAuth + email magic link), a PKCE `/auth/callback` route, an `AuthProvider` that pushes the verified token into the api client. The acting credential moved module-side, so the `actorId` argument was dropped from every mutation; `request` attaches `Authorization: Bearer` (or `X-Dev-Actor-Id` in dev mode). A unified `useActingIdentity()` hook gates writes and exposes roles; the dev-actor switcher survives only behind `NEXT_PUBLIC_AUTH_DEV`.
+
+### Funding write path (`0.6.3`)
+
+- **`funding_allocations.source`** (migration `0005_funding_source`, new `funding_source` enum `native`/`stripe`). `app/services/funding.py` writes an allocation + a `fund` `Contribution` (`funding_allocation_id` set, `checkpoint_id` NULL) in one transaction — **no checkpoint minted** (Decision #3). Native funding requires the `internal` role (`403`) and is born `settled`; stripe is born `pending` and excluded from `funded`. Routes for create/list/detail/budget; project overview gains a `budget` block (`funded = Σ settled`, `spent = 0`, `available = funded`).
+
+### Frontend funding (`0.6.4`)
+
+- A project budget panel (Funded / Available / Spent-as-0) with a funding-history list and an internal-only native top-up form; copy makes the funder/contributor/validator separation legible.
+
+### Verification
+
+- Backend `51 passed` against a real Postgres (DB-backed tests executing, not skipping); `ruff` clean. Migrations `0004`/`0005` apply, round-trip, and pass `alembic check` (no drift). Frontend `typecheck`/`lint`/`build` pass. End-to-end HTTP smoke against the migrated schema confirmed: internal native funding → `settled` + attributed; non-internal → `403`; budget updates; **0 checkpoints minted** by funding; a real JWT JIT-provisions the actor at `GET /me`, a verified write → `201`, a malformed bearer → `401`.
 
 ---
 

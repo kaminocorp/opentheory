@@ -6,7 +6,7 @@ import { useState } from "react";
 
 import { closeBranch, createBranch, listBranches, listCheckpoints } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
-import { useDevActor } from "@/providers/dev-actor-provider";
+import { useActingIdentity } from "@/lib/use-identity";
 import type { BranchCloseOutcome, BranchStatus } from "@/types/research";
 
 const BRANCH_STATUS_META: Record<BranchStatus, { label: string; className: string }> = {
@@ -25,7 +25,7 @@ type BranchBarProps = {
 };
 
 export function BranchBar({ projectId, selectedBranchId, onSelectBranch }: BranchBarProps) {
-  const { actorId, hydrated } = useDevActor();
+  const { canWrite, hydrated, signInHint } = useActingIdentity();
   const queryClient = useQueryClient();
   const [forking, setForking] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -153,8 +153,8 @@ export function BranchBar({ projectId, selectedBranchId, onSelectBranch }: Branc
         />
       ) : null}
 
-      {!actorId && hydrated ? (
-        <p className="text-[11px] text-ember">Select an actor (top right) to fork or close branches.</p>
+      {!canWrite && hydrated ? (
+        <p className="text-[11px] text-ember">{signInHint} to fork or close branches.</p>
       ) : null}
     </section>
   );
@@ -167,7 +167,7 @@ function ForkBranchForm({
   projectId: string;
   onCreated: (branchId: string) => void;
 }) {
-  const { actorId } = useDevActor();
+  const { canWrite } = useActingIdentity();
   const [name, setName] = useState("");
   const [reason, setReason] = useState("");
   const [fromCheckpointId, setFromCheckpointId] = useState("");
@@ -180,16 +180,12 @@ function ForkBranchForm({
   const checkpoints = checkpointsQuery.data ?? [];
 
   const mutation = useMutation({
-    mutationFn: (actor: string) =>
-      createBranch(
-        projectId,
-        {
-          from_checkpoint_id: fromCheckpointId || checkpoints[0]?.id,
-          name: name.trim(),
-          reason: reason.trim() || null,
-        },
-        actor,
-      ),
+    mutationFn: () =>
+      createBranch(projectId, {
+        from_checkpoint_id: fromCheckpointId || checkpoints[0]?.id,
+        name: name.trim(),
+        reason: reason.trim() || null,
+      }),
     onSuccess: (branch) => {
       setName("");
       setReason("");
@@ -198,7 +194,7 @@ function ForkBranchForm({
   });
 
   const effectiveFork = fromCheckpointId || checkpoints[0]?.id || "";
-  const canSubmit = Boolean(actorId) && name.trim().length > 0 && Boolean(effectiveFork);
+  const canSubmit = canWrite && name.trim().length > 0 && Boolean(effectiveFork);
 
   if (!checkpointsQuery.isLoading && checkpoints.length === 0) {
     return (
@@ -213,7 +209,7 @@ function ForkBranchForm({
       className="grid gap-2 rounded-md border border-line bg-paper/60 p-3 sm:grid-cols-2"
       onSubmit={(event) => {
         event.preventDefault();
-        if (canSubmit && !mutation.isPending) mutation.mutate(actorId!);
+        if (canSubmit && !mutation.isPending) mutation.mutate();
       }}
     >
       <input
@@ -263,27 +259,26 @@ function CloseBranchForm({
   branchName: string;
   onClosed: () => void;
 }) {
-  const { actorId } = useDevActor();
+  const { canWrite } = useActingIdentity();
   const [outcome, setOutcome] = useState<BranchCloseOutcome>("dead_end");
   const [reason, setReason] = useState("");
 
   const mutation = useMutation({
-    mutationFn: (actor: string) =>
-      closeBranch(branchId, { outcome, reason: reason.trim() || null }, actor),
+    mutationFn: () => closeBranch(branchId, { outcome, reason: reason.trim() || null }),
     onSuccess: () => {
       setReason("");
       onClosed();
     },
   });
 
-  const canSubmit = Boolean(actorId) && reason.trim().length > 0;
+  const canSubmit = canWrite && reason.trim().length > 0;
 
   return (
     <form
       className="grid gap-2 rounded-md border border-ember/30 bg-white/70 p-3"
       onSubmit={(event) => {
         event.preventDefault();
-        if (canSubmit && !mutation.isPending) mutation.mutate(actorId!);
+        if (canSubmit && !mutation.isPending) mutation.mutate();
       }}
     >
       <p className="text-xs text-ink/60">

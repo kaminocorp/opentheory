@@ -64,6 +64,17 @@ class FundingStatus(StrEnum):
     REFUNDED = "refunded"
 
 
+class FundingSource(StrEnum):
+    """Where the budget came from (0.6.3), orthogonal to FundingKind's accounting category.
+
+    ``native`` = Kamino comps the budget against the platform's own (future) compute, gated to
+    ``internal`` actors. ``stripe`` = an external funder pays (modeled; real settlement deferred).
+    """
+
+    NATIVE = "native"
+    STRIPE = "stripe"
+
+
 class BranchStatus(StrEnum):
     OPEN = "open"
     MERGED = "merged"

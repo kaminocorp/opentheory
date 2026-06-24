@@ -12,6 +12,10 @@ import type {
   ClaimCreate,
   Evidence,
   EvidenceCreate,
+  Funding,
+  FundingCreate,
+  Me,
+  ProjectBudget,
   ProjectOverview,
   Thread,
   ThreadCreate,
@@ -22,14 +26,36 @@ import type {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
 
-// Header carrying the acting dev actor on every write (replaced by real auth in 0.6.0).
+// Header carrying the acting dev actor (dev mode only — NEXT_PUBLIC_AUTH_DEV).
 const DEV_ACTOR_HEADER = "X-Dev-Actor-Id";
+
+// The acting credential is held module-side and kept in sync by the providers, so the typed
+// api functions stay plain (no actor/token argument threaded through every call). In
+// production the AuthProvider pushes the verified bearer token here; in dev mode the
+// DevActorProvider pushes the selected actor id. `request` attaches whichever is set.
+let accessToken: string | null = null;
+let devActorId: string | null = null;
+
+export function setAccessToken(token: string | null): void {
+  accessToken = token;
+}
+
+export function setDevActorId(actorId: string | null): void {
+  devActorId = actorId;
+}
+
+function authHeaders(): Record<string, string> {
+  if (accessToken) return { Authorization: `Bearer ${accessToken}` };
+  if (devActorId) return { [DEV_ACTOR_HEADER]: devActorId };
+  return {};
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      ...authHeaders(),
       ...init?.headers,
     },
   });
@@ -53,12 +79,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-function writeInit(actorId: string, body: unknown): RequestInit {
-  return {
-    method: "POST",
-    body: JSON.stringify(body),
-    headers: { [DEV_ACTOR_HEADER]: actorId },
-  };
+// A write request body; the acting credential rides on every request via authHeaders().
+function writeInit(body: unknown): RequestInit {
+  return { method: "POST", body: JSON.stringify(body) };
+}
+
+// --- Identity ---------------------------------------------------------------
+
+// The resolved acting actor (incl. roles), driving the identity menu and write gating.
+export function getMe(): Promise<Me> {
+  return request<Me>("/me");
 }
 
 // --- Projects ---------------------------------------------------------------
@@ -75,7 +105,7 @@ export function getProjectOverview(projectId: string): Promise<ProjectOverview> 
   return request<ProjectOverview>(`/projects/${projectId}/overview`);
 }
 
-// --- Actors (dev identity; create is the bootstrap path, no acting actor) ----
+// --- Actors (dev identity; bootstrap is behind the backend dev flag) ---------
 
 export function listActors(): Promise<Actor[]> {
   return request<Actor[]>("/actors");
@@ -95,12 +125,8 @@ export function getThread(threadId: string): Promise<Thread> {
   return request<Thread>(`/threads/${threadId}`);
 }
 
-export function createThread(
-  projectId: string,
-  payload: ThreadCreate,
-  actorId: string,
-): Promise<Thread> {
-  return request<Thread>(`/projects/${projectId}/threads`, writeInit(actorId, payload));
+export function createThread(projectId: string, payload: ThreadCreate): Promise<Thread> {
+  return request<Thread>(`/projects/${projectId}/threads`, writeInit(payload));
 }
 
 // --- Claims -----------------------------------------------------------------
@@ -109,12 +135,8 @@ export function listClaims(threadId: string): Promise<Claim[]> {
   return request<Claim[]>(`/threads/${threadId}/claims`);
 }
 
-export function createClaim(
-  threadId: string,
-  payload: ClaimCreate,
-  actorId: string,
-): Promise<Claim> {
-  return request<Claim>(`/threads/${threadId}/claims`, writeInit(actorId, payload));
+export function createClaim(threadId: string, payload: ClaimCreate): Promise<Claim> {
+  return request<Claim>(`/threads/${threadId}/claims`, writeInit(payload));
 }
 
 // --- Evidence ---------------------------------------------------------------
@@ -123,12 +145,8 @@ export function listEvidence(claimId: string): Promise<Evidence[]> {
   return request<Evidence[]>(`/claims/${claimId}/evidence`);
 }
 
-export function attachEvidence(
-  claimId: string,
-  payload: EvidenceCreate,
-  actorId: string,
-): Promise<Evidence> {
-  return request<Evidence>(`/claims/${claimId}/evidence`, writeInit(actorId, payload));
+export function attachEvidence(claimId: string, payload: EvidenceCreate): Promise<Evidence> {
+  return request<Evidence>(`/claims/${claimId}/evidence`, writeInit(payload));
 }
 
 // --- Checkpoints ------------------------------------------------------------
@@ -140,9 +158,8 @@ export function listCheckpoints(projectId: string): Promise<Checkpoint[]> {
 export function createCheckpoint(
   projectId: string,
   payload: CheckpointCreate,
-  actorId: string,
 ): Promise<Checkpoint> {
-  return request<Checkpoint>(`/projects/${projectId}/checkpoints`, writeInit(actorId, payload));
+  return request<Checkpoint>(`/projects/${projectId}/checkpoints`, writeInit(payload));
 }
 
 // --- Validations ------------------------------------------------------------
@@ -150,9 +167,8 @@ export function createCheckpoint(
 export function createValidation(
   projectId: string,
   payload: ValidationCreate,
-  actorId: string,
 ): Promise<Validation> {
-  return request<Validation>(`/projects/${projectId}/validations`, writeInit(actorId, payload));
+  return request<Validation>(`/projects/${projectId}/validations`, writeInit(payload));
 }
 
 // --- Branches ---------------------------------------------------------------
@@ -161,18 +177,24 @@ export function listBranches(projectId: string): Promise<BranchSummary[]> {
   return request<BranchSummary[]>(`/projects/${projectId}/branches`);
 }
 
-export function createBranch(
-  projectId: string,
-  payload: BranchCreate,
-  actorId: string,
-): Promise<Branch> {
-  return request<Branch>(`/projects/${projectId}/branches`, writeInit(actorId, payload));
+export function createBranch(projectId: string, payload: BranchCreate): Promise<Branch> {
+  return request<Branch>(`/projects/${projectId}/branches`, writeInit(payload));
 }
 
-export function closeBranch(
-  branchId: string,
-  payload: BranchClose,
-  actorId: string,
-): Promise<Branch> {
-  return request<Branch>(`/branches/${branchId}/close`, writeInit(actorId, payload));
+export function closeBranch(branchId: string, payload: BranchClose): Promise<Branch> {
+  return request<Branch>(`/branches/${branchId}/close`, writeInit(payload));
+}
+
+// --- Funding (0.6.3) --------------------------------------------------------
+
+export function listFunding(projectId: string): Promise<Funding[]> {
+  return request<Funding[]>(`/projects/${projectId}/funding`);
+}
+
+export function getProjectBudget(projectId: string): Promise<ProjectBudget> {
+  return request<ProjectBudget>(`/projects/${projectId}/budget`);
+}
+
+export function createFunding(projectId: string, payload: FundingCreate): Promise<Funding> {
+  return request<Funding>(`/projects/${projectId}/funding`, writeInit(payload));
 }

@@ -1,7 +1,9 @@
 import { FlaskConical, Search } from "lucide-react";
 import Link from "next/link";
 
+import { AuthMenu } from "@/components/shell/auth-menu";
 import { DevActorSwitcher } from "@/components/shell/dev-actor-switcher";
+import { AUTH_DEV } from "@/lib/use-identity";
 
 export function SiteHeader() {
   return (
@@ -28,7 +30,9 @@ export function SiteHeader() {
           >
             Projects
           </Link>
-          <DevActorSwitcher />
+          {/* Real identity menu; the dev-actor switcher survives only in dev mode (local work). */}
+          {AUTH_DEV ? <DevActorSwitcher /> : null}
+          <AuthMenu />
         </nav>
       </div>
     </header>

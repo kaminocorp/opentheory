@@ -191,7 +191,7 @@ async def _validate_refs(
         model = _REF_TARGET_MODELS.get(ref.target_type)
         if model is None:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=(
                     f"target_type must be one of {sorted(CHECKPOINT_TARGET_TYPES)}; "
                     f"got {ref.target_type!r}"

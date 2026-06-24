@@ -15,12 +15,16 @@ class ActorBase(BaseModel):
 
 
 class ActorCreate(ActorBase):
-    pass
+    # Roles are normally granted on JIT provisioning (email allowlist); the create path is the
+    # dev/test bootstrap (behind auth_dev_header_enabled), so it may seed roles directly.
+    roles: list[str] = Field(default_factory=list)
 
 
 class ActorRead(ActorBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    roles: list[str] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
+

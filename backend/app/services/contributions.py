@@ -24,6 +24,7 @@ ACTION_CREATE_CHECKPOINT = "create_checkpoint"
 ACTION_VALIDATE = "validate"  # 0.4.1: recording a validation (through the checkpoint chokepoint)
 ACTION_CREATE_BRANCH = "create_branch"  # 0.4.2: forking a branch from a checkpoint
 ACTION_CLOSE_BRANCH = "close_branch"  # 0.4.2: closing a branch as dead-end/superseded
+ACTION_FUND = "fund"  # 0.6.3: a funding allocation (contribution-only — NOT through a checkpoint)
 
 
 def record_contribution(
@@ -35,13 +36,20 @@ def record_contribution(
     target_type: str,
     target_id: UUID,
     checkpoint_id: UUID | None = None,
+    funding_allocation_id: UUID | None = None,
     notes: str | None = None,
 ) -> Contribution:
-    """Add a contribution to the session (no commit — the caller owns the transaction)."""
+    """Add a contribution to the session (no commit — the caller owns the transaction).
+
+    A contribution references *either* a ``checkpoint_id`` (research events, recorded through
+    the chokepoint) *or* a ``funding_allocation_id`` (funding events — Decision #3), via the
+    matching FK on ``Contribution``. The two are alternatives; funding sets ``checkpoint_id=None``.
+    """
     contribution = Contribution(
         project_id=project_id,
         actor_id=actor.id if actor is not None else None,
         checkpoint_id=checkpoint_id,
+        funding_allocation_id=funding_allocation_id,
         action=action,
         target_type=target_type,
         target_id=target_id,

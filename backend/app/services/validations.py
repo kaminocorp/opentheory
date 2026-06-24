@@ -137,7 +137,7 @@ async def create_validation(
     model = _TARGET_MODELS.get(payload.target_type)
     if model is None:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 f"target_type must be one of {sorted(VALIDATION_TARGET_TYPES)}; "
                 f"got {payload.target_type!r}"
