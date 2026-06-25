@@ -1,4 +1,4 @@
-import type { Project } from "@/types/project";
+import type { Project, ProjectCreate } from "@/types/project";
 import type {
   Actor,
   ActorCreate,
@@ -95,6 +95,11 @@ export function getMe(): Promise<Me> {
 
 export function listProjects(): Promise<Project[]> {
   return request<Project[]>("/projects");
+}
+
+// Create a project (write-gated: the acting actor rides on the request via authHeaders()).
+export function createProject(payload: ProjectCreate): Promise<Project> {
+  return request<Project>("/projects", writeInit(payload));
 }
 
 export function getProject(projectId: string): Promise<Project> {

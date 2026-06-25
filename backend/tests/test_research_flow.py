@@ -18,6 +18,8 @@ async def _create_actor(client: AsyncClient) -> str:
 
 
 async def _create_project(client: AsyncClient) -> str:
+    # Project creation now requires an acting actor; reuse the dev-actor bootstrap helper.
+    actor_id = await _create_actor(client)
     response = await client.post(
         "/api/v1/projects",
         json={
@@ -25,6 +27,7 @@ async def _create_project(client: AsyncClient) -> str:
             "slug": "test-project",
             "question": "What is the nature of X?",
         },
+        headers={"X-Dev-Actor-Id": actor_id},
     )
     assert response.status_code == 201, response.text
     return response.json()["id"]

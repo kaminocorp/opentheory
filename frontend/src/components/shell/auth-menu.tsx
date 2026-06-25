@@ -4,12 +4,16 @@ import { useQueryClient } from "@tanstack/react-query";
 import { LogOut, Mail, ShieldCheck, UserCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { Action, Icon, Input } from "@/components/console";
 import { useActingIdentity } from "@/lib/use-identity";
 import { useAuth } from "@/providers/auth-provider";
 
 // The real-auth identity surface (0.6.2): signed-in name + roles + sign-out, or a sign-in
 // dropdown (email magic-link / Google). Renders nothing when Supabase is not configured —
 // in that case local work uses the dev-actor switcher instead.
+//
+// D2 re-skin: console tokens + primitives only. Every hook, handler, effect, and conditional
+// return below is unchanged from 0.6.2 — this is presentation, not behaviour.
 export function AuthMenu() {
   const { isConfigured, session, loading, signOut, signInWithEmail, signInWithGoogle } = useAuth();
   const { displayName, isInternal } = useActingIdentity();
@@ -34,7 +38,7 @@ export function AuthMenu() {
   // Without Supabase configured there is no real auth to show; dev mode uses DevActorSwitcher.
   if (!isConfigured) return null;
   if (loading) {
-    return <span className="px-2 text-sm text-ink/50">…</span>;
+    return <span className="px-2 text-[13px] text-text-mute">…</span>;
   }
 
   async function handleSignOut() {
@@ -59,30 +63,31 @@ export function AuthMenu() {
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="flex h-10 items-center gap-2 rounded-md border border-line bg-white/70 px-3 text-sm font-medium text-ink/75 hover:text-ink"
+          className="flex h-9 items-center gap-2 rounded-full px-3 text-[13px] font-medium text-text transition-colors hover:border-text"
+          style={{ border: "0.5px solid var(--hairline-strong)" }}
           title="Account"
         >
-          <UserCircle className="size-4 shrink-0 text-signal" aria-hidden="true" />
+          <Icon icon={UserCircle} size={16} className="text-text-mute" />
           <span className="max-w-32 truncate">{displayName ?? "Account"}</span>
           {isInternal ? (
-            <ShieldCheck className="size-4 shrink-0 text-signal" aria-label="Kamino internal" />
+            <Icon icon={ShieldCheck} size={16} className="text-signal" aria-label="Kamino internal" />
           ) : null}
         </button>
 
         {open ? (
-          <div className="absolute right-0 z-20 mt-2 w-64 rounded-md border border-line bg-paper p-2 shadow-panel">
+          <div className="menu menu-pop absolute right-0 z-40 mt-2 w-64 p-2">
             <div className="px-2 py-1.5">
-              <p className="truncate text-sm font-semibold">{displayName ?? "Signed in"}</p>
-              <p className="mt-0.5 text-xs text-ink/55">
+              <p className="truncate text-[13px] font-medium text-text">{displayName ?? "Signed in"}</p>
+              <p className="mt-0.5 text-xs text-text-mute">
                 {isInternal ? "Kamino internal · can fund" : "Contributor"}
               </p>
             </div>
             <button
               type="button"
               onClick={handleSignOut}
-              className="mt-1 flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-ink/75 hover:bg-white/70"
+              className="mt-1 flex w-full items-center gap-2 rounded-built px-2 py-2 text-left text-[13px] text-text-soft transition-colors hover:bg-panel-2"
             >
-              <LogOut className="size-4" aria-hidden="true" />
+              <Icon icon={LogOut} size={16} />
               Sign out
             </button>
           </div>
@@ -93,30 +98,23 @@ export function AuthMenu() {
 
   return (
     <div className="relative" ref={containerRef}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex h-10 items-center gap-2 rounded-md bg-ink px-3 text-sm font-semibold text-paper hover:bg-ink/90"
-      >
-        Sign in
-      </button>
+      <Action onClick={() => setOpen((v) => !v)}>Sign in</Action>
 
       {open ? (
-        <div className="absolute right-0 z-20 mt-2 w-72 rounded-md border border-line bg-paper p-3 shadow-panel">
+        <div className="menu menu-pop absolute right-0 z-40 mt-2 w-72 p-3">
           {sent ? (
-            <p className="px-1 py-2 text-sm text-ink/70">
-              Check your email for a sign-in link.
-            </p>
+            <p className="px-1 py-2 text-[13px] text-text-soft">Check your email for a sign-in link.</p>
           ) : (
             <>
               <button
                 type="button"
                 onClick={() => signInWithGoogle()}
-                className="mb-3 flex w-full items-center justify-center gap-2 rounded-md border border-line bg-white/80 px-3 py-2 text-sm font-medium hover:bg-white"
+                className="mb-3 flex w-full items-center justify-center gap-2 rounded-full px-3 py-2 text-[13px] font-medium text-text transition-colors hover:border-text"
+                style={{ border: "0.5px solid var(--hairline-strong)" }}
               >
                 Continue with Google
               </button>
-              <p className="mb-2 text-center text-xs text-ink/45">or a magic link</p>
+              <p className="mb-2 text-center text-[11px] text-text-faint">or a magic link</p>
               <form
                 className="flex items-center gap-2"
                 onSubmit={(event) => {
@@ -124,23 +122,24 @@ export function AuthMenu() {
                   if (email.trim()) handleEmailSignIn();
                 }}
               >
-                <input
+                <Input
+                  mono
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="you@example.com"
-                  className="h-9 min-w-0 flex-1 rounded-md border border-line bg-white/80 px-2 text-sm outline-none focus:border-signal"
+                  className="h-9 min-w-0 flex-1"
                 />
                 <button
                   type="submit"
                   disabled={!email.trim()}
-                  className="inline-flex h-9 items-center gap-1 rounded-md bg-ink px-2.5 text-sm font-semibold text-paper disabled:opacity-50"
+                  className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-signal px-3 text-[13px] font-medium text-ground transition-colors hover:bg-signal-strong disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <Mail className="size-4" aria-hidden="true" />
+                  <Icon icon={Mail} size={16} />
                   Send
                 </button>
               </form>
-              {error ? <p className="mt-2 text-xs text-ember">{error}</p> : null}
+              {error ? <p className="mt-2 text-[11px] text-state-fail">{error}</p> : null}
             </>
           )}
         </div>

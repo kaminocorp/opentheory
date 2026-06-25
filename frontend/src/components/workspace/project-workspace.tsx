@@ -1,12 +1,14 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Activity, AlertCircle, AlertTriangle, ArrowLeft } from "lucide-react";
+import { AlertTriangle, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
+import { AwaitingState, Bay, Icon, MetricReadout, StatusPill, type StateTone } from "@/components/console";
 import { getProject, getProjectOverview, listBranches } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
+import type { Project } from "@/types/project";
 
 import { BranchBar } from "./branch-bar";
 import { CheckpointTimelinePanel } from "./checkpoint-timeline-panel";
@@ -29,6 +31,15 @@ const COUNT_LABELS: {
   { key: "validations", label: "Validations" },
   { key: "branches", label: "Branches" },
 ];
+
+// Project status → a state tone (glyph + colour survive grayscale).
+const projectStatusTone: Record<Project["status"], StateTone> = {
+  draft: "mute",
+  active: "run",
+  paused: "warn",
+  completed: "ok",
+  archived: "faint",
+};
 
 export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
@@ -57,84 +68,86 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
 
   if (projectQuery.isLoading) {
     return (
-      <div className="grid min-h-80 place-items-center rounded-lg border border-line bg-white/70">
-        <div className="flex items-center gap-3 text-sm text-ink/65">
-          <Activity className="size-4 animate-pulse text-signal" aria-hidden="true" />
-          Loading project
-        </div>
-      </div>
+      <Bay className="grid min-h-80 place-items-center">
+        <AwaitingState variant="loading" label="loading project" />
+      </Bay>
     );
   }
 
   if (projectQuery.isError || !projectQuery.data) {
     return (
-      <div className="grid min-h-80 place-items-center rounded-lg border border-ember/30 bg-white/75 p-6 text-center">
-        <div className="max-w-sm">
-          <AlertCircle className="mx-auto mb-3 size-6 text-ember" aria-hidden="true" />
-          <h1 className="text-lg font-semibold">Project unavailable</h1>
-          <p className="mt-2 text-sm leading-6 text-ink/65">The requested project could not be loaded.</p>
-        </div>
-      </div>
+      <Bay className="grid min-h-80 place-items-center">
+        <AwaitingState variant="error" label="project unavailable" />
+      </Bay>
     );
   }
 
   const project = projectQuery.data;
+  const contradictions = overviewQuery.data?.contradictions ?? [];
 
   return (
     <div className="grid gap-5">
+      {/* Back link — the ActionText register (text → signal on hover), with a ←. */}
       <Link
         href="/"
-        className="inline-flex w-fit items-center gap-2 text-sm font-medium text-ink/65 hover:text-ink"
+        className="inline-flex w-fit items-center gap-1.5 text-[13px] font-medium text-text-mute transition-colors hover:text-signal"
       >
-        <ArrowLeft className="size-4" aria-hidden="true" />
+        <Icon icon={ArrowLeft} size={14} />
         Projects
       </Link>
 
-      <header className="grid gap-3 rounded-lg border border-line bg-white/75 p-6 shadow-panel">
-        <p className="text-sm font-semibold uppercase tracking-[0.14em] text-signal">{project.status}</p>
-        <h1 className="text-balance text-2xl font-semibold sm:text-3xl">{project.title}</h1>
-        <p className="max-w-3xl text-sm leading-7 text-ink/70">{project.question}</p>
+      <Bay as="header" bracketed chamfer density="narrative" className="grid gap-3">
+        <StatusPill tone={projectStatusTone[project.status]} label={project.status} />
+        <h1 className="text-balance text-2xl font-medium leading-snug text-text">{project.title}</h1>
+        <p className="max-w-3xl text-[14px] leading-[1.55] text-text-soft">{project.question}</p>
         {project.description ? (
-          <p className="max-w-3xl text-sm leading-6 text-ink/60">{project.description}</p>
+          <p className="max-w-3xl text-[14px] leading-[1.5] text-text-mute">{project.description}</p>
         ) : null}
 
-        <dl className="mt-1 grid grid-cols-2 gap-3 border-t border-line pt-4 sm:grid-cols-3 lg:grid-cols-6">
-          {COUNT_LABELS.map(({ key, label }) => (
-            <div key={key} className="rounded-md border border-line bg-paper/60 px-3 py-2">
-              <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink/50">{label}</dt>
-              <dd className="mt-0.5 text-xl font-semibold tabular-nums">
-                {overviewQuery.data ? (
-                  overviewQuery.data.counts[key]
-                ) : overviewQuery.isError ? (
-                  "—"
-                ) : (
-                  <span
-                    className="inline-block h-5 w-6 animate-pulse rounded bg-line/70 align-middle"
-                    aria-hidden="true"
-                  />
-                )}
-              </dd>
-            </div>
-          ))}
-        </dl>
-
-        {overviewQuery.data && overviewQuery.data.contradictions.length > 0 ? (
-          <div className="mt-1 rounded-md border border-ember/30 bg-ember/5 p-3">
-            <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.1em] text-ember">
-              <AlertTriangle className="size-3.5" aria-hidden="true" />
-              {overviewQuery.data.contradictions.length} contested claim
-              {overviewQuery.data.contradictions.length === 1 ? "" : "s"}
+        {/* Honesty surface (§1): contested claims float above the counts at equal
+            weight, marked by a state-fail edge tick + glyph + label — never softened. */}
+        {contradictions.length > 0 ? (
+          <div className="relative rounded-built bg-panel-2 p-3 pl-4">
+            <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-state-fail" />
+            <p className="flex items-center gap-1.5">
+              <Icon icon={AlertTriangle} size={14} className="text-state-fail" />
+              <span className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-state-fail">
+                {contradictions.length} contested claim{contradictions.length === 1 ? "" : "s"}
+              </span>
             </p>
             <ul className="mt-2 grid gap-1">
-              {overviewQuery.data.contradictions.map((item) => (
-                <li key={item.claim_id} className="truncate text-sm leading-6 text-ink/70">
+              {contradictions.map((item) => (
+                <li key={item.claim_id} className="truncate text-[13px] leading-[1.5] text-text-soft">
                   {item.statement}
                 </li>
               ))}
             </ul>
           </div>
         ) : null}
-      </header>
+
+        <dl
+          className="grid grid-cols-2 gap-3 pt-1 sm:grid-cols-3 lg:grid-cols-6"
+        >
+          {COUNT_LABELS.map(({ key, label }) => (
+            <MetricReadout
+              key={key}
+              label={label}
+              value={
+                overviewQuery.data ? (
+                  overviewQuery.data.counts[key]
+                ) : overviewQuery.isError ? (
+                  "—"
+                ) : (
+                  <span
+                    aria-hidden
+                    className="inline-block h-5 w-6 animate-pulse rounded-inset bg-text-faint/25 align-middle"
+                  />
+                )
+              }
+            />
+          ))}
+        </dl>
+      </Bay>
 
       <FundingPanel projectId={projectId} />
 
@@ -144,7 +157,7 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
         onSelectBranch={setSelectedBranchId}
       />
 
-      <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)_340px]">
+      <div className="enter-stagger grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)_340px]">
         <ThreadListPanel
           projectId={projectId}
           selectedThreadId={selectedThreadId}

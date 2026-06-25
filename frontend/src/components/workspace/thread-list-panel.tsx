@@ -4,7 +4,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { GitBranch, Plus, X } from "lucide-react";
 import { useState } from "react";
 
+import { Action, Bay, BayHeader, Icon, Input } from "@/components/console";
 import { createThread, listThreads } from "@/lib/api";
+import { cn } from "@/lib/cn";
 import { queryKeys } from "@/lib/query-keys";
 import { useActingIdentity } from "@/lib/use-identity";
 
@@ -16,6 +18,8 @@ type ThreadListPanelProps = {
   onSelectThread: (threadId: string) => void;
 };
 
+// D5 re-skin: the threads instrument bay (§5.1). Console tokens + primitives only;
+// every hook, the create mutation, and the selection callback below are unchanged.
 export function ThreadListPanel({
   projectId,
   selectedThreadId,
@@ -46,104 +50,120 @@ export function ThreadListPanel({
     },
   });
 
+  const threads = threadsQuery.data ?? [];
   const canSubmit = canWrite && title.trim().length > 0 && question.trim().length > 0;
 
   return (
-    <section className="flex flex-col gap-3 rounded-lg border border-line bg-white/70 p-4 shadow-panel">
-      <header className="flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.1em] text-ink/70">
-          <GitBranch className="size-4 text-signal" aria-hidden="true" />
-          Threads
-        </h2>
-        <button
-          type="button"
-          onClick={() => setAdding((v) => !v)}
-          className="grid size-7 place-items-center rounded-md border border-line text-ink/65 hover:text-ink"
-          aria-label={adding ? "Cancel new thread" : "New thread"}
-          title={adding ? "Cancel" : "New thread"}
-        >
-          {adding ? <X className="size-4" aria-hidden="true" /> : <Plus className="size-4" aria-hidden="true" />}
-        </button>
-      </header>
-
-      {adding ? (
-        <form
-          className="grid gap-2 rounded-md border border-line bg-paper/60 p-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (canSubmit && !createMutation.isPending) createMutation.mutate();
-          }}
-        >
-          <input
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="Thread title"
-            className="h-9 rounded-md border border-line bg-white/80 px-2 text-sm outline-none focus:border-signal"
-          />
-          <input
-            value={question}
-            onChange={(event) => setQuestion(event.target.value)}
-            placeholder="Sub-question"
-            className="h-9 rounded-md border border-line bg-white/80 px-2 text-sm outline-none focus:border-signal"
-          />
-          {!canWrite && hydrated ? (
-            <p className="text-xs text-ember">{signInHint} to create threads.</p>
-          ) : null}
-          {createMutation.isError ? (
-            <p className="text-xs text-ember">{(createMutation.error as Error).message}</p>
-          ) : null}
+    <Bay density="none" className="flex flex-col">
+      <BayHeader
+        label={
+          <span className="inline-flex items-center gap-1.5">
+            <Icon icon={GitBranch} size={14} />
+            Threads
+          </span>
+        }
+        count={threadsQuery.data ? threads.length : undefined}
+        band
+        actions={
           <button
-            type="submit"
-            disabled={!canSubmit || createMutation.isPending}
-            className="inline-flex h-9 items-center justify-center gap-1 rounded-md bg-ink px-3 text-sm font-semibold text-paper disabled:opacity-50"
+            type="button"
+            onClick={() => setAdding((v) => !v)}
+            className="grid size-7 place-items-center rounded-full text-text-mute transition-colors hover:text-text"
+            style={{ border: "0.5px solid var(--hairline-strong)" }}
+            aria-label={adding ? "Cancel new thread" : "New thread"}
+            title={adding ? "Cancel" : "New thread"}
           >
-            {createMutation.isPending ? "Creating…" : "Create thread"}
+            <Icon icon={adding ? X : Plus} size={14} />
           </button>
-        </form>
-      ) : null}
+        }
+      />
 
-      {threadsQuery.isLoading ? (
-        <PanelLoading label="Loading threads" />
-      ) : threadsQuery.isError ? (
-        <PanelError label="Could not load threads." />
-      ) : (threadsQuery.data ?? []).length === 0 ? (
-        <PanelEmpty icon={<GitBranch className="size-5" aria-hidden="true" />}>
-          No threads yet. Decompose the question into a first thread.
-        </PanelEmpty>
-      ) : (
-        <ul className="grid gap-2">
-          {(threadsQuery.data ?? []).map((thread) => {
-            const active = thread.id === selectedThreadId;
-            return (
-              <li key={thread.id}>
-                <button
-                  type="button"
-                  onClick={() => onSelectThread(thread.id)}
-                  className={`w-full rounded-md border p-3 text-left transition ${
-                    active
-                      ? "border-signal/60 bg-signal/5"
-                      : "border-line bg-white/60 hover:border-ink/25"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="truncate text-sm font-semibold">{thread.title}</p>
-                    <span
-                      className="shrink-0 rounded bg-paper px-1.5 py-0.5 text-[11px] font-semibold text-ink/55"
-                      title={`${thread.claim_count} claim${thread.claim_count === 1 ? "" : "s"}`}
-                    >
-                      {thread.claim_count} claim{thread.claim_count === 1 ? "" : "s"}
-                    </span>
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-ink/60">{thread.question}</p>
-                  <p className="mt-2 text-[11px] font-medium uppercase tracking-[0.1em] text-ink/45">
-                    {thread.stage} · {thread.status.replace("_", " ")}
-                  </p>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </section>
+      <div className="flex flex-col gap-3 px-4 pb-4">
+        {adding ? (
+          <form
+            className="grid gap-2 rounded-built bg-panel-2 p-3"
+            style={{ border: "0.5px solid var(--hairline)" }}
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (canSubmit && !createMutation.isPending) createMutation.mutate();
+            }}
+          >
+            <Input
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder="Thread title"
+            />
+            <Input
+              value={question}
+              onChange={(event) => setQuestion(event.target.value)}
+              placeholder="Sub-question"
+            />
+            {!canWrite && hydrated ? (
+              <p className="text-[11px] text-state-warn">{signInHint} to create threads.</p>
+            ) : null}
+            {createMutation.isError ? (
+              <p className="text-[11px] text-state-fail">{(createMutation.error as Error).message}</p>
+            ) : null}
+            <Action
+              type="submit"
+              disabled={!canSubmit || createMutation.isPending}
+              pending={createMutation.isPending}
+              className="w-full"
+            >
+              <Icon icon={Plus} size={16} />
+              {createMutation.isPending ? "Creating…" : "Create thread"}
+            </Action>
+          </form>
+        ) : null}
+
+        {threadsQuery.isLoading ? (
+          <PanelLoading label="Loading threads" />
+        ) : threadsQuery.isError ? (
+          <PanelError label="Could not load threads" />
+        ) : threads.length === 0 ? (
+          <PanelEmpty>No threads yet</PanelEmpty>
+        ) : (
+          <ul className="grid gap-2">
+            {threads.map((thread) => {
+              const active = thread.id === selectedThreadId;
+              return (
+                <li key={thread.id}>
+                  {/* Square selectable row (built); active = a signal left edge tick
+                      + --panel-2, never a flooded fill (§9.2). */}
+                  <button
+                    type="button"
+                    onClick={() => onSelectThread(thread.id)}
+                    className={cn(
+                      "relative w-full rounded-built p-3 pl-4 text-left transition-colors",
+                      active ? "bg-panel-2" : "hover:bg-panel-2/50",
+                    )}
+                    style={{ border: "0.5px solid var(--hairline)" }}
+                  >
+                    {active ? (
+                      <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-signal" />
+                    ) : null}
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="truncate text-[14px] font-medium text-text">{thread.title}</p>
+                      <span
+                        className="shrink-0 font-mono text-[11px] tabular-nums text-text-mute"
+                        title={`${thread.claim_count} claim${thread.claim_count === 1 ? "" : "s"}`}
+                      >
+                        {thread.claim_count}
+                      </span>
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-text-soft">
+                      {thread.question}
+                    </p>
+                    <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.1em] text-text-mute">
+                      {thread.stage} · {thread.status.replace("_", " ")}
+                    </p>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </Bay>
   );
 }

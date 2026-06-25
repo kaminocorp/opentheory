@@ -2,6 +2,8 @@
 
 ## Index
 
+- `0.6.4` — Frontend redesign to the **Kamino Console** design language: a warm-obsidian command bridge — recessed instrument **bays**, registration brackets, IBM Plex Mono readouts / Plex Sans prose, "square is built / round is alive", hairlines not boxes, themed by a single seldom-used crimson **signal**. Presentation-only (**no** backend / schema / API / data-flow change); shipped as six deployable phases **D1–D6**. Adds the Plex fonts, no new runtime dependency, no migration.
+- `0.6.3` — Project creation from the browser + closing the last open write path. A write-gated "New project" form on the index (the first UI to create a project; auto-derived editable slug), and `POST /projects` now requires a verified actor (was unauthenticated). No schema, no migration. (`52 passed`.)
 - `0.6.2` — Second pre-prod review hardening on `0.6.0`/`0.6.1` (no features, schema, or migration). Closes the funding write path against `source=stripe` (now native-only until `0.7.0`; `422` otherwise), stops a stale `X-Dev-Actor-Id` leaking in production, and first runs the DB-test gate on a real Postgres (`52 passed`).
 - `0.6.1` — Pre-prod review hardening on `0.6.0` (no features, schema, or migration). Two security fixes: closes an unauthenticated PII leak (`GET /actors` exposed every actor's email and roles — now dev-gated) and an open redirect (CWE-601) in `/auth/callback`. Hardens the test harness against a stray `DATABASE_URL` wiping production.
 - `0.6.0` — Authentication and funding. A verified Supabase JWT (`Actor.external_id`, JIT-provisioned, queryable `roles`) replaces the unverified `X-Dev-Actor-Id` header, preserving the `ActingActor` contract. Activates `FundingAllocation` as a source-aware, contribution-only write (native gated to `internal`) that mints no checkpoint. Migrations `0004`, `0005`.
@@ -19,6 +21,70 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.6.4
+
+The first **non-functional** release: the entire frontend is converted from the old light "marble" posture into the **Kamino Console** design language (`docs/design_blueprint.md`) — a warm-obsidian command bridge of recessed instrument **bays**, registration-bracket precision, IBM Plex Mono readouts over Plex Sans prose, the "square is built / round is alive" shape grammar, hairlines instead of boxes, lit by structure rather than glow, and themed by a single seldom-used crimson `--signal`. This is **presentation-only**: every TanStack Query call, mutation, route, write-gate (`useActingIdentity`), and read schema is unchanged — the diff is tokens, fonts, structure, and the visual grammar of every component. The acceptance bar is the blueprint's §0 **grayscale test** — desaturated, the UI must still read as a measured instrument console, because identity lives in *form* (substrate, proportion, shape, line, type), not colour. Shipped as six deployable phases (`D1`–`D6`); full per-phase detail in `docs/completions/frontend-kamino-console-D1…D6-*.md`, plan in `docs/executing/frontend-kamino-console-redesign.md`. No new runtime dependency, no schema, no migration.
+
+### Substrate + primitive library (D1)
+
+- **Token layer rewired through the channel pattern.** The old palette (`ink`/`paper`/`line`/teal-`signal`/`ember`, `boxShadow.panel`) is gone; colours are stored in `:root` as space-separated RGB **channels** (`--panel: 22 21 19`) and consumed as `rgb(var(--x) / <alpha-value>)`, so every Tailwind `/opacity` modifier (`text-text/70`, `bg-signal/10`) survives (Decision 4 — verified in the emitted CSS, the one thing a green build doesn't prove). Radii become `built`(0)/`alive`(999)/`inset`(2); the state ramp (`ok`/`run`/`warn`/`fail`) is independent of `--signal` so a brand re-skin never makes "failed" ambiguous.
+- **The measured field** (8px/64px graph-paper grid + registration crosshairs + ~3% grain + edge vignette) is baked once into `globals.css` and shows through gutters; opaque bays paint over it. **IBM Plex Sans/Mono** load via `next/font` (self-hosted, no FOUT).
+- **`src/components/console/`** — the shape grammar defined once: `Bay`/`BayHeader`, `StatusPill` + the shared `STATE_META` (glyph + tone), `ReadoutLabel`, `RegistrationBrackets`/`Band`, `Action`(+`Ghost`/`Text`/`Destructive`), `Input`/`Select`/`Textarea`, `Icon` (a `lucide` wrapper enforcing the line language), `LiveDot`, `BrandMark`, `AwaitingState`, and (added in D4) `MetricReadout`.
+
+### App shell + surfaces (D2–D5)
+
+- **D2 — the app shell:** replaced the centered, header-only column with the full-bleed shell (§4.1): a 6u header (brand lockup + inert restyled search + identity slot) and a left **command rail** adapted to OpenTheory's zones (Projects / Workspace / Funding + a hatched, inert **Agents** zone honest about `0.7.0`). Active zone = a 2px `--signal` edge tick + a pulsing live dot, never a filled block. `site-header.tsx` retired.
+- **D3 — project index:** hero demoted to a modest console title; the three tiles → a metric-readout bay; project cards → bracketed `Bay`s with `StatusPill` status; the three panel states → the breathing-mark `AwaitingState`.
+- **D4 — workspace frame:** the project header → a chamfered, bracketed `Bay` with a `MetricReadout` count grid; **contradictions float above the counts at equal weight** (the honesty surface, §1); the budget panel → the money/metric showcase; the branch/line bar → round selectable pills + a *marked* (ring, not flooded) destructive close form.
+- **D5 — the three instrument bays:** threads, claims + evidence, and the checkpoint timeline (§5.1–5.3), plus the shared validation vocabulary and panel-state helpers. Validation outcomes / evidence relations / claim signal all collapse onto `StatusPill` (glyph + label), so a `failed`/`contradicts`/`contested` state is structurally never dimmer than `passed`. Surface depth ramp: column `Bay` (`--panel`) → row sub-bay (`--panel-2`) → form tray.
+
+### Motion, audits, polish (D6)
+
+- **Liveness motion (§6):** a `bay-enter` fade + 8px lift cascades across grid children via a component-agnostic `.enter-stagger` class (index card grid + workspace instrument grid). Every animation (`anim-pulse`/`anim-breathe`/`menu-pop`/`enter-stagger`, + Tailwind's shimmer) is frozen under `prefers-reduced-motion`.
+- **Accessibility:** a global `:focus-visible` ring renders the 2px `--signal` edge on buttons/links (console fields keep their inset focus tick); the mobile gutter steps `px-4 → sm:px-6`.
+- **Release gates — pass by construction:** signal-seldom (crimson at rest only on active markers, selected state, the one internal badge, and the primary action per zone), honesty/grayscale (every `state-*` colour rides with a glyph or message text; failure top-floated at equal weight), reduced-motion. A final live devtools desaturation pass is the only step needing a browser.
+
+### Verification
+
+- Backend untouched. Frontend `npm run typecheck` / `lint` / `build` clean; all 6 routes generated (`/` and `/styleguide` static, `/projects/[projectId]` server-rendered on demand). Repo-wide grep confirms **zero** legacy tokens anywhere in `src` outside the dev-only `styleguide`; the Decision-4 opacity contract holds in the emitted CSS.
+
+### Still gating the production push
+
+- **Vercel redeploy only.** The change is entirely frontend; `NEXT_PUBLIC_*` is baked at build, so the live preview updates on a frontend redeploy. **No backend/Fly redeploy, no `alembic` step, no schema/migration.**
+- **Interim brand mark.** `BrandMark` draws an original thin-line glyph (in the §7 drawing language) standing in for the real Kamino emblem — a one-file drop-in swap once the asset exists.
+- **A live visual desaturation + reduced-motion pass** against the deployed preview is the remaining acceptance confirmation (built to pass; no code blocks it).
+
+---
+
+## 0.6.3
+
+The project index gains the one create flow it never had — a "New project" form — and, in the same pass, project creation is brought under the same auth gate as every other ledger write. Until now `POST /api/v1/projects` took no acting actor: on the live (auth-enforcing) backend it was the **last open, unauthenticated write to the ledger root** — any caller could `POST` a project by direct request. Closing it is what makes "sign in, then create a project as yourself" real. No schema change, no migration.
+
+### Security — closed the last open write path
+
+- **`POST /api/v1/projects` now requires `ActingActor`.** It predated the `0.3.x` dev-actor model and never got the dependency, so on prod (where auth is enforced on threads / claims / evidence / checkpoints / validations / branches / funding) project creation *alone* stayed world-writable — a write-gated button would have been cosmetic over an open endpoint. Added the `ActingActor` dependency: a verified bearer token (or the dev header, local only) is now required; unauthenticated → `401`. (`app/api/routes/projects.py`.)
+- **Deliberately *not* recorded as a `create_project` contribution yet.** Attribution-via-contribution is the `0.5.0` `services/projects.py` extraction's job; recording one here would also have broken the several DB-backed tests that assert on the *entire* `Contribution` set (unfiltered `select(Contribution)`). Gating is the security fix; attribution is a separate, planned provenance step. No `created_by` column added (none exists; none needed for the gate).
+
+### Frontend — create a project from the browser
+
+- **First UI to create a project.** `createProject()` + a `ProjectCreate` type added to the typed client; a write-gated "New project" form on the index (title, research question, and a slug that auto-derives from the title — `^[a-z0-9]+(?:-[a-z0-9]+)*$` — and stays editable for the unique-slug case). On success it invalidates the project list and routes to the new project. (`src/lib/api.ts`, `src/types/project.ts`, `src/components/projects/projects-section.tsx`, `src/app/page.tsx`.)
+- **Replaced the dead "Fund project" placeholder** (a no-op button) with the working "New project" control; write-gating reuses `useActingIdentity().canWrite`, so an un-signed-in visitor sees the form disabled with the standard sign-in hint.
+
+### Tests
+
+- The seven project-creation helpers (`_project` / `_create_project` across `test_auth`, `test_funding`, `test_checkpoints`, `test_branches`, `test_read_models`, `test_validations`, `test_research_flow`) now bootstrap a dev actor and send `X-Dev-Actor-Id` (the dev path is on process-wide in tests); `test_unauthenticated_funding_rejected` was reordered to create its project *before* disabling the dev header. Coverage unchanged — still `52 passed`.
+
+### Verification
+
+- Backend `ruff` clean; the DB-backed suite executes green (**`52 passed`**, not skipping). Frontend `typecheck` / `lint` / `build` pass; `/` still prerenders static.
+
+### Still gating the production push
+
+- **Reaching prod needs a redeploy** — Fly (backend gate) and Vercel (the new UI; `NEXT_PUBLIC_*` is baked at build).
+- **The Supabase login secrets are now load-bearing for the core flow.** Because project creation now requires a verified actor, if Fly's `SUPABASE_JWT_SECRET` or Vercel's `NEXT_PUBLIC_SUPABASE_URL` / `_ANON_KEY` are unset, *no one* can create a project (not even by direct API call). Confirm sign-in works end-to-end — and add the intended creator's email to `INTERNAL_ACTOR_EMAILS` *before* their first login if native funding is also wanted.
 
 ---
 

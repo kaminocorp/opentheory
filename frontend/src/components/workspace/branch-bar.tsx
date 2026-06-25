@@ -4,16 +4,38 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { GitBranch, GitFork, Plus, X } from "lucide-react";
 import { useState } from "react";
 
+import {
+  Action,
+  ActionDestructive,
+  ActionGhost,
+  Bay,
+  Icon,
+  Input,
+  ReadoutLabel,
+  Select,
+  STATE_META,
+  type StateTone,
+} from "@/components/console";
 import { closeBranch, createBranch, listBranches, listCheckpoints } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import { useActingIdentity } from "@/lib/use-identity";
+import { cn } from "@/lib/cn";
 import type { BranchCloseOutcome, BranchStatus } from "@/types/research";
 
-const BRANCH_STATUS_META: Record<BranchStatus, { label: string; className: string }> = {
-  open: { label: "open", className: "bg-signal/10 text-signal" },
-  dead_end: { label: "dead end", className: "bg-ember/10 text-ember" },
-  closed: { label: "closed", className: "bg-paper text-ink/55" },
-  merged: { label: "merged", className: "bg-paper text-ink/55" },
+// Branch status → a state tone + label. dead_end also keeps a strike-through (below)
+// as the honest "recorded, not deleted" mark — meaning survives grayscale via glyph +
+// label + strike, not colour.
+const branchStatusTone: Record<BranchStatus, StateTone> = {
+  open: "run",
+  dead_end: "fail",
+  closed: "mute",
+  merged: "mute",
+};
+const branchStatusLabel: Record<BranchStatus, string> = {
+  open: "open",
+  dead_end: "dead end",
+  closed: "closed",
+  merged: "merged",
 };
 
 const CLOSE_OUTCOMES: BranchCloseOutcome[] = ["dead_end", "closed"];
@@ -24,6 +46,8 @@ type BranchBarProps = {
   onSelectBranch: (branchId: string | null) => void;
 };
 
+// D4 re-skin: console tokens + primitives only. Every hook, mutation, and the
+// fork/close write flows below are unchanged — presentation, not behaviour.
 export function BranchBar({ projectId, selectedBranchId, onSelectBranch }: BranchBarProps) {
   const { canWrite, hydrated, signInHint } = useActingIdentity();
   const queryClient = useQueryClient();
@@ -44,91 +68,99 @@ export function BranchBar({ projectId, selectedBranchId, onSelectBranch }: Branc
   }
 
   return (
-    <section className="grid gap-3 rounded-lg border border-line bg-white/70 p-3 shadow-panel">
+    <Bay density="none" className="grid gap-3 p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="mr-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.1em] text-ink/55">
-          <GitBranch className="size-4 text-signal" aria-hidden="true" />
-          Line
+        <span className="mr-1 flex items-center gap-1.5 text-text-mute">
+          <Icon icon={GitBranch} size={14} />
+          <ReadoutLabel>Line</ReadoutLabel>
         </span>
 
-        <button
-          type="button"
-          onClick={() => onSelectBranch(null)}
-          className={`rounded-md border px-2.5 py-1 text-xs font-medium ${
-            selectedBranchId === null
-              ? "border-signal bg-signal/10 text-signal"
-              : "border-line text-ink/65 hover:text-ink"
-          }`}
-        >
+        {/* Selectable line pills — round (alive). Active = a signal ring + signal
+            text, never a flooded block (§9.2). */}
+        <LinePill selected={selectedBranchId === null} onClick={() => onSelectBranch(null)}>
           Main line
-        </button>
+        </LinePill>
 
         {branchesQuery.isLoading ? (
-          <span className="text-xs text-ink/45">Loading branches…</span>
+          <span className="text-xs text-text-mute">Loading branches…</span>
         ) : branchesQuery.isError ? (
-          <span className="text-xs text-ember">Could not load branches.</span>
+          <span className="text-xs text-state-fail">Could not load branches.</span>
         ) : (
           branches.map((branch) => {
-            const meta = BRANCH_STATUS_META[branch.status];
-            const selected = branch.id === selectedBranchId;
+            const tone = branchStatusTone[branch.status];
+            const isDeadEnd = branch.status === "dead_end";
             return (
-              <button
+              <LinePill
                 key={branch.id}
-                type="button"
+                selected={branch.id === selectedBranchId}
                 onClick={() => onSelectBranch(branch.id)}
-                className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium ${
-                  selected ? "border-signal bg-signal/10 text-signal" : "border-line text-ink/65 hover:text-ink"
-                } ${branch.status === "dead_end" ? "line-through decoration-ember/60" : ""}`}
                 title={branch.reason ?? undefined}
               >
-                {branch.name}
-                <span className="text-[10px] tabular-nums text-ink/45">{branch.checkpoint_count}</span>
-                <span className={`rounded px-1 py-0.5 text-[10px] font-semibold ${meta.className}`}>
-                  {meta.label}
+                <span
+                  className={isDeadEnd ? "line-through" : undefined}
+                  style={isDeadEnd ? { textDecorationColor: "rgb(var(--state-fail))" } : undefined}
+                >
+                  {branch.name}
                 </span>
-              </button>
+                <span className="font-mono text-[10px] tabular-nums text-text-faint">
+                  {branch.checkpoint_count}
+                </span>
+                <span className={cn("font-mono text-[10px] uppercase tracking-[0.06em]", STATE_META[tone].text)}>
+                  {STATE_META[tone].glyph} {branchStatusLabel[branch.status]}
+                </span>
+              </LinePill>
             );
           })
         )}
 
-        <button
-          type="button"
-          onClick={() => {
-            setForking((v) => !v);
-            setClosing(false);
-          }}
-          className="ml-auto inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs font-medium text-ink/65 hover:text-ink"
-        >
-          {forking ? <X className="size-3.5" aria-hidden="true" /> : <GitFork className="size-3.5" aria-hidden="true" />}
-          {forking ? "Cancel" : "Fork"}
-        </button>
-
-        {selectedBranch && selectedBranch.status === "open" ? (
-          <button
-            type="button"
+        <div className="ml-auto flex items-center gap-2">
+          <ActionGhost
             onClick={() => {
-              setClosing((v) => !v);
-              setForking(false);
+              setForking((v) => !v);
+              setClosing(false);
             }}
-            className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs font-medium text-ink/65 hover:text-ember"
+            className="h-7 px-3 text-[12px]"
           >
-            {closing ? "Cancel" : "Close branch"}
-          </button>
-        ) : null}
+            <Icon icon={forking ? X : GitFork} size={14} />
+            {forking ? "Cancel" : "Fork"}
+          </ActionGhost>
+
+          {selectedBranch && selectedBranch.status === "open" ? (
+            <button
+              type="button"
+              onClick={() => {
+                setClosing((v) => !v);
+                setForking(false);
+              }}
+              className="inline-flex h-7 items-center rounded-full px-3 text-[12px] font-medium text-text-mute transition-colors hover:text-state-fail"
+              style={{ border: "0.5px solid var(--hairline)" }}
+            >
+              {closing ? "Cancel" : "Close branch"}
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {selectedBranch ? (
-        <p className="text-xs leading-5 text-ink/55">
-          Viewing <span className="font-semibold text-ink/75">{selectedBranch.name}</span>
+        <p className="text-[12px] leading-5 text-text-mute">
+          Viewing <span className="font-medium text-text-soft">{selectedBranch.name}</span>
           {selectedBranch.reason ? ` — ${selectedBranch.reason}` : ""} · {selectedBranch.checkpoint_count}{" "}
           checkpoint{selectedBranch.checkpoint_count === 1 ? "" : "s"}
-          {selectedBranch.forked_from_checkpoint_id
-            ? ` · forked from ${selectedBranch.forked_from_checkpoint_id.slice(0, 8)}`
-            : ""}
+          {selectedBranch.forked_from_checkpoint_id ? (
+            <>
+              {" "}
+              · forked from{" "}
+              <span className="font-mono text-text-faint">
+                {selectedBranch.forked_from_checkpoint_id.slice(0, 8)}
+              </span>
+            </>
+          ) : null}
           . {selectedBranch.status === "open" ? "New checkpoints record on this branch." : "This line is closed."}
         </p>
       ) : (
-        <p className="text-xs text-ink/45">Viewing the main line. Fork to explore a competing path without overwriting it.</p>
+        <p className="text-[12px] text-text-faint">
+          Viewing the main line. Fork to explore a competing path without overwriting it.
+        </p>
       )}
 
       {forking ? (
@@ -154,9 +186,38 @@ export function BranchBar({ projectId, selectedBranchId, onSelectBranch }: Branc
       ) : null}
 
       {!canWrite && hydrated ? (
-        <p className="text-[11px] text-ember">{signInHint} to fork or close branches.</p>
+        <p className="text-[11px] text-state-warn">{signInHint} to fork or close branches.</p>
       ) : null}
-    </section>
+    </Bay>
+  );
+}
+
+// A round selectable line pill. Selected = a signal ring + signal text (marked,
+// not flooded); unselected = hairline ring + muted text.
+function LinePill({
+  selected,
+  onClick,
+  title,
+  children,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  title?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+        selected ? "text-signal" : "text-text-mute hover:text-text",
+      )}
+      style={{ borderColor: selected ? "rgb(var(--signal))" : "var(--hairline)" }}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -198,7 +259,10 @@ function ForkBranchForm({
 
   if (!checkpointsQuery.isLoading && checkpoints.length === 0) {
     return (
-      <p className="rounded-md border border-dashed border-line bg-white/50 p-2.5 text-xs text-ink/55">
+      <p
+        className="rounded-built bg-panel-2 p-2.5 text-[12px] text-text-mute"
+        style={{ border: "0.5px dashed var(--hairline)" }}
+      >
         Record a checkpoint first — a branch forks from an existing checkpoint.
       </p>
     );
@@ -206,46 +270,39 @@ function ForkBranchForm({
 
   return (
     <form
-      className="grid gap-2 rounded-md border border-line bg-paper/60 p-3 sm:grid-cols-2"
+      className="grid gap-2 rounded-built bg-panel-2 p-3 sm:grid-cols-2"
+      style={{ border: "0.5px solid var(--hairline)" }}
       onSubmit={(event) => {
         event.preventDefault();
         if (canSubmit && !mutation.isPending) mutation.mutate();
       }}
     >
-      <input
-        value={name}
-        onChange={(event) => setName(event.target.value)}
-        placeholder="Branch name"
-        className="h-9 rounded-md border border-line bg-white/80 px-2 text-sm outline-none focus:border-signal"
-      />
-      <select
-        value={effectiveFork}
-        onChange={(event) => setFromCheckpointId(event.target.value)}
-        className="h-9 rounded-md border border-line bg-white/80 px-2 text-sm outline-none focus:border-signal"
-      >
+      <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Branch name" />
+      <Select value={effectiveFork} onChange={(event) => setFromCheckpointId(event.target.value)}>
         {checkpoints.map((c) => (
           <option key={c.id} value={c.id}>
             from: {c.summary.slice(0, 48)}
           </option>
         ))}
-      </select>
-      <input
+      </Select>
+      <Input
         value={reason}
         onChange={(event) => setReason(event.target.value)}
         placeholder="Reason (optional)"
-        className="h-9 rounded-md border border-line bg-white/80 px-2 text-sm outline-none focus:border-signal sm:col-span-2"
+        className="sm:col-span-2"
       />
       {mutation.isError ? (
-        <p className="text-xs text-ember sm:col-span-2">{(mutation.error as Error).message}</p>
+        <p className="text-[12px] text-state-fail sm:col-span-2">{(mutation.error as Error).message}</p>
       ) : null}
-      <button
+      <Action
         type="submit"
         disabled={!canSubmit || mutation.isPending}
-        className="inline-flex h-9 items-center justify-center gap-1 rounded-md bg-ink px-3 text-sm font-semibold text-paper disabled:opacity-50 sm:col-span-2"
+        pending={mutation.isPending}
+        className="w-full sm:col-span-2"
       >
-        <Plus className="size-4" aria-hidden="true" />
+        <Icon icon={Plus} size={16} />
         {mutation.isPending ? "Forking…" : "Fork branch"}
-      </button>
+      </Action>
     </form>
   );
 }
@@ -274,45 +331,45 @@ function CloseBranchForm({
   const canSubmit = canWrite && reason.trim().length > 0;
 
   return (
+    // Destructive context is *marked* with a state-fail edge tick, not a flooded
+    // red fill (§5.7). The action itself is a ring, below.
     <form
-      className="grid gap-2 rounded-md border border-ember/30 bg-white/70 p-3"
+      className="relative grid gap-2 rounded-built bg-panel-2 p-3 pl-4"
       onSubmit={(event) => {
         event.preventDefault();
         if (canSubmit && !mutation.isPending) mutation.mutate();
       }}
     >
-      <p className="text-xs text-ink/60">
-        Closing <span className="font-semibold">{branchName}</span> preserves its reasoning — it is recorded, not deleted.
+      <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-state-fail" />
+      <p className="text-[12px] text-text-mute">
+        Closing <span className="font-medium text-text-soft">{branchName}</span> preserves its reasoning —
+        it is recorded, not deleted.
       </p>
       <div className="flex gap-2">
-        <select
-          value={outcome}
-          onChange={(event) => setOutcome(event.target.value as BranchCloseOutcome)}
-          className="h-9 rounded-md border border-line bg-white/80 px-2 text-sm capitalize outline-none focus:border-signal"
-        >
+        <Select value={outcome} onChange={(event) => setOutcome(event.target.value as BranchCloseOutcome)}>
           {CLOSE_OUTCOMES.map((o) => (
             <option key={o} value={o}>
               {o === "dead_end" ? "dead end" : "closed"}
             </option>
           ))}
-        </select>
-        <input
+        </Select>
+        <Input
           value={reason}
           onChange={(event) => setReason(event.target.value)}
           placeholder="Reason (required)"
-          className="h-9 min-w-0 flex-1 rounded-md border border-line bg-white/80 px-2 text-sm outline-none focus:border-signal"
+          className="min-w-0 flex-1"
         />
       </div>
       {mutation.isError ? (
-        <p className="text-xs text-ember">{(mutation.error as Error).message}</p>
+        <p className="text-[12px] text-state-fail">{(mutation.error as Error).message}</p>
       ) : null}
-      <button
+      <ActionDestructive
         type="submit"
         disabled={!canSubmit || mutation.isPending}
-        className="inline-flex h-9 items-center justify-center rounded-md bg-ember px-3 text-sm font-semibold text-paper disabled:opacity-50"
+        pending={mutation.isPending}
       >
         {mutation.isPending ? "Closing…" : "Close branch"}
-      </button>
+      </ActionDestructive>
     </form>
   );
 }

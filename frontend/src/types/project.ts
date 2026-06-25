@@ -10,3 +10,11 @@ export type Project = {
   created_at: string;
   updated_at: string;
 };
+
+export type ProjectCreate = {
+  title: string;
+  slug: string;
+  question: string;
+  description?: string | null;
+  status?: ProjectStatus;
+};

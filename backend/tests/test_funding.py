@@ -41,9 +41,15 @@ async def _actor(client: AsyncClient) -> str:
 
 
 async def _project(client: AsyncClient, slug: str = "funding-project") -> str:
+    # Project creation now requires an acting actor; bootstrap a dev actor for the header.
+    actor = await client.post(
+        "/api/v1/actors", json={"type": "human", "display_name": "Author"}
+    )
+    assert actor.status_code == 201, actor.text
     resp = await client.post(
         "/api/v1/projects",
         json={"title": "Funding Project", "slug": slug, "question": "What is X?"},
+        headers={"X-Dev-Actor-Id": actor.json()["id"]},
     )
     assert resp.status_code == 201, resp.text
     return resp.json()["id"]
@@ -122,9 +128,10 @@ async def test_native_funding_requires_internal_role(
 async def test_unauthenticated_funding_rejected(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # With the dev-header path OFF (production posture), no credentials -> 401.
-    monkeypatch.setattr(settings, "auth_dev_header_enabled", False)
+    # Create the project while the dev-header path is still enabled, then turn it OFF to
+    # assert the production posture: no credentials -> 401 on the funding write.
     project_id = await _project(client)
+    monkeypatch.setattr(settings, "auth_dev_header_enabled", False)
     code, _ = await _fund(client, project_id, None, source="native")
     assert code == 401
 

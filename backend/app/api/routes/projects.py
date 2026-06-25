@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import ActingActor
 from app.db.session import get_db
 from app.models.project import Project
 from app.schemas.project import ProjectCreate, ProjectOverview, ProjectRead
@@ -15,7 +16,12 @@ DbSession = Annotated[AsyncSession, Depends(get_db)]
 
 
 @router.post("", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
-async def create_project(payload: ProjectCreate, db: DbSession) -> Project:
+async def create_project(payload: ProjectCreate, db: DbSession, actor: ActingActor) -> Project:
+    # `actor` (ActingActor) gates the write: creating a project now requires a verified actor,
+    # closing the previously-open public write path (every other ledger write is already gated).
+    # Recording the creation as a `create_project` Contribution lands with the services/projects.py
+    # extraction in 0.5.0 — deliberately kept out here so the change is migration- and behaviour-
+    # minimal (and so the unfiltered-Contribution test assertions stay valid).
     project = Project(**payload.model_dump())
     db.add(project)
     await db.commit()

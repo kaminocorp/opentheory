@@ -1,9 +1,20 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ListChecks, Paperclip, Plus, ShieldCheck, X } from "lucide-react";
+import { ListChecks, Paperclip, Plus, ShieldCheck, X } from "lucide-react";
 import { useState } from "react";
 
+import {
+  Action,
+  Bay,
+  BayHeader,
+  Icon,
+  Input,
+  ReadoutLabel,
+  Select,
+  StatusPill,
+  type StateTone,
+} from "@/components/console";
 import { attachEvidence, createClaim, listClaims, listEvidence } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import { useActingIdentity } from "@/lib/use-identity";
@@ -24,6 +35,14 @@ const CLAIM_KINDS: ClaimKind[] = [
 
 const RELATION_KINDS: RelationKind[] = ["support", "weaken", "context"];
 
+// Evidence relation → a state tone. support strengthens (ok), weaken contests
+// (fail), context is neutral (mute). Glyph + label carry it under grayscale.
+const RELATION_TONE: Record<RelationKind, StateTone> = {
+  support: "ok",
+  weaken: "fail",
+  context: "mute",
+};
+
 type ClaimListPanelProps = {
   projectId: string;
   threadId: string | null;
@@ -32,11 +51,9 @@ type ClaimListPanelProps = {
 export function ClaimListPanel({ projectId, threadId }: ClaimListPanelProps) {
   if (!threadId) {
     return (
-      <section className="grid min-h-64 place-items-center rounded-lg border border-line bg-white/70 p-6 shadow-panel">
-        <PanelEmpty icon={<ListChecks className="size-5" aria-hidden="true" />}>
-          Select a thread on the left to view and record its claims and evidence.
-        </PanelEmpty>
-      </section>
+      <Bay density="none" className="grid min-h-64 place-items-center">
+        <PanelEmpty>Select a thread</PanelEmpty>
+      </Bay>
     );
   }
   return <ClaimListPanelInner projectId={projectId} threadId={threadId} />;
@@ -66,97 +83,115 @@ function ClaimListPanelInner({ projectId, threadId }: { projectId: string; threa
     },
   });
 
+  const claims = claimsQuery.data ?? [];
   const canSubmit = canWrite && statement.trim().length > 0;
 
   return (
-    <section className="flex flex-col gap-3 rounded-lg border border-line bg-white/70 p-4 shadow-panel">
-      <header className="flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.1em] text-ink/70">
-          <ListChecks className="size-4 text-signal" aria-hidden="true" />
-          Claims &amp; Evidence
-        </h2>
-        <button
-          type="button"
-          onClick={() => setAdding((v) => !v)}
-          className="grid size-7 place-items-center rounded-md border border-line text-ink/65 hover:text-ink"
-          aria-label={adding ? "Cancel new claim" : "New claim"}
-          title={adding ? "Cancel" : "New claim"}
-        >
-          {adding ? <X className="size-4" aria-hidden="true" /> : <Plus className="size-4" aria-hidden="true" />}
-        </button>
-      </header>
-
-      {adding ? (
-        <form
-          className="grid gap-2 rounded-md border border-line bg-paper/60 p-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (canSubmit && !createMutation.isPending) createMutation.mutate();
-          }}
-        >
-          <select
-            value={kind}
-            onChange={(event) => setKind(event.target.value as ClaimKind)}
-            className="h-9 rounded-md border border-line bg-white/80 px-2 text-sm capitalize outline-none focus:border-signal"
-          >
-            {CLAIM_KINDS.map((k) => (
-              <option key={k} value={k} className="capitalize">
-                {k}
-              </option>
-            ))}
-          </select>
-          <input
-            value={statement}
-            onChange={(event) => setStatement(event.target.value)}
-            placeholder="Claim statement"
-            className="h-9 rounded-md border border-line bg-white/80 px-2 text-sm outline-none focus:border-signal"
-          />
-          {!canWrite && hydrated ? (
-            <p className="text-xs text-ember">{signInHint} to record claims.</p>
-          ) : null}
-          {createMutation.isError ? (
-            <p className="text-xs text-ember">{(createMutation.error as Error).message}</p>
-          ) : null}
+    <Bay density="none" className="flex flex-col">
+      <BayHeader
+        label={
+          <span className="inline-flex items-center gap-1.5">
+            <Icon icon={ListChecks} size={14} />
+            Claims &amp; Evidence
+          </span>
+        }
+        count={claimsQuery.data ? claims.length : undefined}
+        band
+        actions={
           <button
-            type="submit"
-            disabled={!canSubmit || createMutation.isPending}
-            className="inline-flex h-9 items-center justify-center gap-1 rounded-md bg-ink px-3 text-sm font-semibold text-paper disabled:opacity-50"
+            type="button"
+            onClick={() => setAdding((v) => !v)}
+            className="grid size-7 place-items-center rounded-full text-text-mute transition-colors hover:text-text"
+            style={{ border: "0.5px solid var(--hairline-strong)" }}
+            aria-label={adding ? "Cancel new claim" : "New claim"}
+            title={adding ? "Cancel" : "New claim"}
           >
-            {createMutation.isPending ? "Recording…" : "Record claim"}
+            <Icon icon={adding ? X : Plus} size={14} />
           </button>
-        </form>
-      ) : null}
+        }
+      />
 
-      {claimsQuery.isLoading ? (
-        <PanelLoading label="Loading claims" />
-      ) : claimsQuery.isError ? (
-        <PanelError label="Could not load claims." />
-      ) : (claimsQuery.data ?? []).length === 0 ? (
-        <PanelEmpty icon={<ListChecks className="size-5" aria-hidden="true" />}>
-          No claims in this thread yet. Record a hypothesis or observation.
-        </PanelEmpty>
-      ) : (
-        <ul className="grid gap-3">
-          {(claimsQuery.data ?? []).map((claim) => (
-            <li key={claim.id} className="rounded-md border border-line bg-white/60 p-3">
-              <div className="flex items-start justify-between gap-3">
-                <p className="text-sm leading-6">{claim.statement}</p>
-                {claim.confidence != null ? (
-                  <span className="shrink-0 rounded bg-paper px-2 py-0.5 text-xs font-semibold text-ink/60">
-                    {Math.round(claim.confidence * 100)}%
-                  </span>
-                ) : null}
-              </div>
-              <p className="mt-1.5 text-[11px] font-medium uppercase tracking-[0.1em] text-ink/45">
-                {claim.kind} · {claim.status}
-              </p>
-              <ClaimEvidence projectId={projectId} claimId={claim.id} />
-              <ClaimValidations projectId={projectId} threadId={threadId} claim={claim} />
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
+      <div className="flex flex-col gap-3 px-4 pb-4">
+        {adding ? (
+          <form
+            className="grid gap-2 rounded-built bg-panel-2 p-3"
+            style={{ border: "0.5px solid var(--hairline)" }}
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (canSubmit && !createMutation.isPending) createMutation.mutate();
+            }}
+          >
+            <Select
+              value={kind}
+              onChange={(event) => setKind(event.target.value as ClaimKind)}
+              className="capitalize"
+            >
+              {CLAIM_KINDS.map((k) => (
+                <option key={k} value={k}>
+                  {k}
+                </option>
+              ))}
+            </Select>
+            <Input
+              value={statement}
+              onChange={(event) => setStatement(event.target.value)}
+              placeholder="Claim statement"
+            />
+            {!canWrite && hydrated ? (
+              <p className="text-[11px] text-state-warn">{signInHint} to record claims.</p>
+            ) : null}
+            {createMutation.isError ? (
+              <p className="text-[11px] text-state-fail">{(createMutation.error as Error).message}</p>
+            ) : null}
+            <Action
+              type="submit"
+              disabled={!canSubmit || createMutation.isPending}
+              pending={createMutation.isPending}
+              className="w-full"
+            >
+              <Icon icon={Plus} size={16} />
+              {createMutation.isPending ? "Recording…" : "Record claim"}
+            </Action>
+          </form>
+        ) : null}
+
+        {claimsQuery.isLoading ? (
+          <PanelLoading label="Loading claims" />
+        ) : claimsQuery.isError ? (
+          <PanelError label="Could not load claims" />
+        ) : claims.length === 0 ? (
+          <PanelEmpty>No claims in this thread</PanelEmpty>
+        ) : (
+          <ul className="grid gap-3">
+            {claims.map((claim) => (
+              // Square claim sub-bay on --panel-2 (raised out of the panel column).
+              <li
+                key={claim.id}
+                className="rounded-built bg-panel-2 p-3"
+                style={{ border: "0.5px solid var(--hairline)" }}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-[14px] leading-6 text-text">{claim.statement}</p>
+                  {claim.confidence != null ? (
+                    <span
+                      className="shrink-0 rounded-inset bg-panel px-2 py-0.5 font-mono text-[12px] tabular-nums text-text-soft"
+                      style={{ border: "0.5px solid var(--hairline)" }}
+                    >
+                      {Math.round(claim.confidence * 100)}%
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-1.5 font-mono text-[11px] uppercase tracking-[0.1em] text-text-mute">
+                  {claim.kind} · {claim.status}
+                </p>
+                <ClaimEvidence projectId={projectId} claimId={claim.id} />
+                <ClaimValidations projectId={projectId} threadId={threadId} claim={claim} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Bay>
   );
 }
 
@@ -195,52 +230,46 @@ function ClaimEvidence({ projectId, claimId }: { projectId: string; claimId: str
   const evidence = evidenceQuery.data ?? [];
 
   return (
-    <div className="mt-3 border-t border-line pt-3">
+    <div className="mt-3 pt-3" style={{ borderTop: "0.5px solid var(--hairline)" }}>
       <div className="flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.1em] text-ink/50">
-          <Paperclip className="size-3.5 text-signal" aria-hidden="true" />
-          Evidence
+        <span className="flex items-center gap-1.5 text-text-mute">
+          <Icon icon={Paperclip} size={14} />
+          <ReadoutLabel>Evidence</ReadoutLabel>
         </span>
         <button
           type="button"
           onClick={() => setAdding((v) => !v)}
-          className="text-xs font-medium text-signal hover:text-ink"
+          className="text-[12px] font-medium text-text-mute transition-colors hover:text-signal"
         >
           {adding ? "Cancel" : "Attach"}
         </button>
       </div>
 
       {evidenceQuery.isLoading ? (
-        <p className="mt-2 text-xs text-ink/50">Loading evidence…</p>
+        <p className="mt-2 text-[12px] text-text-mute">Loading evidence…</p>
       ) : evidenceQuery.isError ? (
-        <p className="mt-2 text-xs text-ember">Could not load evidence.</p>
+        <p className="mt-2 text-[12px] text-state-fail">Could not load evidence.</p>
       ) : evidence.length === 0 ? (
-        <p className="mt-2 text-xs text-ink/45">No evidence attached.</p>
+        <p className="mt-2 text-[12px] text-text-faint">No evidence attached.</p>
       ) : (
         <ul className="mt-2 grid gap-1.5">
           {evidence.map((item) => (
-            <li key={item.link_id} className="flex items-center justify-between gap-2 text-xs">
+            <li key={item.link_id} className="flex items-center justify-between gap-2 text-[12px]">
               <span className="min-w-0 truncate">
                 {item.uri ? (
-                  <a href={item.uri} target="_blank" rel="noreferrer" className="text-signal hover:underline">
+                  <a href={item.uri} target="_blank" rel="noreferrer" className="console-link">
                     {item.title}
                   </a>
                 ) : (
-                  item.title
+                  <span className="text-text-soft">{item.title}</span>
                 )}
-                <span className="ml-1 text-ink/40">· {item.source_type}</span>
+                <span className="ml-1.5 font-mono text-text-mute">· {item.source_type}</span>
               </span>
-              <span
-                className={`shrink-0 rounded px-1.5 py-0.5 font-semibold ${
-                  item.relation_kind === "support"
-                    ? "bg-signal/10 text-signal"
-                    : item.relation_kind === "weaken"
-                      ? "bg-ember/10 text-ember"
-                      : "bg-paper text-ink/55"
-                }`}
-              >
-                {item.relation_kind}
-              </span>
+              <StatusPill
+                tone={RELATION_TONE[item.relation_kind]}
+                label={item.relation_kind}
+                className="shrink-0"
+              />
             </li>
           ))}
         </ul>
@@ -248,56 +277,58 @@ function ClaimEvidence({ projectId, claimId }: { projectId: string; claimId: str
 
       {adding ? (
         <form
-          className="mt-2 grid gap-2 rounded-md border border-line bg-paper/60 p-2.5"
+          className="mt-2 grid gap-2 rounded-built bg-panel-2 p-2.5"
+          style={{ border: "0.5px solid var(--hairline)" }}
           onSubmit={(event) => {
             event.preventDefault();
             if (canSubmit && !attachMutation.isPending) attachMutation.mutate();
           }}
         >
-          <input
+          <Input
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             placeholder="Evidence title"
-            className="h-8 rounded border border-line bg-white/80 px-2 text-xs outline-none focus:border-signal"
           />
           <div className="flex gap-2">
-            <input
+            <Input
               value={sourceType}
               onChange={(event) => setSourceType(event.target.value)}
               placeholder="source (e.g. paper)"
-              className="h-8 min-w-0 flex-1 rounded border border-line bg-white/80 px-2 text-xs outline-none focus:border-signal"
+              className="min-w-0 flex-1"
             />
-            <select
+            <Select
               value={relationKind}
               onChange={(event) => setRelationKind(event.target.value as RelationKind)}
-              className="h-8 rounded border border-line bg-white/80 px-1 text-xs capitalize outline-none focus:border-signal"
+              className="capitalize"
             >
               {RELATION_KINDS.map((r) => (
-                <option key={r} value={r} className="capitalize">
+                <option key={r} value={r}>
                   {r}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
-          <input
+          <Input
+            mono
             value={uri}
             onChange={(event) => setUri(event.target.value)}
             placeholder="URI (optional)"
-            className="h-8 rounded border border-line bg-white/80 px-2 text-xs outline-none focus:border-signal"
           />
           {!canWrite && hydrated ? (
-            <p className="text-[11px] text-ember">{signInHint} to attach evidence.</p>
+            <p className="text-[11px] text-state-warn">{signInHint} to attach evidence.</p>
           ) : null}
           {attachMutation.isError ? (
-            <p className="text-[11px] text-ember">{(attachMutation.error as Error).message}</p>
+            <p className="text-[11px] text-state-fail">{(attachMutation.error as Error).message}</p>
           ) : null}
-          <button
+          <Action
             type="submit"
             disabled={!canSubmit || attachMutation.isPending}
-            className="inline-flex h-8 items-center justify-center rounded bg-ink px-2.5 text-xs font-semibold text-paper disabled:opacity-50"
+            pending={attachMutation.isPending}
+            className="w-full"
           >
+            <Icon icon={Plus} size={16} />
             {attachMutation.isPending ? "Attaching…" : "Attach evidence"}
-          </button>
+          </Action>
         </form>
       ) : null}
     </div>
@@ -321,44 +352,41 @@ function ClaimValidations({
   const contested = claim.signal === "contested";
 
   return (
-    <div className="mt-3 border-t border-line pt-3">
-      <div className="flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.1em] text-ink/50">
-          <ShieldCheck className="size-3.5 text-signal" aria-hidden="true" />
-          Validations
+    <div className="mt-3 pt-3" style={{ borderTop: "0.5px solid var(--hairline)" }}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex min-w-0 items-center gap-1.5 text-text-mute">
+          <Icon icon={ShieldCheck} size={14} />
+          <ReadoutLabel>Validations</ReadoutLabel>
+          {/* Honesty (§1): contested shows at full pill weight, never softer than
+              validated — glyph + label carry it, colour only reinforces. */}
           {contested ? (
-            <span className="inline-flex items-center gap-1 rounded bg-ember/10 px-1.5 py-0.5 text-[10px] font-semibold text-ember">
-              <AlertTriangle className="size-3" aria-hidden="true" />
-              contested
-            </span>
+            <StatusPill tone="fail" glyph="▲" label="contested" />
           ) : claim.signal === "validated" ? (
-            <span className="inline-flex items-center gap-1 rounded bg-signal/10 px-1.5 py-0.5 text-[10px] font-semibold text-signal">
-              validated
-            </span>
+            <StatusPill tone="ok" label="validated" />
           ) : null}
         </span>
         <button
           type="button"
           onClick={() => setRecording((v) => !v)}
-          className="text-xs font-medium text-signal hover:text-ink"
+          className="shrink-0 text-[12px] font-medium text-text-mute transition-colors hover:text-signal"
         >
           {recording ? "Cancel" : "Validate"}
         </button>
       </div>
 
       {validations.length === 0 ? (
-        <p className="mt-2 text-xs text-ink/45">Not yet validated.</p>
+        <p className="mt-2 text-[12px] text-text-faint">Not yet validated.</p>
       ) : (
         <ul className="mt-2 grid gap-1.5">
           {validations.map((v) => (
-            <li key={v.id} className="flex items-center gap-2 text-xs">
+            <li key={v.id} className="flex items-center gap-2 text-[12px]">
               <OutcomeBadge outcome={v.outcome} />
               {v.notes ? (
-                <span className="min-w-0 flex-1 truncate text-ink/55">{v.notes}</span>
+                <span className="min-w-0 flex-1 truncate text-text-soft">{v.notes}</span>
               ) : (
                 <span className="flex-1" />
               )}
-              {v.actor ? <span className="shrink-0 text-ink/40">{v.actor.display_name}</span> : null}
+              {v.actor ? <span className="shrink-0 text-text-mute">{v.actor.display_name}</span> : null}
             </li>
           ))}
         </ul>

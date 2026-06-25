@@ -2,10 +2,75 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================================
+   Kamino Console — design tokens (docs/design_blueprint.md §2, §9)
+   Structural ramp + state colours are stored as space-separated RGB *channels*
+   so Tailwind's `/opacity` modifiers survive (Decision 4). Line/field overlays
+   are alpha-native rgba() because they are inherently translucent.
+   ========================================================================== */
 :root {
-  color-scheme: light;
-  background: #f7f3ea;
-  color: #121417;
+  color-scheme: dark;
+
+  /* Structural ramp — channels, for rgb(var(--x) / <alpha-value>) */
+  --ground: 13 12 11; /* #0D0C0B warm obsidian — never #000 */
+  --panel: 22 21 19; /* #161513 bay surface */
+  --panel-2: 28 26 24; /* #1C1A18 nested / hover */
+  --text: 236 234 230; /* #ECEAE6 primary off-white */
+  --text-soft: 183 179 172; /* #B7B3AC prose */
+  --text-mute: 128 124 116; /* #807C74 units / labels */
+  --text-faint: 90 87 79; /* #5A574F ambient */
+
+  /* Signal — the ONE swappable accent (channels) */
+  --signal: 201 90 90; /* #C95A5A dark-tuned crimson */
+  --signal-strong: 217 138 138; /* #D98A8A hover / emphasis */
+
+  /* State — constant across platforms, independent of signal (channels) */
+  --state-ok: 94 140 115; /* #5E8C73 patina green */
+  --state-run: 111 147 168; /* #6F93A8 cool steel */
+  --state-warn: 200 146 62; /* #C8923E amber */
+  --state-fail: 201 81 75; /* #C9514B red distinct from --signal */
+
+  /* Line / field overlays — alpha-native, used in CSS + arbitrary values */
+  --hairline: rgba(236, 234, 230, 0.1);
+  --hairline-strong: rgba(236, 234, 230, 0.18);
+  --hairline-lit: rgba(236, 234, 230, 0.22);
+  --tick: rgba(236, 234, 230, 0.14);
+  --field-line: rgba(236, 234, 230, 0.035);
+  --field-major: rgba(236, 234, 230, 0.06);
+
+  /* Proportion (8px base unit) */
+  --u: 8px;
+  --gutter: 24px;
+  --gutter-mobile: 16px;
+  --bay-pad: 16px;
+  --bay-pad-lg: 24px;
+  --rail: 56px;
+  --rail-collapsed: 48px;
+  --header: 48px;
+  --field-minor: 8px;
+  --field-major-gap: 64px;
+
+  /* Radius */
+  --r-built: 0px;
+  --r-alive: 999px;
+  --r-inset: 2px;
+
+  /* ---- The measured field (§2.1), composed once, reused by body + .field ----
+     Layer order (top → bottom): registration crosshairs, major grid, minor grid.
+     Crosshairs are a 64px tile with a centred `+`; the major grid is offset by
+     32px so its intersections land exactly under each crosshair (32 is 4u, so
+     everything still aligns to the 8px minor grid). */
+  --field-image:
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='64'%20height='64'%3E%3Cg%20stroke='rgba(236,234,230,0.14)'%20stroke-width='1'%3E%3Cline%20x1='29'%20y1='32'%20x2='35'%20y2='32'/%3E%3Cline%20x1='32'%20y1='29'%20x2='32'%20y2='35'/%3E%3C/g%3E%3C/svg%3E"),
+    linear-gradient(to right, var(--field-major) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--field-major) 1px, transparent 1px),
+    linear-gradient(to right, var(--field-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--field-line) 1px, transparent 1px);
+  --field-size: 64px 64px, 64px 64px, 64px 64px, 8px 8px, 8px 8px;
+  --field-position: 32px 32px, 32px 0, 0 32px, 0 0, 0 0;
+
+  /* Fine neutral grain (§2.1) — a desaturated fractal-noise tile */
+  --grain: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='180'%20height='180'%3E%3Cfilter%20id='n'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='0.85'%20numOctaves='2'%20stitchTiles='stitch'/%3E%3CfeColorMatrix%20type='saturate'%20values='0'/%3E%3C/filter%3E%3Crect%20width='180'%20height='180'%20filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 * {
@@ -14,15 +79,47 @@
 
 html {
   min-width: 320px;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-synthesis: none;
 }
 
+/* The app ground: warm obsidian + the baked measured field. Opaque bays (§2.2)
+   paint over it; the field shows through gutters, headers, and empty states. */
 body {
   min-height: 100vh;
   margin: 0;
-  background:
-    linear-gradient(180deg, rgba(31, 122, 109, 0.08), transparent 360px),
-    #f7f3ea;
-  color: #121417;
+  background-color: rgb(var(--ground));
+  background-image: var(--field-image);
+  background-size: var(--field-size);
+  background-position: var(--field-position);
+  color: rgb(var(--text));
+  font-family: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums; /* figures never reflow as they tick */
+}
+
+/* Grain + deep-field vignette ride above the body background but behind all
+   content (negative z-index), so dense bays cover them and only the open field
+   carries the texture. pointer-events:none keeps them inert. */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+body::before {
+  background-image: var(--grain);
+  background-size: 180px 180px;
+  opacity: 0.035; /* ~3% — material, not flat fill */
+}
+
+body::after {
+  background: radial-gradient(125% 125% at 50% -10%, transparent 55%, rgba(0, 0, 0, 0.22) 100%);
 }
 
 a {
@@ -35,4 +132,223 @@ input,
 textarea,
 select {
   font: inherit;
+}
+
+/* Keyboard focus (§4 a11y): the focus ring IS the system's 2px --signal edge —
+   visible, never removed. Console fields render their own inset focus tick (the
+   .field-input rule); this covers buttons, links, and other focusables. Scoped to
+   :focus-visible so a mouse press doesn't ring, but every keyboard tab does. */
+:where(a, button, summary, [role="button"], [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid rgb(var(--signal));
+  outline-offset: 2px;
+}
+
+/* Prose / heading wrap defaults (§3.2) */
+p,
+li {
+  text-wrap: pretty;
+}
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+/* ============================================================================
+   Component primitives that are too verbose for inline utilities.
+   The React wrappers in src/components/console/ apply these classes.
+   ========================================================================== */
+@layer components {
+  /* A reusable measured-field surface (the shell <main> in D2, the styleguide). */
+  .field-surface {
+    background-color: rgb(var(--ground));
+    background-image: var(--field-image);
+    background-size: var(--field-size);
+    background-position: var(--field-position);
+  }
+
+  /* The core recessed instrument bay (§2.2): cut into the console, lit by a
+     hairline top lip + a lower shadow lip. No outer glow, ever. */
+  .bay {
+    position: relative;
+    background-color: rgb(var(--panel));
+    border: 0.5px solid var(--hairline);
+    border-top-color: var(--hairline-lit);
+    border-radius: var(--r-built);
+    box-shadow:
+      inset 0 1px 0 rgba(236, 234, 230, 0.04), /* top inner highlight */
+      inset 0 -1px 0 rgba(0, 0, 0, 0.5), /* lower shadow lip — the recess */
+      0 1px 0 rgba(236, 234, 230, 0.02); /* hairline catch below the bay */
+  }
+
+  /* The single sanctioned Imperial nod: one clipped top-right corner (§2.2),
+     for identity headers only — never on data surfaces. */
+  .bay-chamfer {
+    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
+  }
+
+  /* Inert / "coming soon" fill (§5.7) — hatched, never a solid block. */
+  .hatch {
+    background-image: repeating-linear-gradient(
+      45deg,
+      var(--hairline) 0,
+      var(--hairline) 1px,
+      transparent 1px,
+      transparent 6px
+    );
+  }
+
+  /* Console field controls (§5.8): square, panel fill, hairline ring; focus adds
+     a 2px --signal edge tick on the active (left) side, not a flooded glow. */
+  .field-input {
+    background-color: rgb(var(--panel));
+    border: 0.5px solid var(--hairline);
+    border-radius: var(--r-built);
+    color: rgb(var(--text));
+  }
+  .field-input::placeholder {
+    color: rgb(var(--text-faint));
+  }
+  .field-input:focus {
+    outline: none;
+    border-color: var(--hairline-strong);
+    box-shadow: inset 2px 0 0 0 rgb(var(--signal));
+  }
+
+  /* Inline prose link (§3.3): underline, hover → signal, never blue. */
+  .console-link {
+    color: rgb(var(--text));
+    text-decoration: underline;
+    text-decoration-thickness: 0.5px;
+    text-underline-offset: 2px;
+  }
+  .console-link:hover {
+    color: rgb(var(--signal));
+  }
+
+  /* A menu surface (§2.3, §6): the one sanctioned non-recess shadow — a menu
+     *lifting off* the field, not cut into it. Square, opaque panel, hairline. */
+  .menu {
+    background-color: rgb(var(--panel));
+    border: 0.5px solid var(--hairline-strong);
+    border-radius: var(--r-built);
+    box-shadow:
+      0 10px 30px rgba(0, 0, 0, 0.55),
+      inset 0 1px 0 rgba(236, 234, 230, 0.04);
+  }
+}
+
+/* ============================================================================
+   Liveness motion (§6) — only ever means "alive" or "changed".
+   Every animation defined here is frozen in the reduced-motion block below;
+   later phases append their own motion + matching freeze.
+   ========================================================================== */
+@keyframes anim-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.32;
+  }
+}
+
+@keyframes anim-breathe {
+  0%,
+  100% {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.96);
+  }
+}
+
+/* Menu / dropdown entrance (§6): fade + 4px slide, 0.18s. */
+@keyframes menu-pop {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Bay entrance (§6): instruments "power on" with a measured fade + 8px lift —
+   motion means "this just arrived", never decoration. The base state is opacity:1,
+   so killing the animation (reduced-motion) leaves bays fully visible. */
+@keyframes bay-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.anim-pulse {
+  animation: anim-pulse 1.6s ease-in-out infinite;
+}
+
+.anim-breathe {
+  animation: anim-breathe 3s ease-in-out infinite;
+}
+
+.menu-pop {
+  animation: menu-pop 0.18s ease both;
+}
+
+/* Apply to a grid/flex container: its direct children enter as a ~40ms cascade
+   (§6). nth-child delays keep it component-agnostic — no per-item index prop. */
+.enter-stagger > * {
+  animation: bay-enter 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.enter-stagger > *:nth-child(2) {
+  animation-delay: 40ms;
+}
+.enter-stagger > *:nth-child(3) {
+  animation-delay: 80ms;
+}
+.enter-stagger > *:nth-child(4) {
+  animation-delay: 120ms;
+}
+.enter-stagger > *:nth-child(5) {
+  animation-delay: 160ms;
+}
+.enter-stagger > *:nth-child(6) {
+  animation-delay: 200ms;
+}
+.enter-stagger > *:nth-child(n + 7) {
+  animation-delay: 240ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Liveness degrades to a steady end-state; nothing pulses, breathes, lifts. */
+  .anim-pulse,
+  .anim-breathe,
+  .menu-pop,
+  .enter-stagger > * {
+    animation: none !important;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Smallest screens: hide the grid lines to protect legibility (§4.3); the warm
+   obsidian + grain remain so nothing floats in a void. */
+@media (max-width: 768px) {
+  body {
+    background-image: none;
+  }
 }

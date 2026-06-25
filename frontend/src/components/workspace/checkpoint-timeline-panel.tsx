@@ -1,9 +1,10 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { GitCommitHorizontal, Plus, ShieldCheck, X } from "lucide-react";
+import { AlertTriangle, GitCommitHorizontal, Plus, ShieldCheck, X } from "lucide-react";
 import { useState } from "react";
 
+import { Action, Bay, BayHeader, Icon, Input, Textarea } from "@/components/console";
 import { createCheckpoint, listCheckpoints } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import { useActingIdentity } from "@/lib/use-identity";
@@ -32,6 +33,10 @@ function formatTimestamp(iso: string): string {
   });
 }
 
+// D5 re-skin: the checkpoint timeline as a §5.3 log/stream of instrument entries.
+// These are fetched lists, not a live tail, so the streaming affordances (autoscroll,
+// a pulsing tail) are N/A here. Console tokens + primitives only; every hook, the
+// create mutation, the line-scoping filter, and the seal gating below are unchanged.
 export function CheckpointTimelinePanel({
   projectId,
   selectedThreadId,
@@ -76,159 +81,195 @@ export function CheckpointTimelinePanel({
   const canSubmit = canWrite && summary.trim().length > 0;
 
   return (
-    <section className="flex flex-col gap-3 rounded-lg border border-line bg-white/70 p-4 shadow-panel">
-      <header className="flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.1em] text-ink/70">
-          <GitCommitHorizontal className="size-4 text-signal" aria-hidden="true" />
-          Checkpoints
-        </h2>
-        {lineSealed ? null : (
-          <button
-            type="button"
-            onClick={() => setAdding((v) => !v)}
-            className="grid size-7 place-items-center rounded-md border border-line text-ink/65 hover:text-ink"
-            aria-label={adding ? "Cancel new checkpoint" : "New checkpoint"}
-            title={adding ? "Cancel" : "New checkpoint"}
-          >
-            {adding ? <X className="size-4" aria-hidden="true" /> : <Plus className="size-4" aria-hidden="true" />}
-          </button>
-        )}
-      </header>
-
-      {lineSealed ? (
-        <p className="rounded-md border border-dashed border-line bg-paper/50 p-2.5 text-xs leading-5 text-ink/55">
-          This line is closed — its checkpoints are preserved, not extended. Switch to the
-          main line or an open branch to record a new checkpoint.
-        </p>
-      ) : null}
-
-      {adding && !lineSealed ? (
-        <form
-          className="grid gap-2 rounded-md border border-line bg-paper/60 p-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (canSubmit && !createMutation.isPending) createMutation.mutate();
-          }}
-        >
-          <p className="text-xs text-ink/55">
-            {selectedBranchId ? "Recorded on the selected branch." : "Recorded on the main line."}
-            {selectedThreadId ? " Scoped to the selected thread." : ""}
-          </p>
-          <input
-            value={summary}
-            onChange={(event) => setSummary(event.target.value)}
-            placeholder="Checkpoint summary"
-            className="h-9 rounded-md border border-line bg-white/80 px-2 text-sm outline-none focus:border-signal"
-          />
-          <textarea
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-            placeholder="Notes (optional)"
-            rows={2}
-            className="rounded-md border border-line bg-white/80 px-2 py-1.5 text-sm outline-none focus:border-signal"
-          />
-          {!canWrite && hydrated ? (
-            <p className="text-xs text-ember">{signInHint} to record checkpoints.</p>
-          ) : null}
-          {createMutation.isError ? (
-            <p className="text-xs text-ember">{(createMutation.error as Error).message}</p>
-          ) : null}
-          <button
-            type="submit"
-            disabled={!canSubmit || createMutation.isPending}
-            className="inline-flex h-9 items-center justify-center gap-1 rounded-md bg-ink px-3 text-sm font-semibold text-paper disabled:opacity-50"
-          >
-            {createMutation.isPending ? "Recording…" : "Record checkpoint"}
-          </button>
-        </form>
-      ) : null}
-
-      {checkpointsQuery.isLoading ? (
-        <PanelLoading label="Loading checkpoints" />
-      ) : checkpointsQuery.isError ? (
-        <PanelError label="Could not load checkpoints." />
-      ) : checkpoints.length === 0 ? (
-        <PanelEmpty icon={<GitCommitHorizontal className="size-5" aria-hidden="true" />}>
-          {selectedBranchId
-            ? "No checkpoints on this branch yet. Record one to extend the line, or validate a claim."
-            : "No checkpoints on the main line yet. Record one after a meaningful move — proposing a hypothesis, attaching evidence, or validating a result — to mark it in the ledger."}
-        </PanelEmpty>
-      ) : (
-        <ol className="grid gap-2">
-          {checkpoints.map((checkpoint) => (
-            <li
-              key={checkpoint.id}
-              className="relative rounded-md border border-line bg-white/60 p-3 pl-4"
+    <Bay density="none" className="flex flex-col">
+      <BayHeader
+        label={
+          <span className="inline-flex items-center gap-1.5">
+            <Icon icon={GitCommitHorizontal} size={14} />
+            Checkpoints
+          </span>
+        }
+        count={checkpointsQuery.data ? checkpoints.length : undefined}
+        band
+        actions={
+          lineSealed ? undefined : (
+            <button
+              type="button"
+              onClick={() => setAdding((v) => !v)}
+              className="grid size-7 place-items-center rounded-full text-text-mute transition-colors hover:text-text"
+              style={{ border: "0.5px solid var(--hairline-strong)" }}
+              aria-label={adding ? "Cancel new checkpoint" : "New checkpoint"}
+              title={adding ? "Cancel" : "New checkpoint"}
             >
-              <span className="absolute inset-y-3 left-0 w-0.5 rounded bg-signal/50" aria-hidden="true" />
-              <p className="text-sm font-medium leading-6">{checkpoint.summary}</p>
-              {checkpoint.notes ? (
-                <p className="mt-1 line-clamp-2 text-xs leading-5 text-ink/55">{checkpoint.notes}</p>
-              ) : null}
+              <Icon icon={adding ? X : Plus} size={14} />
+            </button>
+          )
+        }
+      />
 
-              {checkpoint.refs.length > 0 ? (
-                <ul className="mt-2 grid gap-1">
-                  {checkpoint.refs.map((ref) => (
-                    <li key={ref.id} className="flex items-baseline gap-1.5 text-xs leading-5">
-                      <span className="shrink-0 font-semibold text-signal">{ref.role}</span>
-                      <span className="min-w-0 truncate text-ink/70">
-                        {ref.label ?? `${ref.target_type} ${ref.target_id.slice(0, 8)}`}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
+      <div className="flex flex-col gap-3 px-4 pb-4">
+        {lineSealed ? (
+          // Honest note (§1): a warn-marked, dashed-hairline notice — not hidden, not dimmed.
+          <div
+            className="flex items-start gap-2 rounded-built bg-panel-2 p-2.5 text-[12px] leading-5 text-text-soft"
+            style={{ border: "0.5px dashed var(--hairline)" }}
+          >
+            <Icon icon={AlertTriangle} size={14} className="mt-0.5 shrink-0 text-state-warn" />
+            <span>
+              This line is closed — its checkpoints are preserved, not extended. Switch to the main
+              line or an open branch to record a new checkpoint.
+            </span>
+          </div>
+        ) : null}
 
-              {checkpoint.contribution_kind ? (
-                <p className="mt-2 text-[11px] font-medium text-ink/55">
-                  <span className="rounded bg-signal/10 px-1.5 py-0.5 font-semibold uppercase tracking-[0.08em] text-signal">
-                    {checkpoint.contribution_kind.replace(/_/g, " ")}
-                  </span>
-                  {checkpoint.author ? <span className="ml-1.5">by {checkpoint.author.display_name}</span> : null}
-                </p>
-              ) : null}
+        {adding && !lineSealed ? (
+          <form
+            className="grid gap-2 rounded-built bg-panel-2 p-3"
+            style={{ border: "0.5px solid var(--hairline)" }}
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (canSubmit && !createMutation.isPending) createMutation.mutate();
+            }}
+          >
+            <p className="text-[12px] text-text-mute">
+              {selectedBranchId ? "Recorded on the selected branch." : "Recorded on the main line."}
+              {selectedThreadId ? " Scoped to the selected thread." : ""}
+            </p>
+            <Input
+              value={summary}
+              onChange={(event) => setSummary(event.target.value)}
+              placeholder="Checkpoint summary"
+            />
+            <Textarea
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              placeholder="Notes (optional)"
+              rows={2}
+            />
+            {!canWrite && hydrated ? (
+              <p className="text-[11px] text-state-warn">{signInHint} to record checkpoints.</p>
+            ) : null}
+            {createMutation.isError ? (
+              <p className="text-[11px] text-state-fail">{(createMutation.error as Error).message}</p>
+            ) : null}
+            <Action
+              type="submit"
+              disabled={!canSubmit || createMutation.isPending}
+              pending={createMutation.isPending}
+              className="w-full"
+            >
+              <Icon icon={Plus} size={16} />
+              {createMutation.isPending ? "Recording…" : "Record checkpoint"}
+            </Action>
+          </form>
+        ) : null}
 
-              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-ink/45">
-                <span>{formatTimestamp(checkpoint.created_at)}</span>
-                {!checkpoint.contribution_kind && checkpoint.author ? (
-                  <span>· by {checkpoint.author.display_name}</span>
+        {checkpointsQuery.isLoading ? (
+          <PanelLoading label="Loading checkpoints" />
+        ) : checkpointsQuery.isError ? (
+          <PanelError label="Could not load checkpoints" />
+        ) : checkpoints.length === 0 ? (
+          <PanelEmpty>{selectedBranchId ? "No checkpoints on this branch" : "No checkpoints on the main line"}</PanelEmpty>
+        ) : (
+          <ol className="grid gap-2">
+            {checkpoints.map((checkpoint) => (
+              // Square log entry on --panel-2; a neutral left rule marks the stream
+              // (signal is seldom — none of these is "the live one").
+              <li
+                key={checkpoint.id}
+                className="relative rounded-built bg-panel-2 p-3 pl-4"
+                style={{ border: "0.5px solid var(--hairline)" }}
+              >
+                <span
+                  aria-hidden
+                  className="absolute inset-y-3 left-0 w-0.5"
+                  style={{ backgroundColor: "var(--hairline-strong)" }}
+                />
+                <p className="text-[14px] font-medium leading-6 text-text">{checkpoint.summary}</p>
+                {checkpoint.notes ? (
+                  <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-text-soft">
+                    {checkpoint.notes}
+                  </p>
                 ) : null}
-                {checkpoint.stage ? (
-                  <span className="rounded bg-paper px-1.5 py-0.5 font-semibold uppercase tracking-[0.08em]">
-                    {checkpoint.stage}
-                  </span>
-                ) : null}
-                {checkpoint.thread_id ? <span>· thread-scoped</span> : null}
-                {checkpoint.parent_ids.length > 0 ? (
-                  <span>· {checkpoint.parent_ids.length} parent{checkpoint.parent_ids.length === 1 ? "" : "s"}</span>
-                ) : null}
-              </div>
 
-              <div className="mt-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setValidatingId((current) => (current === checkpoint.id ? null : checkpoint.id))
-                  }
-                  className="inline-flex items-center gap-1 text-[11px] font-medium text-signal hover:text-ink"
-                >
-                  <ShieldCheck className="size-3" aria-hidden="true" />
-                  {validatingId === checkpoint.id ? "Cancel" : "Validate"}
-                </button>
-                {validatingId === checkpoint.id ? (
-                  <RecordValidationForm
-                    projectId={projectId}
-                    targetType="checkpoint"
-                    targetId={checkpoint.id}
-                    onDone={() => setValidatingId(null)}
-                    compact
-                  />
+                {checkpoint.refs.length > 0 ? (
+                  <ul className="mt-2 grid gap-1">
+                    {checkpoint.refs.map((ref) => (
+                      <li key={ref.id} className="flex items-baseline gap-1.5 text-[12px] leading-5">
+                        <span className="shrink-0 font-mono uppercase tracking-[0.08em] text-text-mute">
+                          {ref.role}
+                        </span>
+                        {ref.label ? (
+                          <span className="min-w-0 truncate text-text-soft">{ref.label}</span>
+                        ) : (
+                          <span className="min-w-0 truncate font-mono text-text-mute">
+                            {ref.target_type} {ref.target_id.slice(0, 8)}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
                 ) : null}
-              </div>
-            </li>
-          ))}
-        </ol>
-      )}
-    </section>
+
+                {checkpoint.contribution_kind ? (
+                  <p className="mt-2 flex items-center gap-1.5 text-[11px] text-text-mute">
+                    <span
+                      className="rounded-inset bg-panel px-1.5 py-0.5 font-mono uppercase tracking-[0.08em] text-text-mute"
+                      style={{ border: "0.5px solid var(--hairline)" }}
+                    >
+                      {checkpoint.contribution_kind.replace(/_/g, " ")}
+                    </span>
+                    {checkpoint.author ? <span>by {checkpoint.author.display_name}</span> : null}
+                  </p>
+                ) : null}
+
+                <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-text-faint">
+                  <span className="font-mono tabular-nums">{formatTimestamp(checkpoint.created_at)}</span>
+                  {!checkpoint.contribution_kind && checkpoint.author ? (
+                    <span>· by {checkpoint.author.display_name}</span>
+                  ) : null}
+                  {checkpoint.stage ? (
+                    <span
+                      className="rounded-inset bg-panel px-1.5 py-0.5 font-mono uppercase tracking-[0.08em]"
+                      style={{ border: "0.5px solid var(--hairline)" }}
+                    >
+                      {checkpoint.stage}
+                    </span>
+                  ) : null}
+                  {checkpoint.thread_id ? <span className="font-mono">· thread-scoped</span> : null}
+                  {checkpoint.parent_ids.length > 0 ? (
+                    <span className="font-mono tabular-nums">
+                      · {checkpoint.parent_ids.length} parent{checkpoint.parent_ids.length === 1 ? "" : "s"}
+                    </span>
+                  ) : null}
+                </div>
+
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setValidatingId((current) => (current === checkpoint.id ? null : checkpoint.id))
+                    }
+                    className="inline-flex items-center gap-1.5 text-[12px] font-medium text-text-mute transition-colors hover:text-signal"
+                  >
+                    <Icon icon={ShieldCheck} size={14} />
+                    {validatingId === checkpoint.id ? "Cancel" : "Validate"}
+                  </button>
+                  {validatingId === checkpoint.id ? (
+                    <RecordValidationForm
+                      projectId={projectId}
+                      targetType="checkpoint"
+                      targetId={checkpoint.id}
+                      onDone={() => setValidatingId(null)}
+                      compact
+                    />
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+    </Bay>
   );
 }

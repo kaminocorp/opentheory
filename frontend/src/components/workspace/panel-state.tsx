@@ -1,38 +1,19 @@
-import { Activity, AlertCircle } from "lucide-react";
-import type { ReactNode } from "react";
+import { AwaitingState } from "@/components/console";
 
-// Shared loading / error / empty placeholders so every panel renders the three states
-// the same way (plan 0.3.3 exit criterion).
+// Shared loading / error / empty states for every instrument panel (plan 0.3.3
+// exit criterion). D5 re-skin: thin wrappers over the §5.9 AwaitingState — "the
+// mark holds the frame". Loading breathes; error/empty hold steady (read
+// "stopped", not "loading"), and error renders at full --state-fail weight (§1).
+// Call signatures stay drop-in (a single string), so the panels need no logic change.
 
 export function PanelLoading({ label }: { label: string }) {
-  return (
-    <div className="grid min-h-32 place-items-center rounded-md border border-line bg-white/60 p-4">
-      <div className="flex items-center gap-2 text-sm text-ink/65">
-        <Activity className="size-4 animate-pulse text-signal" aria-hidden="true" />
-        {label}
-      </div>
-    </div>
-  );
+  return <AwaitingState variant="loading" label={label} />;
 }
 
 export function PanelError({ label }: { label: string }) {
-  return (
-    <div className="grid min-h-32 place-items-center rounded-md border border-ember/30 bg-white/70 p-4 text-center">
-      <div className="flex items-center gap-2 text-sm text-ink/70">
-        <AlertCircle className="size-4 text-ember" aria-hidden="true" />
-        {label}
-      </div>
-    </div>
-  );
+  return <AwaitingState variant="error" label={label} />;
 }
 
-export function PanelEmpty({ icon, children }: { icon?: ReactNode; children: ReactNode }) {
-  return (
-    <div className="grid min-h-32 place-items-center rounded-md border border-dashed border-line bg-white/50 p-4 text-center">
-      <div className="max-w-xs text-sm leading-6 text-ink/60">
-        {icon ? <div className="mb-2 grid place-items-center text-signal">{icon}</div> : null}
-        {children}
-      </div>
-    </div>
-  );
+export function PanelEmpty({ children }: { children: string }) {
+  return <AwaitingState variant="empty" label={children} />;
 }

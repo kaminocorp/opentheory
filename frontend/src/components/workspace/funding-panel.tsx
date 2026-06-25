@@ -4,6 +4,18 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Coins, Plus, Wallet, X } from "lucide-react";
 import { useState } from "react";
 
+import {
+  Action,
+  ActionGhost,
+  Bay,
+  Icon,
+  Input,
+  MetricReadout,
+  ReadoutLabel,
+  Select,
+  StatusPill,
+  type StateTone,
+} from "@/components/console";
 import { createFunding, getProjectBudget, listFunding } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import { useActingIdentity } from "@/lib/use-identity";
@@ -30,13 +42,18 @@ function formatDate(iso: string): string {
 }
 
 const SOURCE_LABEL: Record<FundingSource, string> = { native: "Kamino", stripe: "external" };
-const STATUS_CLASS: Record<FundingStatus, string> = {
-  settled: "bg-signal/10 text-signal",
-  pending: "bg-paper text-ink/55",
-  failed: "bg-ember/10 text-ember",
-  refunded: "bg-paper text-ink/45",
+
+// Funding status → a state tone. settled = healthy, pending = in motion (awaiting
+// settlement), failed = error, refunded = ambient/closed.
+const fundingStatusTone: Record<FundingStatus, StateTone> = {
+  settled: "ok",
+  pending: "run",
+  failed: "fail",
+  refunded: "faint",
 };
 
+// D4 re-skin: console tokens + primitives only. Every hook, the fund mutation, the
+// money/date formatters, and the role-gating (canFund) below are unchanged.
 export function FundingPanel({ projectId }: { projectId: string }) {
   const { canWrite, isInternal } = useActingIdentity();
   const queryClient = useQueryClient();
@@ -77,137 +94,125 @@ export function FundingPanel({ projectId }: { projectId: string }) {
   const canFund = canWrite && isInternal && Number(amount) > 0;
 
   return (
-    <section className="grid gap-3 rounded-lg border border-line bg-white/75 p-4 shadow-panel">
+    // id="funding" is the target of the command rail's Funding zone (D2).
+    <Bay id="funding" density="narrative" className="grid gap-3">
       <header className="flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.1em] text-ink/70">
-          <Wallet className="size-4 text-signal" aria-hidden="true" />
-          Budget
-        </h2>
+        <span className="flex items-center gap-2 text-text-mute">
+          <Icon icon={Wallet} size={16} />
+          <ReadoutLabel>Budget</ReadoutLabel>
+        </span>
         {isInternal ? (
-          <button
-            type="button"
-            onClick={() => setFunding((v) => !v)}
-            className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs font-medium text-ink/65 hover:text-ink"
-          >
-            {funding ? <X className="size-3.5" aria-hidden="true" /> : <Coins className="size-3.5" aria-hidden="true" />}
+          <ActionGhost onClick={() => setFunding((v) => !v)} className="h-7 px-3 text-[12px]">
+            <Icon icon={funding ? X : Coins} size={14} />
             {funding ? "Cancel" : "Fund project"}
-          </button>
+          </ActionGhost>
         ) : null}
       </header>
 
       {/* Budget summary: funded / available / spent. */}
       <dl className="grid grid-cols-3 gap-3">
-        <div className="rounded-md border border-line bg-paper/60 px-3 py-2">
-          <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink/50">Funded</dt>
-          <dd className="mt-0.5 text-lg font-semibold tabular-nums">
-            {budget ? formatMoney(budget.funded, budget.currency) : "—"}
-          </dd>
-        </div>
-        <div className="rounded-md border border-line bg-paper/60 px-3 py-2">
-          <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink/50">Available</dt>
-          <dd className="mt-0.5 text-lg font-semibold tabular-nums">
-            {budget ? formatMoney(budget.available, budget.currency) : "—"}
-          </dd>
-        </div>
-        <div className="rounded-md border border-line bg-paper/60 px-3 py-2">
-          <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink/50">Spent</dt>
-          <dd className="mt-0.5 text-lg font-semibold tabular-nums text-ink/55" title="Compute spend begins when agents execute (0.7.0)">
-            {budget ? formatMoney(budget.spent, budget.currency) : "—"}
-          </dd>
-        </div>
+        <MetricReadout label="Funded" value={budget ? formatMoney(budget.funded, budget.currency) : "—"} />
+        <MetricReadout
+          label="Available"
+          value={budget ? formatMoney(budget.available, budget.currency) : "—"}
+        />
+        <MetricReadout
+          label="Spent"
+          title="Compute spend begins when agents execute (0.7.0)"
+          valueClassName="text-text-mute"
+          value={budget ? formatMoney(budget.spent, budget.currency) : "—"}
+        />
       </dl>
 
       {/* Role separation: funding is a budget action, distinct from contributing or validating. */}
-      <p className="text-[11px] leading-5 text-ink/50">
-        Funding grants budget only — it confers no authorship or validation. Compute spend begins
-        when agents execute.
+      <p className="text-[11px] leading-5 text-text-mute">
+        Funding grants budget only — it confers no authorship or validation. Compute spend begins when
+        agents execute.
       </p>
 
       {funding && isInternal ? (
         <form
-          className="grid gap-2 rounded-md border border-line bg-paper/60 p-3 sm:grid-cols-[1fr_auto_auto_auto]"
+          className="grid gap-2 rounded-built bg-panel-2 p-3 sm:grid-cols-[1fr_auto_auto_auto]"
+          style={{ border: "0.5px solid var(--hairline)" }}
           onSubmit={(event) => {
             event.preventDefault();
             if (canFund && !fundMutation.isPending) fundMutation.mutate();
           }}
         >
-          <input
+          <Input
+            mono
             type="number"
             min="0"
             step="0.01"
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
             placeholder="Amount"
-            className="h-9 rounded-md border border-line bg-white/80 px-2 text-sm outline-none focus:border-signal"
           />
-          <input
+          <Input
+            mono
             value={currency}
             onChange={(event) => setCurrency(event.target.value.toUpperCase().slice(0, 3))}
             placeholder="USD"
             maxLength={3}
             aria-label="Currency (ISO 4217)"
-            className="h-9 w-16 rounded-md border border-line bg-white/80 px-2 text-sm uppercase outline-none focus:border-signal"
+            className="!w-16 uppercase"
           />
-          <select
+          <Select
             value={kind}
             onChange={(event) => setKind(event.target.value as FundingKind)}
-            className="h-9 rounded-md border border-line bg-white/80 px-2 text-sm capitalize outline-none focus:border-signal"
+            className="capitalize"
           >
             {FUNDING_KINDS.map((k) => (
               <option key={k} value={k}>
                 {k.replace("_", " ")}
               </option>
             ))}
-          </select>
-          <button
-            type="submit"
-            disabled={!canFund || fundMutation.isPending}
-            className="inline-flex h-9 items-center justify-center gap-1 rounded-md bg-ink px-3 text-sm font-semibold text-paper disabled:opacity-50"
-          >
-            <Plus className="size-4" aria-hidden="true" />
+          </Select>
+          <Action type="submit" disabled={!canFund || fundMutation.isPending} pending={fundMutation.isPending}>
+            <Icon icon={Plus} size={16} />
             {fundMutation.isPending ? "Funding…" : "Fund (native)"}
-          </button>
+          </Action>
           {fundMutation.isError ? (
-            <p className="text-xs text-ember sm:col-span-4">{(fundMutation.error as Error).message}</p>
+            <p className="text-[12px] text-state-fail sm:col-span-4">{(fundMutation.error as Error).message}</p>
           ) : null}
         </form>
       ) : null}
 
       {/* Funding history. */}
-      <div className="border-t border-line pt-3">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.1em] text-ink/50">History</p>
+      <div className="pt-3" style={{ borderTop: "0.5px solid var(--hairline)" }}>
+        <ReadoutLabel as="p" className="mb-2">
+          History
+        </ReadoutLabel>
         {historyQuery.isLoading ? (
-          <p className="text-xs text-ink/50">Loading funding…</p>
+          <p className="text-[12px] text-text-mute">Loading funding…</p>
         ) : historyQuery.isError ? (
-          <p className="text-xs text-ember">Could not load funding history.</p>
+          <p className="text-[12px] text-state-fail">Could not load funding history.</p>
         ) : history.length === 0 ? (
-          <p className="text-xs text-ink/45">
+          <p className="text-[12px] text-text-faint">
             No funding yet.{isInternal ? " Fund this project to grant it budget." : ""}
           </p>
         ) : (
           <ul className="grid gap-1.5">
             {history.map((item) => (
-              <li key={item.id} className="flex items-center justify-between gap-2 text-xs">
+              <li key={item.id} className="flex items-center justify-between gap-2 text-[12px]">
                 <span className="min-w-0 truncate">
-                  <span className="font-semibold tabular-nums">
+                  <span className="font-mono font-medium tabular-nums text-text">
                     {formatMoney(item.amount, item.currency)}
                   </span>
-                  <span className="ml-1.5 text-ink/45">
+                  <span className="ml-1.5 font-mono text-text-mute">
                     {SOURCE_LABEL[item.source]} · {item.kind.replace("_", " ")}
                   </span>
-                  {item.actor ? <span className="ml-1.5 text-ink/40">{item.actor.display_name}</span> : null}
+                  {item.actor ? <span className="ml-1.5 text-text-mute">{item.actor.display_name}</span> : null}
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
-                  <span className={`rounded px-1.5 py-0.5 font-semibold ${STATUS_CLASS[item.status]}`}>
-                    {item.status}
-                  </span>
-                  <span className="text-ink/40">{formatDate(item.created_at)}</span>
+                  <StatusPill tone={fundingStatusTone[item.status]} label={item.status} />
+                  <span className="font-mono text-text-faint">{formatDate(item.created_at)}</span>
                 </span>
               </li>
             ))}
           </ul>
         )}
       </div>
-    </section>
+    </Bay>
   );
 }
