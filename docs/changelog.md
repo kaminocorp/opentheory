@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.6.5` — Post-review hardening on `4ca8be0` (the commit that bundled `0.6.3` browser project-creation **and** the `0.6.4` Kamino redesign). Adds the missing **direct** regression test for the `0.6.3` auth gate (`POST /projects` unauthenticated → `401`, DB-free so it runs in the default suite), an `aria-live`/`role` announcement on the console error/loading state, and a stale-version comment fix. No features, schema, or migration. (`6 passed, 47 skipped`.)
 - `0.6.4` — Frontend redesign to the **Kamino Console** design language: a warm-obsidian command bridge — recessed instrument **bays**, registration brackets, IBM Plex Mono readouts / Plex Sans prose, "square is built / round is alive", hairlines not boxes, themed by a single seldom-used crimson **signal**. Presentation-only (**no** backend / schema / API / data-flow change); shipped as six deployable phases **D1–D6**. Adds the Plex fonts, no new runtime dependency, no migration.
 - `0.6.3` — Project creation from the browser + closing the last open write path. A write-gated "New project" form on the index (the first UI to create a project; auto-derived editable slug), and `POST /projects` now requires a verified actor (was unauthenticated). No schema, no migration. (`52 passed`.)
 - `0.6.2` — Second pre-prod review hardening on `0.6.0`/`0.6.1` (no features, schema, or migration). Closes the funding write path against `source=stripe` (now native-only until `0.7.0`; `422` otherwise), stops a stale `X-Dev-Actor-Id` leaking in production, and first runs the DB-test gate on a real Postgres (`52 passed`).
@@ -21,6 +22,40 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.6.5
+
+A post-review hardening pass on commit `4ca8be0` — the single commit that bundled two changelog releases: `0.6.3` (browser project-creation + the `ActingActor` gate on `POST /projects`) **and** the entire `0.6.4` Kamino Console redesign (D1–D6). A full read-through of that 56-file diff (the channel-pattern token wiring, every re-skinned surface, the auth gate, and the test bootstrap) found the slice sound — all builds green, the presentation-only claim holding everywhere except the legitimately-documented create-project feature, and the auth gate correctly placed in the route layer — and surfaced three small items, all fixed here. No new features, no schema change, no migration.
+
+### Commit-history note (the bundling)
+
+- **`4ca8be0`'s message describes only `0.6.3`**, but its contents also include all of `0.6.4` (50+ frontend files: `globals.css`, `tailwind.config.ts`, the `console/` primitive library, every workspace-panel re-skin). The two releases are documented separately in this changelog (above), so nothing is *undocumented* — but a reader of `git log` alone would not see the redesign. The message was **not** amended because `4ca8be0` is already published on `origin/main`, and rewriting shared history is more harmful than the mislabel. **This entry is the cross-reference: the Kamino redesign lives in `4ca8be0`, not in a commit of its own.**
+
+### Tests — a direct guard for the `0.6.3` auth gate
+
+- **Added `backend/tests/test_projects.py`** with `test_unauthenticated_project_create_is_rejected`: with the dev-header fallback off (production posture), an unauthenticated `POST /api/v1/projects` returns `401`. This is the deliverable's missing regression test — until now the gate was only covered *transitively*. Every project-creation test goes through a `_project()` helper that **sends** a credential and asserts `201`, and all of them sit behind the DB-backed `client` fixture that **skips** without Postgres; so nothing exercised the *rejection* path, and removing the `ActingActor` dependency from `create_project` would not have failed a single test. The new test uses a plain `TestClient` (not the `client` fixture): the `ActingActor` dependency raises `401` **before** the handler touches the DB (`app/api/deps.py:117`), so it needs no database and **runs in the default suite** (`5 → 6 passed`), where it will catch a regression — including in a CI run with no Postgres.
+
+### Accessibility — the honesty surface for screen-reader users
+
+- **`AwaitingState` now announces state transitions** (`frontend/src/components/console/awaiting-state.tsx`). The error variant carries `role="alert"` (assertive) and the loading variant `role="status"` (polite); the steady empty state gets no live region. `role` implies the matching `aria-live`, so a read transitioning to error/failure is **heard** as well as seen — extending the blueprint's §1 honesty surface (failures as loud as successes) from the visual (glyph + `--state-fail` label, already present) to assistive tech. Pre-existing behaviour had no live region; this is additive and presentation-layer only.
+
+### Correctness & hygiene
+
+- **Fixed a stale version reference in `backend/app/api/routes/projects.py`.** The comment explaining why `create_project` records no `Contribution` pointed the deferred `services/projects.py` extraction at "`0.5.0`" — a version already past. Reworded to "the planned `services/projects.py` extraction (a later release)"; behaviour is unchanged (still no contribution recorded, preserving the unfiltered-`Contribution` test assertions).
+
+### Verification (reproduced, not asserted)
+
+- **Backend:** `uv run ruff check .` clean; `uv run pytest` → **`6 passed, 47 skipped`** (the new gate test *executing*, not skipping; the DB-backed suite still skips cleanly without a configured Postgres, per policy).
+- **Frontend:** `npm run typecheck`, `npm run lint`, `npm run build` all clean; 6/6 routes still generate.
+- **Not re-run here:** the full DB-backed suite against a throwaway Postgres (`52 passed` in the `0.6.2`/`0.6.3` passes) — unchanged by this slice — and the live visual desaturation + reduced-motion pass against the deployed preview (the one acceptance step needing a browser).
+
+### Still gating the production push (unchanged from `0.6.3`/`0.6.4`)
+
+- **Redeploy both tiers** — Fly (activates the `POST /projects` gate, the security half of `0.6.3`) **and** Vercel (the Kamino UI; `NEXT_PUBLIC_*` is baked at build). This is *not* a Vercel-only push, because the auth gate ships in the backend.
+- **Confirm Fly secrets** — `SUPABASE_JWT_SECRET` set and `AUTH_DEV_HEADER_ENABLED` unset/false; project creation now hard-depends on a verified actor.
+- **Live visual pass** — desaturate the deployed preview (grayscale test) and toggle reduced-motion; built to pass, confirmed on the artifact.
 
 ---
 

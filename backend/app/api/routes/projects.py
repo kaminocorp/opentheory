@@ -19,9 +19,10 @@ DbSession = Annotated[AsyncSession, Depends(get_db)]
 async def create_project(payload: ProjectCreate, db: DbSession, actor: ActingActor) -> Project:
     # `actor` (ActingActor) gates the write: creating a project now requires a verified actor,
     # closing the previously-open public write path (every other ledger write is already gated).
-    # Recording the creation as a `create_project` Contribution lands with the services/projects.py
-    # extraction in 0.5.0 — deliberately kept out here so the change is migration- and behaviour-
-    # minimal (and so the unfiltered-Contribution test assertions stay valid).
+    # Recording the creation as a `create_project` Contribution is deferred to the planned
+    # services/projects.py extraction (a later release) — deliberately kept out here so the change
+    # is migration- and behaviour-minimal (and so the unfiltered-Contribution test assertions stay
+    # valid).
     project = Project(**payload.model_dump())
     db.add(project)
     await db.commit()
