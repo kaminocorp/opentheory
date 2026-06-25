@@ -75,6 +75,15 @@ function RailItem({ zone }: { zone: RailZone }) {
       ? "text-text-faint"
       : "text-text-mute hover:text-text";
 
+  // The Icon's aria-label is the zone's accessible name; for unavailable zones, fold the
+  // reason into it (the `title` tooltip below is for sighted hover and isn't reliably
+  // announced to assistive tech).
+  const accessibleLabel = zone.inert
+    ? `${zone.label}, coming soon`
+    : zone.disabled
+      ? `${zone.label}, open a project first`
+      : zone.label;
+
   const glyph = (
     <span
       className={cn(
@@ -83,7 +92,7 @@ function RailItem({ zone }: { zone: RailZone }) {
         tone,
       )}
     >
-      <Icon icon={zone.icon} size={18} aria-label={zone.label} />
+      <Icon icon={zone.icon} size={18} aria-label={accessibleLabel} />
       {/* The "alive" marker: a pulsing signal dot on the active zone. */}
       {zone.active && <LiveDot tone="signal" pulse size={6} className="absolute right-1.5 top-1.5" />}
     </span>

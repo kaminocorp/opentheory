@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.6.6` — Post-review hardening on the `0.6.4` Kamino **primitive library** (no features, schema, or migration). Fixes a token-layering bug in the `Action` primitive that left every **disabled / pending** button's inert styling decided by CSS source order — plain `cn` has no `tailwind-merge`, so the inert override and the variant's own colour utilities both emitted — by splitting each variant into mutually-exclusive **shape** / **skin** (enabled appearance unchanged). Also gives the command-rail's unavailable zones a screen-reader reason, not just a `title`. (`6 passed, 47 skipped`; frontend `typecheck` / `lint` / `build` green.)
 - `0.6.5` — Post-review hardening on `4ca8be0` (the commit that bundled `0.6.3` browser project-creation **and** the `0.6.4` Kamino redesign). Adds the missing **direct** regression test for the `0.6.3` auth gate (`POST /projects` unauthenticated → `401`, DB-free so it runs in the default suite), an `aria-live`/`role` announcement on the console error/loading state, and a stale-version comment fix. No features, schema, or migration. (`6 passed, 47 skipped`.)
 - `0.6.4` — Frontend redesign to the **Kamino Console** design language: a warm-obsidian command bridge — recessed instrument **bays**, registration brackets, IBM Plex Mono readouts / Plex Sans prose, "square is built / round is alive", hairlines not boxes, themed by a single seldom-used crimson **signal**. Presentation-only (**no** backend / schema / API / data-flow change); shipped as six deployable phases **D1–D6**. Adds the Plex fonts, no new runtime dependency, no migration.
 - `0.6.3` — Project creation from the browser + closing the last open write path. A write-gated "New project" form on the index (the first UI to create a project; auto-derived editable slug), and `POST /projects` now requires a verified actor (was unauthenticated). No schema, no migration. (`52 passed`.)
@@ -22,6 +23,38 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.6.6
+
+A post-review hardening pass on the `0.6.4` Kamino Console **primitive library** (the `console/` component layer added in `4ca8be0`). An independent re-read of the full `adba55a..HEAD` push — the `0.6.3` `POST /projects` auth gate read directly, the ~3,500-line reskin diffed file-by-file against the deployed baseline to confirm the **presentation-only** claim, the channel/opacity token contract checked in the emitted CSS — found the slice sound: zero data-flow changes to any query, mutation, write-gate, or branch-line filter; the auth gate correctly placed in the dependency layer; no legacy tokens or dangling imports. It surfaced one real correctness bug in a shared primitive and one accessibility gap, both fixed here. No new features, no schema change, no migration; backend untouched.
+
+### Correctness — the inert button state was decided by CSS source order
+
+- **`console/action.tsx` no longer layers conflicting Tailwind utilities.** The disabled / pending ("inert") override was appended *after* the per-variant classes, so a disabled button carried both the variant's own colour utilities (`bg-signal` + `text-ground` for `primary`; `border-state-fail` + `text-state-fail` + `hover:bg-state-fail/10` for `destructive`) **and** the inert ones (`bg-transparent` / `text-text-faint` / `hover:bg-transparent`) at once. Because `cn` is plain `clsx` with **no `tailwind-merge`**, which class wins is decided by the order Tailwind emits the rules in the stylesheet — *not* by className order — so the hatched/faint inert look was correct only by luck and could render a disabled button looking enabled. This governs the disabled state of nearly every submit button (Create project, Record checkpoint, Fund, record-validation, …) and the destructive Close-branch button (`branch-bar.tsx`). Fixed by splitting each variant into **`VARIANT_SHAPE`** (padding + border-*presence*, always applied so an inert button never changes size) and **`VARIANT_SKIN`** (colour / border-colour / hover, interactive only); the inert state now selects a single `INERT_SKIN` *instead of* the variant skin via a ternary, so no two conflicting utilities ever coexist. The enabled appearance is byte-identical per variant (same resolved class set) — verified by `build`. This restores the invariant `cn.ts` documents but cannot enforce: *primitives must never produce conflicting Tailwind classes.*
+
+### Accessibility — honest unavailable zones for screen readers
+
+- **`shell/command-rail.tsx` folds the unavailability reason into the accessible name.** The inert `Agents` zone (honest about `0.7.0`) and the contextual-off `Workspace` / `Funding` zones (live only inside a project) signalled "unavailable" only through the `title` tooltip — a sighted-hover affordance that assistive tech does not reliably announce. The zone's accessible name (the `Icon`'s `aria-label`) now carries the reason: `"Agents, coming soon"` / `"Workspace, open a project first"`. Extends the blueprint's §1 honesty surface to SR users, matching what `0.6.5` did for `AwaitingState`. Presentation-layer only; the live zones' names are unchanged.
+
+### Considered and deliberately not done
+
+- **The terser `AwaitingState` empty / error copy is by design, not a regression.** The reskin shortened several panel empty-states (e.g. the checkpoint panel lost its instructional *"Record one after a meaningful move — proposing a hypothesis, attaching evidence, or validating a result…"* second sentence, now just *"No checkpoints on the main line"*). `AwaitingState` (§5.9) is a **one-line mono-uppercase readout**; the old prose cannot fit it and would fight the console language. No data flow changed, so this stays inside the `0.6.4` presentation-only claim — recorded here so the loss of some first-run onboarding guidance is a *decision*, not a silent drop.
+- **The `run` and `signal` state tones share the `●` glyph (`console/state.ts`).** Left as-is: the collision only renders in the dev-only `/styleguide` tone showcase. In product the `signal` tone is consumed via `LiveDot` (background) and `ReadoutLabel` (text colour) — its glyph never renders beside a `run` glyph — so the §0 grayscale guarantee is not actually weakened on any shipped surface. Changing `run`'s glyph would alter live UI for marginal gain.
+- **A reviewer flag on `MetricReadout`'s `valueClassName ?? "text-text"` was rejected on inspection.** The suggested "merge instead of replace" would, without `tailwind-merge`, emit two conflicting `text-*` utilities; the replace-on-override is the correct pattern for a plain-`cn` setup.
+
+### Verification (reproduced, not asserted)
+
+- **Frontend:** `npm run typecheck` / `lint` / `build` all clean; 6/6 routes generate; enabled-button appearance unchanged (identical resolved class set per variant).
+- **Backend:** untouched — `ruff check .` clean, `pytest` → **`6 passed, 47 skipped`** (the default DB-free suite; the `0.6.5` auth-gate test still executing).
+- **Not re-run here:** the DB-backed suite against a throwaway Postgres — unchanged since the `0.6.2` / `0.6.3` `52 passed` (this slice edits only two frontend files, no backend or test code), deferred per the no-local-DB policy — and the live visual desaturation pass (needs a browser).
+
+### Still gating the production push (unchanged from `0.6.3` / `0.6.4` / `0.6.5`)
+
+- **Redeploy both tiers** — Fly (the `POST /projects` auth gate) **and** Vercel (the Kamino UI; `NEXT_PUBLIC_*` is baked at build).
+- **Confirm Fly secrets** — `SUPABASE_JWT_SECRET` set and `AUTH_DEV_HEADER_ENABLED` unset/false.
+- **Live visual pass** — desaturate the deployed preview (grayscale test) and toggle reduced-motion.
 
 ---
 
