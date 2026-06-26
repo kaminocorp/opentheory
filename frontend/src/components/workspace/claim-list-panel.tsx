@@ -122,6 +122,7 @@ function ClaimListPanelInner({ projectId, threadId }: { projectId: string; threa
             }}
           >
             <Select
+              aria-label="Claim kind"
               value={kind}
               onChange={(event) => setKind(event.target.value as ClaimKind)}
               className="capitalize"
@@ -297,6 +298,7 @@ function ClaimEvidence({ projectId, claimId }: { projectId: string; claimId: str
               className="min-w-0 flex-1"
             />
             <Select
+              aria-label="Evidence relation"
               value={relationKind}
               onChange={(event) => setRelationKind(event.target.value as RelationKind)}
               className="capitalize"

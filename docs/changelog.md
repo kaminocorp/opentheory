@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.6.7` — Post-review hardening on the `0.6.4` Kamino Console (no features, schema, or migration). An independent re-audit of the full **D1–D6** conversion confirmed the **presentation-only / data-flow byte-for-byte** claim (diffed against the pre-redesign baseline) and the **Decision-4** opacity-channel contract (re-verified in the *emitted* CSS), then closed a small accessibility/robustness punch-list living in bespoke markup: screen-reader-reachable inert command-rail zones, `aria-pressed` + a non-hue weight cue on the selected line pill, an accessible name for every console field (placeholder→`aria-label` fallback + six named `Select`s), an `Action` `size` prop that retires a `className` padding override (the `cn`-no-`tailwind-merge` footgun), and a `--state-fail` retune so error-red separates from the crimson `--signal` by value, not just name. Frontend `typecheck` / `lint` / `build` green; `md`-button output byte-identical.
 - `0.6.6` — Post-review hardening on the `0.6.4` Kamino **primitive library** (no features, schema, or migration). Fixes a token-layering bug in the `Action` primitive that left every **disabled / pending** button's inert styling decided by CSS source order — plain `cn` has no `tailwind-merge`, so the inert override and the variant's own colour utilities both emitted — by splitting each variant into mutually-exclusive **shape** / **skin** (enabled appearance unchanged). Also gives the command-rail's unavailable zones a screen-reader reason, not just a `title`. (`6 passed, 47 skipped`; frontend `typecheck` / `lint` / `build` green.)
 - `0.6.5` — Post-review hardening on `4ca8be0` (the commit that bundled `0.6.3` browser project-creation **and** the `0.6.4` Kamino redesign). Adds the missing **direct** regression test for the `0.6.3` auth gate (`POST /projects` unauthenticated → `401`, DB-free so it runs in the default suite), an `aria-live`/`role` announcement on the console error/loading state, and a stale-version comment fix. No features, schema, or migration. (`6 passed, 47 skipped`.)
 - `0.6.4` — Frontend redesign to the **Kamino Console** design language: a warm-obsidian command bridge — recessed instrument **bays**, registration brackets, IBM Plex Mono readouts / Plex Sans prose, "square is built / round is alive", hairlines not boxes, themed by a single seldom-used crimson **signal**. Presentation-only (**no** backend / schema / API / data-flow change); shipped as six deployable phases **D1–D6**. Adds the Plex fonts, no new runtime dependency, no migration.
@@ -23,6 +24,44 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.6.7
+
+A post-review hardening pass on the `0.6.4` Kamino Console, in the lineage of `0.6.5`/`0.6.6`. An independent re-audit of the entire `adba55a..HEAD` frontend conversion — the **presentation-only / data-flow byte-for-byte** claim diffed component-by-component against the pre-redesign baseline, the **Decision-4** opacity-channel contract re-verified in the *emitted* production CSS (not just a green build), the console primitive library re-checked for the `cn`-no-`tailwind-merge` conflicting-class bug class that `0.6.6` fixed, and the three release gates (honesty/grayscale, signal-seldom, motion/reduced-motion) walked on the real markup — found the slice **sound**: zero data-flow change (every query key, mutation, invalidation, route, and write-gate preserved; `use-identity.ts` and `providers/` literally untouched), the opacity contract holding, the `Action` shape/skin fix correct and not recurring in any other primitive, and signal-seldom + reduced-motion + focus-ring + aria-live all holding. It surfaced a small accessibility/robustness punch-list — all in **bespoke markup** that the "by construction" audits structurally don't reach — fixed here. **No** new features, schema, or migration; backend untouched.
+
+### Accessibility
+
+- **Console fields now carry a real accessible name.** The console UI is deliberately label-less, so most `Input`/`Textarea` controls were *placeholder-only* — and a placeholder is not reliably announced as a control's name and disappears on input. `Input`/`Textarea` now fall back to the visible `placeholder` as their `aria-label` when the caller supplies neither `aria-label` nor `aria-labelledby` (a central fix, zero call-site churn). `Select` has no placeholder to borrow, so the six enum pickers (validation outcome, funding kind, claim kind, evidence relation, fork-from-checkpoint, close-outcome) gained explicit `aria-label`s. (`console/input.tsx` + the six call sites.)
+- **The command rail's unavailable zones are reachable by screen reader.** The contextual-off (Workspace / Funding off-project) and inert (Agents → `0.7.0`) zones rendered as a *non-focusable* `<span>`, so a user navigating *by control* skipped past the "coming soon" / "open a project first" reason `0.6.6` had folded into the icon's label. They are now `role="link" aria-disabled="true" tabIndex={0}` with the name on the focusable wrapper (the icon demoted to decorative) — present-and-inactive in the accessibility tree, never actionable (no href/handler). (`shell/command-rail.tsx`.)
+- **The selected branch line pill no longer signals selection by colour alone.** `LinePill` distinguished *selected* only by crimson text + a same-width signal border — near-indistinguishable under grayscale and unexposed to assistive tech. It now carries `aria-pressed` and a **non-hue weight cue** (`font-semibold` when selected), so selection survives the §1 grayscale test. (`workspace/branch-bar.tsx`.)
+
+### Correctness / robustness
+
+- **`Action` gained a `size` prop, closing the last `cn`-no-`tailwind-merge` footgun.** The compact "Fund project" toggle overrode the ghost button's padding/text via `className="h-7 px-3 text-[12px]"`, which — with no `tailwind-merge` — *double-emitted* `px-*`/`text-*` against the base and resolved by CSS source order, the same hazard class `0.6.6` fixed in the inert skin, here rendering correctly only by luck. `Action` now takes `size: "sm" | "md"` (default `md`): text-size is pulled out of `BASE` into a per-size token and the per-variant SHAPE is size-keyed, with `sm`/`md` SHAPE mutually exclusive so padding never doubly-emits. The `md` path resolves to a **byte-identical** class set (every existing button visually unchanged); the funding toggle switched to `size="sm"` and dropped the override. (`console/action.tsx`, `workspace/funding-panel.tsx`.)
+
+### Design token
+
+- **`--state-fail` separated from `--signal` by value, not just name.** §9.2 promises the state ramp is independent of the swappable `--signal` so a re-skin "never makes failed ambiguous" — but the *default* `--state-fail` (`201 81 75`) was perceptually almost the same crimson as `--signal` (`201 90 90`). Retuned to `196 64 58` — a deeper, more saturated true-red that separates by saturation **and** luminance (the channel the grayscale gate actually reads), while staying clearly "error red" and distinct from `--state-warn` amber. Independence is now perceptual, not only structural. (`globals.css`.)
+
+### Considered and deliberately not done
+
+- **No runtime "missing accessible name" warning in the field primitives.** A field can be named by a wrapping / `htmlFor` `<label>` the component cannot see, so a runtime check would false-positive on legitimately-labeled fields. The placeholder→`aria-label` fallback plus a JSDoc contract is the robust fix; an unenforceable runtime warning was rejected. (`console/input.tsx`.)
+- **`run` and `signal` keep the shared `●` glyph.** They are the one tone pair distinguishable only by colour, but they never render adjacently in product UI (only the dev `/styleguide` legend) — unchanged from the `0.6.6` rationale.
+- **The `PanelEmpty` icon-prop removal and the dead "Fund project" index-button removal** (both inherited from the D1–D6 conversion) were reviewed and **kept**: the terse `AwaitingState` one-line readout is the §5.9 treatment, and the removed button never had a handler.
+
+### Verification (reproduced, not asserted)
+
+- **Frontend:** `npm run typecheck` / `lint` clean; `npm run build` success, all 6 routes generate (`/styleguide` → 404 shell in prod). **Decision-4 opacity contract re-verified in the emitted CSS** (`rgb(var(--signal)/.1)`, `rgb(var(--state-ok)/.15)`, `rgb(var(--text)/.7)` all resolve); `--state-fail: 196 64 58` and `--signal: 201 90 90` confirmed separated in the shipped stylesheet; `aria-pressed` present in the client bundle. The `md`-size class set is byte-identical to pre-`0.6.7`, so no existing button changed.
+- **Backend:** untouched.
+- **Not re-run here:** the DB-backed suite (no backend or test change in this slice) and the live in-browser desaturation + reduced-motion pass (needs a real browser — the one acceptance step no headless build can perform).
+
+### Still gating the production push (unchanged from `0.6.3` / `0.6.4` / `0.6.5` / `0.6.6`)
+
+- **Redeploy both tiers** — Fly (the `0.6.3` `POST /projects` auth gate) **and** Vercel (the Kamino UI; `NEXT_PUBLIC_*` is baked at build).
+- **Confirm Fly secrets** — `SUPABASE_JWT_SECRET` set and `AUTH_DEV_HEADER_ENABLED` unset/false.
+- **Live visual pass** — desaturate the deployed preview (grayscale test) and toggle reduced-motion.
 
 ---
 

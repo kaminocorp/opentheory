@@ -28,7 +28,9 @@
   --state-ok: 94 140 115; /* #5E8C73 patina green */
   --state-run: 111 147 168; /* #6F93A8 cool steel */
   --state-warn: 200 146 62; /* #C8923E amber */
-  --state-fail: 201 81 75; /* #C9514B red distinct from --signal */
+  --state-fail: 196 64 58; /* #C4403A error red — deeper + more saturated than the muted
+                              crimson --signal (201 90 90), so they separate by value, not
+                              just hue (the grayscale gate cares about luminance) */
 
   /* Line / field overlays — alpha-native, used in CSS + arbitrary values */
   --hairline: rgba(236, 234, 230, 0.1);

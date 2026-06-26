@@ -102,7 +102,7 @@ export function FundingPanel({ projectId }: { projectId: string }) {
           <ReadoutLabel>Budget</ReadoutLabel>
         </span>
         {isInternal ? (
-          <ActionGhost onClick={() => setFunding((v) => !v)} className="h-7 px-3 text-[12px]">
+          <ActionGhost size="sm" onClick={() => setFunding((v) => !v)}>
             <Icon icon={funding ? X : Coins} size={14} />
             {funding ? "Cancel" : "Fund project"}
           </ActionGhost>
@@ -158,6 +158,7 @@ export function FundingPanel({ projectId }: { projectId: string }) {
             className="!w-16 uppercase"
           />
           <Select
+            aria-label="Funding kind"
             value={kind}
             onChange={(event) => setKind(event.target.value as FundingKind)}
             className="capitalize"

@@ -75,9 +75,10 @@ function RailItem({ zone }: { zone: RailZone }) {
       ? "text-text-faint"
       : "text-text-mute hover:text-text";
 
-  // The Icon's aria-label is the zone's accessible name; for unavailable zones, fold the
-  // reason into it (the `title` tooltip below is for sighted hover and isn't reliably
-  // announced to assistive tech).
+  // The accessible name lives on the focusable wrapper (Link, or the inert span made
+  // focusable below), not the decorative icon — so a screen-reader user reaches it
+  // whether navigating linearly or by control. Unavailable zones fold the reason in
+  // (the `title` tooltip is sighted-hover only and isn't reliably announced).
   const accessibleLabel = zone.inert
     ? `${zone.label}, coming soon`
     : zone.disabled
@@ -92,7 +93,7 @@ function RailItem({ zone }: { zone: RailZone }) {
         tone,
       )}
     >
-      <Icon icon={zone.icon} size={18} aria-label={accessibleLabel} />
+      <Icon icon={zone.icon} size={18} />
       {/* The "alive" marker: a pulsing signal dot on the active zone. */}
       {zone.active && <LiveDot tone="signal" pulse size={6} className="absolute right-1.5 top-1.5" />}
     </span>
@@ -101,11 +102,25 @@ function RailItem({ zone }: { zone: RailZone }) {
   return (
     <div className="relative px-0.5" title={zone.inert ? `${zone.label} — coming soon` : zone.label}>
       {zone.href ? (
-        <Link href={zone.href} aria-current={zone.active ? "page" : undefined} className="block">
+        <Link
+          href={zone.href}
+          aria-label={accessibleLabel}
+          aria-current={zone.active ? "page" : undefined}
+          className="block"
+        >
           {glyph}
         </Link>
       ) : (
-        <span aria-disabled className="block cursor-default">
+        // Unavailable (contextual-off / inert): kept focusable + named so it stays in
+        // the accessibility tree (`aria-disabled`, not the `disabled` attribute, is the
+        // "present but inactive" contract), but never actionable — there is no href/handler.
+        <span
+          role="link"
+          aria-label={accessibleLabel}
+          aria-disabled="true"
+          tabIndex={0}
+          className="block cursor-default"
+        >
           {glyph}
         </span>
       )}

@@ -210,9 +210,12 @@ function LinePill({
       type="button"
       onClick={onClick}
       title={title}
+      aria-pressed={selected}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
-        selected ? "text-signal" : "text-text-mute hover:text-text",
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
+        // Selection is marked by weight (a non-hue channel — survives grayscale) as well
+        // as the signal ring/text, so it never depends on colour alone (§1).
+        selected ? "font-semibold text-signal" : "font-medium text-text-mute hover:text-text",
       )}
       style={{ borderColor: selected ? "rgb(var(--signal))" : "var(--hairline)" }}
     >
@@ -278,7 +281,11 @@ function ForkBranchForm({
       }}
     >
       <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Branch name" />
-      <Select value={effectiveFork} onChange={(event) => setFromCheckpointId(event.target.value)}>
+      <Select
+        aria-label="Fork from checkpoint"
+        value={effectiveFork}
+        onChange={(event) => setFromCheckpointId(event.target.value)}
+      >
         {checkpoints.map((c) => (
           <option key={c.id} value={c.id}>
             from: {c.summary.slice(0, 48)}
@@ -346,7 +353,11 @@ function CloseBranchForm({
         it is recorded, not deleted.
       </p>
       <div className="flex gap-2">
-        <Select value={outcome} onChange={(event) => setOutcome(event.target.value as BranchCloseOutcome)}>
+        <Select
+          aria-label="Close outcome"
+          value={outcome}
+          onChange={(event) => setOutcome(event.target.value as BranchCloseOutcome)}
+        >
           {CLOSE_OUTCOMES.map((o) => (
             <option key={o} value={o}>
               {o === "dead_end" ? "dead end" : "closed"}

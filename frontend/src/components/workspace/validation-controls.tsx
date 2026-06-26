@@ -92,7 +92,11 @@ export function RecordValidationForm({
       }}
     >
       {/* outcome is an enum token → mono Select; notes are prose → sans Input. */}
-      <Select value={outcome} onChange={(event) => setOutcome(event.target.value as ValidationOutcome)}>
+      <Select
+        aria-label="Validation outcome"
+        value={outcome}
+        onChange={(event) => setOutcome(event.target.value as ValidationOutcome)}
+      >
         {VALIDATION_OUTCOMES.map((o) => (
           <option key={o} value={o}>
             {OUTCOME_META[o].label}
