@@ -115,11 +115,12 @@ export function BranchBar({ projectId, selectedBranchId, onSelectBranch }: Branc
 
         <div className="ml-auto flex items-center gap-2">
           <ActionGhost
+            size="sm"
             onClick={() => {
               setForking((v) => !v);
               setClosing(false);
             }}
-            className="h-7 px-3 text-[12px]"
+            className="h-7"
           >
             <Icon icon={forking ? X : GitFork} size={14} />
             {forking ? "Cancel" : "Fork"}

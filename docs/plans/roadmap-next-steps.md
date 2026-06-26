@@ -117,7 +117,7 @@ Prepare for agents once the human workflow is stable:
 2. Show ledger state clearly in the frontend.
 3. Preserve append-only provenance.
 4. Add validation and branching.
-5. Seed realistic demo research.
+5. Seed realistic demo research. (NOTE: NO SEEDING NEEDED, WE WILL START FROM SCRATCH).
 6. Add identity, attribution, and funding simulation.
 7. Introduce agents as operators of the same primitives.
 

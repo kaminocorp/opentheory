@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.6.8` — Post-review hardening on the `0.6.x` auth/funding + Kamino slice (no features, schema, or migration). An independent re-audit verified the security/money core (HS256-pinned JWT, the actor PII gate, native-only/internal-gated funding, single-chokepoint atomicity) sound, then closed the punch-list it surfaced: a **recurrence** of the `cn`-no-`tailwind-merge` footgun in the branch-bar Fork toggle (which falsifies `0.6.7`'s "last footgun closed" claim), the conftest prod-wipe guard's empty/uppercase-host hole, and three untested security controls now defended in the **default DB-free suite** (the actor PII-leak gate had *zero* tests). Adds a hermetic `dbfree_client` fixture so a guard regression fails at the session boundary instead of connecting to the live DB; mutation-tested. (`9 passed, 47 skipped`; frontend `typecheck` / `lint` / `build` green.)
 - `0.6.7` — Post-review hardening on the `0.6.4` Kamino Console (no features, schema, or migration). An independent re-audit of the full **D1–D6** conversion confirmed the **presentation-only / data-flow byte-for-byte** claim (diffed against the pre-redesign baseline) and the **Decision-4** opacity-channel contract (re-verified in the *emitted* CSS), then closed a small accessibility/robustness punch-list living in bespoke markup: screen-reader-reachable inert command-rail zones, `aria-pressed` + a non-hue weight cue on the selected line pill, an accessible name for every console field (placeholder→`aria-label` fallback + six named `Select`s), an `Action` `size` prop that retires a `className` padding override (the `cn`-no-`tailwind-merge` footgun), and a `--state-fail` retune so error-red separates from the crimson `--signal` by value, not just name. Frontend `typecheck` / `lint` / `build` green; `md`-button output byte-identical.
 - `0.6.6` — Post-review hardening on the `0.6.4` Kamino **primitive library** (no features, schema, or migration). Fixes a token-layering bug in the `Action` primitive that left every **disabled / pending** button's inert styling decided by CSS source order — plain `cn` has no `tailwind-merge`, so the inert override and the variant's own colour utilities both emitted — by splitting each variant into mutually-exclusive **shape** / **skin** (enabled appearance unchanged). Also gives the command-rail's unavailable zones a screen-reader reason, not just a `title`. (`6 passed, 47 skipped`; frontend `typecheck` / `lint` / `build` green.)
 - `0.6.5` — Post-review hardening on `4ca8be0` (the commit that bundled `0.6.3` browser project-creation **and** the `0.6.4` Kamino redesign). Adds the missing **direct** regression test for the `0.6.3` auth gate (`POST /projects` unauthenticated → `401`, DB-free so it runs in the default suite), an `aria-live`/`role` announcement on the console error/loading state, and a stale-version comment fix. No features, schema, or migration. (`6 passed, 47 skipped`.)
@@ -24,6 +25,99 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.6.8
+
+A post-review hardening pass in the lineage of `0.6.5`/`0.6.6`/`0.6.7`, scoped to the whole
+`a70fd8f..HEAD` body (the `0.6.0` auth+funding slice, the `0.6.3` browser project-creation +
+auth gate, and the `0.6.4` Kamino redesign). The security- and money-critical backend was read
+directly and the frontend covered by parallel reviewers; every verification claim was re-run, not
+trusted. The core held: HS256 is algorithm-pinned with `exp`/`sub` required and audience checked;
+both `GET` and `POST /actors` are gated in production; funding is native-only + internal-gated with
+`stripe`→`422`, positive-amount, single-transaction atomicity; the redesign's "presentation-only /
+data-flow byte-for-byte" claim is true and carries no security regression. It surfaced one
+shipping-code defect and a cluster of test gaps — all in markup or test harness the by-construction
+audits don't reach — fixed here. No features, schema, or migration; backend behavior unchanged.
+
+### Correctness — the `cn`-no-`tailwind-merge` footgun recurred
+
+- **`workspace/branch-bar.tsx` Fork toggle no longer layers conflicting utilities.** The compact
+  Fork button used `<ActionGhost className="h-7 px-3 text-[12px]">`, but `ActionGhost` defaults to
+  `size="md"`, which already emits `px-[18px] py-2 text-[13px]`. With no `tailwind-merge`, both
+  `px-*`/`text-*` pairs emitted and CSS source order silently won for the variant — so the override
+  was dropped and the button rendered at full `md` size (and `h-7` fought `py-2`). This is the exact
+  bug `0.6.6` fixed in the `Action` primitive and `0.6.7` fixed for the "Fund project" toggle — the
+  Fork toggle was missed, so `0.6.7`'s claim that the `size` prop "closed the last footgun" was
+  false. Fixed to `<ActionGhost size="sm" className="h-7">`: `sm` resolves to the intended
+  `px-3 py-1 text-[12px]` with no double-emit, and the button now renders compact, matching its
+  sibling Close control. (Every other `Action` consumer was re-audited and is clean — the remaining
+  `className` overrides are `w-full`, which `BASE` never sets.)
+
+### Test-harness safety
+
+- **The conftest prod-wipe guard no longer treats an empty/uppercase host as localhost.**
+  `_LOCAL_DB_HOSTS` included `""`, and `make_url(url).host or ""` coerces a host-less (socket-form)
+  `DATABASE_URL` to `""` — so such a URL was accepted by the `DROP SCHEMA public CASCADE` fixture.
+  The check was also case-sensitive (`LOCALHOST` wrongly rejected). Dropped `""` (an empty host is
+  not proof of localhost; it now fails safe) and lowercased the host before the membership test.
+  Real Supabase URLs always carry a host, so this closes a narrow hole in a guard whose only job is
+  to be airtight. (`tests/conftest.py`.)
+
+### Tests — the security controls are now *defended*, not just present
+
+- **The actor PII-leak gate had no regression test.** The `0.6.1` fix gates `GET /actors` behind
+  `auth_dev_header_enabled` because `ActorRead` exposes `external_id` + the verified email + `roles`;
+  removing the guard re-opened an anonymous email-harvest — and failed **zero** tests (only `POST`
+  was covered, and only in the DB-backed suite that skips without Postgres). New `tests/test_actors.py`
+  adds DB-free `GET` and `POST` gate tests that run in the default suite. **Mutation-verified:** with
+  the `GET` guard removed the test fails (and, before the hermetic fixture below, returned a live
+  `200` actor list — the leak itself).
+- **A DB-free auth-gate test for the funding write path.** The funding `401`/`403`/`422` gates lived
+  only in `test_funding.py` (DB-skip). Added `test_unauthenticated_funding_create_is_rejected` to the
+  default suite (the `403`/`422` gates fire only after the actor + project row resolve, so they stay
+  DB-backed — noted, not silently dropped). (`tests/test_projects.py`.)
+- **`test_wiring.py` refreshed.** `WRITE_PATHS` gained `/projects` and `/projects/{id}/funding` (the
+  two endpoints whose auth gate is new this release), so the header-declaration check now covers them;
+  `test_actor_create_is_open` — which asserted the *retired* pre-`0.6.1` open-bootstrap posture — was
+  corrected to `test_actor_create_takes_no_acting_actor` with the real rationale (flag-gated, 404 in
+  prod). Removes a false-confidence assertion.
+
+### Test isolation — DB-free tests are now hermetic
+
+- **Added a poison-session `dbfree_client` fixture.** The route-level gate tests use a plain
+  `TestClient`, which bypasses conftest's `TEST_DATABASE_URL` guard (that only protects the
+  `DROP SCHEMA` fixture) and falls through to the app's real `get_db` → `settings.database_url`. In
+  this live-verify setup that URL is **production**, so a guard regression would connect there (a
+  read, but still). The new fixture overrides `get_db` with an `_UnusableSession` that raises on any
+  use, so a regression fails loudly at the session boundary and the tests touch no database at all.
+  All four DB-free gate tests route through it. **Mutation-verified:** guard removed → fail at
+  `session.execute`, never a connection.
+
+### Considered and deliberately not done
+
+- **Mixed-currency budget summation (`funding.py`)** and the **`payment_reference` append-only trap**
+  were re-confirmed as latent `0.7.0` concerns (native/USD-only and no write path today), not fixed
+  here — fixing either is in scope for the Stripe-settlement release, not a presentation/test pass.
+- **No `alg:none`/algorithm-confusion test** was added: the control is the `algorithms=["HS256"]`
+  allowlist (PyJWT rejects `none`/RS256), and the forged-secret case is already in the `401` matrix.
+
+### Verification (reproduced, not asserted)
+
+- **Backend:** `ruff check .` clean; `pytest` → **`9 passed, 47 skipped`** (3 new security tests
+  *executing* in the default DB-free suite, up from 6; the DB-backed suite still skips cleanly without
+  a configured Postgres, per policy). Both new guards mutation-tested (fail-if-removed, and hermetic).
+- **Frontend:** `typecheck` / `lint` / `build` clean; 6/6 routes generate; the `md`-size `Action`
+  output is unchanged — only the Fork toggle's emitted classes change (now the intended compact set).
+
+### Still gating the production push (unchanged from `0.6.3`–`0.6.7`)
+
+- **Redeploy both tiers** — Fly (the `POST /projects` auth gate ships in the backend) **and** Vercel
+  (the Kamino UI; `NEXT_PUBLIC_*` is baked at build).
+- **Confirm Fly secrets** — `SUPABASE_JWT_SECRET` set, `AUTH_DEV_HEADER_ENABLED` unset/false,
+  `INTERNAL_ACTOR_EMAILS` populated before internal users first sign in.
+- **Live visual pass** — desaturate the deployed preview (grayscale test) and toggle reduced-motion.
 
 ---
 

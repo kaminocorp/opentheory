@@ -3,6 +3,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 import pytest_asyncio
+from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
@@ -32,7 +33,11 @@ settings.auth_dev_header_enabled = True
 # that fallback unconditionally means a stray `export DATABASE_URL=<prod>` before `pytest` would
 # wipe production. So the implicit fallback is accepted only when it targets localhost; to run the
 # destructive suite against any non-local database, set TEST_DATABASE_URL explicitly.
-_LOCAL_DB_HOSTS = {"localhost", "127.0.0.1", "::1", ""}
+#
+# An empty/missing host (socket-form URLs parse to host=None) is NOT proof of localhost, so it is
+# deliberately excluded — such a URL fails safe (skips). The host is lowercased before the check so
+# an uppercase `LOCALHOST` is still recognized as local.
+_LOCAL_DB_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
 
 def _resolve_test_db_url() -> str | None:
@@ -43,7 +48,7 @@ def _resolve_test_db_url() -> str | None:
     if not fallback:
         return None
     try:
-        host = make_url(fallback).host or ""
+        host = (make_url(fallback).host or "").lower()
     except Exception:
         return None
     return fallback if host in _LOCAL_DB_HOSTS else None
@@ -56,6 +61,38 @@ async def _reset_schema(conn) -> None:  # type: ignore[no-untyped-def]
     """Drop and recreate the ``public`` schema — a clean slate that ignores FK cycles."""
     await conn.execute(text("DROP SCHEMA public CASCADE"))
     await conn.execute(text("CREATE SCHEMA public"))
+
+
+class _UnusableSession:
+    """A DB-session stand-in whose every use raises — for DB-free auth-gate tests.
+
+    Those tests assert a request is rejected (401/404) *before* the handler touches the
+    database. Overriding ``get_db`` with this makes that hermetic: if a guard regresses and the
+    handler reaches the DB, the test fails loudly here instead of silently connecting to
+    whatever ``DATABASE_URL`` points at — which, in this live-verify setup, is production.
+    """
+
+    def __getattr__(self, name: str) -> object:
+        raise AssertionError(
+            f"DB-free gate test reached the database (session.{name}); the request should "
+            "have been rejected before any DB access."
+        )
+
+
+@pytest.fixture
+def dbfree_client() -> TestClient:
+    """A sync ``TestClient`` whose DB dependency raises on use (see ``_UnusableSession``).
+
+    For route-level auth-gate tests that must reject before any DB access; they never connect
+    to a real database, so they run safely in the default suite regardless of ``DATABASE_URL``.
+    """
+    app = create_app()
+
+    async def _unusable_db() -> AsyncIterator[_UnusableSession]:
+        yield _UnusableSession()
+
+    app.dependency_overrides[get_db] = _unusable_db
+    return TestClient(app)
 
 
 @pytest_asyncio.fixture

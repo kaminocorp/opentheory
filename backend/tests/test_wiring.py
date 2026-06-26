@@ -8,6 +8,7 @@ endpoints expose no update/delete methods.
 from app.main import create_app
 
 WRITE_PATHS = [
+    "/api/v1/projects",
     "/api/v1/projects/{project_id}/threads",
     "/api/v1/threads/{thread_id}/claims",
     "/api/v1/claims/{claim_id}/evidence",
@@ -15,6 +16,7 @@ WRITE_PATHS = [
     "/api/v1/projects/{project_id}/validations",
     "/api/v1/projects/{project_id}/branches",
     "/api/v1/branches/{branch_id}/close",
+    "/api/v1/projects/{project_id}/funding",
 ]
 
 # Checkpoints/refs and validations are append-only: no endpoint may mutate them.
@@ -66,8 +68,10 @@ def test_write_endpoints_require_dev_actor_header() -> None:
         assert "x-dev-actor-id" in header_names, f"{path} POST missing dev actor header"
 
 
-def test_actor_create_is_open() -> None:
-    # Creating an actor must NOT require an acting actor (bootstrap path).
+def test_actor_create_takes_no_acting_actor() -> None:
+    # The actor bootstrap is gated by the dev flag, not by an acting actor: in production it
+    # 404s (see test_actors.py), and behind the flag it never requires X-Dev-Actor-Id (it is
+    # the path that *mints* actors). So the route must declare no acting-actor header.
     paths = _openapi_paths()
     params = paths["/api/v1/actors"]["post"].get("parameters", [])
     header_names = {p["name"].lower() for p in params if p["in"] == "header"}
