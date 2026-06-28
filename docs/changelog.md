@@ -2,6 +2,8 @@
 
 ## Index
 
+- `0.6.10` — Post-review polish on the `0.6.9` email + password sign-in (no backend, schema, API, or migration). An independent re-audit confirmed the **frontend-only / backend-blind** claim against source — the JWT verifier asserts only signature/audience/`exp`/`sub` and never reads `amr`/`aal`, so a password session is byte-indistinguishable from a magic-link one — and reproduced the build gates, then closed three auth-form hygiene gaps in the new menu markup: the plaintext **password lingered in component state** and re-displayed after sign-out (now cleared on success *and* on sign-out), the primary "Sign in" had **no in-flight guard** (now uses `Action`'s `pending` prop + a re-entry guard, blocking double-submit), and the **error line wasn't announced** to assistive tech (now `role="alert"`, matching the `awaiting-state` a11y idiom). Frontend `typecheck` / `lint` / `build` green (6/6 routes, bundle byte-identical); backend untouched (`9 passed, 47 skipped`).
+- `0.6.9` — **Email + password sign-in**, now the primary method. A correct credential signs in **in-band** (no email round-trip, no redirect) by authenticating against existing Supabase `auth.users` rows; magic-link and Google are **retained** below it. Frontend-only: the backend verifies a Supabase session JWT and is blind to *how* the session was obtained, so **no** backend, schema, API, or migration change (the `ActingActor` contract, JIT-provisioning, and `internal`-role logic apply verbatim). Two files change — `auth-provider.tsx` exposes `signInWithPassword`, `auth-menu.tsx` leads with the password form. The only non-code step is the out-of-band Supabase prereq (admin-provision users with passwords). Frontend `typecheck` / `lint` / `build` green (6/6 routes); backend untouched (`9 passed, 47 skipped`).
 - `0.6.8` — Post-review hardening on the `0.6.x` auth/funding + Kamino slice (no features, schema, or migration). An independent re-audit verified the security/money core (HS256-pinned JWT, the actor PII gate, native-only/internal-gated funding, single-chokepoint atomicity) sound, then closed the punch-list it surfaced: a **recurrence** of the `cn`-no-`tailwind-merge` footgun in the branch-bar Fork toggle (which falsifies `0.6.7`'s "last footgun closed" claim), the conftest prod-wipe guard's empty/uppercase-host hole, and three untested security controls now defended in the **default DB-free suite** (the actor PII-leak gate had *zero* tests). Adds a hermetic `dbfree_client` fixture so a guard regression fails at the session boundary instead of connecting to the live DB; mutation-tested. (`9 passed, 47 skipped`; frontend `typecheck` / `lint` / `build` green.)
 - `0.6.7` — Post-review hardening on the `0.6.4` Kamino Console (no features, schema, or migration). An independent re-audit of the full **D1–D6** conversion confirmed the **presentation-only / data-flow byte-for-byte** claim (diffed against the pre-redesign baseline) and the **Decision-4** opacity-channel contract (re-verified in the *emitted* CSS), then closed a small accessibility/robustness punch-list living in bespoke markup: screen-reader-reachable inert command-rail zones, `aria-pressed` + a non-hue weight cue on the selected line pill, an accessible name for every console field (placeholder→`aria-label` fallback + six named `Select`s), an `Action` `size` prop that retires a `className` padding override (the `cn`-no-`tailwind-merge` footgun), and a `--state-fail` retune so error-red separates from the crimson `--signal` by value, not just name. Frontend `typecheck` / `lint` / `build` green; `md`-button output byte-identical.
 - `0.6.6` — Post-review hardening on the `0.6.4` Kamino **primitive library** (no features, schema, or migration). Fixes a token-layering bug in the `Action` primitive that left every **disabled / pending** button's inert styling decided by CSS source order — plain `cn` has no `tailwind-merge`, so the inert override and the variant's own colour utilities both emitted — by splitting each variant into mutually-exclusive **shape** / **skin** (enabled appearance unchanged). Also gives the command-rail's unavailable zones a screen-reader reason, not just a `title`. (`6 passed, 47 skipped`; frontend `typecheck` / `lint` / `build` green.)
@@ -25,6 +27,143 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.6.10
+
+A post-review polish pass on the `0.6.9` email + password sign-in, in the lineage of the
+`0.6.5`–`0.6.8` hardening passes. An independent re-audit read the two `0.6.9` files and every
+file they lean on — the backend JWT verifier (`core/auth.py`), the `Action`/`Input` console
+primitives, the `cn` helper, and `use-identity.ts` — and **reproduced** the frontend build gates
+rather than trusting the completion doc. The core held: the **frontend-only / backend-blind** claim
+is true (the verifier asserts only signature, audience, `exp`, and `sub`, and never reads `amr`/`aal`,
+so a password session is byte-indistinguishable from a magic-link one); the `Action className="w-full"`
+usage is safe under plain-`clsx` `cn` (no `tailwind-merge`, and neither `BASE` nor `SHAPE` sets a
+width, so nothing double-emits); and the password path resolves a session in-band and never touches
+the open-redirect-hardened `/auth/callback`. It surfaced three auth-form hygiene gaps — all in the
+new `auth-menu.tsx` markup, none a correctness bug — fixed here. **No** backend, schema, API, or
+migration change; backend behaviour unchanged.
+
+### Security / hygiene — the secret no longer lingers in component state
+
+- **The plaintext password is cleared on successful sign-in and on sign-out.** `AuthMenu` never
+  unmounts, so the `password` state survived a successful sign-in — and because the signed-out
+  branch renders `value={password}`, signing out and reopening the menu **pre-filled the previous
+  password** (masked, but recoverable via devtools / a field-type toggle), a real hygiene gap on a
+  shared machine. `handlePasswordSignIn` now clears it on success and `handleSignOut` clears it on
+  the identity change. (`email` is deliberately retained so a sign-out/retry doesn't force a re-type.)
+
+### Robustness — no double-submit on the primary path
+
+- **The "Sign in" submit now reflects its in-flight state and is single-shot.** The button stayed
+  enabled during the `await` and the handler wasn't re-entrant, so rapid clicks fired multiple
+  `signInWithPassword` calls. Added a `submitting` flag: `handlePasswordSignIn` returns early while a
+  request is in flight (re-entry guard, `try/finally`), and the button takes `Action`'s purpose-built
+  `pending` prop — the inert hatched fill, which also sets `disabled`. The secondary magic-link /
+  Google paths are unchanged (separate flows; a successful submit closes the menu).
+
+### Accessibility — a failed sign-in is heard, not just seen
+
+- **The error line is now a `role="alert"` live region.** It was a plain `<p>`, so a screen-reader
+  user got no announcement when the *primary* sign-in path failed. It now carries `role="alert"`
+  (which implies `aria-live="assertive"` and is announced on DOM insertion) — matching the exact
+  idiom `awaiting-state.tsx` set in `0.6.5` ("`role` implies the matching `aria-live`"), so no
+  redundant `aria-live` attribute and no layout cost when there is no error.
+
+### Verification (reproduced, not asserted)
+
+- **Frontend:** `npm run typecheck` / `lint` / `build` all clean; **6/6** routes generate; bundle
+  sizes **byte-identical** to `0.6.9` (the edits are state + attributes, no new dependency).
+- **Backend:** untouched — no file changed, so the `9 passed, 47 skipped` default DB-free suite and
+  the JWT `401`-matrix / JIT-provision coverage remain authoritative and method-agnostic (nothing to
+  re-run).
+- **Still not done here:** the live in-browser manual acceptance pass (real Supabase + an
+  admin-provisioned password user), carried over from `0.6.9` — the one acceptance step that needs a
+  browser, and the actual gate on the production push.
+
+### Still gating the production push (unchanged from `0.6.3`–`0.6.9`)
+
+- **Redeploy Vercel** for the sign-in UI (`NEXT_PUBLIC_*` is baked at build). No Fly redeploy is
+  required *for this change* (backend untouched), though the `0.6.3`+ backend changes still gate the
+  overall push.
+- **Confirm Supabase** — password sign-in enabled on the Email provider; target users
+  admin-provisioned with confirmed passwords.
+
+---
+
+## 0.6.9
+
+Email + password becomes the **primary** sign-in method, authenticating directly against
+existing Supabase `auth.users` rows (GoTrue) via `signInWithPassword`. A correct credential
+resolves a session **in-band** — no email round-trip, no redirect — and signs the user in
+immediately; magic-link and "Continue with Google" are **retained** as secondary options below
+the password form. A small, additive, **frontend-only** feature.
+
+### Why it's frontend-only (no backend change)
+
+`core/auth.py::verify_bearer_token` verifies only a bearer JWT's signature, audience
+(`aud="authenticated"`), and expiry, then reads `sub`/`email`/`user_metadata`. Supabase issues
+the **same** HS256 session token for every sign-in method, so magic-link, OAuth, and
+`signInWithPassword` are indistinguishable to the verifier once a session exists. Adding an
+auth *method* on the IdP side is invisible to the backend: `core/auth.py`, `api/deps.py`,
+`models/actor.py`, `api/routes/me.py`, and every service are **untouched**, and the
+`ActingActor` contract, JIT-provisioning, and `internal`-role logic apply verbatim. No env var,
+schema, or migration.
+
+### What changed (two files)
+
+- **`providers/auth-provider.tsx`** — exposes `signInWithPassword(email, password)` on the auth
+  context, returning the existing `SignInResult` shape so the menu treats all methods uniformly.
+  On success the provider's existing `onAuthStateChange` subscription pushes the token into
+  `lib/api.ts` and updates `session` — no new wiring. `useMemo` deps unchanged (only `supabase`
+  is captured, already listed).
+- **`shell/auth-menu.tsx`** — the signed-out dropdown now leads with an email + password
+  `<form>` (Enter-to-submit, full-width `Action` "Sign in" disabled unless both fields are
+  filled), then a divider, then "Email me a magic link" and "Continue with Google". Both fields
+  carry explicit `aria-label`s and correct `autoComplete` (`username` / `current-password`). The
+  email field is shared with the magic-link button; the `sent` confirmation flow stays scoped to
+  magic-link. The signed-in branch and click-outside behaviour are unchanged.
+
+### No-change surface (audited, not edited)
+
+`lib/api.ts` (method-agnostic token attach), `lib/use-identity.ts` (`isAuthed = Boolean(session)`,
+rest from `/me`), `app/auth/callback/route.ts` (only magic-link/OAuth reach it — the password
+path returns a session synchronously and never touches the open-redirect-hardened callback, so
+no new CWE-601 surface), `lib/supabase.ts`, `providers/dev-actor-provider.tsx`, and the entire
+`backend/` — all confirmed untouched (grep: no `signInWith*` references in the audited files).
+
+### Out of scope (deliberate)
+
+Self-service sign-up, password-reset / "forgot password" UI, any backend change/test/schema/
+migration, server-side rate-limiting (relying on GoTrue's built-in limits), and removal of the
+retained magic-link / Google paths.
+
+### Prerequisite (config, not code)
+
+The only non-code step is out of band on the live Supabase project: enable password sign-in on
+the Email provider, and **admin-provision** users with passwords (dashboard "Add user" or
+`auth.admin.createUser({ email, password, email_confirm: true })`). A magic-link-only user has
+no password and keeps using magic-link until an admin sets one.
+
+### Verification (reproduced, not asserted)
+
+- **Frontend:** `npm run typecheck` / `lint` / `build` all green; **6/6** routes generate.
+  `git diff --stat` confirms exactly the two intended files changed.
+- **Backend:** untouched — no file changed, so the `9 passed, 47 skipped` default DB-free suite
+  and the JWT `401`-matrix / JIT-provision coverage remain authoritative and method-agnostic
+  (not re-run; nothing to re-run).
+- **Not done here:** the live in-browser manual pass (real Supabase + an admin-provisioned
+  password user) — the one acceptance step that needs a browser. Detailed in
+  `docs/completions/email-password-login.md`.
+
+### Still gating the production push (unchanged from `0.6.3`–`0.6.8`)
+
+- **Redeploy** — Vercel for the new sign-in UI (`NEXT_PUBLIC_*` is baked at build). No Fly
+  redeploy is required *for this change* (backend untouched), but the `0.6.3`+ backend changes
+  still gate the overall push.
+- **Confirm Supabase** — password sign-in enabled on the Email provider; target users
+  admin-provisioned with confirmed passwords.
 
 ---
 

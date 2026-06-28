@@ -9,19 +9,23 @@ import { useActingIdentity } from "@/lib/use-identity";
 import { useAuth } from "@/providers/auth-provider";
 
 // The real-auth identity surface (0.6.2): signed-in name + roles + sign-out, or a sign-in
-// dropdown (email magic-link / Google). Renders nothing when Supabase is not configured —
-// in that case local work uses the dev-actor switcher instead.
+// dropdown. Renders nothing when Supabase is not configured — in that case local work uses
+// the dev-actor switcher instead.
 //
-// D2 re-skin: console tokens + primitives only. Every hook, handler, effect, and conditional
-// return below is unchanged from 0.6.2 — this is presentation, not behaviour.
+// 0.6.9: email + password is now the primary sign-in path (resolves a session in-band, no
+// email round-trip); magic-link and Google are retained as secondary options below it. The
+// backend is blind to *how* the session was obtained, so this is presentation-only.
 export function AuthMenu() {
-  const { isConfigured, session, loading, signOut, signInWithEmail, signInWithGoogle } = useAuth();
+  const { isConfigured, session, loading, signOut, signInWithEmail, signInWithPassword, signInWithGoogle } =
+    useAuth();
   const { displayName, isInternal } = useActingIdentity();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -44,6 +48,7 @@ export function AuthMenu() {
   async function handleSignOut() {
     await signOut();
     queryClient.clear(); // drop cached actor-scoped reads on identity change
+    setPassword(""); // never retain the secret in component state across an identity change
     setOpen(false);
   }
 
@@ -55,6 +60,23 @@ export function AuthMenu() {
       return;
     }
     setSent(true);
+  }
+
+  async function handlePasswordSignIn() {
+    if (submitting) return; // guard against double-submit while a request is in flight
+    setError(null);
+    setSubmitting(true);
+    try {
+      const { error: signInError } = await signInWithPassword(email.trim(), password);
+      if (signInError) {
+        setError(signInError); // e.g. "Invalid login credentials" / "Email not confirmed"
+        return;
+      }
+      setPassword(""); // don't leave the secret in component state after a successful sign-in
+      setOpen(false); // session arrives via onAuthStateChange; queries refetch under the new credential
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   if (session) {
@@ -106,20 +128,12 @@ export function AuthMenu() {
             <p className="px-1 py-2 text-[13px] text-text-soft">Check your email for a sign-in link.</p>
           ) : (
             <>
-              <button
-                type="button"
-                onClick={() => signInWithGoogle()}
-                className="mb-3 flex w-full items-center justify-center gap-2 rounded-full px-3 py-2 text-[13px] font-medium text-text transition-colors hover:border-text"
-                style={{ border: "0.5px solid var(--hairline-strong)" }}
-              >
-                Continue with Google
-              </button>
-              <p className="mb-2 text-center text-[11px] text-text-faint">or a magic link</p>
+              {/* Primary path: email + password, resolves a session in-band. */}
               <form
-                className="flex items-center gap-2"
+                className="flex flex-col gap-2"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  if (email.trim()) handleEmailSignIn();
+                  if (email.trim() && password) handlePasswordSignIn();
                 }}
               >
                 <Input
@@ -128,18 +142,55 @@ export function AuthMenu() {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="you@example.com"
-                  className="h-9 min-w-0 flex-1"
+                  aria-label="Email"
+                  autoComplete="username"
+                  className="h-9"
                 />
-                <button
+                <Input
+                  mono
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="Password"
+                  aria-label="Password"
+                  autoComplete="current-password"
+                  className="h-9"
+                />
+                <Action
                   type="submit"
-                  disabled={!email.trim()}
-                  className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-signal px-3 text-[13px] font-medium text-ground transition-colors hover:bg-signal-strong disabled:cursor-not-allowed disabled:opacity-50"
+                  pending={submitting}
+                  disabled={!email.trim() || !password}
+                  className="w-full"
                 >
-                  <Icon icon={Mail} size={16} />
-                  Send
-                </button>
+                  Sign in
+                </Action>
               </form>
-              {error ? <p className="mt-2 text-[11px] text-state-fail">{error}</p> : null}
+
+              {/* Secondary paths: magic-link + Google (retained, demoted below the divider). */}
+              <p className="my-3 text-center text-[11px] text-text-faint">or</p>
+              <button
+                type="button"
+                onClick={handleEmailSignIn}
+                disabled={!email.trim()}
+                className="mb-2 flex w-full items-center justify-center gap-2 rounded-full px-3 py-2 text-[13px] font-medium text-text transition-colors hover:border-text disabled:cursor-not-allowed disabled:opacity-50"
+                style={{ border: "0.5px solid var(--hairline-strong)" }}
+              >
+                <Icon icon={Mail} size={16} />
+                Email me a magic link
+              </button>
+              <button
+                type="button"
+                onClick={() => signInWithGoogle()}
+                className="flex w-full items-center justify-center gap-2 rounded-full px-3 py-2 text-[13px] font-medium text-text transition-colors hover:border-text"
+                style={{ border: "0.5px solid var(--hairline-strong)" }}
+              >
+                Continue with Google
+              </button>
+              {error ? (
+                <p role="alert" className="mt-2 text-[11px] text-state-fail">
+                  {error}
+                </p>
+              ) : null}
             </>
           )}
         </div>
