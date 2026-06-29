@@ -101,6 +101,8 @@ export type ProjectOverview = {
   slug: string;
   question: string;
   description: string | null;
+  // Deep, optional long-form briefing as Markdown (0.8.1).
+  background: string | null;
   status: string;
   created_at: string;
   updated_at: string;
@@ -109,6 +111,18 @@ export type ProjectOverview = {
   contradictions: ContradictionItem[];
   // Budget derived from the funding ledger (0.6.3); null if not yet loaded.
   budget: ProjectBudget | null;
+};
+
+// --- Project membership / stewardship (0.8.1) -------------------------------
+// Project-level authorization, kept separate from the funder/contributor/validator credit roles.
+
+export type ProjectRole = "owner" | "admin";
+
+// A project membership for the public member list (privacy-safe AccountSummary, no email/roles).
+export type ProjectMember = {
+  account: AccountSummary;
+  role: ProjectRole;
+  created_at: string;
 };
 
 export type ClaimKind =

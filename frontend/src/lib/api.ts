@@ -1,4 +1,4 @@
-import type { Project, ProjectCreate } from "@/types/project";
+import type { Project, ProjectCreate, ProjectUpdate } from "@/types/project";
 import type {
   Branch,
   BranchClose,
@@ -14,7 +14,9 @@ import type {
   FundingCreate,
   Me,
   ProjectBudget,
+  ProjectMember,
   ProjectOverview,
+  ProjectRole,
   Thread,
   ThreadCreate,
   ThreadSummary,
@@ -64,12 +66,23 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(detail ? `${response.status}: ${detail}` : `Request failed with ${response.status}`);
   }
 
+  // 204 No Content (e.g. DELETE) carries no body — `response.json()` would throw on the empty
+  // payload, so short-circuit to undefined (callers type these as Promise<void>).
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   return response.json() as Promise<T>;
 }
 
 // A write request body; the acting credential rides on every request via authHeaders().
 function writeInit(body: unknown): RequestInit {
   return { method: "POST", body: JSON.stringify(body) };
+}
+
+// A partial-update (PATCH) request body — for in-place metadata edits (0.8.1).
+function patchInit(body: unknown): RequestInit {
+  return { method: "PATCH", body: JSON.stringify(body) };
 }
 
 // --- Identity ---------------------------------------------------------------
@@ -97,6 +110,32 @@ export function getProject(projectId: string): Promise<Project> {
 
 export function getProjectOverview(projectId: string): Promise<ProjectOverview> {
   return request<ProjectOverview>(`/projects/${projectId}/overview`);
+}
+
+// Edit project metadata (owner/admin; the acting actor rides on the request). Partial update.
+export function updateProject(projectId: string, payload: ProjectUpdate): Promise<Project> {
+  return request<Project>(`/projects/${projectId}`, patchInit(payload));
+}
+
+// --- Project members / stewardship (0.8.1) ----------------------------------
+
+// Public member list (handles + roles); safe to call unauthenticated.
+export function listProjectMembers(projectId: string): Promise<ProjectMember[]> {
+  return request<ProjectMember[]>(`/projects/${projectId}/members`);
+}
+
+// Remove a member (owner only). 204 No Content — no body to parse.
+export async function removeProjectMember(projectId: string, accountId: string): Promise<void> {
+  await request<void>(`/projects/${projectId}/members/${accountId}`, { method: "DELETE" });
+}
+
+// Change a member's role / transfer ownership (owner only).
+export function updateProjectMember(
+  projectId: string,
+  accountId: string,
+  role: ProjectRole,
+): Promise<ProjectMember> {
+  return request<ProjectMember>(`/projects/${projectId}/members/${accountId}`, patchInit({ role }));
 }
 
 // --- Threads ----------------------------------------------------------------

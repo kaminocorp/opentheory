@@ -1,41 +1,44 @@
 interface BrandMarkProps {
   size?: number;
   className?: string;
+  /**
+   * When set, the four nodes light in a diagonal cascade (a signal travelling up
+   * the staircase) — the §5.9 loading liveness. Off by default so the header and
+   * static lockups render a steady mark. Frozen under `prefers-reduced-motion`.
+   */
+  animated?: boolean;
 }
 
 /**
- * The Kamino mark (§8) — the constant that, with §2's structure, still says
- * "Kamino" when `--signal` is re-themed.
+ * The OpenTheory mark — four solid shapes stepping up a diagonal
+ * (circle → link → square → circle), a research graph compounding from
+ * lower-left to upper-right.
  *
- * INTERIM ASSET (D1 decision): the blueprint wants the emblem PNG
- * (`brand/emblem-white.png`), which does not exist in this repo. Rather than ship
- * a broken image or keep the off-language `FlaskConical`, this is an original
- * thin-line lantern/key glyph drawn inline in the §7 drawing language
- * (`currentColor` stroke, 1.25, no fills). It is isolated in this one component so
- * swapping in the real emblem later is a single-file change. Colour comes from a
- * `text-*` class on the element (it strokes in `currentColor`).
+ * Drawn natively (no raster asset) so it stays crisp at every size and each node
+ * is individually addressable for motion. Fills in `currentColor`, so colour
+ * comes from a `text-*` class on the element — off-white on the console ground,
+ * ink on a light surface. The geometry is the single source of truth shared with
+ * `public/brand/mark*.svg` and the generated favicons (viewBox `170 150 920 920`,
+ * a tight centred crop of the original 1254² canvas).
  */
-export function BrandMark({ size = 24, className }: BrandMarkProps) {
+export function BrandMark({ size = 24, className, animated = false }: BrandMarkProps) {
   return (
     <svg
       width={size}
       height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.25}
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      viewBox="170 150 920 920"
+      fill="currentColor"
       aria-hidden
       className={className}
     >
-      {/* key bow */}
-      <circle cx="12" cy="5" r="2.5" />
-      <path d="M12 7.5V9.5" />
-      {/* lantern body (a measured diamond aperture) */}
-      <path d="M12 9.5L17 15L12 20.5L7 15L12 9.5Z" />
-      {/* inner spark */}
-      <path d="M12 13V17" />
+      {/* DOM order is the diagonal order (BL → TR), so the cascade reads as a
+          wave climbing the staircase via nth-child delays (globals.css §6). */}
+      <g className={animated ? "mark-cascade" : undefined}>
+        <circle cx="313" cy="873" r="84" />
+        <rect x="405" y="640" width="252" height="132" rx="66" />
+        <rect x="661" y="455" width="162" height="162" />
+        <circle cx="942" cy="351" r="84" />
+      </g>
     </svg>
   );
 }

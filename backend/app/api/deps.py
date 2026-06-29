@@ -1,3 +1,4 @@
+import asyncio
 from typing import Annotated
 from uuid import UUID
 
@@ -130,7 +131,11 @@ async def get_acting_actor(
     token = _bearer_token(authorization)
     if token is not None:
         try:
-            identity = verify_bearer_token(token)
+            # verify_bearer_token is synchronous and, on a JWKS cache miss/rotation, does a
+            # blocking network fetch. Run it off the event loop so one cold verification can't
+            # stall other in-flight requests on this single-worker machine. (Steady state is an
+            # in-memory cache hit thanks to the lifespan prewarm, so the thread hop is cheap.)
+            identity = await asyncio.to_thread(verify_bearer_token, token)
         except AuthError as exc:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

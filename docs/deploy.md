@@ -125,14 +125,61 @@ record a validation, fork a branch. If the browser console shows a CORS error, t
 
 ## Operating notes
 
-- **Scale-to-zero:** `fly.toml` sets `min_machines_running = 0`, so the backend sleeps when idle
-  and cold-starts (~1–2s) on the next request. Cheap for a preview. Set it to `1` if you want it
-  always warm.
+- **Always-warm:** `fly.toml` sets `min_machines_running = 1`, so one machine stays running and
+  there is no scale-to-zero cold start on the first request after idle. (It was `0`; the boot added
+  several seconds on top of DB latency.) Set it back to `0` only to trade that latency for a cheaper
+  idle preview.
+- **Co-location:** the backend runs in `sin` (Singapore), the **same region as the Supabase DB**, so
+  each DB round-trip is LAN-local (~1–5ms) rather than a ~230ms cross-Pacific hop. This is the single
+  biggest latency lever — keep them co-located (see "Relocating the backend region" below).
 - **Logs:** `fly logs` (backend) and the Vercel dashboard → Deployments → Logs (frontend).
 - **Redeploys:** `fly deploy` (backend) re-runs migrations via the release command; Vercel
   redeploys on every push to the connected branch.
 - **Custom domain:** add later via `fly certs` and Vercel's Domains tab; remember to update
   `NEXT_PUBLIC_API_BASE_URL` and `BACKEND_CORS_ORIGINS` if hostnames change.
+
+## Relocating the backend region
+
+The backend must sit in the **same region as the Supabase DB**. A request makes several DB
+round-trips (pre-ping, begin, query, commit, and a fresh TLS+SCRAM handshake when the pooled
+connection has dropped), so a distant DB multiplies that RTT per request — running in `iad` against
+a Singapore DB made a 2-row `GET /projects` take ~2s while DB-free `/health` was ~0.5s. The DB is in
+`ap-southeast-1` (Singapore), so the backend runs in Fly's `sin`.
+
+> **Secrets are safe across this move.** Fly secrets are stored at the **app** level and injected
+> into every machine, so destroying and rebuilding a *machine* preserves them — there is nothing to
+> re-enter. The only thing that wipes them is destroying the **app** (`fly apps destroy`), and there
+> is no `fly secrets export` (values are write-only) — the live values exist only in your local
+> `backend/.env` and the Supabase dashboard. **Do not `fly apps destroy`.**
+
+`fly.toml` already pins `primary_region = "sin"`. To re-home the running machine, from `backend/`:
+
+```bash
+# 0) See what you have. The machine carries the region; the app carries the secrets.
+fly status
+fly secrets list                       # names only (DATABASE_URL etc.) — confirms they're app-level
+fly machine list                       # note the machine ID currently in iad
+
+# 1) Destroy the iad machine. Removes the *machine*, not the app — secrets stay set.
+fly machine destroy <iad-machine-id> --force
+
+# 2) Deploy. With zero machines, Fly provisions a fresh one in primary_region (sin) and runs the
+#    release_command (alembic upgrade head, a no-op when already at head) against the direct DB URL.
+fly deploy
+
+# 3) Verify region, warmth, and latency.
+fly status                             # REGION = sin, STATE = started, checks passing
+curl -s -o /dev/null -w 'projects ttfb=%{time_starttransfer}s\n' \
+  https://opentheory-backend.fly.dev/api/v1/projects   # expect ~0.4-0.6s (was ~2s), close to /health
+```
+
+No Vercel change is needed — the `opentheory-backend.fly.dev` hostname is unchanged, so
+`NEXT_PUBLIC_API_BASE_URL` and `BACKEND_CORS_ORIGINS` stay as-is.
+
+> **Zero-downtime alternative.** `fly machine clone <iad-id> --region sin` brings up a sin machine
+> (same image + app secrets) before you `fly machine destroy <iad-id>`; then `fly deploy` rolls the
+> new image onto it. The destroy→deploy path above is simpler and ships the new image directly, at
+> the cost of a brief gap (acceptable for a preview, and the machine was scale-to-zero anyway).
 
 ## Troubleshooting
 

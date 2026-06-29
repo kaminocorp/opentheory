@@ -14,6 +14,7 @@ verify the signature, audience, and expiry against it — there is no shared sec
 (The legacy HS256 shared-secret path was retired when Supabase moved to asymmetric keys.)
 """
 
+import logging
 import ssl
 from dataclasses import dataclass
 from functools import lru_cache
@@ -23,6 +24,8 @@ import jwt
 from jwt import PyJWKClient
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class AuthError(Exception):
@@ -84,6 +87,24 @@ def _signing_key(token: str) -> object:
         # Covers a malformed token header, no matching `kid`, and (PyJWKClientConnectionError)
         # an unreachable JWKS endpoint — all of which subclass PyJWTError.
         raise AuthError(f"could not resolve signing key: {exc}") from exc
+
+
+def prewarm_jwks() -> None:
+    """Best-effort startup warm-up: fetch and cache the JWKS key set ahead of any traffic.
+
+    Called from the app lifespan (in a worker thread, since the fetch is synchronous). It turns
+    the first authenticated request from a blocking network round-trip into an in-memory cache
+    hit. A no-op when auth is unconfigured, and it swallows a transient fetch failure — warming
+    must never prevent the app from starting, and ``_signing_key`` still falls back to a lazy
+    fetch on the request path if this didn't populate the cache.
+    """
+    url = settings.jwks_url
+    if not url:
+        return
+    try:
+        _jwks_client(url).get_jwk_set(refresh=True)
+    except Exception as exc:  # best-effort: a brief JWKS outage must not block startup
+        logger.warning("JWKS warm-up failed at startup: %s", exc)
 
 
 def verify_bearer_token(token: str) -> VerifiedIdentity:

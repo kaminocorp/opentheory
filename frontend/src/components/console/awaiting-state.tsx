@@ -14,13 +14,14 @@ interface AwaitingStateProps {
 /**
  * The awaiting / empty / error state (§5.9) — "the mark holds the frame".
  *
- * Loading: the mark slow-breathes (≈3s opacity/scale). Empty/error: it holds
- * steady (reads "stopped", not "loading") — never a bare spinner, never a broken
- * glyph, no crimson halo. On error the label takes the `--state-fail` colour at
- * full weight so failure is as loud as success (§1).
+ * Loading: the mark's four nodes light in a diagonal cascade (a signal climbing
+ * the staircase). Empty/error: it holds steady (reads "stopped", not "loading") —
+ * never a bare spinner, never a broken glyph, no crimson halo. On error the label
+ * takes the `--state-fail` colour at full weight so failure is as loud as
+ * success (§1).
  */
 export function AwaitingState({ label, variant = "loading", className }: AwaitingStateProps) {
-  const breathing = variant === "loading";
+  const loading = variant === "loading";
   // Announce state transitions to assistive tech: an error is assertive (`alert`), a load is
   // polite (`status`); a steady empty state needs no live region. `role` implies the matching
   // `aria-live`, so failures are heard as well as seen (the §1 honesty surface, for SR users).
@@ -32,7 +33,8 @@ export function AwaitingState({ label, variant = "loading", className }: Awaitin
     >
       <BrandMark
         size={28}
-        className={cn(breathing ? "anim-breathe text-text-soft" : "text-text-mute")}
+        animated={loading}
+        className={cn(loading ? "text-text-soft" : "text-text-mute")}
       />
       <span
         className={cn(

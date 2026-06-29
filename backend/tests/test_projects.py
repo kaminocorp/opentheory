@@ -45,3 +45,19 @@ def test_unauthenticated_funding_create_is_rejected(
     )
 
     assert resp.status_code == 401, resp.text
+
+
+def test_unauthenticated_project_update_is_rejected(
+    dbfree_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # PATCH /projects/{id} (0.8.1) is owner/admin-gated; an unauthenticated request is rejected by
+    # the ActingActor dependency *before* the handler touches the DB (so the 403 member check never
+    # runs). The project id never resolves — the 401 must come from the auth gate, not a 404.
+    monkeypatch.setattr(settings, "auth_dev_header_enabled", False)
+
+    resp = dbfree_client.patch(
+        "/api/v1/projects/00000000-0000-0000-0000-000000000000",
+        json={"title": "Renamed"},
+    )
+
+    assert resp.status_code == 401, resp.text

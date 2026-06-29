@@ -267,6 +267,20 @@ h3 {
   }
 }
 
+/* Brand-mark loading cascade (§5.9): a signal climbs the diagonal — each node
+   dims to 0.28 and lights to 1 in turn, so the four shapes read as a wave, not a
+   spinner. ~0.5s of stagger over a 1.6s cycle (matches anim-pulse cadence). */
+@keyframes mark-cascade {
+  0%,
+  70%,
+  100% {
+    opacity: 0.28;
+  }
+  35% {
+    opacity: 1;
+  }
+}
+
 /* Menu / dropdown entrance (§6): fade + 4px slide, 0.18s. */
 @keyframes menu-pop {
   from {
@@ -305,6 +319,21 @@ h3 {
   animation: menu-pop 0.18s ease both;
 }
 
+/* Each direct child (a mark node) runs the cascade, delayed by DOM order so the
+   wave climbs the diagonal (BL → TR). Applied to the <g> wrapping the shapes. */
+.mark-cascade > * {
+  animation: mark-cascade 1.6s ease-in-out infinite;
+}
+.mark-cascade > *:nth-child(2) {
+  animation-delay: 160ms;
+}
+.mark-cascade > *:nth-child(3) {
+  animation-delay: 320ms;
+}
+.mark-cascade > *:nth-child(4) {
+  animation-delay: 480ms;
+}
+
 /* Apply to a grid/flex container: its direct children enter as a ~40ms cascade
    (§6). nth-child delays keep it component-agnostic — no per-item index prop. */
 .enter-stagger > * {
@@ -334,7 +363,8 @@ h3 {
   .anim-pulse,
   .anim-breathe,
   .menu-pop,
-  .enter-stagger > * {
+  .enter-stagger > *,
+  .mark-cascade > * {
     animation: none !important;
   }
   *,

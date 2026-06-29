@@ -2,6 +2,10 @@
 
 ## Index
 
+- `0.8.2` — **Post-review hardening on `0.8.1` stewardship.** Closes a governance gap — a project's sole owner could self-demote to `admin` and orphan the project (zero owners → ungovernable); `set_member_role` now refuses to demote the owner outside a transfer. Also: duplicate `slug` → a clean `409` (was a `500`), and a redundant member-list sort dropped. Backend-only — no schema or migration. (The `username` / invitation slices shift to `0.8.3` / `0.8.4`.)
+- `0.8.1` — **Project stewardship — ownership + self-edit.** A project creator now **owns** their project (new `project_members` table — the platform's first project-level authorization) and can **edit** its title / question / description / status plus an optional rich-text **`background`** (Markdown → `TEXT`); creation records ownership + a `create_project` contribution. Membership is access control, kept separate from the funder / contributor / validator credit roles. First stewardship slice; migration `0007_project_stewardship` (additive).
+- `0.8.0` — **Native brand mark, favicons + a loading animation.** Recreates the OpenTheory logo in code — four diagonal shapes measured off the source PNGs — replacing the placeholder glyph; adds theme-adaptive favicons, background-free SVG/PNG assets, and a diagonal loading cascade. Frontend-only — no backend, schema, or migration.
+- `0.7.3` — **Backend co-located with the database (Fly `iad`→`sin`) + startup warm-ups.** The ~230ms cross-Pacific hop to the Singapore DB made a 2-row read take ~2s; co-locating Fly with the DB — plus a warm machine and pool/JWKS prewarm — fixes it. No schema or migration.
 - `0.7.2` — **Public read-only view + dev-actor switcher removed.** Write affordances (e.g. "New project") are hidden unless signed in; everything stays publicly readable. Deletes the legacy `X-Dev-Actor-Id` dev-actor subsystem and the `NEXT_PUBLIC_AUTH_DEV` flag (the footgun behind the `0.7.0` "Could not load actors" leak).
 - `0.7.1` — **Auth verification fix: ES256/JWKS replaces HS256.** Supabase now signs sessions with ES256 (asymmetric) and the backend had no JWT secret configured, so every authenticated request `401`'d — blocking project creation. The verifier now fetches the project's JWKS public key by `kid`. No schema or migration.
 - `0.7.0` — **`Account` owns `Actor`**: a new auth-principal `Account` takes over `external_id`, `roles`, and funding attribution; `Actor` keeps research provenance and the `ActingActor` contract. Migration `0006_accounts` (destructive).
@@ -30,6 +34,276 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.8.2
+
+**Post-review hardening on the `0.8.1` stewardship slice.** A review of `0.8.1` (ownership +
+self-edit) surfaced one functional gap and two polish items; all three are fixed here. Backend
+behaviour-only — **no schema, no migration, no new endpoints** — corrections on the membership
+service and the project-create path. The planned feature slices shift down one: `accounts.username`
+/ `@handle` becomes `0.8.3` and invitations + the bell inbox become `0.8.4`.
+
+### (F1) The sole owner could orphan their own project — fixed
+
+`uq_project_one_owner` (the partial unique index) bounds a project at **≤1** owner, but nothing
+bounded it at **≥1**. `remove_member` already guarded the sole-owner case (`400`, "transfer
+ownership first"), but `set_member_role` did **not**: an owner calling
+`PATCH /projects/{id}/members/{their-own-account}` with `{"role": "admin"}` fell straight through to
+the in-place role write, leaving the project with **zero** owners. After that, every
+`require_owner=True` action (member remove / role change / ownership transfer) `403`s — so ownership
+can never be reassigned and the project's governance is permanently stuck. The frontend never
+exposed this (the collaborators panel renders role controls only on *non-owner* rows), but the
+backend is the authoritative gate and must hold the invariant even when the UI is bypassed
+(`CLAUDE.md`).
+
+- **`services/project_members.py::set_member_role`** now rejects demoting the current owner unless
+  ownership is being transferred: `target.role == OWNER and role != OWNER → 400` ("Cannot demote
+  the project owner; transfer ownership to another member first"). The *only* exit from ownership is
+  therefore a transfer — promoting another member to `OWNER`, which already demotes the prior owner
+  in the same transaction. Mirrors `remove_member`'s guard exactly; together they keep owner count
+  at exactly 1 (creation gives 1, the index caps at ≤1, these two guards floor it at ≥1).
+
+### (C1) Duplicate project `slug` → `409`, not `500`
+
+`slug` is a project's immutable URL id and is `UNIQUE`. A collision surfaced on the create `INSERT`
+as a raw `IntegrityError` → unhandled `500`. **`services/projects.py::create_project`** now wraps the
+`flush`, rolls back, and raises `409 Conflict` ("A project with this slug already exists"). The
+collision surfaces at the project insert — *before* the owner row / contribution are added — so the
+translation is clean and the create flow stays atomic.
+
+### (C2) Redundant double-sort in the member list
+
+**`services/project_members.py::list_members`** ordered in SQL (`ORDER BY role, created_at`) and then
+re-sorted the same rows in Python. The SQL ordering was dead: the named-enum labels are
+`OWNER`/`ADMIN`, so a DB sort on `role` puts `ADMIN` first — which is exactly *why* the Python sort
+(`role != OWNER, created_at`, hoisting the owner correctly) existed. Dropped the SQL `ORDER BY`; the
+single Python sort fully determines the result.
+
+### Tests (`tests/test_project_members.py`, DB-backed — skip without `TEST_DATABASE_URL`)
+
+- The governance test now asserts a sole owner self-demoting to `admin` is `400` (the F1
+  regression), alongside the existing sole-owner-removal `400` and the ownership-transfer path.
+- New `test_duplicate_slug_conflicts`: a reused `slug` is `409`.
+
+### Verification
+
+```bash
+cd backend && uv run ruff check . && uv run pytest    # ruff clean; 20 passed / 57 skipped (no DB)
+```
+
+Frontend untouched (no `.ts`/`.tsx` change), so its `0.8.1` green state stands. **Not run here:** the
+DB-backed assertions against real Postgres — the post-deploy live check, per the no-local-DB policy.
+
+### Deploy
+
+Backend code only, **no new migration**. A plain `fly deploy` from `backend/`; if `0.8.1` has not
+already shipped, its additive `0007` migration applies on the same deploy (the `release_command`
+runs `alembic upgrade head`). No Vercel redeploy needed.
+
+---
+
+## 0.8.1
+
+**Project stewardship — ownership + self-edit.** The opening slice of the **Project Stewardship
+& Collaboration** line (`docs/executing/project-stewardship-and-collaboration.md`), delivering asks
+**(A) (B) (D)**: a project creator owns their project and can edit its metadata, including a new
+deep long-form **background**. It introduces the platform's **first project-level authorization**
+(`project_members`) — deliberately kept structurally separate from the funder / contributor /
+validator *credit* roles (membership is access control / governance; it confers no authorship,
+validation, or funding credit). Invitations / `@username` / the bell inbox are deferred to
+`0.8.2`–`0.8.3`. Per-phase detail: `docs/completions/project-stewardship-0.8.1.md`.
+
+### Schema & migration (`0007_project_stewardship`, additive — no backfill)
+
+- **`projects.background`** `TEXT` `NULL` — the deep, optional briefing. Stored as **Markdown in a
+  `TEXT` column** (not JSONB): embeddable, full-text-searchable, diffable, editor-agnostic — best
+  for future agent FTS/embeddings over the project's richest prose field.
+- **`project_role`** named enum (`OWNER` / `ADMIN`).
+- **`project_members`** — ties an `Account` (the principal, 0.7.0) to a `Project` with a role.
+  `UniqueConstraint(project_id, account_id)` (one membership per principal) + a **partial unique
+  index** `uq_project_one_owner` (at most one `OWNER` per project), both declared on the model too
+  so the test harness's `create_all` matches Alembic (the `uq_actors_one_human_per_account`
+  discipline). Mutable governance row — **not** append-only guarded.
+- **No ownership backfill** (Decision): pre-existing projects are **ownerless** until their owner
+  `project_members` row is added **by hand in Supabase**; `ensure_can_manage` `403`s on them until
+  then. New projects always get an owner on create.
+
+### Backend
+
+- **`services/projects.py::create_project`** (extracted from the route): in **one transaction**
+  inserts the project, records the creator's **account** as the `OWNER`, and auto-records a
+  `create_project` **`Contribution`** (the *act* is the actor's; ownership is the account's —
+  mirroring the funding act-vs-money split). Composes with `record_contribution` (which `add`s
+  without committing), so the flow is atomic — a project can never exist without its owner +
+  creation record. *Account-less* dev/`system` actors (the `X-Dev-Actor-Id` path) create an
+  **ownerless** project with **no** contribution — a dev-only path mirroring legacy projects;
+  every real authenticated principal has an account, so production creations are always owned.
+- **`services/project_members.py`** — `ensure_can_manage(db, project_id, actor, *,
+  require_owner=False)` is the project-level analog of `require_internal`: `404` missing, `403`
+  non-member (or non-owner when `require_owner`), account-less always `403`. Plus `list_members`
+  (public, owner-first, `AccountSummary` only), `remove_member` (owner-only; the sole owner can't be
+  removed), and `set_member_role` (owner-only; transferring `OWNER` demotes the prior owner in the
+  same txn, `flush`ing the demotion **before** the promotion so the non-deferred single-owner index
+  never sees two owners).
+- **Routes** (`api/routes/projects.py`): `PATCH /projects/{id}` (owner/admin; partial update via
+  `exclude_unset`; `slug` immutable; plain in-place mutation — Project is not append-only, so a
+  title fix is **not** a ledger event), `GET /projects/{id}/members` (public),
+  `DELETE`/`PATCH /projects/{id}/members/{account_id}` (owner-only). Unauth → `401`, non-member →
+  `403`, missing → `404`.
+- **Schemas**: `background` on `ProjectBase`/`ProjectRead`/`ProjectOverview` (50k soft cap),
+  `ProjectUpdate` (all-optional partial), `MemberRoleUpdate`, `ProjectMemberRead` (privacy-safe —
+  `AccountSummary` only, never email/roles).
+
+### Frontend
+
+- **Rich text**: a lazy-loaded (`next/dynamic`, `ssr:false`) **TipTap** WYSIWYG editor serializing
+  to/from **Markdown** (`tiptap-markdown`); the read path renders Markdown with a light
+  `react-markdown` + `remark-gfm` component (raw HTML disabled — safe by default), so public viewers
+  never pull the editor bundle.
+- **Edit form** (`project-edit-form.tsx`) behind an "Edit" toggle in the workspace header, shown
+  only to owner/admin; a collapsible **Background / Context** section; and a **Collaborators** panel
+  (member list + role pills, owner-only remove / role-transfer controls). Client capability gate
+  `canManageProject` derives from the member list (the backend still authorizes every write).
+- The status dropdown offers only the four backend-valid statuses (`draft`/`active`/`paused`/
+  `archived`), sidestepping the frontend-type `"completed"` divergence (it would `422`).
+
+### Verification
+
+- **Backend:** `ruff` clean; DB-free suite **20 passed / 56 skipped** (a new DB-free
+  `PATCH /projects/{id}` unauthenticated → `401` gate; the seven new DB-backed stewardship tests in
+  `tests/test_project_members.py` collect + skip without `TEST_DATABASE_URL`). Model↔migration
+  parity confirmed by compiling the model DDL against the Postgres dialect (table, FKs, the
+  `uq_project_member` constraint, both FK indexes, and the `uq_project_one_owner` partial unique
+  index all match `0007`).
+- **Frontend:** `typecheck` / `lint` / `build` all green; **6/6** routes generate.
+- **Not reproduced here:** the DB-backed tests against Postgres and the in-browser owner-edit pass
+  (need the deployed Supabase / a throwaway DB) — the post-deploy live check.
+
+### Deploy
+
+- **`fly deploy`** (from `backend/`) — the `release_command` runs `alembic upgrade head`, applying
+  `0007` (additive, no backfill). **Redeploy Vercel** (frontend). **Manual:** add your owner
+  `project_members` row to existing projects (e.g. "Pythagoras Theorem") in Supabase, then confirm
+  edit works on the live deploy.
+
+---
+
+## 0.8.0
+
+**The OpenTheory mark, recreated natively — favicons, background-free assets, and a loading
+animation.** The product shipped without a real logo: the browser tab carried Next's default, and
+the in-app lockup used an interim placeholder glyph (an off-language line-drawing standing in for an
+emblem that never existed in the repo — its own comment said "swapping in the real emblem later is a
+single-file change"). Two source logos were provided — the diagonal four-shape mark on a solid
+white / black field — and this turns them into a code-native brand system. Frontend-only — no
+backend, schema, or migration.
+
+### What the mark is
+
+Four solid shapes stepping up a diagonal — **circle → link (pill) → square → circle**, lower-left to
+upper-right: a research graph compounding. Rather than ship the raster, the geometry was **measured
+off the source PNGs** (connected-component analysis → exact centres/sizes on the original 1254²
+canvas) and **redrawn natively** as four SVG primitives on a tight, centred crop (viewBox
+`170 150 920 920`). That one geometry is the single source of truth for every output below, so the
+favicon, the in-app logo, and the rasters cannot drift. Colour is the Kamino tokens, **not** raw
+black/white: `#0D0C0B` (warm obsidian, on light) and `#ECEAE6` (off-white, on dark) — honouring the
+"never `#000`" palette rule.
+
+### The change (frontend-only)
+
+- **`components/console/brand-mark.tsx`** — the interim placeholder (§8) is replaced by the real
+  mark, drawn as four `currentColor`-filled shapes so colour comes from a `text-*` class (off-white
+  on the console ground, ink on a light surface). The `size`/`className` API is unchanged, so the
+  header lockup and the §5.9 awaiting state inherit the new mark with no other edits. A new opt-in
+  `animated` prop wraps the shapes for the cascade.
+- **Favicons via the Next App-Router file convention** (no `metadata.icons` code): `src/app/icon.svg`
+  is **theme-adaptive** (ink on light browser chrome, off-white on dark, via an in-SVG
+  `prefers-color-scheme` rule); `src/app/apple-icon.png` (180², white-on-obsidian tile for iOS);
+  `src/app/favicon.ico` (16/32/48 legacy fallback). Next emits the `<link>` tags from the files.
+- **Background-free assets** in `public/brand/`: adaptive `mark.svg` plus fixed `mark-dark.svg` /
+  `mark-light.svg`, and transparent rasters (`mark-512|1024-{dark,light}.png`) for slides / social /
+  README. The two original PNGs are preserved under `public/brand/source/` as provenance, with a
+  `README.md` documenting the set. (Rasters + favicons are generated from the same geometry,
+  supersampled 4× → LANCZOS for clean edges.)
+- **Loading cascade** — `globals.css` gains `@keyframes mark-cascade` and a `.mark-cascade > *` rule
+  whose nth-child delays light the four nodes in DOM (diagonal) order, so the mark reads as a signal
+  climbing the staircase rather than a spinner — on the existing §6 liveness grammar (1.6s cycle,
+  matching `anim-pulse`), and **frozen** in the `prefers-reduced-motion` block. Wired into
+  `AwaitingState`'s loading variant (replacing the whole-mark `anim-breathe`); empty/error still hold
+  steady.
+
+### Verification
+
+- **Frontend:** `typecheck` / `lint` / `build` all green; **9/9** static pages generate, with the new
+  `/icon.svg` and `/apple-icon.png` registered as routes (`favicon.ico` served from `app/`). The
+  native recreation was checked side-by-side against the source PNGs (identical diagonal, proportions)
+  before wiring in.
+- **Not reproduced here:** the cascade *in motion* and the live favicon across light/dark browser
+  chrome (need a running browser) — the post-deploy visual check.
+
+### Deploy
+
+- **Redeploy Vercel** (frontend-only). No Fly redeploy, no migration.
+
+---
+
+## 0.7.3
+
+**Co-locate the backend with the database + warm the slow paths at startup.** A latency
+investigation (the logged-in homepage taking seconds to show "Projects" for *two* rows) found the
+cause was not the query, the frontend, or a cold start: the Fly backend ran in **`iad`** (Ashburn,
+Virginia) while the Supabase database is in **`ap-southeast-1`** (Singapore). Every DB round-trip
+was a ~230ms cross-Pacific hop, and a single request makes several (pre-ping, begin, query, commit,
+and — when the pooled connection has dropped — a fresh TLS+SCRAM handshake), so a 2-row
+`GET /projects` cost **~2s** while the DB-free `/health` was ~0.5s. The gap was *constant* across
+repeated calls (it did not amortize), which is the signature of round-trip latency, not compute or
+one-time warm-up. Logged-in loads felt worse because `/me` adds its own cross-Pacific resolve and a
+(previously blocking) JWKS fetch on the single-worker machine.
+
+### The change (no schema, no migration — infra + a startup seam)
+
+- **`fly.toml`** — `primary_region` **`iad` → `sin`** (Singapore), co-located with the DB so each
+  round-trip is LAN-local (~1–5ms). `min_machines_running` **`0` → `1`** so one machine stays warm
+  (the previous scale-to-zero added a multi-second boot on top of the DB latency on the first
+  request after idle).
+- **`app/main.py`** — a FastAPI **`lifespan`** that, best-effort before taking traffic, (1) opens a
+  pooled DB connection and runs `SELECT 1` so asyncpg has a live connection ready, and (2) fetches
+  + caches the Supabase JWKS key set. Both swallow boot-time failures (health is DB-free and must
+  stay up; the request path still falls back to a lazy fetch), and the engine is disposed on
+  shutdown.
+- **`app/core/auth.py`** — new `prewarm_jwks()` (the lifespan's JWKS warm-up; a no-op when auth is
+  unconfigured).
+- **`app/api/deps.py`** — the acting-actor dependency now runs the synchronous
+  `verify_bearer_token` via `asyncio.to_thread`, so a JWKS cache miss/rotation fetches off the
+  event loop instead of blocking other in-flight requests. Steady state is an in-memory cache hit
+  (thanks to the prewarm), so the thread hop is cheap.
+
+### Verification
+
+- **Backend:** `ruff` clean; DB-free suite **19 passed / 49 skipped** (unchanged baseline) — the new
+  `lifespan` is not triggered by the test harness (`TestClient` used without a `with` block, and
+  httpx `ASGITransport`, both skip ASGI lifespan), so the warm-ups run only under real
+  `uvicorn`/`fastapi run` and never touch a DB in tests.
+- **Measured (pre-change, live):** `/health` ~0.5s vs `/projects` ~1.9–3.1s, steady across six
+  calls; DB host `db.<ref>.supabase.co` → `47.131.125.148` → `ec2-…-ap-southeast-1` (Singapore);
+  Fly machine in `iad`.
+
+### Still gating the production push
+
+Fly secrets are **app-level** (injected into every machine), so a *machine* rebuild preserves them
+— only destroying the *app* (`fly apps destroy`) wipes them, which we do **not** do. From
+`backend/` (full runbook in `docs/deploy.md` → "Relocating the backend region"):
+
+```bash
+fly machine destroy <iad-machine-id> --force   # removes the machine, not the app/secrets
+fly deploy                                      # provisions a fresh machine in primary_region (sin)
+fly status                                      # REGION = sin, state started, checks passing
+```
+
+No Vercel change (the `opentheory-backend.fly.dev` hostname is unchanged). **Live check:**
+`GET /projects` TTFB should drop from ~2s to ~0.5s, close to `/health`.
 
 ---
 

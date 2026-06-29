@@ -25,6 +25,7 @@ ACTION_VALIDATE = "validate"  # 0.4.1: recording a validation (through the check
 ACTION_CREATE_BRANCH = "create_branch"  # 0.4.2: forking a branch from a checkpoint
 ACTION_CLOSE_BRANCH = "close_branch"  # 0.4.2: closing a branch as dead-end/superseded
 ACTION_FUND = "fund"  # 0.6.3: a funding allocation (contribution-only — NOT through a checkpoint)
+ACTION_CREATE_PROJECT = "create_project"  # 0.8.1: originating a project (intellectual origination)
 
 
 def record_contribution(

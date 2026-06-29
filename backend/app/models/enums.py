@@ -14,6 +14,19 @@ class ProjectStatus(StrEnum):
     ARCHIVED = "archived"
 
 
+class ProjectRole(StrEnum):
+    """Project-level authorization / governance (0.8.1) — deliberately *not* a credit role.
+
+    Membership grants the *capability* to edit a project; it confers no authorship, validation, or
+    funding credit (those stay on Contribution / Validation / FundingAllocation). ``OWNER`` is a
+    superset of ``ADMIN`` — there is exactly one owner per project (enforced by a partial unique
+    index); admins may edit metadata and invite further admins.
+    """
+
+    OWNER = "owner"
+    ADMIN = "admin"
+
+
 class ThreadStage(StrEnum):
     DECOMPOSE = "decompose"
     HYPOTHESIZE = "hypothesize"

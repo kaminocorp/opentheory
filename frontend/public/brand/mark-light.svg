@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="170 150 920 920" width="512" height="512">
+  <!-- Fixed warm-obsidian mark for light backgrounds (#0D0C0B). -->
+  <g fill="#0D0C0B">
+    <circle cx="313" cy="873" r="84" />
+    <rect x="405" y="640" width="252" height="132" rx="66" />
+    <rect x="661" y="455" width="162" height="162" />
+    <circle cx="942" cy="351" r="84" />
+  </g>
+</svg>

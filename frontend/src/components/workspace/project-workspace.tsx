@@ -1,19 +1,32 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ArrowLeft } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, Pencil, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
-import { AwaitingState, Bay, Icon, MetricReadout, StatusPill, type StateTone } from "@/components/console";
-import { getProject, getProjectOverview, listBranches } from "@/lib/api";
+import {
+  ActionGhost,
+  AwaitingState,
+  Bay,
+  Icon,
+  MetricReadout,
+  ReadoutLabel,
+  StatusPill,
+  type StateTone,
+} from "@/components/console";
+import { getProject, getProjectOverview, listBranches, listProjectMembers } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
+import { useActingIdentity } from "@/lib/use-identity";
 import type { Project } from "@/types/project";
 
 import { BranchBar } from "./branch-bar";
 import { CheckpointTimelinePanel } from "./checkpoint-timeline-panel";
 import { ClaimListPanel } from "./claim-list-panel";
+import { CollaboratorsPanel } from "./collaborators-panel";
 import { FundingPanel } from "./funding-panel";
+import { Markdown } from "./markdown";
+import { ProjectEditForm } from "./project-edit-form";
 import { ThreadListPanel } from "./thread-list-panel";
 
 type ProjectWorkspaceProps = {
@@ -46,11 +59,25 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
   // null = the project main line; a branch id scopes the checkpoint timeline + new
   // checkpoints to that line (0.4.2/0.4.3).
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
+  // Project stewardship (0.8.1): the metadata edit form + the background collapsible.
+  const [editing, setEditing] = useState(false);
+  const [backgroundOpen, setBackgroundOpen] = useState(true);
+
+  const { isAuthed, me } = useActingIdentity();
 
   const projectQuery = useQuery({
     queryKey: queryKeys.project(projectId),
     queryFn: () => getProject(projectId),
   });
+
+  // Membership drives the client-side capability gate (the backend still authorizes every write):
+  // an actor can manage iff its account holds a membership row. Public read, so it loads for anyone.
+  const membersQuery = useQuery({
+    queryKey: queryKeys.members(projectId),
+    queryFn: () => listProjectMembers(projectId),
+  });
+  const canManageProject =
+    isAuthed && (membersQuery.data ?? []).some((m) => m.account.id === me?.account?.id);
 
   const overviewQuery = useQuery({
     queryKey: queryKeys.overview(projectId),
@@ -97,7 +124,16 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
       </Link>
 
       <Bay as="header" bracketed chamfer density="narrative" className="grid gap-3">
-        <StatusPill tone={projectStatusTone[project.status]} label={project.status} />
+        <div className="flex items-start justify-between gap-3">
+          <StatusPill tone={projectStatusTone[project.status]} label={project.status} />
+          {/* Write affordance: shown only to owner/admin (the backend still authorizes the PATCH). */}
+          {canManageProject ? (
+            <ActionGhost size="sm" onClick={() => setEditing((v) => !v)}>
+              <Icon icon={editing ? X : Pencil} size={14} />
+              {editing ? "Cancel" : "Edit"}
+            </ActionGhost>
+          ) : null}
+        </div>
         <h1 className="text-balance text-2xl font-medium leading-snug text-text">{project.title}</h1>
         <p className="max-w-3xl text-[14px] leading-[1.55] text-text-soft">{project.question}</p>
         {project.description ? (
@@ -149,7 +185,31 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
         </dl>
       </Bay>
 
+      {/* Metadata edit form (0.8.1) — owner/admin only, toggled from the header. */}
+      {editing && canManageProject ? (
+        <ProjectEditForm project={project} onDone={() => setEditing(false)} />
+      ) : null}
+
+      {/* Background / Context (0.8.1): a collapsible Bay rendering the stored Markdown. Only shown
+          when present; the editor lives in the edit form, the read path uses the light renderer. */}
+      {project.background ? (
+        <Bay density="narrative" className="grid gap-3">
+          <button
+            type="button"
+            aria-expanded={backgroundOpen}
+            onClick={() => setBackgroundOpen((v) => !v)}
+            className="flex items-center gap-2 text-text-mute transition-colors hover:text-text"
+          >
+            <Icon icon={backgroundOpen ? ChevronDown : ChevronRight} size={14} />
+            <ReadoutLabel>Background / Context</ReadoutLabel>
+          </button>
+          {backgroundOpen ? <Markdown>{project.background}</Markdown> : null}
+        </Bay>
+      ) : null}
+
       <FundingPanel projectId={projectId} />
+
+      <CollaboratorsPanel projectId={projectId} />
 
       <BranchBar
         projectId={projectId}

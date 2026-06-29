@@ -13,4 +13,5 @@ export const queryKeys = {
   branches: (projectId: string) => ["branches", projectId] as const,
   funding: (projectId: string) => ["funding", projectId] as const,
   budget: (projectId: string) => ["budget", projectId] as const,
+  members: (projectId: string) => ["members", projectId] as const,
 };

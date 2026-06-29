@@ -1,9 +1,11 @@
 # Fly.io configuration for the OpenTheory backend (FastAPI).
 #
-# `app` and `primary_region` are placeholders — `fly launch --no-deploy` will set/confirm them.
-# Pick a region close to your Supabase database to keep DB latency low (see `fly platform regions`).
+# Region is co-located with the Supabase database (Singapore / ap-southeast-1) so each DB
+# round-trip is LAN-local (~1-5ms) instead of a ~230ms cross-Pacific hop. That round-trip cost,
+# multiplied per request, dominated latency (a 2-row read was ~2s from iad). See docs/deploy.md
+# "Relocating the backend region". `app` was set by `fly launch`.
 app = "opentheory-backend"
-primary_region = "iad"
+primary_region = "sin"
 
 [build]
   dockerfile = "Dockerfile"
@@ -27,10 +29,12 @@ primary_region = "iad"
 [http_service]
   internal_port = 8000
   force_https = true
-  # Scale to zero when idle (cheap for a preview); the first request after idle cold-starts it.
+  # Keep one machine always running so there is no scale-to-zero cold start on the first request
+  # after idle (the previous min=0 added a multi-second machine boot on top of DB latency).
+  # auto_stop still parks any *extra* machines a surge spins up; the last one stays warm.
   auto_stop_machines = "stop"
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
 
   [[http_service.checks]]
     method = "GET"

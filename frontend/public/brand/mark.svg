@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="170 150 920 920" width="512" height="512">
+  <!-- Adaptive brand mark: ink on light, off-white on dark. Use this when the
+       surface theme is unknown. For a fixed colour use mark-dark.svg /
+       mark-light.svg. Geometry is identical to the React BrandMark component. -->
+  <style>
+    svg { color: #0D0C0B; }
+    @media (prefers-color-scheme: dark) { svg { color: #ECEAE6; } }
+  </style>
+  <g fill="currentColor">
+    <circle cx="313" cy="873" r="84" />
+    <rect x="405" y="640" width="252" height="132" rx="66" />
+    <rect x="661" y="455" width="162" height="162" />
+    <circle cx="942" cy="351" r="84" />
+  </g>
+</svg>
