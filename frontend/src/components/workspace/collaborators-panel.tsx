@@ -1,21 +1,36 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Users } from "lucide-react";
+import { UserPlus, Users } from "lucide-react";
+import { useState } from "react";
 
 import {
+  Action,
   ActionDestructive,
   Bay,
   Icon,
+  Input,
   ReadoutLabel,
   Select,
   StatusPill,
   type StateTone,
 } from "@/components/console";
-import { listProjectMembers, removeProjectMember, updateProjectMember } from "@/lib/api";
+import {
+  inviteProjectMember,
+  listProjectInvitations,
+  listProjectMembers,
+  removeProjectMember,
+  revokeInvitation,
+  updateProjectMember,
+} from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import { useActingIdentity } from "@/lib/use-identity";
 import type { ProjectRole } from "@/types/research";
+
+// request() throws Error("409: …"); strip the numeric status prefix for a legible inline message.
+function readableError(err: unknown): string {
+  return err instanceof Error ? err.message.replace(/^\d+:\s*/, "") : "Something went wrong";
+}
 
 const ROLE_TONE: Record<ProjectRole, StateTone> = { owner: "run", admin: "mute" };
 
@@ -23,7 +38,9 @@ const ROLE_TONE: Record<ProjectRole, StateTone> = { owner: "run", admin: "mute" 
  * Collaborators (0.8.1): the public member list (display name + `@handle` + role pills) plus
  * owner-only governance controls (change role / transfer ownership / remove). Membership is access
  * control, *not* credit — this panel never touches authorship/validation/funding. The
- * `@username` handle landed in 0.8.3; the invite-by-handle UI + pending list lands in 0.8.4.
+ * `@username` handle landed in 0.8.3; the invite-by-handle UI + pending list landed in 0.8.7
+ * (owner/admin invites an existing user by `@username` or email; the invitee accepts from the bell
+ * inbox).
  */
 export function CollaboratorsPanel({ projectId }: { projectId: string }) {
   const { me } = useActingIdentity();
@@ -37,9 +54,25 @@ export function CollaboratorsPanel({ projectId }: { projectId: string }) {
 
   const myAccountId = me?.account?.id ?? null;
   const isOwner = members.some((m) => m.account.id === myAccountId && m.role === "owner");
+  // Owner OR admin can invite (Decision: admins may invite further admins). Membership *is* the
+  // owner|admin set, so being in the member list is exactly the manage capability. The backend
+  // re-authorizes every write — this only decides what to render.
+  const canManage = members.some((m) => m.account.id === myAccountId);
+  const [identifier, setIdentifier] = useState("");
+
+  // A project's outstanding invitations — owner/admin only (the read 403s for others), so gate the
+  // fetch on the capability to avoid a guaranteed error for non-managers.
+  const invitationsQuery = useQuery({
+    queryKey: queryKeys.projectInvitations(projectId),
+    queryFn: () => listProjectInvitations(projectId),
+    enabled: canManage,
+  });
+  const invitations = invitationsQuery.data ?? [];
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: queryKeys.members(projectId) });
+  const invalidateInvitations = () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.projectInvitations(projectId) });
 
   const roleMutation = useMutation({
     mutationFn: ({ accountId, role }: { accountId: string; role: ProjectRole }) =>
@@ -50,6 +83,24 @@ export function CollaboratorsPanel({ projectId }: { projectId: string }) {
     mutationFn: (accountId: string) => removeProjectMember(projectId, accountId),
     onSuccess: invalidate,
   });
+  const inviteMutation = useMutation({
+    mutationFn: (id: string) => inviteProjectMember(projectId, { identifier: id }),
+    onSuccess: () => {
+      setIdentifier("");
+      invalidateInvitations();
+    },
+  });
+  const revokeMutation = useMutation({
+    mutationFn: (invitationId: string) => revokeInvitation(projectId, invitationId),
+    onSuccess: invalidateInvitations,
+  });
+
+  function submitInvite() {
+    if (inviteMutation.isPending) return; // guard a double-submit (Enter) while in flight
+    const id = identifier.trim();
+    if (!id) return;
+    inviteMutation.mutate(id);
+  }
 
   const busy = roleMutation.isPending || removeMutation.isPending;
   const error = (roleMutation.error ?? removeMutation.error) as Error | null;
@@ -123,6 +174,79 @@ export function CollaboratorsPanel({ projectId }: { projectId: string }) {
       )}
 
       {error ? <p className="text-[12px] text-state-fail">{error.message}</p> : null}
+
+      {canManage ? (
+        <div className="grid gap-2 pt-3" style={{ borderTop: "0.5px solid var(--hairline)" }}>
+          <form
+            className="grid gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              submitInvite();
+            }}
+          >
+            <span className="flex items-center gap-2 text-text-mute">
+              <Icon icon={UserPlus} size={16} />
+              <ReadoutLabel>Invite a collaborator</ReadoutLabel>
+            </span>
+            <div className="flex items-center gap-2">
+              <Input
+                mono
+                value={identifier}
+                onChange={(event) => setIdentifier(event.target.value)}
+                placeholder="@username or email"
+                aria-label="Invite by @username or email"
+                spellCheck={false}
+                autoComplete="off"
+                className="h-8 min-w-0 flex-1"
+              />
+              <Action
+                type="submit"
+                size="sm"
+                pending={inviteMutation.isPending}
+                disabled={!identifier.trim()}
+              >
+                Invite
+              </Action>
+            </div>
+          </form>
+          {inviteMutation.error ? (
+            <p role="alert" className="text-[11px] text-state-fail">
+              {readableError(inviteMutation.error)}
+            </p>
+          ) : null}
+
+          {invitations.length > 0 ? (
+            <ul className="grid gap-1.5">
+              {invitations.map((invitation) => (
+                <li key={invitation.id} className="flex items-center justify-between gap-2">
+                  <span className="flex min-w-0 items-baseline gap-1.5 text-[12px]">
+                    <span className="truncate text-text-soft">
+                      {invitation.invitee.display_name}
+                    </span>
+                    <span className="shrink-0 text-text-faint">
+                      @{invitation.invitee.username}
+                    </span>
+                    <span className="shrink-0 text-text-faint">· pending</span>
+                  </span>
+                  <ActionDestructive
+                    size="sm"
+                    disabled={revokeMutation.isPending}
+                    aria-label={`Revoke invitation for ${invitation.invitee.display_name}`}
+                    onClick={() => revokeMutation.mutate(invitation.id)}
+                  >
+                    Revoke
+                  </ActionDestructive>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {revokeMutation.error ? (
+            <p role="alert" className="text-[11px] text-state-fail">
+              {readableError(revokeMutation.error)}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </Bay>
   );
 }

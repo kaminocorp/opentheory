@@ -13,8 +13,10 @@ import type {
   EvidenceCreate,
   Funding,
   FundingCreate,
+  InvitationCreate,
   Me,
   ProjectBudget,
+  ProjectInvitation,
   ProjectMember,
   ProjectOverview,
   ProjectRole,
@@ -150,6 +152,41 @@ export function updateProjectMember(
   role: ProjectRole,
 ): Promise<ProjectMember> {
   return request<ProjectMember>(`/projects/${projectId}/members/${accountId}`, patchInit({ role }));
+}
+
+// --- Invitations (0.8.7) ----------------------------------------------------
+
+// Invite an existing account by @username or email (owner/admin). Throws on 404 (no such account),
+// 409 (self / already a member / already invited), surfaced via the request helper's `detail`.
+export function inviteProjectMember(
+  projectId: string,
+  payload: InvitationCreate,
+): Promise<ProjectInvitation> {
+  return request<ProjectInvitation>(`/projects/${projectId}/invitations`, writeInit(payload));
+}
+
+// A project's outstanding (pending) invitations (owner/admin only).
+export function listProjectInvitations(projectId: string): Promise<ProjectInvitation[]> {
+  return request<ProjectInvitation[]>(`/projects/${projectId}/invitations`);
+}
+
+// Revoke a pending invitation (owner/admin). 204 No Content — no body to parse.
+export async function revokeInvitation(projectId: string, invitationId: string): Promise<void> {
+  await request<void>(`/projects/${projectId}/invitations/${invitationId}`, { method: "DELETE" });
+}
+
+// The caller's own pending invitations (the bell inbox).
+export function getMyInvitations(): Promise<ProjectInvitation[]> {
+  return request<ProjectInvitation[]>("/me/invitations");
+}
+
+// Accept / decline an invitation addressed to the caller (invitee-only).
+export function acceptInvitation(invitationId: string): Promise<ProjectInvitation> {
+  return request<ProjectInvitation>(`/invitations/${invitationId}/accept`, writeInit({}));
+}
+
+export function declineInvitation(invitationId: string): Promise<ProjectInvitation> {
+  return request<ProjectInvitation>(`/invitations/${invitationId}/decline`, writeInit({}));
 }
 
 // --- Threads ----------------------------------------------------------------

@@ -47,3 +47,10 @@ class Project(IdMixin, TimestampMixin, Base):
         back_populates="project",
         cascade="all, delete-orphan",
     )
+    # Collaboration invitations (0.8.7). Like membership, cascade-delete on project removal and
+    # not append-only (an invitation's status moves through its lifecycle in place).
+    invitations = relationship(
+        "ProjectInvitation",
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )

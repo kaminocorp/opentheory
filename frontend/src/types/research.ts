@@ -134,6 +134,32 @@ export type ProjectMember = {
   created_at: string;
 };
 
+// --- Invitations (0.8.7) ----------------------------------------------------
+// Invite an existing account (by @username or email) to collaborate; the invitee accepts/declines
+// from the bell inbox. Governance, not credit — kept separate from contribution/validation/funding.
+
+export type InvitationStatus = "pending" | "accepted" | "declined" | "revoked";
+
+// Mirrors the backend InvitationRead. Carries the project title (so the inbox needs no second fetch)
+// and privacy-safe AccountSummary for both parties (no email/roles).
+export type ProjectInvitation = {
+  id: string;
+  project_id: string;
+  project_title: string;
+  role: ProjectRole;
+  status: InvitationStatus;
+  invitee: AccountSummary;
+  invited_by: AccountSummary | null;
+  created_at: string;
+  updated_at: string;
+};
+
+// Body for POST /projects/{id}/invitations. `role` defaults to "admin" server-side when omitted.
+export type InvitationCreate = {
+  identifier: string;
+  role?: ProjectRole;
+};
+
 export type ClaimKind =
   | "hypothesis"
   | "assumption"

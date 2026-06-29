@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.8.7` — **Collaborators + invitation inbox.** Owner/admin invites an existing user by `@username` or email; the invitee accepts (→ admin) or declines from a top-right bell inbox. Completes the stewardship line's ask **(C)**: adds `ProjectInvitation` + six routes (the platform's first invitee-side authorization), reusing `0.8.3`'s `resolve_account_by_identifier`. Migration `0010_project_invitations` (additive).
 - `0.8.6` — **Post-review hardening across the stewardship line (`0.8.1`–`0.8.4`).** Fixes a username blind spot that could deny sign-in, an owner-floor race that could orphan a project, two `500`→`4xx` gaps, a stale test, and frontend a11y nits. Backend + frontend only — no schema, no migration. Invitations shift to `0.8.7`.
 - `0.8.5` — **Brand-mark "jingle" easter egg.** Clicking the header logo replays a one-shot assemble of the four shapes, landing on the full mark with a crimson spark. Frontend-only; invitations shift to `0.8.7`.
 - `0.8.4` — **Post-review hardening on `0.8.3` `@username`.** Invalid-handle renames now fail legibly (client-side validation + readable FastAPI errors); drops a redundant `func.lower()`; indexes `lower(email)`. Migration `0009_account_email_index` (additive). Invitations → `0.8.7`.
@@ -38,6 +39,107 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.8.7
+
+**Collaborators + invitation inbox — the final slice of Project Stewardship & Collaboration
+(`docs/executing/project-stewardship-and-collaboration.md`, ask (C)).** An owner/admin invites an
+**existing** account by `@username` or email; the invitee sees the invite in a top-right **bell
+inbox** and **accepts** (becoming an `admin` member who can edit the project) or **declines**. This
+adds the platform's first *invitee-side* authorization to sit alongside the project-side
+authorization (`ensure_can_manage`) shipped in `0.8.1`. Migration `0010_project_invitations`
+(additive).
+
+> **Numbering — two drifts to reconcile.** The implementation plan calls this slice `0.8.3`, but the
+> repo's `0.8.2`/`0.8.4`/`0.8.5`/`0.8.6` were taken by hardening + the brand-mark jingle, so the
+> feature lands as **`0.8.7`** (same pattern as `@username`'s plan-`0.8.2` → repo-`0.8.3`).
+> Likewise the plan's *migration* `0009` was already consumed by `0.8.4`'s `0009_account_email_index`,
+> so the invitations migration is **`0010_project_invitations`**, chained onto it. Confirmed with
+> @phil. With this, the three-release stewardship line (ownership → `@username` → collaboration) is
+> complete.
+
+### Design guardrail (carried from the line): an invitation is governance, not credit
+
+An invitation, like the `ProjectMember` it produces, is **access control** — never intellectual
+credit. So, by construction: it lives in its own table (`project_invitations`), and **accepting an
+invite records no `Contribution`** (only *creating* a project does — that is origination). It
+*composes* with `ProjectMember` and never touches `Contribution` / `Validation` /
+`FundingAllocation`, preserving the funder/contributor/validator separation. Keyed on the **`Account`**
+(the principal, `0.7.0`), so a future agent actor owned by an admin account inherits the same edit
+capability through the same API — no parallel model.
+
+### Backend
+
+- **`InvitationStatus` enum** (`PENDING` / `ACCEPTED` / `DECLINED` / `REVOKED`) — the lifecycle a
+  single invitation row moves through. Named PG enum `invitation_status` (uppercase StrEnum-member
+  labels, this DB's convention).
+- **`ProjectInvitation` model** (`project_invitations`) — `project_id` + `invitee_account_id` (both
+  FK `CASCADE`, indexed), `role` (reuses the `project_role` enum, default `ADMIN`), `status` (default
+  `PENDING`), and a nullable `invited_by_account_id` (`SET NULL`, provenance). A
+  **`UniqueConstraint(project_id, invitee_account_id)`** (`uq_project_invitation`) keeps **one**
+  invitation row per (project, invitee): re-inviting a declined/revoked user is an *upsert* that
+  resets that row to `PENDING`, never a second row. A mutable governance row — like `ProjectMember`,
+  **not** registered in `models/append_only.py`. Exported from `models/__init__.py`; `Project` gains
+  an `invitations` relationship.
+- **`services/invitations.py`** — the logic, split by authorization grain:
+  - **Project-side** (`invite` / `list_for_project` / `revoke`) composes with
+    `ensure_can_manage` in the route, so only an owner/admin reaches it (admins may invite further
+    admins, by decision) and the project row is locked `FOR UPDATE`. `invite` resolves the identifier
+    via `resolve_account_by_identifier` (`404` if unknown) and rejects inviting yourself, an existing
+    member, or someone already pending with `409`.
+  - **Invitee-side** (`my_pending` / `accept` / `decline`) is keyed on the invitation's
+    `invitee_account_id`: a caller may act only on an invitation addressed to **their own** account
+    (`403` otherwise) — there is no membership check, because accepting is precisely how a non-member
+    *becomes* one. `accept` mints the `ProjectMember` (idempotent against `uq_project_member`) and
+    flips the status in one transaction; both `accept`/`decline` are idempotent and `409` on a
+    non-pending row.
+- **Six routes** (`api/routes/invitations.py`, root-mounted with full paths like
+  threads/funding): `POST`/`GET /projects/{id}/invitations` + `DELETE
+  /projects/{id}/invitations/{inv_id}` (owner/admin); `GET /me/invitations` +
+  `POST /invitations/{inv_id}/accept|decline` (invitee). Reads return `InvitationRead` — project
+  title + **privacy-safe `AccountSummary`** for both parties (no email/roles), safe to serve to an
+  invitee who is not a member yet.
+
+### Frontend
+
+- **Types + client + query-keys** — `InvitationStatus` / `ProjectInvitation` / `InvitationCreate`;
+  `inviteProjectMember` / `listProjectInvitations` / `revokeInvitation` / `getMyInvitations` /
+  `acceptInvitation` / `declineInvitation`; `myInvitations` + `projectInvitations(id)` keys.
+- **`components/shell/invitation-inbox.tsx`** (new) — a header **bell + count badge** (from
+  `getMyInvitations`, `enabled` only when signed in) with a dropdown listing each pending invite
+  (project title, inviter `@handle`, role) and **Accept** / **Decline**. Accepting invalidates the
+  inbox **and** that project's member list, so the badge and the workspace's capability gate update
+  at once. Mounted in `app-shell.tsx`'s header before `<AuthMenu/>`; self-hides when signed out.
+- **`collaborators-panel.tsx`** — owner/admin now sees an **invite-by-`@username`-or-email** field +
+  the project's pending invitations with a **Revoke** control. `404 user not found` / `409 already
+  invited` surface inline (status prefix stripped). The fetch of pending invites is gated on the
+  manage capability (the read `403`s for non-managers).
+
+### Schema & migration
+
+`0010_project_invitations` (additive, `down_revision="0009_account_email_index"`): creates the
+`invitation_status` enum + `project_invitations` table (FKs, per-FK indexes, `uq_project_invitation`)
+and reuses the existing `project_role` enum (`create_type=False`). No backfill. `downgrade()` drops
+the table + enum. Model↔migration parity verified by compiling the model DDL against the Postgres
+dialect; `alembic heads` confirms a single linear head.
+
+### Verification
+
+```bash
+cd backend && uv run ruff check . && uv run pytest    # ruff clean; 55 passed / 75 skipped (no DB)
+cd frontend && npm run typecheck && npm run lint && npm run build   # all green, 7 routes
+```
+
+The `+3` passing (over `0.8.6`'s 52) are the new DB-free invitation auth-gates; the `+10` skips are
+the DB-backed flow tests. **Not run here** (per the no-local-DB policy): the 10 DB-backed invitation
+tests against real Postgres — the post-deploy live check (or a throwaway-DB pass on greenlight).
+
+### Deploy
+
+`fly deploy` from `backend/` — `alembic upgrade head` applies `0010` (plus any of `0007`–`0009` not
+yet live) — and a **Vercel redeploy** for the frontend. No manual data step.
 
 ---
 

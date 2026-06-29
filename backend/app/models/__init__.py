@@ -10,6 +10,7 @@ from app.models.evidence import Evidence
 from app.models.funding import FundingAllocation
 from app.models.links import CheckpointRef, ClaimEvidenceLink
 from app.models.project import Project
+from app.models.project_invitation import ProjectInvitation
 from app.models.project_member import ProjectMember
 from app.models.thread import Thread
 from app.models.validation import Validation
@@ -28,6 +29,7 @@ __all__ = [
     "Evidence",
     "FundingAllocation",
     "Project",
+    "ProjectInvitation",
     "ProjectMember",
     "Thread",
     "Validation",

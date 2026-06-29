@@ -9,6 +9,7 @@ from app.api.routes import (
     evidence,
     funding,
     health,
+    invitations,
     me,
     projects,
     threads,
@@ -30,3 +31,6 @@ api_router.include_router(checkpoints.router)
 api_router.include_router(validations.router)
 api_router.include_router(branches.router)
 api_router.include_router(funding.router)
+# Invitations span /projects/{id}/invitations and /me/invitations + /invitations/{id}/…, so the
+# router mounts at the root and declares full paths itself (like threads/funding).
+api_router.include_router(invitations.router)

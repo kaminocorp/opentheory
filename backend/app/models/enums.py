@@ -27,6 +27,21 @@ class ProjectRole(StrEnum):
     ADMIN = "admin"
 
 
+class InvitationStatus(StrEnum):
+    """Lifecycle of a project collaboration invitation (0.8.7) — governance, not credit.
+
+    An invite starts ``PENDING``; the invitee ``ACCEPTED``s it (gaining a ``ProjectMember`` row) or
+    ``DECLINED``s it; an owner/admin may ``REVOKE`` a pending one. Re-inviting a declined/revoked
+    user resets the *same* row to ``PENDING`` (there is one invitation row per project+invitee), so
+    these are the four states a single row moves through — never a ledger event.
+    """
+
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
+    REVOKED = "revoked"
+
+
 class ThreadStage(StrEnum):
     DECOMPOSE = "decompose"
     HYPOTHESIZE = "hypothesize"

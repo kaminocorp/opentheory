@@ -5,6 +5,7 @@ import { Icon } from "@/components/console";
 import { AuthMenu } from "@/components/shell/auth-menu";
 import { BrandLockup } from "@/components/shell/brand-lockup";
 import { CommandRail } from "@/components/shell/command-rail";
+import { InvitationInbox } from "@/components/shell/invitation-inbox";
 
 /**
  * The Kamino app shell (§4.1) — the structural signature. A fixed 6u header and a
@@ -54,8 +55,10 @@ function ShellHeader() {
         </div>
       </div>
 
-      {/* Right slot: global identity. Real (Supabase) sign-in is the only identity path. */}
+      {/* Right slot: the invitation bell (signed-in only — it self-hides otherwise) then global
+          identity. Real (Supabase) sign-in is the only identity path. */}
       <div className="flex shrink-0 items-center gap-2">
+        <InvitationInbox />
         <AuthMenu />
       </div>
     </header>
