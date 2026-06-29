@@ -1,3 +1,4 @@
+from app.models.account import Account
 from app.models.actor import Actor
 from app.models.append_only import AppendOnlyError
 from app.models.artifact import Artifact
@@ -13,6 +14,7 @@ from app.models.thread import Thread
 from app.models.validation import Validation
 
 __all__ = [
+    "Account",
     "Actor",
     "AppendOnlyError",
     "Artifact",

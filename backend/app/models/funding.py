@@ -18,9 +18,12 @@ class FundingAllocation(IdMixin, TimestampMixin, Base):
         nullable=False,
         index=True,
     )
-    actor_id: Mapped[UUID | None] = mapped_column(
+    # The funder is the **principal** (Decision #5): money comes from the thing that holds a
+    # payment method, so funding attributes to the Account, not the acting Actor. The `fund`
+    # Contribution still attributes to the Actor (the act vs. the money).
+    account_id: Mapped[UUID | None] = mapped_column(
         PgUUID(as_uuid=True),
-        ForeignKey("actors.id", ondelete="SET NULL"),
+        ForeignKey("accounts.id", ondelete="SET NULL"),
         index=True,
     )
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
@@ -44,5 +47,5 @@ class FundingAllocation(IdMixin, TimestampMixin, Base):
     notes: Mapped[str | None] = mapped_column(Text)
 
     project = relationship("Project", back_populates="funding_allocations")
-    actor = relationship("Actor", back_populates="funding_allocations")
+    account = relationship("Account", back_populates="funding_allocations")
     contributions = relationship("Contribution", back_populates="funding_allocation")

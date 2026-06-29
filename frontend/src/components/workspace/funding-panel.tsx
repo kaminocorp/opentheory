@@ -203,7 +203,7 @@ export function FundingPanel({ projectId }: { projectId: string }) {
                   <span className="ml-1.5 font-mono text-text-mute">
                     {SOURCE_LABEL[item.source]} · {item.kind.replace("_", " ")}
                   </span>
-                  {item.actor ? <span className="ml-1.5 text-text-mute">{item.actor.display_name}</span> : null}
+                  {item.account ? <span className="ml-1.5 text-text-mute">{item.account.display_name}</span> : null}
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
                   <StatusPill tone={fundingStatusTone[item.status]} label={item.status} />

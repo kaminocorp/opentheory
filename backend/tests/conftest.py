@@ -156,3 +156,35 @@ async def client(
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+
+
+@pytest.fixture
+def internal_funder():
+    """Factory to build an internal funder the Account-owns-Actor way (Decision #8: no seeding).
+
+    Roles live on the ``Account`` now, so "an internal funder" is an internal ``Account`` plus a
+    ``human`` ``Actor`` linked to it: the dev path resolves the actor by ``X-Dev-Actor-Id`` and the
+    funding gate reads ``actor.account.roles``. Replaces the retired ``POST /actors {roles:[...]}``
+    seed (``roles`` is no longer an actor field). Returns ``(actor_id, account_id)`` — the actor id
+    for the ``X-Dev-Actor-Id`` header, the account id for funder-attribution assertions.
+    """
+
+    async def _make(
+        client: AsyncClient,
+        *,
+        roles: tuple[str, ...] = ("internal",),
+        display_name: str = "Kamino",
+    ) -> tuple[str, str]:
+        acct = await client.post(
+            "/api/v1/accounts", json={"display_name": display_name, "roles": list(roles)}
+        )
+        assert acct.status_code == 201, acct.text
+        account_id = acct.json()["id"]
+        actor = await client.post(
+            "/api/v1/actors",
+            json={"type": "human", "display_name": display_name, "account_id": account_id},
+        )
+        assert actor.status_code == 201, actor.text
+        return actor.json()["id"], account_id
+
+    return _make

@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.routes import (
+    accounts,
     actors,
     branches,
     checkpoints,
@@ -19,6 +20,7 @@ api_router.include_router(health.router, tags=["health"])
 api_router.include_router(me.router, tags=["auth"])
 api_router.include_router(projects.router, prefix="/projects", tags=["projects"])
 api_router.include_router(actors.router, prefix="/actors", tags=["actors"])
+api_router.include_router(accounts.router, prefix="/accounts", tags=["accounts"])
 # Threads/claims/evidence/checkpoints span nested paths (e.g. /projects/{id}/threads
 # and /threads/{id}), so they mount at the root and declare full paths themselves.
 api_router.include_router(threads.router)

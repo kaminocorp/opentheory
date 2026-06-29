@@ -23,10 +23,11 @@ async def create_actor(payload: ActorCreate, db: DbSession) -> Actor:
 
 @router.get("", response_model=list[ActorRead])
 async def list_actors(db: DbSession) -> list[Actor]:
-    # Retired in production alongside POST (0.6.1): ActorRead exposes external_id and
-    # actor_metadata — which since JIT provisioning holds the verified email — so an open list
-    # would leak every actor's email, IdP subject, and roles to any anonymous caller. The list
-    # survives only behind the dev flag, where it drives the local actor switcher.
+    # Retired in production alongside POST (0.6.1): ActorRead's actor_metadata still holds the
+    # verified email (set at JIT provisioning), so an open list would leak every actor's email to
+    # any anonymous caller. (external_id + roles moved to the Account; the principal's PII is gated
+    # on GET /accounts.) The list survives only behind the dev flag, where it drives the local
+    # actor switcher.
     if not settings.auth_dev_header_enabled:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

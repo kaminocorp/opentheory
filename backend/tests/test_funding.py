@@ -1,11 +1,15 @@
-"""DB-backed tests for the 0.6.3 funding write path.
+"""DB-backed tests for the funding write path (0.6.3; account-attributed in 0.7.0).
 
-Covers: native funding by an internal actor (one settled ``FundingAllocation`` + one ``fund``
-``Contribution`` with ``funding_allocation_id`` set and ``checkpoint_id`` NULL, and **no minted
-checkpoint** — locks Decision #3); the native-funding ``internal``-role gate (403) and the
-unauthenticated path (401); stripe funding born ``pending`` and excluded from ``funded``;
-append-only ORM enforcement on ``FundingAllocation``; the budget read model; and the
-funder/contributor/validator separation. These run only when a database is configured.
+Covers: native funding by an internal account (one settled ``FundingAllocation`` attributed to the
+funder's **Account** + one ``fund`` ``Contribution`` still attributed to the **Actor** — Decision #5
+— with ``funding_allocation_id`` set, ``checkpoint_id`` NULL, and **no minted checkpoint**, locking
+Decision #3); the native-funding ``internal``-role gate (403, for both an account-less and a
+non-internal-account actor) and the unauthenticated path (401); stripe funding rejected
+(``422``) pre-0.7.0; append-only ORM enforcement on ``FundingAllocation``; the budget read model;
+and the funder/contributor/validator separation. These run only when a database is configured.
+
+Internal funders are built via the ``internal_funder`` fixture (an internal ``Account`` + a linked
+``human`` ``Actor``), since ``roles`` moved off ``actors`` onto ``accounts``.
 """
 
 from decimal import Decimal
@@ -25,16 +29,8 @@ from app.models.funding import FundingAllocation
 from app.models.validation import Validation
 
 
-async def _internal_actor(client: AsyncClient) -> str:
-    resp = await client.post(
-        "/api/v1/actors",
-        json={"type": "human", "display_name": "Kamino", "roles": ["internal"]},
-    )
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
-
-
 async def _actor(client: AsyncClient) -> str:
+    """An account-less (non-internal) dev actor."""
     resp = await client.post("/api/v1/actors", json={"type": "human", "display_name": "Ada"})
     assert resp.status_code == 201, resp.text
     return resp.json()["id"]
@@ -80,9 +76,9 @@ def _dec(value) -> Decimal:
 
 
 async def test_native_funding_records_settled_allocation_and_fund_contribution(
-    client: AsyncClient, session_factory: async_sessionmaker
+    client: AsyncClient, session_factory: async_sessionmaker, internal_funder
 ) -> None:
-    actor_id = await _internal_actor(client)
+    actor_id, account_id = await internal_funder(client)
     project_id = await _project(client)
 
     code, body = await _fund(client, project_id, actor_id, amount="500.00", source="native")
@@ -90,18 +86,23 @@ async def test_native_funding_records_settled_allocation_and_fund_contribution(
     assert body["source"] == "native"
     assert body["status"] == "settled"
     assert _dec(body["amount"]) == Decimal("500.00")
-    assert body["actor"]["id"] == actor_id
+    # The funder is the principal (Decision #5): the public read carries the AccountSummary.
+    assert body["account"]["id"] == account_id
     allocation_id = body["id"]
 
     async with session_factory() as session:
         allocations = (await session.execute(select(FundingAllocation))).scalars().all()
         assert len(allocations) == 1
         assert str(allocations[0].id) == allocation_id
+        # Money attributes to the Account (Decision #5)...
+        assert str(allocations[0].account_id) == account_id
 
-        # One `fund` contribution: linked to the allocation, NOT to a checkpoint (Decision #3).
+        # ...while the `fund` Contribution still attributes to the acting Actor (the act vs. the
+        # money), linked to the allocation, NOT to a checkpoint (Decision #3).
         contribs = (await session.execute(select(Contribution))).scalars().all()
         assert len(contribs) == 1
         assert contribs[0].action == "fund"
+        assert str(contribs[0].actor_id) == actor_id
         assert str(contribs[0].funding_allocation_id) == allocation_id
         assert contribs[0].checkpoint_id is None
 
@@ -110,16 +111,33 @@ async def test_native_funding_records_settled_allocation_and_fund_contribution(
         assert len(checkpoints) == 0
 
 
-async def test_native_funding_requires_internal_role(
+async def test_native_funding_requires_internal_role_for_accountless_actor(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
-    actor_id = await _actor(client)  # not internal
+    actor_id = await _actor(client)  # account-less → no principal → not internal
     project_id = await _project(client)
 
     code, body = await _fund(client, project_id, actor_id, source="native")
     assert code == 403, body
 
     # Nothing was written.
+    async with session_factory() as session:
+        allocations = (await session.execute(select(FundingAllocation))).scalars().all()
+        assert allocations == []
+
+
+async def test_native_funding_requires_internal_role_even_with_account(
+    client: AsyncClient, session_factory: async_sessionmaker, internal_funder
+) -> None:
+    # An actor *with* an account but without the `internal` role is still 403: the role lives on
+    # the account, and `account_is_internal` checks for it there. Proves the gate reads the
+    # principal's roles, not merely "has an account".
+    actor_id, _ = await internal_funder(client, roles=())  # account with NO roles
+    project_id = await _project(client)
+
+    code, body = await _fund(client, project_id, actor_id, source="native")
+    assert code == 403, body
+
     async with session_factory() as session:
         allocations = (await session.execute(select(FundingAllocation))).scalars().all()
         assert allocations == []
@@ -137,12 +155,12 @@ async def test_unauthenticated_funding_rejected(
 
 
 async def test_stripe_funding_via_api_is_rejected(
-    client: AsyncClient, session_factory: async_sessionmaker
+    client: AsyncClient, session_factory: async_sessionmaker, internal_funder
 ) -> None:
     # Stripe funding has no settlement path until 0.7.0, so the create path accepts only native
     # (0.6.2 hardening): an authenticated actor cannot write a `pending` stripe allocation into the
     # public funding history. The model + enum stay so 0.7.0 can activate it.
-    internal_id = await _internal_actor(client)
+    internal_id, _ = await internal_funder(client)
     project_id = await _project(client)
 
     code, body = await _fund(client, project_id, internal_id, amount="250.00", source="stripe")
@@ -154,13 +172,13 @@ async def test_stripe_funding_via_api_is_rejected(
 
 
 async def test_pending_allocation_excluded_from_funded(
-    client: AsyncClient, session_factory: async_sessionmaker
+    client: AsyncClient, session_factory: async_sessionmaker, internal_funder
 ) -> None:
     # The budget counts only *settled* funding toward `funded`/`available`, while `by_status`
     # tallies every status and `by_source` is settled-only. Pending funding is no longer creatable
     # over HTTP (stripe is rejected), so insert a pending allocation directly to exercise the
-    # exclusion the budget read model guarantees.
-    internal_id = await _internal_actor(client)
+    # exclusion the budget read model guarantees. The funder is the Account now (Decision #5).
+    internal_id, account_id = await internal_funder(client)
     project_id = await _project(client)
 
     code, body = await _fund(client, project_id, internal_id, amount="500.00", source="native")
@@ -170,7 +188,7 @@ async def test_pending_allocation_excluded_from_funded(
         session.add(
             FundingAllocation(
                 project_id=UUID(project_id),
-                actor_id=UUID(internal_id),
+                account_id=UUID(account_id),
                 amount=Decimal("250.00"),
                 currency="USD",
                 kind=FundingKind.TOP_UP,
@@ -191,9 +209,9 @@ async def test_pending_allocation_excluded_from_funded(
 
 
 async def test_funding_allocation_is_append_only(
-    client: AsyncClient, session_factory: async_sessionmaker
+    client: AsyncClient, session_factory: async_sessionmaker, internal_funder
 ) -> None:
-    actor_id = await _internal_actor(client)
+    actor_id, _ = await internal_funder(client)
     project_id = await _project(client)
     code, body = await _fund(client, project_id, actor_id, source="native")
     assert code == 201, body
@@ -216,8 +234,10 @@ async def test_funding_allocation_is_append_only(
         assert await session.get(FundingAllocation, allocation_id) is not None
 
 
-async def test_budget_and_overview_reflect_settled_funding(client: AsyncClient) -> None:
-    actor_id = await _internal_actor(client)
+async def test_budget_and_overview_reflect_settled_funding(
+    client: AsyncClient, internal_funder
+) -> None:
+    actor_id, _ = await internal_funder(client)
     project_id = await _project(client)
     await _fund(client, project_id, actor_id, amount="100.00", source="native")
     await _fund(client, project_id, actor_id, amount="50.00", source="native")
@@ -232,15 +252,19 @@ async def test_budget_and_overview_reflect_settled_funding(client: AsyncClient) 
     assert _dec(overview["budget"]["funded"]) == Decimal("150.00")
 
 
-async def test_funding_lists_and_detail(client: AsyncClient) -> None:
-    actor_id = await _internal_actor(client)
+async def test_funding_lists_and_detail(client: AsyncClient, internal_funder) -> None:
+    actor_id, account_id = await internal_funder(client)
     project_id = await _project(client)
     _, body = await _fund(client, project_id, actor_id, source="native")
     allocation_id = body["id"]
 
     listing = await client.get(f"/api/v1/projects/{project_id}/funding")
     assert listing.status_code == 200
-    assert [a["id"] for a in listing.json()] == [allocation_id]
+    rows = listing.json()
+    assert [a["id"] for a in rows] == [allocation_id]
+    # The funder surfaces as the privacy-safe AccountSummary (display_name, no email).
+    assert rows[0]["account"]["id"] == account_id
+    assert "email" not in rows[0]["account"]
 
     detail = await client.get(f"/api/v1/funding/{allocation_id}")
     assert detail.status_code == 200
@@ -248,10 +272,10 @@ async def test_funding_lists_and_detail(client: AsyncClient) -> None:
 
 
 async def test_funding_is_not_contribution_or_validation(
-    client: AsyncClient, session_factory: async_sessionmaker
+    client: AsyncClient, session_factory: async_sessionmaker, internal_funder
 ) -> None:
     """Funder/contributor/validator separation: funding grants budget and nothing else."""
-    actor_id = await _internal_actor(client)
+    actor_id, _ = await internal_funder(client)
     project_id = await _project(client)
     await _fund(client, project_id, actor_id, source="native")
 

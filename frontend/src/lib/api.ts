@@ -86,7 +86,8 @@ function writeInit(body: unknown): RequestInit {
 
 // --- Identity ---------------------------------------------------------------
 
-// The resolved acting actor (incl. roles), driving the identity menu and write gating.
+// The resolved acting actor plus its owning account (roles live on the account in 0.7.0), driving
+// the identity menu and write gating.
 export function getMe(): Promise<Me> {
   return request<Me>("/me");
 }

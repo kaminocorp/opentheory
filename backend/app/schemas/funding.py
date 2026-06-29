@@ -5,7 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.enums import FundingKind, FundingSource, FundingStatus
-from app.schemas.checkpoint import ActorSummary
+from app.schemas.account import AccountSummary
 
 
 class FundingCreate(BaseModel):
@@ -29,8 +29,10 @@ class FundingRead(BaseModel):
 
     id: UUID
     project_id: UUID
-    actor_id: UUID | None
-    actor: ActorSummary | None = None
+    # The funder is the principal (Decision #5); `account` is the privacy-safe AccountSummary
+    # (no email) since the funding read endpoints are public.
+    account_id: UUID | None
+    account: AccountSummary | None = None
     amount: Decimal
     currency: str
     kind: FundingKind

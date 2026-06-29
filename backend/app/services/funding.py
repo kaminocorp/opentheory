@@ -25,11 +25,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.roles import actor_is_internal
+from app.models.account import Account
 from app.models.actor import Actor
 from app.models.enums import FundingSource, FundingStatus
 from app.models.funding import FundingAllocation
 from app.models.project import Project
-from app.schemas.checkpoint import ActorSummary
+from app.schemas.account import AccountSummary
 from app.schemas.funding import FundingCreate, FundingRead, ProjectBudget
 from app.services import contributions
 
@@ -37,12 +38,12 @@ from app.services import contributions
 _DEFAULT_CURRENCY = "USD"
 
 
-def _to_read(allocation: FundingAllocation, actor: ActorSummary | None) -> FundingRead:
+def _to_read(allocation: FundingAllocation, account: AccountSummary | None) -> FundingRead:
     return FundingRead(
         id=allocation.id,
         project_id=allocation.project_id,
-        actor_id=allocation.actor_id,
-        actor=actor,
+        account_id=allocation.account_id,
+        account=account,
         amount=allocation.amount,
         currency=allocation.currency,
         kind=allocation.kind,
@@ -55,16 +56,20 @@ def _to_read(allocation: FundingAllocation, actor: ActorSummary | None) -> Fundi
 
 
 async def _enrich(db: AsyncSession, allocations: list[FundingAllocation]) -> list[FundingRead]:
-    """Resolve funder actors for a set of allocations (one query, no N+1)."""
+    """Resolve funder accounts for a set of allocations (one query, no N+1).
+
+    The funder is the principal (Decision #5); the public funding history shows the privacy-safe
+    ``AccountSummary`` (id + display_name, no email).
+    """
     if not allocations:
         return []
-    actor_ids = {a.actor_id for a in allocations if a.actor_id is not None}
-    actors: dict[UUID, ActorSummary] = {}
-    if actor_ids:
-        rows = await db.execute(select(Actor).where(Actor.id.in_(actor_ids)))
-        actors = {actor.id: ActorSummary.model_validate(actor) for actor in rows.scalars()}
+    account_ids = {a.account_id for a in allocations if a.account_id is not None}
+    accounts: dict[UUID, AccountSummary] = {}
+    if account_ids:
+        rows = await db.execute(select(Account).where(Account.id.in_(account_ids)))
+        accounts = {acc.id: AccountSummary.model_validate(acc) for acc in rows.scalars()}
     return [
-        _to_read(a, actors.get(a.actor_id) if a.actor_id else None) for a in allocations
+        _to_read(a, accounts.get(a.account_id) if a.account_id else None) for a in allocations
     ]
 
 
@@ -101,9 +106,12 @@ async def create_funding(
         FundingStatus.SETTLED if payload.source == FundingSource.NATIVE else FundingStatus.PENDING
     )
 
+    # The funder is the principal (Decision #5): attribute the money to the actor's Account. By the
+    # time we get here the native gate above proved the actor is internal, which requires an
+    # account, so actor.account_id is non-null for any native allocation.
     allocation = FundingAllocation(
         project_id=project_id,
-        actor_id=actor.id,
+        account_id=actor.account_id,
         amount=payload.amount,
         currency=payload.currency,
         kind=payload.kind,

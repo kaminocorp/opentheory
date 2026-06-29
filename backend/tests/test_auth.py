@@ -1,23 +1,28 @@
-"""DB-backed tests for the 0.6.1 verified-identity write path.
+"""DB-backed tests for the verified-identity write path (0.6.1; Account-owns-Actor in 0.7.0).
 
-Covers: JIT provisioning of exactly one ``Actor`` from a verified bearer JWT (idempotent on
-the unique ``external_id``); the ``401`` matrix (missing / malformed / expired / wrong-audience
-token); the ``internal`` role grant from the email allowlist; the dev-header path surviving
-behind ``auth_dev_header_enabled``; and an existing write flow attributing to the JIT actor.
-These run only when a database is configured (see conftest.py); else they skip.
+Covers: JIT provisioning of exactly one ``Account`` **and** its one primary ``human`` ``Actor`` from
+a verified bearer JWT (idempotent on the unique ``accounts.external_id``); the ``401`` matrix
+(missing / malformed / expired / wrong-audience token); the ``internal`` role grant from the email
+allowlist landing on the **account**; the partial unique index (one ``human`` per account); the
+dev-header path surviving behind ``auth_dev_header_enabled``; and an existing write flow attributing
+to the JIT actor. These run only when a database is configured (see conftest.py); else they skip.
 """
 
 import time
+from uuid import UUID
 
 import jwt
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.config import settings
+from app.models.account import Account
 from app.models.actor import Actor
 from app.models.contribution import Contribution
+from app.models.enums import ActorType
 
 # >= 32 bytes so PyJWT's HS256 key-length check stays quiet.
 TEST_SECRET = "test-jwt-secret-please-change-0123456789abcdef"
@@ -79,48 +84,61 @@ async def test_valid_token_jit_provisions_one_actor_and_is_idempotent(
     first = await client.get("/api/v1/me", headers=_bearer(token))
     assert first.status_code == 200, first.text
     body = first.json()
-    assert body["external_id"] == "idp-subject-1"
     assert body["display_name"] == "Ada Lovelace"
     assert body["type"] == "human"
-    assert body["roles"] == []
+    # external_id + roles moved to the nested account (Account-owns-Actor); /me serializes MeRead.
+    assert body["account"]["external_id"] == "idp-subject-1"
+    assert body["account"]["roles"] == []
     actor_id = body["id"]
+    account_id = body["account"]["id"]
 
-    # A second request with the same subject reuses the same actor (no duplicate).
+    # A second request with the same subject reuses the same actor AND account (no duplicate).
     second = await client.get("/api/v1/me", headers=_bearer(token))
     assert second.status_code == 200
     assert second.json()["id"] == actor_id
+    assert second.json()["account"]["id"] == account_id
 
     async with session_factory() as session:
-        rows = (
-            await session.execute(select(Actor).where(Actor.external_id == "idp-subject-1"))
+        # Exactly one Account for the subject, and exactly one human Actor owned by it.
+        accounts = (
+            await session.execute(select(Account).where(Account.external_id == "idp-subject-1"))
         ).scalars().all()
-        assert len(rows) == 1
-        assert str(rows[0].id) == actor_id
-        # Email is captured into actor_metadata (not a column).
-        assert rows[0].actor_metadata.get("email") == "ada@example.com"
+        assert len(accounts) == 1
+        assert str(accounts[0].id) == account_id
+        assert accounts[0].email == "ada@example.com"  # email promoted onto the principal
+
+        actors = (
+            await session.execute(select(Actor).where(Actor.account_id == accounts[0].id))
+        ).scalars().all()
+        assert len(actors) == 1
+        assert str(actors[0].id) == actor_id
+        assert actors[0].type == ActorType.HUMAN
+        # Email is also mirrored into actor_metadata at provision (kept for back-compat).
+        assert actors[0].actor_metadata.get("email") == "ada@example.com"
 
 
 async def test_internal_email_provisions_internal_role(
     client: AsyncClient, auth_settings
 ) -> None:
+    # Roles are granted on the Account now (Decision #4); /me surfaces them under `account`.
     internal = await client.get(
         "/api/v1/me", headers=_bearer(_mint("idp-internal", email=INTERNAL_EMAIL))
     )
     assert internal.status_code == 200
-    assert internal.json()["roles"] == ["internal"]
+    assert internal.json()["account"]["roles"] == ["internal"]
 
     # A different-cased internal email still matches (allowlist compares case-insensitively).
     cased = await client.get(
         "/api/v1/me", headers=_bearer(_mint("idp-internal-2", email=INTERNAL_EMAIL.upper()))
     )
     assert cased.status_code == 200
-    assert cased.json()["roles"] == ["internal"]
+    assert cased.json()["account"]["roles"] == ["internal"]
 
     outsider = await client.get(
         "/api/v1/me", headers=_bearer(_mint("idp-outsider", email="someone@elsewhere.com"))
     )
     assert outsider.status_code == 200
-    assert outsider.json()["roles"] == []
+    assert outsider.json()["account"]["roles"] == []
 
 
 async def test_token_401_matrix(
@@ -192,7 +210,9 @@ async def test_dev_header_path_survives_behind_flag(
     )
     assert actor.status_code == 201, actor.text
     actor_id = actor.json()["id"]
-    assert actor.json()["roles"] == []
+    # A bare dev actor is account-less (Decision #8): roles moved to the account, so a dev actor
+    # has no principal unless explicitly linked to one.
+    assert actor.json()["account_id"] is None
 
     project_id = await _project(client, slug="dev-header-project")
     thread = await client.post(
@@ -213,11 +233,50 @@ async def test_actor_bootstrap_disabled_when_flag_off(
     assert resp.status_code == 404
 
 
-async def test_dev_bootstrap_can_seed_internal_role(client: AsyncClient) -> None:
-    # The dev bootstrap may seed roles directly (used by the funding tests in 0.6.3).
-    resp = await client.post(
-        "/api/v1/actors",
-        json={"type": "human", "display_name": "Insider", "roles": ["internal"]},
+async def test_dev_bootstrap_account_grants_internal_role_via_me(client: AsyncClient) -> None:
+    # The dev bootstrap builds an internal funder the Account-owns-Actor way: roles live on the
+    # Account, and a linked dev actor inherits the principal. /me (dev-header path) surfaces the
+    # nested account, so the internal role is visible exactly where the funding gate reads it.
+    acct = await client.post(
+        "/api/v1/accounts", json={"display_name": "Insider", "roles": ["internal"]}
     )
-    assert resp.status_code == 201, resp.text
-    assert resp.json()["roles"] == ["internal"]
+    assert acct.status_code == 201, acct.text
+    assert acct.json()["roles"] == ["internal"]
+    account_id = acct.json()["id"]
+
+    actor = await client.post(
+        "/api/v1/actors",
+        json={"type": "human", "display_name": "Insider", "account_id": account_id},
+    )
+    assert actor.status_code == 201, actor.text
+    assert actor.json()["account_id"] == account_id
+
+    me = await client.get("/api/v1/me", headers={"X-Dev-Actor-Id": actor.json()["id"]})
+    assert me.status_code == 200, me.text
+    assert me.json()["account"]["roles"] == ["internal"]
+
+
+async def test_one_human_actor_per_account_is_enforced(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    # Decision #7: a partial unique index (actors.account_id WHERE type='HUMAN') allows at most one
+    # primary human Actor per Account; `agent` actors are unconstrained. The index is declared on
+    # the model, so create_all (the test schema) installs it exactly as migration 0006 does.
+    acct = await client.post("/api/v1/accounts", json={"display_name": "Org", "roles": []})
+    assert acct.status_code == 201, acct.text
+    account_id = UUID(acct.json()["id"])
+
+    async with session_factory() as session:
+        session.add(Actor(type=ActorType.HUMAN, display_name="First", account_id=account_id))
+        await session.commit()
+
+    # A second human on the same account violates the partial unique index.
+    async with session_factory() as session:
+        session.add(Actor(type=ActorType.HUMAN, display_name="Second", account_id=account_id))
+        with pytest.raises(IntegrityError):
+            await session.commit()
+
+    # An `agent` actor on the same account is fine (the predicate is type='HUMAN').
+    async with session_factory() as session:
+        session.add(Actor(type=ActorType.AGENT, display_name="Agent", account_id=account_id))
+        await session.commit()  # no error

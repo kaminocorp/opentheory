@@ -5,11 +5,13 @@ from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import contains_eager, joinedload
 
 from app.core.auth import AuthError, VerifiedIdentity, verify_bearer_token
 from app.core.config import settings
 from app.core.roles import INTERNAL_ROLE, actor_is_internal
 from app.db.session import get_db
+from app.models.account import Account
 from app.models.actor import Actor
 from app.models.enums import ActorType
 
@@ -27,33 +29,51 @@ def _bearer_token(authorization: str | None) -> str | None:
 
 
 async def _resolve_or_provision(db: AsyncSession, identity: VerifiedIdentity) -> Actor:
-    """Map a verified identity to exactly one ``Actor`` by ``external_id``, JIT-provisioning.
+    """Map a verified identity to its primary ``human`` ``Actor`` via the owning ``Account``.
 
-    Idempotent on the unique ``external_id``: a concurrent first-login for the same subject
-    that loses the insert race is recovered by re-reading the row the winner committed.
+    The auth *principal* is the ``Account`` (Account-owns-Actor): ``external_id`` (the JWT ``sub``)
+    and ``roles`` live there now. We resolve by joining the Account on ``external_id == sub`` and
+    selecting its ``human`` actor, eager-loading ``account`` (``contains_eager``) so role/money
+    checks (``require_internal``, funding) read ``actor.account`` synchronously — no async
+    lazy-load. On first login we create the Account **and** its one primary human Actor in a single
+    transaction (one ``commit``, so neither can orphan). Idempotent on the unique
+    ``accounts.external_id``: a concurrent first-login that loses the insert race re-reads the
+    winner's Account → primary Actor.
     """
-    result = await db.execute(select(Actor).where(Actor.external_id == identity.subject))
-    actor = result.scalar_one_or_none()
+    stmt = (
+        select(Actor)
+        .join(Account, Actor.account_id == Account.id)
+        .options(contains_eager(Actor.account))
+        .where(Account.external_id == identity.subject, Actor.type == ActorType.HUMAN)
+    )
+    actor = (await db.execute(stmt)).scalar_one_or_none()
     if actor is not None:
         return actor
 
     email = identity.email
     is_internal = bool(email) and email.lower() in settings.internal_actor_emails
+    account = Account(
+        external_id=identity.subject,
+        display_name=identity.display_name or identity.subject,
+        email=email,
+        roles=[INTERNAL_ROLE] if is_internal else [],
+    )
     actor = Actor(
         type=ActorType.HUMAN,
         display_name=identity.display_name or identity.subject,
-        external_id=identity.subject,
+        account=account,  # ORM sets actor.account_id on flush; account stays loaded on the actor
         actor_metadata={"email": email} if email else {},
-        roles=[INTERNAL_ROLE] if is_internal else [],
     )
+    db.add(account)
     db.add(actor)
     try:
         await db.commit()
     except IntegrityError:
         await db.rollback()
-        result = await db.execute(select(Actor).where(Actor.external_id == identity.subject))
-        return result.scalar_one()
-    await db.refresh(actor)
+        return (await db.execute(stmt)).scalar_one()
+    # No db.refresh: id/timestamps are Python-side defaults and `expire_on_commit=False` keeps the
+    # in-memory graph (incl. actor.account) populated, so refreshing would only risk expiring the
+    # eager-loaded account into an async lazy-load.
     return actor
 
 
@@ -75,7 +95,14 @@ async def _resolve_dev_actor(db: AsyncSession, x_dev_actor_id: str | None) -> Ac
             detail="X-Dev-Actor-Id must be a valid UUID",
         ) from exc
 
-    actor = await db.get(Actor, actor_id)
+    # Eager-load `account` (a dev actor may be linked to a bootstrap Account for funding tests):
+    # role/`/me` checks read `actor.account` synchronously, and a bare lazy-load would raise
+    # MissingGreenlet under async. An account-less dev actor short-circuits to None (many-to-one
+    # with a NULL FK never queries), so this is safe either way.
+    result = await db.execute(
+        select(Actor).options(joinedload(Actor.account)).where(Actor.id == actor_id)
+    )
+    actor = result.scalar_one_or_none()
     if actor is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -91,8 +118,9 @@ async def get_acting_actor(
 ) -> Actor:
     """Resolve the acting actor from a verified bearer JWT (0.6.0).
 
-    A verified token maps to exactly one ``Actor`` by ``external_id == sub``, JIT-provisioned
-    on first login. The ``ActingActor`` *contract* (a resolved ``Actor``) is unchanged — only
+    A verified token maps to its owning ``Account`` by ``Account.external_id == sub`` and returns
+    that account's primary ``human`` ``Actor``, JIT-provisioning both on first login (0.7.0
+    Account-owns-Actor). The ``ActingActor`` *contract* (a resolved ``Actor``) is unchanged — only
     this resolution changed, so every downstream service is untouched.
 
     When ``auth_dev_header_enabled`` is set (local + tests), a request *without* a bearer token

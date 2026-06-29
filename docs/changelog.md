@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.7.0` — **`Account` owns `Actor`** — the opening (identity) slice of `0.7.0`. Introduces an **`Account`** (the authentication *principal*, one per Supabase `auth.users` login) that **owns** one or more **`Actor`s** (the provenance identities the ledger attributes to), and relocates three principal-level concerns onto it: **`external_id`** (the IdP `sub`, the key auth resolves on), **`roles`** (`internal` gates native funding — authorization describes the principal, Decision #4), and **funding attribution** (`FundingAllocation.actor_id → account_id` — money comes from the thing with a payment method, Decision #5). Research provenance FKs (`Checkpoint.author_id`, `Contribution.actor_id`, `Validation.actor_id`) and the **`ActingActor` contract** (still a resolved `Actor`) are **unchanged** — only `_resolve_or_provision` changed (resolve the Account, return its primary human Actor with `account` eager-loaded). The `fund` `Contribution` stays actor-attributed (the act vs. the money). Adds migration **`0006_accounts`** (destructive: drops `actors.external_id`, `actors.roles`, `funding_allocations.actor_id`; one `human` per account via a partial unique index), a dev-gated `/accounts` bootstrap, and a nested `account` on `/me`. The live-data audit (re-run GREEN at cutover) is the gate; the migration ships via Fly's `release_command` on `fly deploy`. Backend ruff clean, DB-free suite **12 passed / 47→49 skipped** (DB-backed assertions written, exercised on the live DB at cutover); frontend `typecheck` / `lint` / `build` green (6/6 routes). **Remaining step: the `fly deploy` cutover (applies `0006` + ships the backend) + Vercel redeploy.**
 - `0.6.10` — Post-review polish on the `0.6.9` email + password sign-in (no backend, schema, API, or migration). An independent re-audit confirmed the **frontend-only / backend-blind** claim against source — the JWT verifier asserts only signature/audience/`exp`/`sub` and never reads `amr`/`aal`, so a password session is byte-indistinguishable from a magic-link one — and reproduced the build gates, then closed three auth-form hygiene gaps in the new menu markup: the plaintext **password lingered in component state** and re-displayed after sign-out (now cleared on success *and* on sign-out), the primary "Sign in" had **no in-flight guard** (now uses `Action`'s `pending` prop + a re-entry guard, blocking double-submit), and the **error line wasn't announced** to assistive tech (now `role="alert"`, matching the `awaiting-state` a11y idiom). Frontend `typecheck` / `lint` / `build` green (6/6 routes, bundle byte-identical); backend untouched (`9 passed, 47 skipped`).
 - `0.6.9` — **Email + password sign-in**, now the primary method. A correct credential signs in **in-band** (no email round-trip, no redirect) by authenticating against existing Supabase `auth.users` rows; magic-link and Google are **retained** below it. Frontend-only: the backend verifies a Supabase session JWT and is blind to *how* the session was obtained, so **no** backend, schema, API, or migration change (the `ActingActor` contract, JIT-provisioning, and `internal`-role logic apply verbatim). Two files change — `auth-provider.tsx` exposes `signInWithPassword`, `auth-menu.tsx` leads with the password form. The only non-code step is the out-of-band Supabase prereq (admin-provision users with passwords). Frontend `typecheck` / `lint` / `build` green (6/6 routes); backend untouched (`9 passed, 47 skipped`).
 - `0.6.8` — Post-review hardening on the `0.6.x` auth/funding + Kamino slice (no features, schema, or migration). An independent re-audit verified the security/money core (HS256-pinned JWT, the actor PII gate, native-only/internal-gated funding, single-chokepoint atomicity) sound, then closed the punch-list it surfaced: a **recurrence** of the `cn`-no-`tailwind-merge` footgun in the branch-bar Fork toggle (which falsifies `0.6.7`'s "last footgun closed" claim), the conftest prod-wipe guard's empty/uppercase-host hole, and three untested security controls now defended in the **default DB-free suite** (the actor PII-leak gate had *zero* tests). Adds a hermetic `dbfree_client` fixture so a guard regression fails at the session boundary instead of connecting to the live DB; mutation-tested. (`9 passed, 47 skipped`; frontend `typecheck` / `lint` / `build` green.)
@@ -27,6 +28,88 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.7.0
+
+**`Account` owns `Actor`** — the opening, *identity* slice of `0.7.0` (Agent-Ready Execution
+Surface). It does **not** ship agent execution; it lays the principal/provenance split that agent
+ownership and real money require, pulled ahead of agent work as its own schema release (per the
+proposal's `docs/executing/account-owns-actor.md`, executed through
+`docs/executing/account-owns-actor-implementation-plan.md`; per-phase notes in
+`docs/completions/account-owns-actor/`).
+
+### The change (what moved, what didn't)
+
+A new **`Account`** (`public.accounts`) is the authentication *principal* — one per `auth.users`
+login — that **owns** one or more **`Actor`s**. Three principal-level concerns move up onto it:
+
+- **`external_id`** (the IdP `sub`) — the unique key auth resolves on. The unique constraint moves
+  to `accounts.external_id`; `actors.external_id` is dropped (Decision #3).
+- **`roles`** — authorization describes the *principal*, not a single action identity, so `internal`
+  (which gates native funding) lives on `accounts.roles`; `actors.roles` is dropped (Decision #4).
+- **funding attribution** — `FundingAllocation.actor_id → account_id` (FK `accounts.id`): money
+  comes from the thing that holds a payment method (Decision #5). This is the **one** ledger FK that
+  moves.
+
+**Unchanged (audited):** research provenance stays on `Actor` — `Checkpoint.author_id`,
+`Contribution.actor_id`, `Validation.actor_id` still point at `actors.id`; the **`fund` Contribution
+stays actor-attributed** (the *act* vs. the *money*); `core/auth.py` still maps a JWT to
+`VerifiedIdentity` (the `sub` now lands on the Account, but the verifier neither knows nor cares);
+and the **`ActingActor` contract is identical** — `get_acting_actor` still returns a resolved
+`Actor`. Only `_resolve_or_provision` changed: on first login it creates the **Account + its one
+primary `human` Actor** in a single transaction, keyed on `accounts.external_id`, with `account`
+eager-loaded (`contains_eager`) so role/money checks read `actor.account` synchronously.
+
+### Schema & migration (`0006_accounts`)
+
+New `accounts` table (`external_id` unique/nullable, `display_name`, `email`, `roles` ARRAY,
+`account_metadata`); `actors.account_id` FK (`ON DELETE SET NULL`, nullable — `system`/dev actors
+are account-less, Decision #8/#9); `funding_allocations.account_id`. A **partial unique index**
+`uq_actors_one_human_per_account ON actors(account_id) WHERE type='HUMAN'` enforces one primary
+`human` per account (Decision #7) — declared on the model too, so the test harness's `create_all`
+builds it identically to the migration. The migration is **destructive** (drops the three relocated
+columns) and **hand-authored** (the backfills aren't autogeneratable): it backfills accounts from
+existing human actors, links them, moves funding attribution, then drops. Enum labels are
+**uppercase** (`'HUMAN'` — this DB's named enums use StrEnum member names; lowercase errors). Backend
+code and migration **ship together** (old code reading `actors.roles` breaks the instant the column
+is gone).
+
+### API surface
+
+`/me` now returns `MeRead` — the actor plus a nested `account` (`AccountRead`: external_id / email /
+roles), authenticated so a caller sees only their **own** principal's PII. A new **dev-gated**
+`POST`/`GET /accounts` bootstrap lets tests build an internal funder without seeding; it inherits the
+`0.6.1` PII gate (`AccountRead` carries the email-harvest class, which moved with the fields). The
+funding read carries a privacy-safe `AccountSummary` (no email). Frontend: `Me` carries a nested
+`account`, `isInternal` reads `me.account.roles`, and the funding history shows the account as funder
+— the `useActingIdentity` hook's public shape is unchanged, so the consuming components don't change.
+
+### Verification (reproduced where it doesn't need a DB)
+
+- **Phase 0 live-data audit (gate, passed):** every backfill precondition holds on the live DB
+  (no human actor with NULL/duplicate `external_id`; no agent/system carrying a `sub`; no non-human
+  funder). The live `actors`/`funding_allocations` tables are **empty** today, so the backfill moves
+  0 rows — re-run the audit at the cutover window.
+- **Backend:** `ruff` clean; DB-free suite **12 passed / 49 skipped** (was 9 / 47 — three new DB-free
+  gate tests for `/accounts` + the no-acting-actor carve-out; two new DB-backed tests collect and
+  skip without Postgres). DB-backed assertions (JIT mints one Account+Actor; the partial unique index
+  fires; native funding attributes the allocation to the account while the `fund` contribution stays
+  actor-attributed; budget output unchanged) are written and run on a throwaway DB at A9.1.
+- **Frontend:** `typecheck` / `lint` / `build` green; **6/6** routes generate.
+
+### Still gating the production push
+
+- **Cutover via `fly deploy`** (from `backend/`): the Fly `release_command` runs `alembic upgrade
+  head`, applying `0006` to the prod DB immediately before the new backend serves — code + migration
+  ship together (old code reads `actors.roles`, so the migration must **not** be applied ahead of the
+  deploy). The pre-cutover prod audit is **GREEN** (live `actors`/`funding` still empty → the
+  destructive backfill is a no-op, zero data-loss risk). Then **redeploy Vercel** (the new types /
+  `NEXT_PUBLIC_*` are baked at build).
+- **Live verification:** sign in → `/me` returns the nested `account`; the identity menu shows the
+  internal badge for an allowlisted email; an internal user funds a project (allocation/budget
+  reflect it); a non-internal user is `403`'d.
 
 ---
 

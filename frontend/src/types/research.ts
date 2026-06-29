@@ -7,16 +7,37 @@ export type Actor = {
   id: string;
   type: ActorType;
   display_name: string;
-  external_id: string | null;
+  // The owning principal (0.7.0, Account-owns-Actor); null for system/dev/unlinked actors.
+  // `external_id` and `roles` moved to the Account.
+  account_id: string | null;
   actor_metadata: Record<string, unknown>;
-  // Queryable authorization roles (0.6.1); `internal` (Kamino) gates native funding.
+  created_at: string;
+  updated_at: string;
+};
+
+// The authentication principal (0.7.0) that owns actors. Holds the IdP subject, contact email, and
+// queryable authorization `roles` (`internal` gates native funding). Mirrors the backend AccountRead.
+export type Account = {
+  id: string;
+  external_id: string | null;
+  display_name: string;
+  email: string | null;
   roles: string[];
   created_at: string;
   updated_at: string;
 };
 
-// GET /me — the resolved acting actor (incl. roles), driving the identity menu + write gating.
-export type Me = Actor;
+// Privacy-safe funder identity (no email/roles), mirroring the backend AccountSummary.
+export type AccountSummary = {
+  id: string;
+  display_name: string;
+};
+
+// GET /me — the resolved acting actor plus its owning account (roles/email), driving the identity
+// menu + write gating. Mirrors the backend MeRead.
+export type Me = Actor & {
+  account: Account | null;
+};
 
 export type ThreadStage =
   | "decompose"
@@ -290,8 +311,9 @@ export type FundingStatus = "pending" | "settled" | "failed" | "refunded";
 export type Funding = {
   id: string;
   project_id: string;
-  actor_id: string | null;
-  actor: ActorSummary | null;
+  // The funder is the principal (0.7.0, Decision #5); `account` is the privacy-safe AccountSummary.
+  account_id: string | null;
+  account: AccountSummary | null;
   amount: string;
   currency: string;
   kind: FundingKind;

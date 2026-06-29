@@ -51,7 +51,9 @@ export function useActingIdentity(): ActingIdentity {
     staleTime: 60_000,
   });
   const me = meQuery.data ?? null;
-  const roles = me?.roles ?? [];
+  // Roles live on the owning account now (0.7.0, Account-owns-Actor); /me nests it. The hook's
+  // public shape ({ roles, isInternal, ... }) is unchanged, so consumers don't change.
+  const roles = me?.account?.roles ?? [];
 
   // Identity is "settled" once auth + dev hydration finish and — when a credential is present —
   // the backend actor has resolved (success or error). Gating the sign-in hint on this avoids a

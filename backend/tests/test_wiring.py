@@ -37,6 +37,9 @@ def test_new_paths_exist() -> None:
     paths = _openapi_paths()
     assert "post" in paths["/api/v1/actors"]
     assert "get" in paths["/api/v1/actors"]
+    # The dev-gated account bootstrap (0.7.0, Account-owns-Actor).
+    assert "post" in paths["/api/v1/accounts"]
+    assert "get" in paths["/api/v1/accounts"]
     assert "get" in paths["/api/v1/projects/{project_id}/threads"]
     assert "get" in paths["/api/v1/threads/{thread_id}"]
     assert "get" in paths["/api/v1/claims/{claim_id}"]
@@ -74,5 +77,15 @@ def test_actor_create_takes_no_acting_actor() -> None:
     # the path that *mints* actors). So the route must declare no acting-actor header.
     paths = _openapi_paths()
     params = paths["/api/v1/actors"]["post"].get("parameters", [])
+    header_names = {p["name"].lower() for p in params if p["in"] == "header"}
+    assert "x-dev-actor-id" not in header_names
+
+
+def test_account_create_takes_no_acting_actor() -> None:
+    # Like /actors, the /accounts bootstrap is gated by the dev flag, not an acting actor: in
+    # production it 404s (see test_actors.py), and behind the flag it mints accounts directly, so
+    # the route must declare no acting-actor header.
+    paths = _openapi_paths()
+    params = paths["/api/v1/accounts"]["post"].get("parameters", [])
     header_names = {p["name"].lower() for p in params if p["in"] == "header"}
     assert "x-dev-actor-id" not in header_names
