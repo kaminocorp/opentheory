@@ -91,8 +91,9 @@ export function CheckpointTimelinePanel({
         }
         count={checkpointsQuery.data ? checkpoints.length : undefined}
         band
+        // Write affordance: shown only to a signed-in actor, and never on a sealed line.
         actions={
-          lineSealed ? undefined : (
+          !lineSealed && canWrite ? (
             <button
               type="button"
               onClick={() => setAdding((v) => !v)}
@@ -103,7 +104,7 @@ export function CheckpointTimelinePanel({
             >
               <Icon icon={adding ? X : Plus} size={14} />
             </button>
-          )
+          ) : undefined
         }
       />
 
@@ -245,16 +246,18 @@ export function CheckpointTimelinePanel({
                 </div>
 
                 <div className="mt-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setValidatingId((current) => (current === checkpoint.id ? null : checkpoint.id))
-                    }
-                    className="inline-flex items-center gap-1.5 text-[12px] font-medium text-text-mute transition-colors hover:text-signal"
-                  >
-                    <Icon icon={ShieldCheck} size={14} />
-                    {validatingId === checkpoint.id ? "Cancel" : "Validate"}
-                  </button>
+                  {canWrite ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setValidatingId((current) => (current === checkpoint.id ? null : checkpoint.id))
+                      }
+                      className="inline-flex items-center gap-1.5 text-[12px] font-medium text-text-mute transition-colors hover:text-signal"
+                    >
+                      <Icon icon={ShieldCheck} size={14} />
+                      {validatingId === checkpoint.id ? "Cancel" : "Validate"}
+                    </button>
+                  ) : null}
                   {validatingId === checkpoint.id ? (
                     <RecordValidationForm
                       projectId={projectId}

@@ -64,17 +64,20 @@ export function ThreadListPanel({
         }
         count={threadsQuery.data ? threads.length : undefined}
         band
+        // Write affordance: shown only to a signed-in actor (read-only otherwise).
         actions={
-          <button
-            type="button"
-            onClick={() => setAdding((v) => !v)}
-            className="grid size-7 place-items-center rounded-full text-text-mute transition-colors hover:text-text"
-            style={{ border: "0.5px solid var(--hairline-strong)" }}
-            aria-label={adding ? "Cancel new thread" : "New thread"}
-            title={adding ? "Cancel" : "New thread"}
-          >
-            <Icon icon={adding ? X : Plus} size={14} />
-          </button>
+          canWrite ? (
+            <button
+              type="button"
+              onClick={() => setAdding((v) => !v)}
+              className="grid size-7 place-items-center rounded-full text-text-mute transition-colors hover:text-text"
+              style={{ border: "0.5px solid var(--hairline-strong)" }}
+              aria-label={adding ? "Cancel new thread" : "New thread"}
+              title={adding ? "Cancel" : "New thread"}
+            >
+              <Icon icon={adding ? X : Plus} size={14} />
+            </button>
+          ) : undefined
         }
       />
 

@@ -27,13 +27,13 @@ import {
  * measured field, for eyeballing the system and running the §0 grayscale test
  * cheaply (devtools → Rendering → emulate `grayscale`).
  *
- * Gated behind NEXT_PUBLIC_AUTH_DEV so it never ships in production. NOTE: this is
+ * Gated to non-production builds so it never ships in production. NOTE: this is
  * a normal `styleguide/` route (NOT `_styleguide/`) on purpose — App Router treats
  * `_`-prefixed folders as PRIVATE and excludes them from routing, which would make
- * the page unreachable. View it with: NEXT_PUBLIC_AUTH_DEV=true npm run dev → /styleguide
+ * the page unreachable. View it locally with: npm run dev → /styleguide
  */
 export default function StyleguidePage() {
-  if (process.env.NEXT_PUBLIC_AUTH_DEV !== "true") {
+  if (process.env.NODE_ENV === "production") {
     notFound();
   }
 

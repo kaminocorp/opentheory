@@ -3,7 +3,6 @@ import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import type { ReactNode } from "react";
 
 import { AuthProvider } from "@/providers/auth-provider";
-import { DevActorProvider } from "@/providers/dev-actor-provider";
 import { QueryProvider } from "@/providers/query-provider";
 
 import "./globals.css";
@@ -39,9 +38,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
     <html lang="en" className={`${plexSans.variable} ${plexMono.variable}`}>
       <body>
         <QueryProvider>
-          <AuthProvider>
-            <DevActorProvider>{children}</DevActorProvider>
-          </AuthProvider>
+          <AuthProvider>{children}</AuthProvider>
         </QueryProvider>
       </body>
     </html>

@@ -1,7 +1,5 @@
 import type { Project, ProjectCreate } from "@/types/project";
 import type {
-  Actor,
-  ActorCreate,
   Branch,
   BranchClose,
   BranchCreate,
@@ -26,28 +24,18 @@ import type {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
 
-// Header carrying the acting dev actor (dev mode only — NEXT_PUBLIC_AUTH_DEV).
-const DEV_ACTOR_HEADER = "X-Dev-Actor-Id";
-
-// The acting credential is held module-side and kept in sync by the providers, so the typed
-// api functions stay plain (no actor/token argument threaded through every call). In
-// production the AuthProvider pushes the verified bearer token here; in dev mode the
-// DevActorProvider pushes the selected actor id. `request` attaches whichever is set.
+// The acting credential is held module-side and kept in sync by the AuthProvider, so the typed
+// api functions stay plain (no token argument threaded through every call). The AuthProvider
+// pushes the verified Supabase bearer token here; `request` attaches it when present. Without a
+// token, reads still succeed (the backend serves them publicly) and writes are rejected with 401.
 let accessToken: string | null = null;
-let devActorId: string | null = null;
 
 export function setAccessToken(token: string | null): void {
   accessToken = token;
 }
 
-export function setDevActorId(actorId: string | null): void {
-  devActorId = actorId;
-}
-
 function authHeaders(): Record<string, string> {
-  if (accessToken) return { Authorization: `Bearer ${accessToken}` };
-  if (devActorId) return { [DEV_ACTOR_HEADER]: devActorId };
-  return {};
+  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -109,16 +97,6 @@ export function getProject(projectId: string): Promise<Project> {
 
 export function getProjectOverview(projectId: string): Promise<ProjectOverview> {
   return request<ProjectOverview>(`/projects/${projectId}/overview`);
-}
-
-// --- Actors (dev identity; bootstrap is behind the backend dev flag) ---------
-
-export function listActors(): Promise<Actor[]> {
-  return request<Actor[]>("/actors");
-}
-
-export function createActor(payload: ActorCreate): Promise<Actor> {
-  return request<Actor>("/actors", { method: "POST", body: JSON.stringify(payload) });
 }
 
 // --- Threads ----------------------------------------------------------------

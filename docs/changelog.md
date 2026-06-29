@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.7.2` — **Public read-only view + dev-actor switcher removed.** Write affordances (e.g. "New project") are hidden unless signed in; everything stays publicly readable. Deletes the legacy `X-Dev-Actor-Id` dev-actor subsystem and the `NEXT_PUBLIC_AUTH_DEV` flag (the footgun behind the `0.7.0` "Could not load actors" leak).
 - `0.7.1` — **Auth verification fix: ES256/JWKS replaces HS256.** Supabase now signs sessions with ES256 (asymmetric) and the backend had no JWT secret configured, so every authenticated request `401`'d — blocking project creation. The verifier now fetches the project's JWKS public key by `kid`. No schema or migration.
 - `0.7.0` — **`Account` owns `Actor`**: a new auth-principal `Account` takes over `external_id`, `roles`, and funding attribution; `Actor` keeps research provenance and the `ActingActor` contract. Migration `0006_accounts` (destructive).
 - `0.6.10` — Post-review polish on `0.6.9`: clears the plaintext password from component state on success/sign-out, guards the submit against double-fire, and announces sign-in errors to assistive tech. No backend, schema, or migration.
@@ -29,6 +30,71 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.7.2
+
+**Public read-only view + dev-actor switcher removed.** A frontend-only follow-up to the `0.7.1`
+auth fix, closing out the two issues the original Fly-logs investigation surfaced: the stray
+"Select actor" dropdown (with its "Could not load actors" error) and the fact that write
+affordances were reachable while logged out. The product is now an **open, read-only public
+browser** of the ledger that gates **every** write behind a real Supabase sign-in. No backend,
+schema, or migration; the backend was already the authoritative gate (it `401`s unattributed
+writes) — this aligns the UI with that posture.
+
+### (A) The dev-actor subsystem is gone — not just hidden
+
+The "Select actor" dropdown was the `0.3.x` `X-Dev-Actor-Id` stopgap: before real auth, you
+*picked* which `Actor` you were acting as and the id rode on a request header. Real auth (`0.6.0`,
+fixed in `0.7.1`) made it obsolete, and the `NEXT_PUBLIC_AUTH_DEV` flag that gated it was exactly
+the misconfiguration that leaked the switcher into production (it was `true` on Vercel) and drove
+the `GET /actors → 404` "Could not load actors" banner. Rather than re-hide it behind the flag,
+the whole path is removed so the footgun can't recur:
+
+- **Deleted** `components/shell/dev-actor-switcher.tsx` and `providers/dev-actor-provider.tsx`.
+- **`lib/api.ts`** — dropped the `X-Dev-Actor-Id` header, the module-side `devActorId` +
+  `setDevActorId`, and the `listActors` / `createActor` client functions (only the switcher used
+  them). `authHeaders()` now attaches the Supabase bearer token or nothing.
+- **`lib/use-identity.ts`** — removed the `AUTH_DEV` flag, the `useDevActor` dependency, and the
+  `isDev` credential branch. `canWrite` is now simply `isAuthed && /me-resolved`, and the `/me`
+  query is `enabled: isAuthed`, so a logged-out visitor never calls `/me` (clean public reads, no
+  `401` noise). `signInHint` is the constant "Sign in to contribute".
+- **`app/layout.tsx`** (dropped `DevActorProvider`), **`shell/app-shell.tsx`** (removed the
+  switcher slot), **`lib/query-keys.ts`** (removed the `actors` key), and the stale dev-mode
+  comments in `auth-menu.tsx` / `supabase.ts`.
+- **`app/styleguide/page.tsx`** — re-gated from `NEXT_PUBLIC_AUTH_DEV` to
+  `NODE_ENV === "production"` (it never imported the switcher), so it stays a dev-only route
+  without the removed flag.
+
+### (B) Write affordances are hidden unless signed in (clean read-only public view)
+
+Write *submits* were already `canWrite`-gated, but the *entry* affordances (the toggles that open
+the create forms) were always clickable — a logged-out visitor could open the "New project" form
+and only hit a disabled submit. Each entry toggle is now rendered only when `canWrite`, so a
+logged-out (or unresolved) visitor sees a complete, **read-only** surface and the header "Sign in"
+is the single path to contribute. Gated toggles: **New project** (`projects-section`), **New
+thread** (`thread-list-panel`), **New claim** + **Attach evidence** + **Validate claim**
+(`claim-list-panel`), **New checkpoint** + **Validate checkpoint** (`checkpoint-timeline-panel`),
+and **Fork** / **Close branch** (`branch-bar`). Funding's "Fund project" toggle was already
+`isInternal`-gated (which implies signed-in), so it needed no change; all read surfaces (project
+lists, claims, checkpoints, budget, funding history) remain public. The branch bar's now-orphaned
+bay-level "sign in to fork" hint was removed for consistency (the other panels' hints live inside
+forms that no longer open when logged out).
+
+### Verification
+
+- **Frontend:** `npm run typecheck` / `lint` / `build` all green; **6/6** routes generate
+  (`/styleguide` now builds as a production `404`, reachable only via `npm run dev`).
+- **Not reproduced here:** the in-browser logged-out-vs-signed-in pass (needs the deployed
+  Supabase) — the post-deploy live check.
+
+### Deploy
+
+- **Redeploy Vercel** (frontend-only). This change makes the `0.7.1` "set `NEXT_PUBLIC_AUTH_DEV=
+  false`" step moot — the flag no longer exists, so the switcher cannot reappear regardless of
+  Vercel env. No Fly redeploy needed for this slice (the `0.7.1` backend deploy still gates the
+  overall push).
 
 ---
 

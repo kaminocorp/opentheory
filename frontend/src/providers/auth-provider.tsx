@@ -10,7 +10,7 @@ import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase";
 // Real identity (0.6.2): Supabase Auth issues the session JWT; this provider tracks the
 // session and pushes its access token into the api client (lib/api.ts) so every request
 // carries `Authorization: Bearer <token>`. When Supabase is not configured the provider is
-// inert (session stays null) and the app runs in dev mode (NEXT_PUBLIC_AUTH_DEV).
+// inert (session stays null) and the app is a public, read-only view until sign-in.
 
 type SignInResult = { error: string | null };
 

@@ -9,8 +9,8 @@ import { useActingIdentity } from "@/lib/use-identity";
 import { useAuth } from "@/providers/auth-provider";
 
 // The real-auth identity surface (0.6.2): signed-in name + roles + sign-out, or a sign-in
-// dropdown. Renders nothing when Supabase is not configured — in that case local work uses
-// the dev-actor switcher instead.
+// dropdown. Renders nothing when Supabase is not configured — the app is then a public,
+// read-only view (Supabase sign-in is the only write credential).
 //
 // 0.6.9: email + password is now the primary sign-in path (resolves a session in-band, no
 // email round-trip); magic-link and Google are retained as secondary options below it. The
@@ -39,7 +39,7 @@ export function AuthMenu() {
     return () => document.removeEventListener("mousedown", onClick);
   }, [open]);
 
-  // Without Supabase configured there is no real auth to show; dev mode uses DevActorSwitcher.
+  // Without Supabase configured there is no sign-in to show; the app stays read-only.
   if (!isConfigured) return null;
   if (loading) {
     return <span className="px-2 text-[13px] text-text-mute">…</span>;

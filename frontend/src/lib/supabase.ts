@@ -6,8 +6,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-// Whether real auth is wired. When false, the app still builds and runs in dev mode
-// (NEXT_PUBLIC_AUTH_DEV) against the backend's X-Dev-Actor-Id path.
+// Whether real auth is wired. When false, the AuthProvider is inert (no session) and the app
+// runs as a public, read-only view — every write affordance is hidden until sign-in.
 export const isSupabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
 let browserClient: SupabaseClient | null = null;

@@ -49,7 +49,7 @@ type BranchBarProps = {
 // D4 re-skin: console tokens + primitives only. Every hook, mutation, and the
 // fork/close write flows below are unchanged — presentation, not behaviour.
 export function BranchBar({ projectId, selectedBranchId, onSelectBranch }: BranchBarProps) {
-  const { canWrite, hydrated, signInHint } = useActingIdentity();
+  const { canWrite } = useActingIdentity();
   const queryClient = useQueryClient();
   const [forking, setForking] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -113,33 +113,36 @@ export function BranchBar({ projectId, selectedBranchId, onSelectBranch }: Branc
           })
         )}
 
-        <div className="ml-auto flex items-center gap-2">
-          <ActionGhost
-            size="sm"
-            onClick={() => {
-              setForking((v) => !v);
-              setClosing(false);
-            }}
-            className="h-7"
-          >
-            <Icon icon={forking ? X : GitFork} size={14} />
-            {forking ? "Cancel" : "Fork"}
-          </ActionGhost>
-
-          {selectedBranch && selectedBranch.status === "open" ? (
-            <button
-              type="button"
+        {/* Write affordances: fork/close are shown only to a signed-in actor (read-only otherwise). */}
+        {canWrite ? (
+          <div className="ml-auto flex items-center gap-2">
+            <ActionGhost
+              size="sm"
               onClick={() => {
-                setClosing((v) => !v);
-                setForking(false);
+                setForking((v) => !v);
+                setClosing(false);
               }}
-              className="inline-flex h-7 items-center rounded-full px-3 text-[12px] font-medium text-text-mute transition-colors hover:text-state-fail"
-              style={{ border: "0.5px solid var(--hairline)" }}
+              className="h-7"
             >
-              {closing ? "Cancel" : "Close branch"}
-            </button>
-          ) : null}
-        </div>
+              <Icon icon={forking ? X : GitFork} size={14} />
+              {forking ? "Cancel" : "Fork"}
+            </ActionGhost>
+
+            {selectedBranch && selectedBranch.status === "open" ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setClosing((v) => !v);
+                  setForking(false);
+                }}
+                className="inline-flex h-7 items-center rounded-full px-3 text-[12px] font-medium text-text-mute transition-colors hover:text-state-fail"
+                style={{ border: "0.5px solid var(--hairline)" }}
+              >
+                {closing ? "Cancel" : "Close branch"}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       {selectedBranch ? (
@@ -184,10 +187,6 @@ export function BranchBar({ projectId, selectedBranchId, onSelectBranch }: Branc
             setClosing(false);
           }}
         />
-      ) : null}
-
-      {!canWrite && hydrated ? (
-        <p className="text-[11px] text-state-warn">{signInHint} to fork or close branches.</p>
       ) : null}
     </Bay>
   );

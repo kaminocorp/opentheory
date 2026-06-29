@@ -97,17 +97,20 @@ function ClaimListPanelInner({ projectId, threadId }: { projectId: string; threa
         }
         count={claimsQuery.data ? claims.length : undefined}
         band
+        // Write affordance: shown only to a signed-in actor (read-only otherwise).
         actions={
-          <button
-            type="button"
-            onClick={() => setAdding((v) => !v)}
-            className="grid size-7 place-items-center rounded-full text-text-mute transition-colors hover:text-text"
-            style={{ border: "0.5px solid var(--hairline-strong)" }}
-            aria-label={adding ? "Cancel new claim" : "New claim"}
-            title={adding ? "Cancel" : "New claim"}
-          >
-            <Icon icon={adding ? X : Plus} size={14} />
-          </button>
+          canWrite ? (
+            <button
+              type="button"
+              onClick={() => setAdding((v) => !v)}
+              className="grid size-7 place-items-center rounded-full text-text-mute transition-colors hover:text-text"
+              style={{ border: "0.5px solid var(--hairline-strong)" }}
+              aria-label={adding ? "Cancel new claim" : "New claim"}
+              title={adding ? "Cancel" : "New claim"}
+            >
+              <Icon icon={adding ? X : Plus} size={14} />
+            </button>
+          ) : undefined
         }
       />
 
@@ -237,13 +240,15 @@ function ClaimEvidence({ projectId, claimId }: { projectId: string; claimId: str
           <Icon icon={Paperclip} size={14} />
           <ReadoutLabel>Evidence</ReadoutLabel>
         </span>
-        <button
-          type="button"
-          onClick={() => setAdding((v) => !v)}
-          className="text-[12px] font-medium text-text-mute transition-colors hover:text-signal"
-        >
-          {adding ? "Cancel" : "Attach"}
-        </button>
+        {canWrite ? (
+          <button
+            type="button"
+            onClick={() => setAdding((v) => !v)}
+            className="text-[12px] font-medium text-text-mute transition-colors hover:text-signal"
+          >
+            {adding ? "Cancel" : "Attach"}
+          </button>
+        ) : null}
       </div>
 
       {evidenceQuery.isLoading ? (
@@ -346,6 +351,7 @@ function ClaimValidations({
   threadId: string;
   claim: Claim;
 }) {
+  const { canWrite } = useActingIdentity();
   const [recording, setRecording] = useState(false);
 
   // History and signal are embedded in the claim read (0.4.4) — no separate fetch. The
@@ -367,13 +373,15 @@ function ClaimValidations({
             <StatusPill tone="ok" label="validated" />
           ) : null}
         </span>
-        <button
-          type="button"
-          onClick={() => setRecording((v) => !v)}
-          className="shrink-0 text-[12px] font-medium text-text-mute transition-colors hover:text-signal"
-        >
-          {recording ? "Cancel" : "Validate"}
-        </button>
+        {canWrite ? (
+          <button
+            type="button"
+            onClick={() => setRecording((v) => !v)}
+            className="shrink-0 text-[12px] font-medium text-text-mute transition-colors hover:text-signal"
+          >
+            {recording ? "Cancel" : "Validate"}
+          </button>
+        ) : null}
       </div>
 
       {validations.length === 0 ? (

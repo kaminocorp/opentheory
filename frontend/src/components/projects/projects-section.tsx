@@ -68,10 +68,14 @@ export function ProjectsSection() {
             Live research surfaces backed by the FastAPI ledger.
           </p>
         </div>
-        <ActionGhost onClick={() => setOpen((v) => !v)}>
-          <Icon icon={open ? X : Plus} size={16} />
-          {open ? "Cancel" : "New project"}
-        </ActionGhost>
+        {/* Write affordance: shown only to a signed-in actor. Logged-out visitors get a
+            full, read-only view (the header "Sign in" is the single path to contribute). */}
+        {canWrite ? (
+          <ActionGhost onClick={() => setOpen((v) => !v)}>
+            <Icon icon={open ? X : Plus} size={16} />
+            {open ? "Cancel" : "New project"}
+          </ActionGhost>
+        ) : null}
       </div>
 
       {open ? (
