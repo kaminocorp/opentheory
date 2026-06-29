@@ -1,4 +1,6 @@
-export type ProjectStatus = "draft" | "active" | "paused" | "completed" | "archived";
+// Mirrors the backend `ProjectStatus` enum exactly (models/enums.py). No `completed` — the backend
+// has no such status, so the frontend must not type-permit a value a save would 422 on.
+export type ProjectStatus = "draft" | "active" | "paused" | "archived";
 
 export type Project = {
   id: string;

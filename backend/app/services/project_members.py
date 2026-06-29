@@ -18,6 +18,7 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
@@ -61,8 +62,19 @@ async def ensure_can_manage(
     when ``require_owner``, not the ``OWNER``). An account-less actor is always ``403`` — it has no
     principal that can hold membership. The project is returned so the caller (e.g. the ``PATCH``
     handler) can mutate it without a second load.
+
+    The project row is locked ``FOR UPDATE`` for the rest of the transaction. Every management
+    *write* composes with this gate, so the lock serializes concurrent owner-mutating requests on
+    the same project: without it, two interleaved transactions can each pass the Python owner-floor
+    guards (``remove_member`` / ``set_member_role``) against a *stale* role read and drive the
+    project to **zero** owners. The ``uq_project_one_owner`` partial index bounds owners at ≤1, but
+    nothing at the DB level floors them at ≥1 — this lock is what makes the check-then-act atomic.
     """
-    project = await _get_project_or_404(db, project_id)
+    # One locking read replaces the plain fetch — no extra round-trip.
+    result = await db.execute(select(Project).where(Project.id == project_id).with_for_update())
+    project = result.scalar_one_or_none()
+    if project is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
     # Account-less actors (system / dev-bootstrap) hold no membership — never manage.
     if actor.account_id is None:
@@ -155,21 +167,32 @@ async def set_member_role(
             detail="Cannot demote the project owner; transfer ownership to another member first",
         )
 
-    if role == ProjectRole.OWNER and target.role != ProjectRole.OWNER:
-        # Ownership transfer: demote the current owner first, and `flush` that UPDATE *before*
-        # promoting the target. The ``uq_project_one_owner`` index is a plain (non-deferred) unique
-        # index, so Postgres checks it per statement — emitting the promotion first would briefly
-        # see two owners and raise. Flushing the demotion guarantees order within the one txn.
-        if actor.account_id is not None:
-            current_owner = await _membership(db, project.id, actor.account_id)
-            if current_owner is not None and current_owner.role == ProjectRole.OWNER:
-                current_owner.role = ProjectRole.ADMIN
-                db.add(current_owner)
-                await db.flush()
+    try:
+        if role == ProjectRole.OWNER and target.role != ProjectRole.OWNER:
+            # Ownership transfer: demote the current owner first, and `flush` that UPDATE *before*
+            # promoting the target. The ``uq_project_one_owner`` index is a plain (non-deferred)
+            # unique index, so Postgres checks it per statement — emitting the promotion first would
+            # briefly see two owners and raise. Flushing the demotion guarantees order within the
+            # one txn.
+            if actor.account_id is not None:
+                current_owner = await _membership(db, project.id, actor.account_id)
+                if current_owner is not None and current_owner.role == ProjectRole.OWNER:
+                    current_owner.role = ProjectRole.ADMIN
+                    db.add(current_owner)
+                    await db.flush()
 
-    target.role = role
-    db.add(target)
-    await db.commit()
+        target.role = role
+        db.add(target)
+        await db.commit()
+    except IntegrityError as exc:
+        # Belt-and-suspenders behind the ``ensure_can_manage`` row lock: should a concurrent
+        # promote still trip ``uq_project_one_owner``, surface a clean 409 (retryable) rather than
+        # a raw 500. Data stays correct — the index guarantees ≤1 owner regardless.
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ownership changed concurrently; please retry",
+        ) from exc
 
     account = await db.get(Account, account_id)
     assert account is not None  # membership FK guarantees it

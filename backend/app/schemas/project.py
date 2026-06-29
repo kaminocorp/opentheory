@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.enums import ProjectRole, ProjectStatus
 from app.schemas.account import AccountSummary
@@ -38,6 +38,20 @@ class ProjectUpdate(BaseModel):
     description: str | None = None
     background: str | None = Field(default=None, max_length=_BACKGROUND_MAX)
     status: ProjectStatus | None = None
+
+    @field_validator("title", "question", "status")
+    @classmethod
+    def _reject_explicit_null(
+        cls, value: str | ProjectStatus | None
+    ) -> str | ProjectStatus | None:
+        # These map to NOT NULL columns. A *missing* field never reaches a validator (Pydantic v2
+        # skips defaults), so `None` here means the client sent an explicit JSON `null` — reject it
+        # as a 422 rather than letting it become `setattr(project, field, None)` → a NOT NULL
+        # violation surfacing as an unhandled 500 at commit. Omitting the field (partial update)
+        # stays valid.
+        if value is None:
+            raise ValueError("field may not be null")
+        return value
 
 
 class MemberRoleUpdate(BaseModel):

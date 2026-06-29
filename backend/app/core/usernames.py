@@ -26,8 +26,10 @@ USERNAME_MIN = 3
 USERNAME_MAX = 30
 
 # The canonical shape, also enforced by ``AccountUpdate``. Requires lowercase, so callers lowercase
-# *before* matching.
-USERNAME_PATTERN = re.compile(r"^[a-z0-9_]{3,30}$")
+# *before* matching. Anchored with ``\Z`` (not ``$``): in Python ``$`` also matches *before* a
+# trailing newline, so ``"foobar\n"`` would slip through ``.match`` — ``\Z`` matches only the true
+# end of string (and aligns with JS ``RegExp`` semantics in the frontend mirror).
+USERNAME_PATTERN = re.compile(r"^[a-z0-9_]{3,30}\Z")
 
 # Handles we never auto-generate or accept on rename — they collide with routes / privileged
 # identities and would be confusing or misleading as a public ``@handle``. (Note: ``"user"`` is

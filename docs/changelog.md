@@ -2,8 +2,9 @@
 
 ## Index
 
-- `0.8.5` — **Brand-mark "jingle" easter egg.** Clicking the header logo replays a one-shot assemble of the four shapes, landing on the full mark with a crimson spark. Frontend-only; invitations shift to `0.8.6`.
-- `0.8.4` — **Post-review hardening on `0.8.3` `@username`.** Invalid-handle renames now fail legibly (client-side validation + readable FastAPI errors); drops a redundant `func.lower()`; indexes `lower(email)`. Migration `0009_account_email_index` (additive). Invitations → `0.8.5`.
+- `0.8.6` — **Post-review hardening across the stewardship line (`0.8.1`–`0.8.4`).** Fixes a username blind spot that could deny sign-in, an owner-floor race that could orphan a project, two `500`→`4xx` gaps, a stale test, and frontend a11y nits. Backend + frontend only — no schema, no migration. Invitations shift to `0.8.7`.
+- `0.8.5` — **Brand-mark "jingle" easter egg.** Clicking the header logo replays a one-shot assemble of the four shapes, landing on the full mark with a crimson spark. Frontend-only; invitations shift to `0.8.7`.
+- `0.8.4` — **Post-review hardening on `0.8.3` `@username`.** Invalid-handle renames now fail legibly (client-side validation + readable FastAPI errors); drops a redundant `func.lower()`; indexes `lower(email)`. Migration `0009_account_email_index` (additive). Invitations → `0.8.7`.
 - `0.8.3` — **Account `@username` — a unique public handle on the principal.** Auto-generated on first sign-in, renameable via `PATCH /me`, exposed on `/me` + the public `AccountSummary`; adds the `resolve_account_by_identifier` invite-resolver stub. Migration `0008_account_username` (additive + backfill).
 - `0.8.2` — **Post-review hardening on `0.8.1` stewardship.** A sole owner could self-demote and orphan the project; `set_member_role` now blocks demoting the owner outside a transfer. Also: duplicate `slug` → `409` (was `500`). Backend-only — no migration.
 - `0.8.1` — **Project stewardship — ownership + self-edit.** A creator now **owns** their project (new `project_members` table — the first project-level authorization) and can edit its metadata + a rich-text **`background`**. Membership is access control, separate from the credit roles. Migration `0007_project_stewardship` (additive).
@@ -37,6 +38,117 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.8.6
+
+**Post-review hardening across the Project Stewardship line (`0.8.1`–`0.8.4`).** A thorough,
+multi-agent review of the shipped stewardship work — project ownership/authorization and the account
+`@username` — surfaced two latent correctness bugs, two `500`→`4xx` robustness gaps, a stale failing
+test, and a short frontend punch-list. All are fixed here. **Backend behaviour + frontend only — no
+schema, no migration, no new endpoints.** The core of the line held up under scrutiny: the
+migrations (incl. the `0008` backfill), the one-owner *ceiling* (the partial unique index), the
+create/rename atomicity, the first-login race disambiguation, the XSS-safe Markdown pipeline, and the
+`AccountSummary` PII discipline were all re-verified sound.
+
+> **Numbering:** `0.8.5` was taken by the brand-mark "jingle" (a concurrent frontend slice), so this
+> hardening lands as `0.8.6`. Per this line's hardening-gets-its-own-version pattern (`0.8.2`
+> hardened `0.8.1`, `0.8.4` hardened `0.8.3`), **invitations + the bell inbox move to `0.8.7`**
+> (`resolve_account_by_identifier`, shipped in `0.8.3`, remains their resolver).
+
+### (F1) Username generation could deterministically deny sign-in — fixed
+
+`generate_unique_username` (`services/account.py`) pre-queried existing handles with
+`username LIKE base || '%'`, then walked `base`, `base2`, … returning the first not in that set. But
+`with_suffix` *truncates* a long base before appending the digits (`"a"×30` → `"a"×29 + "2"`), so a
+suffixed candidate no longer starts with the **full** base and was invisible to the pre-query. With
+≥2 accounts sharing a ≥30-char normalized base, the generator re-offered an already-taken handle, the
+`INSERT` failed on `uq_accounts_username`, and — because the retry ran the *same* blind query — every
+retry regenerated the *same* doomed handle until the loop exhausted → `503` (sign-in) / `500`
+(bootstrap): a permanent, self-unrecoverable lockout for the affected principal. Two-part fix:
+
+- **Shorten the pre-query prefix** by the max suffix width (`base[:USERNAME_MAX-6]`) so truncated
+  suffixed candidates stay visible (over-matching is harmless — it only adds *real* taken handles).
+- **Thread an `exclude` set** through both retry loops (`api/deps.py::_resolve_or_provision`,
+  `services/account.py::create_account`): the just-failed handle is added to `exclude`, so each retry
+  is *guaranteed* to offer a different candidate regardless of the query. The pre-query is the fast
+  path; `exclude` is the correctness guarantee.
+
+### (F2) Owner-floor TOCTOU could orphan a project — fixed (latent until invites)
+
+The "exactly one owner" *ceiling* (≤1) is DB-enforced by the `uq_project_one_owner` partial unique
+index. The *floor* (≥1) was enforced only by Python check-then-act guards in `remove_member` /
+`set_member_role` with **no row lock**. Under READ COMMITTED, two concurrent owner-authorized writes
+(e.g. an ownership transfer racing a member removal) could interleave so Postgres re-applied the
+DELETE/UPDATE against post-commit state the Python guard never re-checked → **zero owners** → a
+permanently unmanageable project. This was **latent today** (no add-member endpoint exists yet, so
+every project has exactly one member and the vulnerable paths are unreachable) but would activate the
+moment the `0.8.7` invite flow adds a second member. Fixed now, ahead of it:
+
+- **`ensure_can_manage` locks the project row `FOR UPDATE`** — one locking `SELECT` replaces the
+  plain fetch (no extra round-trip). Every management write composes with this gate, so concurrent
+  owner-mutating requests on the same project serialize and the check-then-act becomes atomic.
+- **`set_member_role` maps a `uq_project_one_owner` `IntegrityError` to a clean `409`**
+  (belt-and-suspenders behind the lock) instead of a raw `500`.
+
+### (F3) `PATCH /projects` with an explicit `null` required field → `500`, now `422`
+
+`ProjectUpdate` typed `title` / `question` / `status` optional (for partial updates), so an explicit
+JSON `null` passed validation; `model_dump(exclude_unset=True)` then wrote `None` to a `NOT NULL`
+column → `IntegrityError` → unhandled `500`. A `field_validator` now rejects an explicit `null` on
+those three (→ `422`); omission (a genuine partial update) is unaffected, and `description` /
+`background` stay nullable.
+
+### (F4) `USERNAME_PATTERN` accepted a trailing newline — anchored with `\Z`
+
+Python `$` matches *before* a trailing `\n`, so `^[a-z0-9_]{3,30}$` accepted `"foo\n"`. The live
+`PATCH /me` path was already safe (`AccountUpdate` `.strip()`s first), but it was a footgun for any
+future caller of `is_valid_username` and drifted from the frontend mirror (JS `$` rejects it).
+Re-anchored with `\Z`.
+
+### (F5) A stale test was red — and it revealed the DB-backed suite wasn't being run
+
+`test_member_list_omits_pii` still asserted the member-summary key set was exactly
+`{id, display_name}`, but `0.8.3` added the public `username` to `AccountSummary`. The assertion is
+now correct (`{id, display_name, username}`, with the email/roles/external_id negative checks kept).
+More important than the one-line fix: its survival means the **DB-backed suite has not actually run
+since `0.8.3`** — consistent with the no-local-DB policy, but it means the ownership / authz / rename
+logic is currently verified by review, not a green run. A one-time run against a throwaway Postgres is
+recommended when convenient.
+
+### (F6) Frontend polish
+
+- **`auth-menu.tsx`** — the `@handle` rename now guards against a double-submit (Enter while a
+  request is in flight).
+- **`collaborators-panel.tsx`** — the role `Select`'s compact padding used `cn()` (no
+  `tailwind-merge`), so `py-1.5`/`py-0.5` both emitted and source order won; forced with `!py-0.5`.
+  Each per-row **Remove** button gains a distinct accessible name (`Remove {name}`).
+- **`rich-text-editor.tsx`** — the ProseMirror contenteditable gains an `aria-label` (it had no
+  associated `<label>`).
+- **`ProjectStatus`** — dropped `"completed"` from the TS union (and its two tone maps + the card
+  label map): the backend enum has no such status, so the type no longer permits a value a save would
+  `422` on.
+
+### Schema & migration
+
+**None.** Every fix is code-only. The deploy applies no *new* migration; the already-pending
+`0007`–`0009` are unchanged.
+
+### Verification
+
+```bash
+cd backend && uv run ruff check . && uv run pytest    # ruff clean; 52 passed / 65 skipped (no DB)
+cd frontend && npm run typecheck && npm run lint && npm run build   # all green, 7 routes
+```
+
+**Not run here** (per the no-local-DB policy): the DB-backed suite against real Postgres — the
+post-deploy live check. The fixes preserve every existing DB-free test.
+
+### Deploy
+
+`fly deploy` from `backend/` (no migration to apply beyond the already-pending `0007`–`0009`) and a
+**Vercel redeploy** for the frontend. No manual data step.
 
 ---
 

@@ -215,7 +215,8 @@ async def test_member_list_omits_pii(client: AsyncClient, internal_funder) -> No
     assert len(rows) == 1
     account = rows[0]["account"]
     # Privacy-safe AccountSummary only — even though this owner has roles + (implicitly) PII fields.
-    assert set(account.keys()) == {"id", "display_name"}
+    # `username` is a public handle (0.8.3), so it IS exposed here; email/roles/external_id are not.
+    assert set(account.keys()) == {"id", "display_name", "username"}
     assert "email" not in account
     assert "roles" not in account
     assert "external_id" not in account

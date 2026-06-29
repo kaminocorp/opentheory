@@ -7,7 +7,6 @@ const statusLabels: Record<Project["status"], string> = {
   draft: "Draft",
   active: "Active",
   paused: "Paused",
-  completed: "Completed",
   archived: "Archived",
 };
 
@@ -16,7 +15,6 @@ const statusTone: Record<Project["status"], StateTone> = {
   draft: "mute", // ▣ queued / not started
   active: "run", // ● in motion
   paused: "warn", // ▲ held
-  completed: "ok", // ✓ done
   archived: "faint", // · ambient / closed
 };
 

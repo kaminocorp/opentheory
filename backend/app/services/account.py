@@ -1,9 +1,12 @@
+from collections.abc import Set as AbstractSet
+
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.usernames import (
     RESERVED_USERNAMES,
+    USERNAME_MAX,
     base_from,
     generate_username_candidates,
 )
@@ -15,27 +18,38 @@ from app.schemas.account import AccountCreate
 # first-login race where two principals pick the same base simultaneously.
 USERNAME_INSERT_RETRIES = 6
 
+# Widest numeric suffix the prefix pre-query must keep visible. `with_suffix` truncates a long base
+# before appending the digits, so a suffixed candidate (e.g. `aaa…a` -> `aaa…2`) no longer starts
+# with the *full* base; we shorten the LIKE prefix by this much so those candidates still match the
+# pre-query (covers up to 999999 same-base accounts). The caller's `exclude` set is the hard
+# guarantee of forward progress; this just keeps the common case to one round-trip.
+_MAX_SUFFIX_WIDTH = 6
 
-async def generate_unique_username(db: AsyncSession, base: str) -> str:
+
+async def generate_unique_username(
+    db: AsyncSession, base: str, *, exclude: AbstractSet[str] = frozenset()
+) -> str:
     """Return a username derived from ``base`` that is **currently** free (and not reserved).
 
     Pre-queries the handles sharing ``base``'s prefix in one round-trip, then walks
-    ``base``, ``base2``, ``base3`` … skipping anything taken or reserved. The result is only
-    *advisory* — a concurrent insert can still claim it between this read and the caller's write —
-    so the caller's ``INSERT`` (guarded by ``uq_accounts_username``) is the final arbiter and
-    retries with the next candidate on collision. Sequential suffixing (not random) keeps generated
-    handles readable.
+    ``base``, ``base2``, ``base3`` … skipping anything taken, reserved, or in ``exclude``. The
+    result is only *advisory* — a concurrent insert can still claim it between this read and the
+    caller's write — so the caller's ``INSERT`` (guarded by ``uq_accounts_username``) is the final
+    arbiter and retries with the next candidate on collision, passing the just-failed handle in
+    ``exclude`` so each retry makes forward progress. Sequential suffixing keeps handles readable.
     """
-    # `base` is normalized to [a-z0-9_], so `_` (a LIKE wildcard) must be escaped or the prefix
-    # over-matches; over-matching is harmless (it only ever adds *real* taken handles to the set),
-    # but escaping keeps the query honest. `username` is lowercase-on-write, so we match the column
-    # directly — wrapping it in `func.lower()` would be a no-op that only hides the column from any
-    # index the planner might use.
-    like_prefix = base.replace("_", r"\_") + "%"
+    # Pre-query the prefix `base` shares with its candidates. We trim the prefix by the max suffix
+    # width because `with_suffix` truncates a long base before appending digits — `aaa…a` (30 chars)
+    # -> `aaa…2` no longer starts with the full base, so a full-`base` prefix would miss it and the
+    # walk could return an already-taken handle (the INSERT then fails identically on every retry,
+    # exhausting them). `_` is a LIKE wildcard, so escape it. `username` is lowercase-on-write, so
+    # match the column directly — a `func.lower()` wrapper would be a no-op that hides the index.
+    prefix = base[: max(1, USERNAME_MAX - _MAX_SUFFIX_WIDTH)]
+    like_prefix = prefix.replace("_", r"\_") + "%"
     rows = await db.execute(
         select(Account.username).where(Account.username.like(like_prefix, escape="\\"))
     )
-    taken = {row for (row,) in rows} | RESERVED_USERNAMES
+    taken = {row for (row,) in rows} | RESERVED_USERNAMES | set(exclude)
     for candidate in generate_username_candidates(base):
         if candidate not in taken:
             return candidate
@@ -54,14 +68,16 @@ async def create_account(db: AsyncSession, payload: AccountCreate) -> Account:
     """
     data = payload.model_dump()
     base = base_from(data.get("email"), data.get("display_name"))
+    tried: set[str] = set()
     for _ in range(USERNAME_INSERT_RETRIES):
-        username = await generate_unique_username(db, base)
+        username = await generate_unique_username(db, base, exclude=tried)
         account = Account(**data, username=username)
         db.add(account)
         try:
             await db.commit()
         except IntegrityError:
             await db.rollback()
+            tried.add(username)  # never re-offer the handle that just lost the race
             continue
         await db.refresh(account)
         return account

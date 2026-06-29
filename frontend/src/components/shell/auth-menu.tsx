@@ -60,6 +60,7 @@ export function AuthMenu() {
   }
 
   function submitHandle() {
+    if (renameMutation.isPending) return; // guard a double-submit (Enter) while a rename is in flight
     const next = handleDraft.trim().toLowerCase();
     if (!next || next === username) {
       setEditingHandle(false); // no-op rename — just close

@@ -65,13 +65,15 @@ async def _resolve_or_provision(db: AsyncSession, identity: VerifiedIdentity) ->
     # local-part (else display name), so invite-by-handle works with zero setup and there is no
     # "choose a username" gate on first use. The user can rename later via PATCH /me.
     username_base = base_from(email, identity.display_name)
+    tried_usernames: set[str] = set()
     for _ in range(_PROVISION_RETRIES):
+        username = await generate_unique_username(db, username_base, exclude=tried_usernames)
         account = Account(
             external_id=identity.subject,
             display_name=display_name,
             email=email,
             roles=[INTERNAL_ROLE] if is_internal else [],
-            username=await generate_unique_username(db, username_base),
+            username=username,
         )
         actor = Actor(
             type=ActorType.HUMAN,
@@ -93,6 +95,10 @@ async def _resolve_or_provision(db: AsyncSession, identity: VerifiedIdentity) ->
             winner = (await db.execute(stmt)).scalar_one_or_none()
             if winner is not None:
                 return winner
+            # Username collision with a different principal — exclude the losing handle so the next
+            # pass regenerates a *different* one (the prefix pre-query may not see a truncated
+            # suffix, so without this a long-base collision could re-offer the same handle forever).
+            tried_usernames.add(username)
             continue
         # No db.refresh: id/timestamps are Python-side defaults and `expire_on_commit=False` keeps
         # the in-memory graph (incl. actor.account) populated, so refreshing would only risk

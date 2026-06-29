@@ -24,6 +24,8 @@ type RichTextEditorProps = {
   value: string;
   onChange: (markdown: string) => void;
   placeholder?: string;
+  /** Accessible name for the ProseMirror contenteditable (it has no associated <label>). */
+  ariaLabel?: string;
 };
 
 // tiptap-markdown stores its serializer on editor.storage.markdown; type it narrowly.
@@ -63,7 +65,7 @@ function ToolbarButton({
   );
 }
 
-export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorProps) {
+export function RichTextEditor({ value, onChange, placeholder, ariaLabel }: RichTextEditorProps) {
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
@@ -89,6 +91,7 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
           "[&_code]:rounded-inset [&_code]:bg-panel-2 [&_code]:px-1 [&_code]:font-mono [&_code]:text-[12px]",
         ),
         ...(placeholder ? { "data-placeholder": placeholder } : {}),
+        ...(ariaLabel ? { "aria-label": ariaLabel } : {}),
       },
     },
   });

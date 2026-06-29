@@ -97,7 +97,7 @@ export function CollaboratorsPanel({ projectId }: { projectId: string }) {
                           role: e.target.value as ProjectRole,
                         })
                       }
-                      className="!w-auto py-0.5 capitalize"
+                      className="!w-auto !py-0.5 capitalize"
                     >
                       <option value="admin">admin</option>
                       <option value="owner">owner (transfer)</option>
@@ -109,6 +109,7 @@ export function CollaboratorsPanel({ projectId }: { projectId: string }) {
                     <ActionDestructive
                       size="sm"
                       disabled={busy}
+                      aria-label={`Remove ${member.account.display_name}`}
                       onClick={() => removeMutation.mutate(member.account.id)}
                     >
                       Remove

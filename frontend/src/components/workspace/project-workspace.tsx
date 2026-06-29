@@ -50,7 +50,6 @@ const projectStatusTone: Record<Project["status"], StateTone> = {
   draft: "mute",
   active: "run",
   paused: "warn",
-  completed: "ok",
   archived: "faint",
 };
 

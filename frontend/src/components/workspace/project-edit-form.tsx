@@ -23,9 +23,8 @@ const RichTextEditor = dynamic(
   },
 );
 
-// Only the backend ProjectStatus enum values (draft/active/paused/archived). The frontend type also
-// carries "completed", which the backend enum lacks — offering it here would 422 on save, so the
-// edit form is the source of truth for the *settable* statuses (appendix note in the plan).
+// The settable project statuses — the full backend ProjectStatus enum (draft/active/paused/
+// archived). Kept explicit so the select can only ever offer values the backend accepts.
 const STATUS_OPTIONS: ProjectStatus[] = ["draft", "active", "paused", "archived"];
 
 type ProjectEditFormProps = {
@@ -103,6 +102,7 @@ export function ProjectEditForm({ project, onDone }: ProjectEditFormProps) {
           value={background}
           onChange={setBackground}
           placeholder="A deeper, long-form briefing on the research question…"
+          ariaLabel="Background / Context"
         />
       </div>
 
