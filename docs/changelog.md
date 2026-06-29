@@ -2,8 +2,9 @@
 
 ## Index
 
-- `0.8.7` — **Collaborators + invitation inbox.** Owner/admin invites an existing user by `@username` or email; the invitee accepts (→ admin) or declines from a top-right bell inbox. Completes the stewardship line's ask **(C)**: adds `ProjectInvitation` + six routes (the platform's first invitee-side authorization), reusing `0.8.3`'s `resolve_account_by_identifier`. Migration `0010_project_invitations` (additive).
-- `0.8.6` — **Post-review hardening across the stewardship line (`0.8.1`–`0.8.4`).** Fixes a username blind spot that could deny sign-in, an owner-floor race that could orphan a project, two `500`→`4xx` gaps, a stale test, and frontend a11y nits. Backend + frontend only — no schema, no migration. Invitations shift to `0.8.7`.
+- `0.8.8` — **Concurrency hardening on the `0.8.7` invitation flow.** `accept`/`decline`/`revoke` now lock the invitation row `FOR UPDATE`, so a double-accept can't race a duplicate membership (or a `500`) and an accept can't interleave with a revoke. Backend-only — no schema, no migration.
+- `0.8.7` — **Collaborators + invitation inbox.** Owner/admin invites an existing user by `@username` or email; the invitee accepts (→ admin) or declines from a top-right bell inbox. Adds `ProjectInvitation` + six routes; migration `0010_project_invitations` (additive).
+- `0.8.6` — **Post-review hardening across the stewardship line (`0.8.1`–`0.8.4`).** Closes a username blind spot that could deny sign-in and an owner-floor race that could orphan a project, plus two `500`→`4xx` gaps, a stale test, and a11y nits. No schema or migration.
 - `0.8.5` — **Brand-mark "jingle" easter egg.** Clicking the header logo replays a one-shot assemble of the four shapes, landing on the full mark with a crimson spark. Frontend-only; invitations shift to `0.8.7`.
 - `0.8.4` — **Post-review hardening on `0.8.3` `@username`.** Invalid-handle renames now fail legibly (client-side validation + readable FastAPI errors); drops a redundant `func.lower()`; indexes `lower(email)`. Migration `0009_account_email_index` (additive). Invitations → `0.8.7`.
 - `0.8.3` — **Account `@username` — a unique public handle on the principal.** Auto-generated on first sign-in, renameable via `PATCH /me`, exposed on `/me` + the public `AccountSummary`; adds the `resolve_account_by_identifier` invite-resolver stub. Migration `0008_account_username` (additive + backfill).
@@ -39,6 +40,61 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.8.8
+
+**Concurrency hardening on the `0.8.7` invitation flow.** A post-merge review of the collaborators
+slice found the invitee-side mutations (`accept` / `decline`) doing their check-then-act with **no
+row lock**, while only the project-side `revoke` serialized (on the *project* row, via
+`ensure_can_manage`). That is the same TOCTOU class `0.8.6` (F2) closed on the management side —
+left open on the invitee side. **Backend behaviour only — no schema, no migration, no new
+endpoints.**
+
+### The race (two low-severity but real interleavings)
+
+- **`accept` × `accept` (a double-click or two tabs):** both reads saw `status = PENDING` and both
+  inserted a `ProjectMember`; the loser tripped `uq_project_member` into an **unhandled `500`**. The
+  unique constraint kept the data correct (never two member rows), but the user got a 500 where an
+  idempotent success was intended.
+- **`accept` × `revoke`:** both could read `PENDING` and proceed, ending at `status = REVOKED`
+  **with the membership already minted** — a collaborator on a "revoked" invitation. Recoverable
+  (`DELETE /members`), but a surprising inconsistency.
+
+### The fix — one shared lock: the invitation row, `FOR UPDATE`
+
+- `_load_invitation(..., for_update=True)` adds `SELECT … FOR UPDATE`; `accept` and `decline` use
+  it. Because each request runs in its own session, the lock is taken on the *first* read, so a
+  blocked accept re-reads the now-`ACCEPTED` row and returns an idempotent `200` — never a duplicate
+  insert, never a `500`. `selectinload` (not `joinedload`) keeps the lock on the `project_invitations`
+  row alone, never the outer-joined account rows (which Postgres rejects under `FOR UPDATE`).
+- `revoke` swaps its `db.get(...)` for the same locking read, so an `accept` racing a `revoke` now
+  serializes on the row instead of interleaving. (`ensure_can_manage`'s project-row lock still holds
+  upstream; this is the row-level lock the invitee side actually shares.)
+- No lock-ordering risk: `accept`/`decline` take *only* the invitation-row lock, so there is no
+  cycle with `revoke`/`invite`, which acquire the project lock first.
+
+### Tests
+
+A new DB-backed regression (`test_concurrent_accepts_are_idempotent`) fires five simultaneous
+accepts of one invitation and asserts every response is `200` and exactly **one** `ProjectMember`
+row exists — an invariant that holds with the lock regardless of how the requests interleave, so it
+guards the fix without flaking.
+
+### Verification
+
+```bash
+cd backend && uv run ruff check . && uv run pytest    # ruff clean; 55 passed / 76 skipped (no DB)
+```
+
+The `+1` skip over `0.8.7` is the new DB-backed concurrency test. **Not run here** (no-local-DB
+policy): the DB-backed invitation suite against real Postgres — the post-deploy live check or a
+throwaway-DB pass.
+
+### Deploy
+
+Backend redeploy only (`fly deploy` from `backend/`). No migration, no frontend change.
 
 ---
 

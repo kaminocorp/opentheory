@@ -57,12 +57,23 @@ def _to_read(
     )
 
 
-async def _load_invitation(db: AsyncSession, invitation_id: UUID) -> ProjectInvitation | None:
+async def _load_invitation(
+    db: AsyncSession, invitation_id: UUID, *, for_update: bool = False
+) -> ProjectInvitation | None:
     """Load one invitation with its project + both account summaries eager-loaded.
 
     ``selectinload`` issues a constant number of follow-up queries (not N+1), and with the app's
     ``expire_on_commit=False`` the loaded relationships survive the later ``commit`` so the read
     model can be built without a post-commit lazy-load (which would raise under async).
+
+    ``for_update`` locks the invitation row ``FOR UPDATE``. Every status-mutating path
+    (accept / decline / revoke) takes this lock, so they serialize on the row and their
+    check-then-act becomes atomic — without it a concurrent accept+revoke could leave a member
+    minted against a ``REVOKED`` invitation, and a double-accept could race the
+    ``uq_project_member`` insert into an unhandled ``500``. ``selectinload`` (not ``joinedload``)
+    is what makes the lock safe to combine with eager loads: it fetches the related accounts in
+    *separate* queries, so ``FOR UPDATE`` applies only to the ``project_invitations`` row and never
+    to the nullable side of an outer join (which Postgres rejects).
     """
     stmt = (
         select(ProjectInvitation)
@@ -73,6 +84,8 @@ async def _load_invitation(db: AsyncSession, invitation_id: UUID) -> ProjectInvi
         )
         .where(ProjectInvitation.id == invitation_id)
     )
+    if for_update:
+        stmt = stmt.with_for_update()
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
@@ -224,11 +237,14 @@ def _require_invitee(invitation: ProjectInvitation, actor: Actor) -> None:
 async def accept(db: AsyncSession, invitation_id: UUID, actor: Actor) -> InvitationRead:
     """Invitee-only: accept a pending invitation → mint the ``ProjectMember`` + mark ``ACCEPTED``.
 
-    One transaction. Idempotent: re-accepting an already-``ACCEPTED`` invite is a no-op success, and
-    the membership insert is guarded against a duplicate (``uq_project_member``) so a race or retry
-    can't create two rows. A non-pending (declined/revoked) invitation → ``409``.
+    One transaction, serialized by the invitation-row ``FOR UPDATE`` lock so the check-then-mint is
+    atomic: a concurrent accept blocks, then re-reads the now-``ACCEPTED`` row and returns an
+    idempotent success — never a duplicate ``ProjectMember`` nor a ``uq_project_member`` ``500`` —
+    and a concurrent ``revoke`` on the same row can no longer interleave to leave a member minted
+    against a revoked invitation. Re-accepting an already-``ACCEPTED`` invite is a no-op success; a
+    non-pending (declined/revoked) invitation → ``409``.
     """
-    invitation = await _load_invitation(db, invitation_id)
+    invitation = await _load_invitation(db, invitation_id, for_update=True)
     if invitation is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found")
     _require_invitee(invitation, actor)
@@ -278,8 +294,10 @@ async def decline(db: AsyncSession, invitation_id: UUID, actor: Actor) -> Invita
 
     Idempotent on an already-``DECLINED`` invite; a non-pending (accepted/revoked) one → ``409``.
     The row is kept (not deleted) so an owner/admin can re-invite by resetting it to ``PENDING``.
+    Takes the same invitation-row ``FOR UPDATE`` lock as ``accept``/``revoke`` so every status
+    transition on the row serializes.
     """
-    invitation = await _load_invitation(db, invitation_id)
+    invitation = await _load_invitation(db, invitation_id, for_update=True)
     if invitation is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found")
     _require_invitee(invitation, actor)
@@ -315,8 +333,19 @@ async def revoke(
     ``404`` if the invitation is missing or belongs to a different project. Idempotent on an
     already-``REVOKED`` one; revoking an accepted/declined invitation → ``409`` (revoke does **not**
     un-member an accepted invitee — removing a member is ``DELETE /members``).
+
+    Locks the invitation row ``FOR UPDATE`` (the same lock ``accept``/``decline`` take) so a revoke
+    racing an accept serializes on the row instead of interleaving into a member minted against a
+    revoked invitation. ``ensure_can_manage`` already holds the project-row lock upstream; this is
+    the row-level lock the invitee-side paths actually contend on.
     """
-    invitation = await db.get(ProjectInvitation, invitation_id)
+    invitation = (
+        await db.execute(
+            select(ProjectInvitation)
+            .where(ProjectInvitation.id == invitation_id)
+            .with_for_update()
+        )
+    ).scalar_one_or_none()
     if invitation is None or invitation.project_id != project.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found")
 

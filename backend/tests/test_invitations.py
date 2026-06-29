@@ -17,6 +17,7 @@ Acting users are built the Account-owns-Actor way (``POST /accounts`` + a linked
 reading back each account's auto-generated ``@username`` so we can invite by handle.
 """
 
+import asyncio
 from uuid import UUID
 
 import pytest
@@ -27,6 +28,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.config import settings
 from app.models.contribution import Contribution
+from app.models.project_member import ProjectMember
 
 # --- DB-free auth gates (no Postgres needed) --------------------------------
 
@@ -347,3 +349,51 @@ async def test_non_member_cannot_invite_or_list(client: AsyncClient) -> None:
         f"/api/v1/projects/{pid}/invitations", headers=_headers(stranger["actor_id"])
     )
     assert r.status_code == 403, r.text
+
+
+async def test_concurrent_accepts_are_idempotent(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """Several simultaneous accepts of one invitation mint exactly one membership and never 500.
+
+    Regression for the 0.8.8 invitation-row ``FOR UPDATE`` lock: the check-then-mint serializes, so
+    the first accept wins and the rest unblock, re-read the now-``ACCEPTED`` row, and return an
+    idempotent 200. Without the lock the parallel ``ProjectMember`` inserts could race the
+    ``uq_project_member`` constraint into an unhandled 500. The asserted invariant (every response
+    200, exactly one member row) holds regardless of how the requests actually interleave, so the
+    test guards the lock without flaking.
+    """
+    owner = await _make_user(client, "Owner")
+    bob = await _make_user(client, "Bob", email="bob@example.com")
+    project = await _create_project(client, owner["actor_id"], slug="concurrent-accept")
+    pid = project["id"]
+    inv = (await _invite(client, pid, owner["actor_id"], f"@{bob['username']}")).json()
+
+    # Fire five accepts at once on Bob's behalf — each is a separate request, so each gets its own
+    # session/connection (conftest's engine uses NullPool): genuinely concurrent transactions.
+    responses = await asyncio.gather(
+        *[
+            client.post(
+                f"/api/v1/invitations/{inv['id']}/accept", headers=_headers(bob["actor_id"])
+            )
+            for _ in range(5)
+        ]
+    )
+    assert all(r.status_code == 200 for r in responses), [r.status_code for r in responses]
+    assert all(r.json()["status"] == "accepted" for r in responses)
+
+    # Exactly one membership row was minted (the row lock + uq_project_member together).
+    async with session_factory() as session:
+        members = (
+            (
+                await session.execute(
+                    select(ProjectMember).where(
+                        ProjectMember.project_id == UUID(pid),
+                        ProjectMember.account_id == UUID(bob["account_id"]),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(members) == 1
