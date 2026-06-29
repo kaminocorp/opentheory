@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.8.9` — **Calmer background field.** Halves the alpha of the measured-field grid (crosshairs, major + minor lines) so the texture reads as quiet substrate, not noise.
 - `0.8.8` — **Concurrency hardening on the `0.8.7` invitation flow.** `accept`/`decline`/`revoke` now lock the invitation row `FOR UPDATE`, so a double-accept can't race a duplicate membership (or a `500`) and an accept can't interleave with a revoke. Backend-only — no schema, no migration.
 - `0.8.7` — **Collaborators + invitation inbox.** Owner/admin invites an existing user by `@username` or email; the invitee accepts (→ admin) or declines from a top-right bell inbox. Adds `ProjectInvitation` + six routes; migration `0010_project_invitations` (additive).
 - `0.8.6` — **Post-review hardening across the stewardship line (`0.8.1`–`0.8.4`).** Closes a username blind spot that could deny sign-in and an owner-floor race that could orphan a project, plus two `500`→`4xx` gaps, a stale test, and a11y nits. No schema or migration.
@@ -40,6 +41,19 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.8.9
+
+**Calmer background field.** The Kamino "measured field" (`globals.css` §2.1) — the
+crosshair + major/minor grid baked into the body background — read a touch too loud,
+competing with content rather than sitting under it. Halved the alpha of all three
+field layers (≈50% translucency): crosshairs `0.14 → 0.07`, major grid `0.06 → 0.03`,
+minor grid `0.035 → 0.018`. Because the `.field` utility and the responsive reuses
+reference the same `--field-*` variables, the single edit propagates everywhere the
+texture appears. The grain and vignette layers are untouched. **Frontend-only — no
+backend, schema, or migration.**
 
 ---
 

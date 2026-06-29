@@ -37,8 +37,8 @@
   --hairline-strong: rgba(236, 234, 230, 0.18);
   --hairline-lit: rgba(236, 234, 230, 0.22);
   --tick: rgba(236, 234, 230, 0.14);
-  --field-line: rgba(236, 234, 230, 0.035);
-  --field-major: rgba(236, 234, 230, 0.06);
+  --field-line: rgba(236, 234, 230, 0.018);
+  --field-major: rgba(236, 234, 230, 0.03);
 
   /* Proportion (8px base unit) */
   --u: 8px;
@@ -63,7 +63,7 @@
      32px so its intersections land exactly under each crosshair (32 is 4u, so
      everything still aligns to the 8px minor grid). */
   --field-image:
-    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='64'%20height='64'%3E%3Cg%20stroke='rgba(236,234,230,0.14)'%20stroke-width='1'%3E%3Cline%20x1='29'%20y1='32'%20x2='35'%20y2='32'/%3E%3Cline%20x1='32'%20y1='29'%20x2='32'%20y2='35'/%3E%3C/g%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='64'%20height='64'%3E%3Cg%20stroke='rgba(236,234,230,0.07)'%20stroke-width='1'%3E%3Cline%20x1='29'%20y1='32'%20x2='35'%20y2='32'/%3E%3Cline%20x1='32'%20y1='29'%20x2='32'%20y2='35'/%3E%3C/g%3E%3C/svg%3E"),
     linear-gradient(to right, var(--field-major) 1px, transparent 1px),
     linear-gradient(to bottom, var(--field-major) 1px, transparent 1px),
     linear-gradient(to right, var(--field-line) 1px, transparent 1px),
