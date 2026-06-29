@@ -13,6 +13,10 @@ primary_region = "iad"
 [env]
   APP_ENV = "production"
   API_V1_PREFIX = "/api/v1"
+  # Supabase project base URL — public (the frontend ships it as NEXT_PUBLIC_SUPABASE_URL).
+  # The backend derives the JWKS endpoint (<url>/auth/v1/.well-known/jwks.json) from it to fetch
+  # the ES256 public keys that verify session tokens. No shared secret is needed.
+  SUPABASE_PROJECT_URL = "https://iaokmtutxponegwebvdu.supabase.co"
 
 # Apply DB migrations on every deploy, in an ephemeral machine, BEFORE the new version takes
 # traffic. Uses MIGRATION_DATABASE_URL (the direct, non-pooled connection) via alembic/env.py.

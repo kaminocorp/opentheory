@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.7.1` — **Auth verification fix: ES256/JWKS replaces HS256.** Supabase now signs sessions with ES256 (asymmetric) and the backend had no JWT secret configured, so every authenticated request `401`'d — blocking project creation. The verifier now fetches the project's JWKS public key by `kid`. No schema or migration.
 - `0.7.0` — **`Account` owns `Actor`**: a new auth-principal `Account` takes over `external_id`, `roles`, and funding attribution; `Actor` keeps research provenance and the `ActingActor` contract. Migration `0006_accounts` (destructive).
 - `0.6.10` — Post-review polish on `0.6.9`: clears the plaintext password from component state on success/sign-out, guards the submit against double-fire, and announces sign-in errors to assistive tech. No backend, schema, or migration.
 - `0.6.9` — **Email + password sign-in**, now the primary method, authenticating in-band against Supabase `auth.users` (magic-link + Google retained). Frontend-only — the backend verifies the session JWT regardless of method. No backend, schema, or migration.
@@ -28,6 +29,68 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.7.1
+
+**Auth verification fix — ES256/JWKS replaces HS256.** A production-only auth break surfaced
+right after the `0.7.0` cutover: signed-in users couldn't create projects. The Fly logs showed
+`GET /api/v1/me → 401` and every authenticated write `401`'d, while public reads (`/projects`)
+were `200`. Two compounding causes:
+
+1. **No verification key was configured.** The Fly backend had no `SUPABASE_JWT_SECRET` set, so
+   `core/auth.py` raised `AuthError` ("not configured") → `401` before any DB access (clean
+   `401`s, no `500` tracebacks — the giveaway that verification, not provisioning, was failing).
+2. **The project moved to asymmetric signing.** The Supabase project's JWKS publishes a single
+   **ES256** (EC) key, but the verifier hard-coded **HS256** with a shared secret (the
+   `supabase_jwks_url` asymmetric path was a documented-but-unimplemented "forward hook"). So even
+   setting an HS256 secret would not have verified the ES256 tokens.
+
+### The change (auth seam only — no schema, no migration, contract preserved)
+
+Per the `0.6.0` design, this is contained to the single IdP seam (`core/auth.py`) + config; the
+`ActingActor` dependency, the `Actor`/`Account` mapping, and every service are untouched.
+
+- **`core/auth.py`** — `verify_bearer_token` now resolves the signing key for the token's `kid`
+  from the project's JWKS endpoint (process-cached `PyJWKClient`, `lifespan=600`) and verifies
+  **ES256** signature + audience (`aud="authenticated"`) + expiry. HS256 is dropped. TLS for the
+  JWKS fetch verifies against the **`certifi`** CA bundle (not the OS trust store) via a passed
+  `ssl_context` — the JWKS call is the backend's only outbound HTTPS that verifies a CA (Postgres
+  uses asyncpg `ssl=require`, which doesn't), so the slim container's `/etc/ssl/certs` can't be
+  assumed populated. A `PyJWKClientConnectionError`/no-`kid`/malformed token all subclass
+  `PyJWTError` → mapped to `AuthError` → `401` (never a `500`).
+- **`core/config.py`** — drops `supabase_jwt_secret`; adds a derived `jwks_url` property
+  (explicit `supabase_jwks_url`, else `<supabase_project_url>/auth/v1/.well-known/jwks.json`).
+- **`pyproject.toml` / `uv.lock`** — `pyjwt` → `pyjwt[crypto]` (ES256 needs `cryptography`) and
+  an explicit `certifi`. The Dockerfile builds `--frozen`, so the lockfile is regenerated.
+- **`fly.toml`** — adds `SUPABASE_PROJECT_URL` to `[env]` (public; mirrors the frontend's
+  `NEXT_PUBLIC_SUPABASE_URL`). No new Fly *secret* is needed.
+- **Cosmetic, separate:** the "Could not load actors" banner + empty "Select actor" is the
+  production Vercel build shipping the legacy dev-actor switcher (`NEXT_PUBLIC_AUTH_DEV=true`),
+  which calls `GET /actors` — correctly `404`'d in prod since `0.6.1`. Inert, but fixed by setting
+  `NEXT_PUBLIC_AUTH_DEV=false` in Vercel. Not a project-creation blocker.
+
+### Verification
+
+- **Backend:** `ruff` clean; DB-free suite **19 passed / 49 skipped** (was 12/49) — seven new
+  DB-free unit tests exercise `verify_bearer_token` directly (valid ES256 accepted; forged-key,
+  expired, wrong-audience, malformed, and unconfigured all → `AuthError`), so the verification
+  path now has real coverage without a DB. The existing HTTP-level `/me` tests were converted
+  from HS256 to ES256 (test EC keypair + injected signing key, no network) and still skip without
+  Postgres.
+- **Live path:** the derived JWKS URL fetches the project's key over certifi-verified TLS and
+  parses it into an `ECPublicKey` (`kid` matches the published key). The only step not reproduced
+  here is a signature check against a *real* session token (needs a live token).
+
+### Still gating the production push
+
+- **`fly deploy`** (from `backend/`) — ships the ES256 verifier + `SUPABASE_PROJECT_URL`. The
+  `release_command` re-runs `alembic upgrade head` (a no-op; `0006` already applied in the `0.7.0`
+  cutover). No `fly secrets set` required.
+- **Redeploy Vercel** with `NEXT_PUBLIC_AUTH_DEV=false` for the cosmetic switcher fix.
+- **Live check:** sign in → `/me` returns `200` with the nested `account`; creating a project
+  succeeds.
 
 ---
 

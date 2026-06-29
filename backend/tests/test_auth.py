@@ -13,35 +13,46 @@ from uuid import UUID
 
 import jwt
 import pytest
+from cryptography.hazmat.primitives.asymmetric import ec
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from app.core.auth import AuthError, verify_bearer_token
 from app.core.config import settings
 from app.models.account import Account
 from app.models.actor import Actor
 from app.models.contribution import Contribution
 from app.models.enums import ActorType
 
-# >= 32 bytes so PyJWT's HS256 key-length check stays quiet.
-TEST_SECRET = "test-jwt-secret-please-change-0123456789abcdef"
+# Supabase signs sessions with ES256 (asymmetric). We mint tokens with a throwaway P-256 key
+# and inject its public half into the verifier (see auth_settings), so the suite never reaches a
+# network JWKS endpoint. `_OTHER_KEY` is a *different* key, for the forged-signature case.
+_SIGNING_KEY = ec.generate_private_key(ec.SECP256R1())
+_PUBLIC_KEY = _SIGNING_KEY.public_key()
+_OTHER_KEY = ec.generate_private_key(ec.SECP256R1())
 INTERNAL_EMAIL = "insider@kamino.ai"
 
 
 @pytest.fixture
 def auth_settings(monkeypatch: pytest.MonkeyPatch):
-    """Configure verified-token auth for a test (auto-restored after)."""
-    monkeypatch.setattr(settings, "supabase_jwt_secret", TEST_SECRET)
+    """Configure verified-token auth for a test (auto-restored after).
+
+    Patches the verifier's signing-key seam to return the test public key (no JWKS fetch), so
+    a token minted with ``_SIGNING_KEY`` verifies and one minted with ``_OTHER_KEY`` fails on
+    signature — exercising the real ``jwt.decode`` path without network I/O.
+    """
     monkeypatch.setattr(settings, "supabase_jwt_audience", "authenticated")
     monkeypatch.setattr(settings, "internal_actor_emails", [INTERNAL_EMAIL])
+    monkeypatch.setattr("app.core.auth._signing_key", lambda _token: _PUBLIC_KEY)
     return settings
 
 
 def _mint(
     sub: str,
     *,
-    secret: str = TEST_SECRET,
+    key: ec.EllipticCurvePrivateKey = _SIGNING_KEY,
     email: str | None = None,
     name: str | None = None,
     aud: str = "authenticated",
@@ -53,11 +64,63 @@ def _mint(
         payload["email"] = email
     if name is not None:
         payload["user_metadata"] = {"name": name}
-    return jwt.encode(payload, secret, algorithm="HS256")
+    return jwt.encode(payload, key, algorithm="ES256", headers={"kid": "test-key"})
 
 
 def _bearer(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
+
+# --- DB-free unit tests of the ES256 verifier itself (no IdP, no database) ----------------
+# These call verify_bearer_token directly, so they run in the default (DB-free) suite and give
+# real coverage of the signature/audience/expiry path independent of provisioning. The signing
+# key is injected locally — they never reach a network JWKS endpoint.
+
+
+def _inject_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "supabase_jwt_audience", "authenticated")
+    monkeypatch.setattr("app.core.auth._signing_key", lambda _token: _PUBLIC_KEY)
+
+
+def test_verifier_accepts_valid_es256_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    _inject_key(monkeypatch)
+    identity = verify_bearer_token(_mint("sub-1", email="ada@example.com", name="Ada"))
+    assert identity.subject == "sub-1"
+    assert identity.email == "ada@example.com"
+    assert identity.display_name == "Ada"
+
+
+def test_verifier_falls_back_to_email_then_subject_for_display_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _inject_key(monkeypatch)
+    assert verify_bearer_token(_mint("sub-2", email="e@x.com")).display_name == "e@x.com"
+    assert verify_bearer_token(_mint("sub-3")).display_name == "sub-3"
+
+
+@pytest.mark.parametrize(
+    "token_factory",
+    [
+        pytest.param(lambda: _mint("sub", key=_OTHER_KEY), id="wrong-signing-key"),
+        pytest.param(lambda: _mint("sub", exp_delta=-10), id="expired"),
+        pytest.param(lambda: _mint("sub", aud="someone-else"), id="wrong-audience"),
+        pytest.param(lambda: "not-a-jwt", id="malformed"),
+    ],
+)
+def test_verifier_rejects_bad_tokens(
+    monkeypatch: pytest.MonkeyPatch, token_factory
+) -> None:
+    _inject_key(monkeypatch)
+    with pytest.raises(AuthError):
+        verify_bearer_token(token_factory())
+
+
+def test_verifier_rejects_when_auth_unconfigured(monkeypatch: pytest.MonkeyPatch) -> None:
+    # No JWKS URL and no project URL -> the real _signing_key raises AuthError before any fetch.
+    monkeypatch.setattr(settings, "supabase_jwks_url", None)
+    monkeypatch.setattr(settings, "supabase_project_url", None)
+    with pytest.raises(AuthError):
+        verify_bearer_token(_mint("sub"))
 
 
 async def _project(client: AsyncClient, slug: str = "auth-project") -> str:
@@ -160,10 +223,10 @@ async def test_token_401_matrix(
     )
     assert wrong_aud.status_code == 401
 
-    # wrong signing secret -> 401
+    # wrong signing key (valid ES256 token signed by a key whose public half isn't ours) -> 401
     forged = await client.get(
         "/api/v1/me",
-        headers=_bearer(_mint("idp-x", secret="a-different-secret-also-32-bytes-long-xx")),
+        headers=_bearer(_mint("idp-x", key=_OTHER_KEY)),
     )
     assert forged.status_code == 401
 

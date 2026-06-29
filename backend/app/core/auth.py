@@ -1,4 +1,4 @@
-"""Bearer-JWT verification adapter (0.6.0).
+"""Bearer-JWT verification adapter (0.6.0; ES256/JWKS since 0.7.x).
 
 The single, swappable seam between OpenTheory and an identity provider (Decision #2).
 It turns an ``Authorization: Bearer <token>`` value into a verified
@@ -7,15 +7,20 @@ It turns an ``Authorization: Bearer <token>`` value into a verified
 client. Swapping to Clerk/Auth0 (all JWT/JWKS-based) changes only this file + config; the
 ``ActingActor`` dependency, the ``Actor`` mapping, and every service stay identical.
 
-Verification path: Supabase Auth signs the session token with HS256 using the project's
-JWT secret, so we verify the signature, audience, and expiry against that shared secret.
-``supabase_jwks_url`` is reserved as a forward hook for asymmetric (RS256/ES256) signing
-keys; wiring it in is a config + this-module change, no caller change.
+Verification path: Supabase Auth now signs the session token with **ES256** (asymmetric)
+using the project's current signing key, and publishes the matching public keys at the
+project's JWKS endpoint. We fetch the signing key for the token's ``kid`` from there and
+verify the signature, audience, and expiry against it — there is no shared secret to hold.
+(The legacy HS256 shared-secret path was retired when Supabase moved to asymmetric keys.)
 """
 
+import ssl
 from dataclasses import dataclass
+from functools import lru_cache
 
+import certifi
 import jwt
+from jwt import PyJWKClient
 
 from app.core.config import settings
 
@@ -31,28 +36,68 @@ class AuthError(Exception):
 class VerifiedIdentity:
     """The minimal verified claims we map onto an ``Actor`` (Decision #1)."""
 
-    subject: str  # the IdP subject (`sub`) — stored as Actor.external_id
+    subject: str  # the IdP subject (`sub`) — stored as Account.external_id
     email: str | None
     display_name: str | None
 
 
+@lru_cache(maxsize=1)
+def _ssl_context() -> ssl.SSLContext:
+    """A TLS context that verifies against the ``certifi`` CA bundle, not the OS trust store.
+
+    The JWKS fetch is the backend's only outbound HTTPS call (Postgres uses asyncpg
+    ``ssl=require``, which doesn't verify a CA), so we can't assume the container's
+    ``/etc/ssl/certs`` is populated — certifi makes verification deterministic across local dev
+    and the slim production image.
+    """
+    return ssl.create_default_context(cafile=certifi.where())
+
+
+@lru_cache(maxsize=4)
+def _jwks_client(url: str) -> PyJWKClient:
+    """A process-cached JWKS client for ``url``.
+
+    Cached by URL so the fetched key set is reused across requests: only the first
+    authenticated request after a cold start (and a key rotation, after ``lifespan``) pays the
+    network round-trip to the JWKS endpoint. ``cache_keys`` additionally memoizes the resolved
+    per-``kid`` signing key. The fetch is synchronous; at this app's traffic the rare blocking
+    cold-start fetch is acceptable and keeps the verifier's simple sync contract.
+    """
+    return PyJWKClient(url, cache_keys=True, lifespan=600, ssl_context=_ssl_context())
+
+
+def _signing_key(token: str) -> object:
+    """Resolve the public key to verify ``token`` with, by its ``kid``, from the JWKS endpoint.
+
+    A seam the tests monkeypatch to inject a local key without network I/O. Raises
+    :class:`AuthError` if auth is unconfigured, the endpoint is unreachable, or no key matches
+    the token's ``kid``.
+    """
+    url = settings.jwks_url
+    if not url:
+        # Defensive: in production auth must be configured. A request reaching here with a
+        # bearer token but no configured JWKS endpoint is a misconfiguration, not an authz pass.
+        raise AuthError("authentication is not configured (no Supabase JWKS/project URL)")
+    try:
+        return _jwks_client(url).get_signing_key_from_jwt(token).key
+    except jwt.PyJWTError as exc:
+        # Covers a malformed token header, no matching `kid`, and (PyJWKClientConnectionError)
+        # an unreachable JWKS endpoint — all of which subclass PyJWTError.
+        raise AuthError(f"could not resolve signing key: {exc}") from exc
+
+
 def verify_bearer_token(token: str) -> VerifiedIdentity:
-    """Verify a Supabase HS256 JWT and return its identity claims.
+    """Verify a Supabase ES256 JWT and return its identity claims.
 
     Raises :class:`AuthError` on any verification failure (bad signature, expired,
-    wrong audience, missing required claims, or auth not configured).
+    wrong audience, missing required claims, unresolvable signing key, or auth not configured).
     """
-    secret = settings.supabase_jwt_secret
-    if not secret:
-        # Defensive: in production auth must be configured. A request reaching here with a
-        # bearer token but no configured secret is a misconfiguration, not an authz pass.
-        raise AuthError("authentication is not configured (no Supabase JWT secret)")
-
+    signing_key = _signing_key(token)  # AuthError propagates (it is not a PyJWTError)
     try:
         claims = jwt.decode(
             token,
-            secret,
-            algorithms=["HS256"],
+            signing_key,
+            algorithms=["ES256"],
             audience=settings.supabase_jwt_audience,
             options={"require": ["exp", "sub"]},
         )
