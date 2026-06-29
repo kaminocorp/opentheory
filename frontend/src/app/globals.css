@@ -281,6 +281,45 @@ h3 {
   }
 }
 
+/* Brand-mark assemble (§5.9 easter egg): a one-shot reveal — each node pops up
+   the diagonal in turn (scale 0 → 1.18 overshoot → settle), the staircase
+   building BL → TR until the mark lands. The replayable click "jingle"; distinct
+   from the looping `mark-cascade` (which only dims/lights for loading liveness).
+   `both` fill holds the final scale(1)/opacity(1) at rest, so a finished (or
+   reduced-motion-frozen) mark equals the steady logo. */
+@keyframes mark-assemble {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+  80% {
+    transform: scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* The single crimson signal flashes once as the last node lands (peaks ~80% of
+   the cycle, ≈ when child 4 settles), then clears — the "magic" landing beat. */
+@keyframes mark-spark {
+  0%,
+  55% {
+    filter: none;
+  }
+  80% {
+    filter: drop-shadow(0 0 5px rgb(var(--signal) / 0.9));
+  }
+  100% {
+    filter: none;
+  }
+}
+
 /* Menu / dropdown entrance (§6): fade + 4px slide, 0.18s. */
 @keyframes menu-pop {
   from {
@@ -334,6 +373,29 @@ h3 {
   animation-delay: 480ms;
 }
 
+/* One-shot assemble (§5.9 easter egg). The container flashes the crimson spark;
+   each node pops up the diagonal, staggered by DOM order (BL → TR) — same nth-child
+   convention as the cascade, no per-shape index prop. `transform-box: fill-box`
+   pivots each scale about the shape's own centre (SVG transforms default to the
+   canvas origin, which would fling them across the viewBox). */
+.mark-assemble {
+  animation: mark-spark 1.05s ease-out both;
+}
+.mark-assemble > * {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: mark-assemble 0.62s ease-out both;
+}
+.mark-assemble > *:nth-child(2) {
+  animation-delay: 130ms;
+}
+.mark-assemble > *:nth-child(3) {
+  animation-delay: 260ms;
+}
+.mark-assemble > *:nth-child(4) {
+  animation-delay: 390ms;
+}
+
 /* Apply to a grid/flex container: its direct children enter as a ~40ms cascade
    (§6). nth-child delays keep it component-agnostic — no per-item index prop. */
 .enter-stagger > * {
@@ -364,7 +426,9 @@ h3 {
   .anim-breathe,
   .menu-pop,
   .enter-stagger > *,
-  .mark-cascade > * {
+  .mark-cascade > *,
+  .mark-assemble,
+  .mark-assemble > * {
     animation: none !important;
   }
   *,

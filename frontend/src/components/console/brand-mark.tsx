@@ -7,6 +7,14 @@ interface BrandMarkProps {
    * static lockups render a steady mark. Frozen under `prefers-reduced-motion`.
    */
   animated?: boolean;
+  /**
+   * One-shot "assemble" — the four nodes pop up the diagonal in turn and land on
+   * the full mark, with a crimson spark on the final node (the §5.9 click
+   * easter-egg "jingle"). Distinct from the looping `animated` cascade. The
+   * caller replays it by remounting (a changing React `key`); frozen under
+   * `prefers-reduced-motion`. Ignored when `animated` is also set.
+   */
+  assembling?: boolean;
 }
 
 /**
@@ -21,7 +29,15 @@ interface BrandMarkProps {
  * `public/brand/mark*.svg` and the generated favicons (viewBox `170 150 920 920`,
  * a tight centred crop of the original 1254² canvas).
  */
-export function BrandMark({ size = 24, className, animated = false }: BrandMarkProps) {
+export function BrandMark({
+  size = 24,
+  className,
+  animated = false,
+  assembling = false,
+}: BrandMarkProps) {
+  // `animated` (looping loading cascade) wins if both are set — they target the
+  // same nodes and must never stack.
+  const markMotion = animated ? "mark-cascade" : assembling ? "mark-assemble" : undefined;
   return (
     <svg
       width={size}
@@ -31,9 +47,10 @@ export function BrandMark({ size = 24, className, animated = false }: BrandMarkP
       aria-hidden
       className={className}
     >
-      {/* DOM order is the diagonal order (BL → TR), so the cascade reads as a
-          wave climbing the staircase via nth-child delays (globals.css §6). */}
-      <g className={animated ? "mark-cascade" : undefined}>
+      {/* DOM order is the diagonal order (BL → TR), so both the cascade and the
+          assemble read as a wave climbing the staircase via nth-child delays
+          (globals.css §6). */}
+      <g className={markMotion}>
         <circle cx="313" cy="873" r="84" />
         <rect x="405" y="640" width="252" height="132" rx="66" />
         <rect x="661" y="455" width="162" height="162" />

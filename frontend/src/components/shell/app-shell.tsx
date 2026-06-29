@@ -1,9 +1,9 @@
 import { Search } from "lucide-react";
-import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { BrandMark, Icon } from "@/components/console";
+import { Icon } from "@/components/console";
 import { AuthMenu } from "@/components/shell/auth-menu";
+import { BrandLockup } from "@/components/shell/brand-lockup";
 import { CommandRail } from "@/components/shell/command-rail";
 
 /**
@@ -38,11 +38,9 @@ function ShellHeader() {
         style={{ borderBottom: "0.5px solid var(--hairline)" }}
       />
 
-      {/* Brand lockup (§8): mark + wordmark, Sans 15/500. The constant identity. */}
-      <Link href="/" className="flex shrink-0 items-center gap-2.5 text-text">
-        <BrandMark size={22} />
-        <span className="text-[15px] font-medium tracking-[-0.01em]">OpenTheory</span>
-      </Link>
+      {/* Brand lockup (§8): mark + wordmark, Sans 15/500. The constant identity,
+          plus the §5.9 click "jingle" easter egg (the mark re-assembles on click). */}
+      <BrandLockup />
 
       {/* Inert search (out of scope): restyled to a square hairline field, not wired. */}
       <div className="hidden min-w-0 flex-1 justify-center md:flex">

@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.8.5` — **Brand-mark "jingle" easter egg.** Clicking the header logo replays a one-shot assemble of the four shapes, landing on the full mark with a crimson spark. Frontend-only; invitations shift to `0.8.6`.
 - `0.8.4` — **Post-review hardening on `0.8.3` `@username`.** Invalid-handle renames now fail legibly (client-side validation + readable FastAPI errors); drops a redundant `func.lower()`; indexes `lower(email)`. Migration `0009_account_email_index` (additive). Invitations → `0.8.5`.
 - `0.8.3` — **Account `@username` — a unique public handle on the principal.** Auto-generated on first sign-in, renameable via `PATCH /me`, exposed on `/me` + the public `AccountSummary`; adds the `resolve_account_by_identifier` invite-resolver stub. Migration `0008_account_username` (additive + backfill).
 - `0.8.2` — **Post-review hardening on `0.8.1` stewardship.** A sole owner could self-demote and orphan the project; `set_member_role` now blocks demoting the owner outside a transfer. Also: duplicate `slug` → `409` (was `500`). Backend-only — no migration.
@@ -36,6 +37,59 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.8.5
+
+**Brand-mark "jingle" — a click easter egg on the header logo.** A small delight layered on the
+`0.8.0` mark: clicking the top-left lockup replays a one-shot *assemble* — the four shapes pop up the
+diagonal in turn and land on the full logo, with a single crimson spark as the last node settles.
+Pure presentation; the lockup still navigates home. Frontend-only — no backend, schema, or migration.
+
+> **Numbering:** this unplanned delight takes `0.8.5`; the planned **invitations + bell inbox** slice
+> shifts down one to `0.8.6` (its `resolve_account_by_identifier` resolver, shipped in `0.8.3`, still
+> stands as the resolver). Same renumber pattern as `0.8.2`→`0.8.3`.
+
+### What it does
+
+On click, the four nodes reveal **bottom-left → top-right** (circle → link → square → circle), each
+with a small overshoot bounce, building the staircase until the mark lands — then the single crimson
+`--signal` flashes once as the final node settles (the "magic" landing beat). ~1s total. The mark is
+**steady on load**; the animation is *only* the click easter egg, never an unprompted intro (the
+shell remounts per navigation, so an auto-intro would replay on every nav). Distinct from `0.8.0`'s
+looping loading cascade, which only dims/lights the nodes for liveness — this is a one-shot reveal.
+
+### The change (frontend-only)
+
+- **`globals.css`** — two new keyframes: `mark-assemble` (per-node `scale(0.3 → 1.18 → 1)` pop +
+  fade) and `mark-spark` (the crimson `drop-shadow` that peaks ~80% of the cycle, ≈ when the last
+  node lands). The `.mark-assemble` rules reuse `0.8.0`'s **BL→TR `nth-child` stagger** convention
+  (no per-shape index prop); `transform-box: fill-box; transform-origin: center` pivots each node's
+  scale about its own centre (SVG transforms otherwise default to the canvas origin). Both are added
+  to the **`prefers-reduced-motion` freeze** block, so the mark resolves straight to its steady state.
+- **`components/console/brand-mark.tsx`** — a new opt-in `assembling` prop swaps the inner `<g>` to
+  `mark-assemble`. The looping `animated` cascade **wins if both are set** — they target the same
+  nodes and must never stack. The `size` / `className` / `animated` API is otherwise unchanged.
+- **`components/shell/brand-lockup.tsx`** (new, `"use client"`) — owns the replay. A `runId` state,
+  bumped on click and passed as `BrandMark`'s React `key`, **remounts** the SVG so the one-shot CSS
+  animation plays fresh (CSS one-shots only fire on element creation; a remount is the declarative
+  replay — no `animationend` bookkeeping). `assembling={runId > 0}` keeps the first render (and
+  SSR / first paint) steady, so there is no hydration flash. The `<Link href="/">` still navigates;
+  the handler only bumps state (no `preventDefault`).
+- **`components/shell/app-shell.tsx`** — the header renders `<BrandLockup />` in place of the inline
+  lockup (the `Link` + `BrandMark` import move into the new component).
+
+### Verification
+
+- **Frontend:** `typecheck` / `lint` / `build` all green; **9/9** routes generate.
+- **Not reproduced here:** the animation *in motion* — the Chrome extension wasn't connected, so the
+  feel / timing was not eyeballed and no GIF was captured. The keyframe values above are what the code
+  produces; the local `npm run dev` (or post-deploy) visual check stands.
+
+### Deploy
+
+- **Redeploy Vercel** (frontend-only). No Fly redeploy, no migration.
 
 ---
 
