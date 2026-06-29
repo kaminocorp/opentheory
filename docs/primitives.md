@@ -47,10 +47,11 @@ Typical fields:
 
 - `id`
 - `project_id`
-- `actor_id`
+- `account_id` — the funding **principal** (`Account`, not `Actor`): money comes from the thing that holds a payment method
 - `amount`
 - `currency`
 - `kind`
+- `source` — `native` (platform compute, gated to `internal` accounts) or `stripe` (external funder)
 - `status`
 - `payment_reference`
 - `created_at`
@@ -216,22 +217,42 @@ Key relationships:
 
 Contribution is the substrate for attribution, reputation, influence, and later agent accountability.
 
+## Account
+
+The authentication *principal* (added in `0.7.0`) — one per external login (Supabase `auth.users`) — that **owns** one or more `Actor`s.
+
+Principal-level concerns live here, deliberately separated from research provenance:
+
+- `external_id` — the IdP subject (`sub`); the unique key auth resolves on.
+- `email` — the principal's contact address.
+- `roles` — queryable authorization (e.g. `internal`, which gates native funding). Authorization describes the *principal*, not a single action identity.
+- funding attribution — a `FundingAllocation` is attributed to the `Account`, because money comes from the thing that holds a payment method. The *act* of funding is still recorded as an `Actor` `Contribution` — the act vs. the money.
+
+Key relationships:
+
+- owns many `Actor`
+- has many `FundingAllocation`
+
+An account is a mutable identity row (roles and email can change) and is **not** part of the append-only ledger. Research provenance never moves here — it stays on `Actor`.
+
 ## Actor
 
 The entity performing an action.
 
 Actors can be humans initially and agents later. The platform should not need a parallel data model for agents; an agent should be an actor with metadata describing its model, provider, version, permissions, and run context.
 
+An actor is **owned by an `Account`** (the auth principal). Research provenance is attributed to the `Actor`; identity, authorization (`roles`), and funding attribution live on its `Account`.
+
 Key relationships:
 
+- belongs to `Account` (nullable — `system` and dev-bootstrap actors are account-less)
 - has many `Contribution`
-- may create `FundingAllocation`
 - may author `Checkpoint`
 - may perform `Validation`
 
 Possible actor types:
 
-- `human`
+- `human` (one primary human actor per account)
 - `agent`
 - `system`
 
@@ -253,11 +274,14 @@ Project
   ├── Validation
   └── Contribution
 
+Account                       (auth principal — owns Actors)
+  ├── Actor
+  └── FundingAllocation
+
 Actor
   ├── Contribution
-  ├── FundingAllocation
-  ├── Checkpoint
-  └── Validation
+  ├── Checkpoint        (authors)
+  └── Validation        (performs)
 ```
 
 ## Implementation Bias
