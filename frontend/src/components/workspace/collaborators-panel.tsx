@@ -20,10 +20,10 @@ import type { ProjectRole } from "@/types/research";
 const ROLE_TONE: Record<ProjectRole, StateTone> = { owner: "run", admin: "mute" };
 
 /**
- * Collaborators (0.8.1): the public member list (handles + role pills) plus owner-only governance
- * controls (change role / transfer ownership / remove). Membership is access control, *not* credit
- * — this panel never touches authorship/validation/funding. The invite-by-handle UI + pending list
- * lands in 0.8.3; usernames (`@handle`) replace `display_name` in 0.8.2.
+ * Collaborators (0.8.1): the public member list (display name + `@handle` + role pills) plus
+ * owner-only governance controls (change role / transfer ownership / remove). Membership is access
+ * control, *not* credit — this panel never touches authorship/validation/funding. The
+ * `@username` handle landed in 0.8.3; the invite-by-handle UI + pending list lands in 0.8.4.
  */
 export function CollaboratorsPanel({ projectId }: { projectId: string }) {
   const { me } = useActingIdentity();
@@ -80,9 +80,10 @@ export function CollaboratorsPanel({ projectId }: { projectId: string }) {
             const canGovern = isOwner && member.role !== "owner";
             return (
               <li key={member.account.id} className="flex items-center justify-between gap-2">
-                <span className="min-w-0 truncate text-[13px] text-text">
-                  {member.account.display_name}
-                  {isSelf ? <span className="ml-1.5 text-text-faint">(you)</span> : null}
+                <span className="flex min-w-0 items-baseline gap-1.5 text-[13px]">
+                  <span className="truncate text-text">{member.account.display_name}</span>
+                  <span className="shrink-0 text-text-faint">@{member.account.username}</span>
+                  {isSelf ? <span className="shrink-0 text-text-faint">(you)</span> : null}
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
                   {canGovern ? (

@@ -21,16 +21,25 @@ export type Account = {
   id: string;
   external_id: string | null;
   display_name: string;
+  // The public, unique, renameable `@handle` (0.8.3).
+  username: string;
   email: string | null;
   roles: string[];
   created_at: string;
   updated_at: string;
 };
 
-// Privacy-safe funder identity (no email/roles), mirroring the backend AccountSummary.
+// Privacy-safe account identity (no email/roles), mirroring the backend AccountSummary. Carries the
+// public `@username` (0.8.3) for display + invite-by-handle.
 export type AccountSummary = {
   id: string;
   display_name: string;
+  username: string;
+};
+
+// Self-service identity edit (PATCH /me, 0.8.3) — just the public handle for now.
+export type AccountUpdate = {
+  username: string;
 };
 
 // GET /me — the resolved acting actor plus its owning account (roles/email), driving the identity

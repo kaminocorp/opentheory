@@ -52,8 +52,9 @@ class MemberRoleUpdate(BaseModel):
 class ProjectMemberRead(BaseModel):
     """A project membership for the public member list (0.8.1).
 
-    Carries only the privacy-safe ``AccountSummary`` (id + display_name) — never the principal's
-    email/roles/external_id — so the member list is safe to serve unauthenticated.
+    Carries only the privacy-safe ``AccountSummary`` (id + display_name + public ``@username``) —
+    never the principal's email/roles/external_id — so the member list is safe to serve
+    unauthenticated.
     """
 
     model_config = ConfigDict(from_attributes=True)

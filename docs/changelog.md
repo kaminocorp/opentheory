@@ -2,8 +2,10 @@
 
 ## Index
 
-- `0.8.2` — **Post-review hardening on `0.8.1` stewardship.** Closes a governance gap — a project's sole owner could self-demote to `admin` and orphan the project (zero owners → ungovernable); `set_member_role` now refuses to demote the owner outside a transfer. Also: duplicate `slug` → a clean `409` (was a `500`), and a redundant member-list sort dropped. Backend-only — no schema or migration. (The `username` / invitation slices shift to `0.8.3` / `0.8.4`.)
-- `0.8.1` — **Project stewardship — ownership + self-edit.** A project creator now **owns** their project (new `project_members` table — the platform's first project-level authorization) and can **edit** its title / question / description / status plus an optional rich-text **`background`** (Markdown → `TEXT`); creation records ownership + a `create_project` contribution. Membership is access control, kept separate from the funder / contributor / validator credit roles. First stewardship slice; migration `0007_project_stewardship` (additive).
+- `0.8.4` — **Post-review hardening on `0.8.3` `@username`.** Invalid-handle renames now fail legibly (client-side validation + readable FastAPI errors); drops a redundant `func.lower()`; indexes `lower(email)`. Migration `0009_account_email_index` (additive). Invitations → `0.8.5`.
+- `0.8.3` — **Account `@username` — a unique public handle on the principal.** Auto-generated on first sign-in, renameable via `PATCH /me`, exposed on `/me` + the public `AccountSummary`; adds the `resolve_account_by_identifier` invite-resolver stub. Migration `0008_account_username` (additive + backfill).
+- `0.8.2` — **Post-review hardening on `0.8.1` stewardship.** A sole owner could self-demote and orphan the project; `set_member_role` now blocks demoting the owner outside a transfer. Also: duplicate `slug` → `409` (was `500`). Backend-only — no migration.
+- `0.8.1` — **Project stewardship — ownership + self-edit.** A creator now **owns** their project (new `project_members` table — the first project-level authorization) and can edit its metadata + a rich-text **`background`**. Membership is access control, separate from the credit roles. Migration `0007_project_stewardship` (additive).
 - `0.8.0` — **Native brand mark, favicons + a loading animation.** Recreates the OpenTheory logo in code — four diagonal shapes measured off the source PNGs — replacing the placeholder glyph; adds theme-adaptive favicons, background-free SVG/PNG assets, and a diagonal loading cascade. Frontend-only — no backend, schema, or migration.
 - `0.7.3` — **Backend co-located with the database (Fly `iad`→`sin`) + startup warm-ups.** The ~230ms cross-Pacific hop to the Singapore DB made a 2-row read take ~2s; co-locating Fly with the DB — plus a warm machine and pool/JWKS prewarm — fixes it. No schema or migration.
 - `0.7.2` — **Public read-only view + dev-actor switcher removed.** Write affordances (e.g. "New project") are hidden unless signed in; everything stays publicly readable. Deletes the legacy `X-Dev-Actor-Id` dev-actor subsystem and the `NEXT_PUBLIC_AUTH_DEV` flag (the footgun behind the `0.7.0` "Could not load actors" leak).
@@ -34,6 +36,158 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.8.4
+
+**Post-review hardening on the `0.8.3` `@username` slice.** A review of `0.8.3` (account `@handle` +
+self-rename) surfaced three items — one user-facing defect and two cleanups — all fixed here. No new
+endpoints or behavior change to the feature itself; one **additive** migration (`0009`, an index).
+The planned feature slice shifts down one: invitations + the bell inbox become `0.8.5`
+(`resolve_account_by_identifier`, shipped in `0.8.3`, remains its resolver).
+
+### (F1) An invalid/reserved rename leaked the server's raw `422` to the UI — fixed
+
+The collision path was already clean (`PATCH /me` raises an `HTTPException` with a **string** `detail`
+→ a legible `409`). But the *validation* path was not: `AccountUpdate`'s field validator raises a
+`ValueError`, which FastAPI returns as a `422` whose `detail` is a **list** of error objects — and the
+typed client (`lib/api.ts::request`) `JSON.stringify`'d any non-string `detail`, so the auth menu's
+error line rendered a raw JSON blob (`[{"type":"value_error",…}]`) for a too-short / spaced /
+reserved handle. `submitHandle` only guarded empty/unchanged, so this was reachable from normal
+typing. Fixed in three places:
+
+- **`frontend/src/lib/username.ts`** (new): a mirror of the backend handle rules (the
+  `^[a-z0-9_]{3,30}$` pattern + the reserved set). `usernameError(value)` returns a human-readable
+  message or `null`. The server validator stays the canonical enforcement; this is a UX shortcut +
+  defense-in-depth (kept in sync with `app/core/usernames.py`).
+- **`auth-menu.tsx::submitHandle`** now validates the (trimmed/lowercased) draft client-side **before**
+  the round-trip — a legible inline message, and no needless request for obviously-bad input. The DB
+  uniqueness `409` still comes from the server.
+- **`lib/api.ts::request`** now renders a FastAPI validation **array** by mapping each entry's `msg`
+  (stripping Pydantic v2's `"Value error, "` prefix) and joining — so *any* endpoint's `422` is
+  legible, not just the username form. The string-`detail` path (the `409`) is unchanged.
+
+### (F2) Redundant `func.lower()` in the username generator — dropped
+
+`services/account.py::generate_unique_username` filtered candidate handles with
+`func.lower(Account.username) LIKE …`. Since `username` is **lowercase-on-write** (every insert path
+and the migration backfill lowercase it — that is *how* case-insensitive uniqueness holds on a plain
+`UNIQUE` column), the wrapper was a no-op that also hides the column from any index the planner might
+use. Now matches `Account.username` directly; the `_`-wildcard escape on the prefix is retained.
+
+### (F3) `lower(email)` indexed for invite resolution
+
+`resolve_account_by_identifier` (shipped in `0.8.3` as the invite resolver, no caller until `0.8.5`)
+matches an email **case-insensitively** via `lower(email)` — an unindexed expression that would be a
+sequential scan as `accounts` grows. Added a **non-unique** functional index
+`ix_accounts_email_lower`, declared on `Account.__table_args__` **and** in migration `0009` (the
+`create_all`↔migration parity discipline). Non-unique by design — `email` is intentionally not
+uniqueness-enforced (proposal §7); an ambiguous email becomes a `409` in the invite service, never a
+DB constraint.
+
+### Schema & migration (`0009_account_email_index`, additive)
+
+- **`ix_accounts_email_lower`** — a functional index on `lower(email)` over `accounts`. No column or
+  constraint change; nothing destructive.
+
+### Verification
+
+```bash
+cd backend && uv run ruff check . && uv run pytest    # ruff clean; 52 passed / 65 skipped (no DB)
+cd frontend && npm run typecheck && npm run lint && npm run build   # all green, 9/9 routes
+```
+
+Behavior of the `0.8.3` flow is unchanged, so the existing suite (DB-free + the DB-backed
+`test_accounts.py`) still covers it; model↔migration parity was re-confirmed including the new index.
+**Not run here:** the DB-backed tests against real Postgres and the in-browser rename pass — the
+post-deploy live check, per the no-local-DB policy.
+
+### Deploy
+
+`fly deploy` from `backend/` — the `release_command` runs `alembic upgrade head`, applying `0009`
+(creates the index; instant on today's tiny table). **Redeploy Vercel** for the frontend (the
+client-side rename validation + the legible `422` rendering).
+
+---
+
+## 0.8.3
+
+**Account `@username` — a unique public handle on the principal.** The second slice of the
+**Project Stewardship & Collaboration** line (`docs/executing/project-stewardship-and-collaboration.md`
+§4.2), delivering the proposal's `@username` work. It gives every `Account` a unique, public,
+**renameable** handle — distinct from the free-form non-unique `display_name` and the private
+`email` — auto-generated so there is **no "choose a username" gate** on first use. This is the
+prerequisite for inviting an existing user *by handle* (the `0.8.4` invitations slice).
+Per-phase detail: `docs/completions/project-stewardship-0.8.3.md`.
+
+> **Numbering:** the implementation plan labels this `0.8.2`, but `0.8.2` already shipped as the
+> stewardship hardening; per that entry's own note, `@username` is `0.8.3` and invitations move to
+> `0.8.4`.
+
+### Schema & migration (`0008_account_username`, additive column + hand-authored backfill)
+
+- **`accounts.username`** `String(30)` `NOT NULL` `UNIQUE` (`uq_accounts_username`) — the public
+  `@handle`, stored **lowercased** (case-insensitive uniqueness falls out of lowercase-on-write; no
+  `citext`). Validated shape `^[a-z0-9_]{3,30}$`; a small reserved set (`me`, `admin`, `system`, …)
+  is rejected.
+- **Backfill** (like `0006`): add the column nullable → assign every existing account a unique
+  handle (deterministic order; reserved + already-minted handles form the `taken` set, suffixing
+  `base`→`base2`→`base3`) → `UNIQUE` + `NOT NULL`. The slug/dedupe logic is **re-inlined in the
+  migration** (not imported from `app.core.usernames`) so the migration stays *frozen* — a later
+  change to the app helper can't retroactively alter it.
+- **Ships with the provisioning change** — once `username` is `NOT NULL`, code that can't populate
+  it would fail the next sign-in / bootstrap, so the backend and migration deploy together.
+
+### Backend
+
+- **`core/usernames.py`** (new, pure/DB-free): `normalize` (slug to the handle shape, pad/truncate),
+  `base_from` (email local-part → display name → `"user"`, skipping reserved sources),
+  `generate_username_candidates` (`base`, `base2`, …), `with_suffix`, `is_valid_username`,
+  `RESERVED_USERNAMES`, `USERNAME_PATTERN`.
+- **`services/account.py`**: `generate_unique_username(db, base)` pre-queries the handles sharing a
+  prefix (escaping the `_` LIKE-wildcard) and returns the first free, non-reserved candidate;
+  `create_account` (dev bootstrap) now mints a handle, retrying on the rare unique race;
+  `resolve_account_by_identifier(db, identifier)` resolves a `@username` **or** email (the `0.8.4`
+  invite resolver).
+- **`api/deps.py::_resolve_or_provision`**: first sign-in auto-generates a handle. The existing
+  `IntegrityError`→rollback→re-read now **distinguishes two races** — a re-read winner means an
+  `external_id` race (return it); no winner means a `username` collision (regenerate + retry,
+  bounded) — with **no** fragile constraint-name parsing.
+- **`PATCH /me`** (`api/routes/me.py`): renames the caller's **own** handle (authorization is
+  implicit — it writes to `actor.account`). `AccountUpdate` normalizes + validates (`422` on
+  bad/reserved); the route translates a `uq_accounts_username` violation into a clean `409`; a
+  same-handle write is a no-op; an account-less actor → `403`.
+- **Schemas**: `username` on `AccountRead` and the public `AccountSummary` (a public handle — safe,
+  and needed for invites); new `AccountUpdate` (handle-validated).
+
+### Frontend
+
+- **Types/client**: `username` on `Account` / `AccountSummary` (so `Me` inherits it), new
+  `AccountUpdate`; `updateMe({ username })` (`PATCH /me`).
+- **`auth-menu.tsx`**: the signed-in dropdown shows the `@handle` as an inline-edit affordance —
+  a field + Save/Cancel calling `updateMe`, surfacing the `409`/`422` `detail`, invalidating the
+  `["me"]` query on success.
+- **`collaborators-panel.tsx`**: each member row now shows `display_name` + muted `@handle`.
+
+### Verification
+
+- **Backend:** `ruff` clean; DB-free suite **52 passed / 65 skipped** (the new
+  `tests/test_usernames.py` — `normalize`/`base_from`/candidates/`is_valid_username` + `AccountUpdate`
+  accept/reject + the `PATCH /me` unauthenticated `401` gate — runs; the new DB-backed
+  `tests/test_accounts.py` collects + skips without `TEST_DATABASE_URL`). Model↔migration parity
+  confirmed by compiling the `accounts` DDL against the Postgres dialect (`username VARCHAR(30) NOT
+  NULL` + `uq_accounts_username` match `0008`'s end state).
+- **Frontend:** `typecheck` / `lint` / `build` all green; **9/9** routes generate.
+- **Not reproduced here:** the DB-backed tests against Postgres and the in-browser rename pass (need
+  the deployed Supabase / a throwaway DB) — the post-deploy live check, per the no-local-DB policy.
+
+### Deploy
+
+- **`fly deploy`** (from `backend/`) — the `release_command` runs `alembic upgrade head`, applying
+  `0008` (adds + backfills `username`, then `NOT NULL`/`UNIQUE`). **Redeploy Vercel** (frontend).
+  No manual step: existing accounts (incl. yours) receive a generated handle from the backfill;
+  confirm rename works on the live deploy.
 
 ---
 
@@ -290,20 +444,21 @@ one-time warm-up. Logged-in loads felt worse because `/me` adds its own cross-Pa
   calls; DB host `db.<ref>.supabase.co` → `47.131.125.148` → `ec2-…-ap-southeast-1` (Singapore);
   Fly machine in `iad`.
 
-### Still gating the production push
+### Deployed (region relocation complete)
 
-Fly secrets are **app-level** (injected into every machine), so a *machine* rebuild preserves them
-— only destroying the *app* (`fly apps destroy`) wipes them, which we do **not** do. From
-`backend/` (full runbook in `docs/deploy.md` → "Relocating the backend region"):
+Fly secrets are **app-level**, so relocating the *machine* preserved them (nothing to re-enter).
+`fly deploy` updates machines **in place** and does *not* honor a changed `primary_region` for an
+existing machine, so the move was done by cloning into `sin` and dropping the `iad` machine (full
+runbook in `docs/deploy.md` → "Relocating the backend region"):
 
 ```bash
-fly machine destroy <iad-machine-id> --force   # removes the machine, not the app/secrets
-fly deploy                                      # provisions a fresh machine in primary_region (sin)
-fly status                                      # REGION = sin, state started, checks passing
+fly machine clone <iad-id> --region sin   # new sin machine, same image + app secrets, 1/1 healthy
+fly machine destroy <iad-id> --force      # drop the iad machine; sin is the only one left
 ```
 
-No Vercel change (the `opentheory-backend.fly.dev` hostname is unchanged). **Live check:**
-`GET /projects` TTFB should drop from ~2s to ~0.5s, close to `/health`.
+No Vercel change (the `opentheory-backend.fly.dev` hostname is unchanged). **Measured result:**
+`GET /projects` TTFB dropped from **~2s to ~0.26s** — now equal to `/health`, i.e. the per-request
+cross-Pacific DB penalty is gone.
 
 ---
 

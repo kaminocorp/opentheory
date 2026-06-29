@@ -1,5 +1,6 @@
 import type { Project, ProjectCreate, ProjectUpdate } from "@/types/project";
 import type {
+  AccountUpdate,
   Branch,
   BranchClose,
   BranchCreate,
@@ -57,6 +58,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       const data = (await response.json()) as { detail?: unknown };
       if (typeof data?.detail === "string") {
         detail = data.detail;
+      } else if (Array.isArray(data?.detail)) {
+        // FastAPI request-validation errors (422) are a list of {msg, loc, ...} objects. Surface the
+        // messages (stripping Pydantic v2's "Value error, " prefix) instead of a raw JSON blob.
+        detail = (data.detail as Array<{ msg?: unknown }>)
+          .map((e) => (typeof e.msg === "string" ? e.msg.replace(/^Value error,\s*/, "") : null))
+          .filter((m): m is string => Boolean(m))
+          .join("; ");
       } else if (data?.detail != null) {
         detail = JSON.stringify(data.detail);
       }
@@ -91,6 +99,12 @@ function patchInit(body: unknown): RequestInit {
 // the identity menu and write gating.
 export function getMe(): Promise<Me> {
   return request<Me>("/me");
+}
+
+// Edit the caller's own principal — currently just the public `@username` (0.8.3). Throws on a
+// 409 (handle taken) or 422 (invalid/reserved), surfaced via the request helper's `detail`.
+export function updateMe(payload: AccountUpdate): Promise<Me> {
+  return request<Me>("/me", patchInit(payload));
 }
 
 // --- Projects ---------------------------------------------------------------

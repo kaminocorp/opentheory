@@ -11,12 +11,19 @@ from sqlalchemy.orm import contains_eager, joinedload
 from app.core.auth import AuthError, VerifiedIdentity, verify_bearer_token
 from app.core.config import settings
 from app.core.roles import INTERNAL_ROLE, actor_is_internal
+from app.core.usernames import base_from
 from app.db.session import get_db
 from app.models.account import Account
 from app.models.actor import Actor
 from app.models.enums import ActorType
+from app.services.account import generate_unique_username
 
 DbSession = Annotated[AsyncSession, Depends(get_db)]
+
+# Bounds the first-login provisioning loop: each pass picks a free handle and tries to commit the
+# Account + Actor. A retry happens only on a genuine username race with a *different* principal
+# (an external_id race short-circuits to the winner); a handful of passes is far more than enough.
+_PROVISION_RETRIES = 6
 
 
 def _bearer_token(authorization: str | None) -> str | None:
@@ -53,29 +60,51 @@ async def _resolve_or_provision(db: AsyncSession, identity: VerifiedIdentity) ->
 
     email = identity.email
     is_internal = bool(email) and email.lower() in settings.internal_actor_emails
-    account = Account(
-        external_id=identity.subject,
-        display_name=identity.display_name or identity.subject,
-        email=email,
-        roles=[INTERNAL_ROLE] if is_internal else [],
+    display_name = identity.display_name or identity.subject
+    # Every principal gets a public `@handle` immediately (0.8.3) — auto-generated from the email
+    # local-part (else display name), so invite-by-handle works with zero setup and there is no
+    # "choose a username" gate on first use. The user can rename later via PATCH /me.
+    username_base = base_from(email, identity.display_name)
+    for _ in range(_PROVISION_RETRIES):
+        account = Account(
+            external_id=identity.subject,
+            display_name=display_name,
+            email=email,
+            roles=[INTERNAL_ROLE] if is_internal else [],
+            username=await generate_unique_username(db, username_base),
+        )
+        actor = Actor(
+            type=ActorType.HUMAN,
+            display_name=display_name,
+            account=account,  # ORM sets actor.account_id on flush; account stays loaded
+            actor_metadata={"email": email} if email else {},
+        )
+        db.add(account)
+        db.add(actor)
+        try:
+            await db.commit()
+        except IntegrityError:
+            # Two unique constraints can fail here: `accounts.external_id` (a concurrent first-login
+            # by the *same* principal) and `uq_accounts_username` (a different principal that raced
+            # to the same generated handle). Re-read by external_id to tell them apart: a winner
+            # means the external_id race — return it; no winner means a username collision — loop
+            # and regenerate. (No fragile constraint-name parsing needed.)
+            await db.rollback()
+            winner = (await db.execute(stmt)).scalar_one_or_none()
+            if winner is not None:
+                return winner
+            continue
+        # No db.refresh: id/timestamps are Python-side defaults and `expire_on_commit=False` keeps
+        # the in-memory graph (incl. actor.account) populated, so refreshing would only risk
+        # expiring the eager-loaded account into an async lazy-load.
+        return actor
+
+    # Exhausted retries — a sustained username race (vanishingly unlikely). Surface a 503 rather
+    # than a 500 so the client can retry the sign-in.
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Could not provision an account; please retry",
     )
-    actor = Actor(
-        type=ActorType.HUMAN,
-        display_name=identity.display_name or identity.subject,
-        account=account,  # ORM sets actor.account_id on flush; account stays loaded on the actor
-        actor_metadata={"email": email} if email else {},
-    )
-    db.add(account)
-    db.add(actor)
-    try:
-        await db.commit()
-    except IntegrityError:
-        await db.rollback()
-        return (await db.execute(stmt)).scalar_one()
-    # No db.refresh: id/timestamps are Python-side defaults and `expire_on_commit=False` keeps the
-    # in-memory graph (incl. actor.account) populated, so refreshing would only risk expiring the
-    # eager-loaded account into an async lazy-load.
-    return actor
 
 
 async def _resolve_dev_actor(db: AsyncSession, x_dev_actor_id: str | None) -> Actor:
