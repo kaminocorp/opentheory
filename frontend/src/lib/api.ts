@@ -1,4 +1,10 @@
-import type { Project, ProjectCreate, ProjectUpdate } from "@/types/project";
+import type {
+  AgentModels,
+  ModelOption,
+  Project,
+  ProjectCreate,
+  ProjectUpdate,
+} from "@/types/project";
 import type {
   AccountUpdate,
   Branch,
@@ -95,6 +101,11 @@ function patchInit(body: unknown): RequestInit {
   return { method: "PATCH", body: JSON.stringify(body) };
 }
 
+// A full-replace (PUT) request body — e.g. the agent-model roster (0.8.10).
+function putInit(body: unknown): RequestInit {
+  return { method: "PUT", body: JSON.stringify(body) };
+}
+
 // --- Identity ---------------------------------------------------------------
 
 // The resolved acting actor plus its owning account (roles live on the account in 0.7.0), driving
@@ -131,6 +142,20 @@ export function getProjectOverview(projectId: string): Promise<ProjectOverview> 
 // Edit project metadata (owner/admin; the acting actor rides on the request). Partial update.
 export function updateProject(projectId: string, payload: ProjectUpdate): Promise<Project> {
   return request<Project>(`/projects/${projectId}`, patchInit(payload));
+}
+
+// --- Agent models (0.8.10) ---------------------------------------------------
+
+// The curated OpenRouter catalog that populates the role-assignment dropdowns. Public read; the
+// list is static so callers can cache it aggressively.
+export function getAgentModelCatalog(): Promise<ModelOption[]> {
+  return request<ModelOption[]>("/agent-models/catalog");
+}
+
+// Replace a project's per-role model roster (owner/admin). Full replace — send the complete map
+// (a role omitted/`null` becomes unassigned). Returns the updated project.
+export function updateAgentModels(projectId: string, payload: AgentModels): Promise<Project> {
+  return request<Project>(`/projects/${projectId}/agent-models`, putInit(payload));
 }
 
 // --- Project members / stewardship (0.8.1) ----------------------------------

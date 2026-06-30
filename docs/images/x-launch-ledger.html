@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --ground:#0D0C0B; --panel:#161513; --panel2:#1C1A18;
+    --text:#ECEAE6; --soft:#B7B3AC; --mute:#807C74; --faint:#5A574F;
+    --signal:#C95A5A; --ok:#5E8C73; --hair: rgba(236,234,230,0.10);
+    --hair2: rgba(236,234,230,0.18);
+  }
+  html,body { background:#000; }
+  .sans { font-family:'IBM Plex Sans',system-ui,sans-serif; }
+  .mono { font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace; }
+  .frame {
+    width:1600px; height:900px; position:relative; overflow:hidden;
+    background-color:var(--ground);
+    background-image:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='64'%20height='64'%3E%3Cg%20stroke='rgba(236,234,230,0.07)'%20stroke-width='1'%3E%3Cline%20x1='29'%20y1='32'%20x2='35'%20y2='32'/%3E%3Cline%20x1='32'%20y1='29'%20x2='32'%20y2='35'/%3E%3C/g%3E%3C/svg%3E"),linear-gradient(to right, rgba(236,234,230,0.03) 1px, transparent 1px),linear-gradient(to bottom, rgba(236,234,230,0.03) 1px, transparent 1px),linear-gradient(to right, rgba(236,234,230,0.018) 1px, transparent 1px),linear-gradient(to bottom, rgba(236,234,230,0.018) 1px, transparent 1px);
+    background-size:64px 64px,64px 64px,64px 64px,8px 8px,8px 8px;
+    background-position:32px 32px,32px 0,0 32px,0 0,0 0;
+    color:var(--text); font-family:'IBM Plex Sans',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased; font-variant-numeric:tabular-nums;
+    padding:34px 48px 30px; display:flex; flex-direction:column;
+  }
+  .frame::before { content:""; position:absolute; inset:0; background-image:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='180'%20height='180'%3E%3Cfilter%20id='n'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='0.85'%20numOctaves='2'%20stitchTiles='stitch'/%3E%3CfeColorMatrix%20type='saturate'%20values='0'/%3E%3C/filter%3E%3Crect%20width='180'%20height='180'%20filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size:180px 180px; opacity:.035; pointer-events:none; }
+  .frame::after { content:""; position:absolute; inset:0; pointer-events:none;
+    background:radial-gradient(125% 120% at 50% -12%, transparent 52%, rgba(0,0,0,.45) 100%); }
+  .frame > * { position:relative; z-index:1; }
+
+  /* top bar */
+  .topbar { display:flex; align-items:center; justify-content:space-between; height:40px; }
+  .lock { display:flex; align-items:center; gap:13px; }
+  .lock .wm { font-weight:600; font-size:20px; letter-spacing:.14em; color:var(--text); }
+  .lock .sub { font-size:10.5px; letter-spacing:.34em; color:var(--mute); border-left:1px solid var(--hair);
+    padding-left:13px; margin-left:3px; }
+  .status { display:flex; align-items:center; gap:20px; font-size:11px; letter-spacing:.16em; color:var(--mute); }
+  .status .live { color:#6F93A8; display:flex; align-items:center; gap:7px; }
+  .status .live i { width:7px; height:7px; border-radius:50%; background:#6F93A8; display:inline-block;
+    box-shadow:0 0 8px #6F93A8; }
+  .status b { color:var(--soft); font-weight:500; }
+
+  /* project header */
+  .ph { margin-top:22px; }
+  .eyebrow { font-size:11px; letter-spacing:.26em; color:var(--mute); display:flex; gap:14px; align-items:center; }
+  .eyebrow .dot { color:var(--faint); }
+  .eyebrow .sig { color:var(--signal); }
+  .ph h1 { font-size:27px; font-weight:600; line-height:1.18; margin-top:11px; color:var(--text);
+    letter-spacing:-.005em; max-width:1180px; }
+
+  /* body */
+  .body { display:flex; gap:26px; margin-top:20px; flex:1; min-height:0; }
+  .bay { background:var(--panel); border:.5px solid var(--hair); border-top-color:var(--hair2);
+    box-shadow: inset 0 1px 0 rgba(236,234,230,.04), inset 0 -1px 0 rgba(0,0,0,.5); position:relative; }
+  .ledger { width:902px; flex:none; display:flex; flex-direction:column; }
+  .prov { flex:1; display:flex; flex-direction:column; }
+  .bayhead { display:flex; align-items:center; justify-content:space-between; height:44px;
+    padding:0 18px; border-bottom:.5px solid var(--hair); }
+  .bayhead .t { font-size:11px; letter-spacing:.24em; color:var(--soft); }
+  .bayhead .c { font-size:11px; letter-spacing:.12em; color:var(--mute); }
+  .bayhead .c b { color:var(--text); font-weight:500; }
+
+  /* graph */
+  .graph { position:relative; padding:14px 18px 8px; flex:1; }
+  .rail { position:absolute; left:18px; top:14px; }
+  .card { position:absolute; height:58px; padding:0 0 0 0; }
+  .card-row { display:flex; align-items:center; gap:13px; }
+  .stage { font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.16em; color:var(--mute);
+    width:88px; flex:none; text-align:right; }
+  .title { font-size:14.5px; color:var(--soft); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .card-sel .title { color:var(--text); font-weight:500; }
+  .pill { font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.12em; flex:none;
+    border:.5px solid; padding:3px 8px; border-radius:999px; white-space:nowrap; }
+  .meta { font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--mute);
+    margin-top:7px; margin-left:101px; display:flex; align-items:center; gap:7px; }
+  .meta .d { color:var(--faint); }
+  .meta .cp { color:var(--soft); }
+  .btag { color:#C8923E; border:.5px solid #C8923E55; border-radius:999px; padding:2px 7px;
+    font-size:9px; letter-spacing:.1em; margin-left:4px; }
+  .card-sel::before { content:"\25b8"; position:absolute; left:-15px; top:6px; color:var(--signal); font-size:12px; }
+
+  /* provenance panel */
+  .pbody { padding:16px 18px; display:flex; flex-direction:column; gap:0; flex:1; }
+  .psel { display:flex; align-items:baseline; gap:10px; }
+  .psel .cp { font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--signal); letter-spacing:.04em; }
+  .psel .tag { font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.18em; color:var(--mute);
+    border:.5px solid var(--hair); padding:2px 7px; }
+  .pclaim { font-size:14px; color:var(--text); margin-top:11px; line-height:1.4; }
+  .psplit { height:.5px; background:var(--hair); margin:17px 0 0; }
+  .plabel { font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.22em; color:var(--mute);
+    margin:15px 0 9px; }
+  .prow { display:flex; align-items:baseline; gap:9px; padding:6px 0; font-size:12px; }
+  .pico { font-family:'IBM Plex Mono',monospace; width:13px; flex:none; font-size:12px; }
+  .pref { font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.04em; color:var(--soft);
+    flex:none; min-width:96px; }
+  .pdesc { color:var(--mute); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ptail { font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--faint); flex:none; }
+  .signalbox { margin-top:auto; border-top:.5px solid var(--hair); padding-top:14px; display:flex;
+    align-items:center; justify-content:space-between; }
+  .signalbox .lab { font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.2em; color:var(--mute); }
+  .signalbox .val { display:flex; align-items:center; gap:9px; }
+  .signalbox .val b { color:var(--ok); font-size:13px; font-weight:500; font-family:'IBM Plex Mono',monospace; letter-spacing:.06em; }
+  .segs { display:flex; gap:3px; }
+  .segs i { width:16px; height:5px; display:block; background:var(--ok); }
+  .segs i.off { background:rgba(236,234,230,.12); }
+  .pnote { font-family:'IBM Plex Mono',monospace; font-size:9px; color:var(--faint); letter-spacing:.05em;
+    margin-top:8px; }
+
+  /* footer */
+  .footer { display:flex; align-items:center; justify-content:space-between; height:30px; margin-top:18px;
+    border-top:.5px solid var(--hair); padding-top:16px; }
+  .footer .l { display:flex; align-items:center; gap:11px; }
+  .footer .thesis { font-size:13px; color:var(--soft); }
+  .footer .thesis b { color:var(--text); font-weight:600; }
+  .footer .thesis .x { color:var(--faint); }
+  .footer .r { font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.14em; color:var(--mute); }
+</style></head>
+<body>
+<div class="frame">
+  <div class="topbar">
+    <div class="lock"><svg width="26" height="26" viewBox="170 150 920 920" fill="#ECEAE6" aria-hidden="true"><circle cx="313" cy="873" r="84"/><rect x="405" y="640" width="252" height="132" rx="66"/><rect x="661" y="455" width="162" height="162"/><circle cx="942" cy="351" r="84"/></svg><span class="wm sans">OpenTheory</span>
+      <span class="sub mono">RESEARCH&nbsp;LEDGER</span></div>
+    <div class="status mono"><span class="live"><i></i>LIVE</span>
+      <span><b>NS-3D</b>&nbsp;&nbsp;OT-0294</span></div>
+  </div>
+
+  <div class="ph">
+    <div class="eyebrow mono"><span>PROJECT</span><span class="dot">/</span><span class="sig">OPEN</span>
+      <span class="dot">·</span><span>4 THREADS</span><span class="dot">·</span>
+      <span>37 CHECKPOINTS</span><span class="dot">·</span><span>BUDGET 2.4M / 5M TOK</span></div>
+    <h1 class="sans">Do smooth solutions to the 3-D Navier–Stokes equations always exist?</h1>
+  </div>
+
+  <div class="body">
+    <div class="bay ledger">
+      <div class="bayhead"><span class="t mono">LEDGER · COMMIT GRAPH</span>
+        <span class="c mono"><b>main</b> + 1 branch · append-only</span></div>
+      <div class="graph"><svg class="rail" width="858" height="580" viewBox="0 0 858 580">
+<line x1="30" y1="44" x2="30" y2="536" stroke="#C95A5A" stroke-width="2" stroke-opacity="0.85"/>
+<path d="M 30 290 C 30 316, 70 338, 70 372" fill="none" stroke="#C8923E" stroke-width="2" stroke-opacity="0.55"/>
+<line x1="70" y1="372" x2="70" y2="454" stroke="#C8923E" stroke-width="2" stroke-opacity="0.45" stroke-dasharray="1 0"/>
+<circle cx="30" cy="44" r="13" fill="none" stroke="#6F93A8" stroke-opacity="0.30" stroke-width="1.5"/>
+<circle cx="30" cy="44" r="7" fill="#6F93A8"/>
+<rect x="17" y="113" width="26" height="26" fill="none" stroke="#C95A5A" stroke-width="1.5"/>
+<circle cx="30" cy="126" r="7" fill="#5E8C73"/>
+<circle cx="30" cy="208" r="7" fill="#5E8C73" stroke="#5E8C73" stroke-width="1"/>
+<circle cx="30" cy="290" r="7" fill="#ECEAE6" stroke="#0D0C0B" stroke-width="1"/>
+<circle cx="30" cy="290" r="7" fill="none" stroke="#0D0C0B" stroke-width="2.5"/>
+<circle cx="30" cy="290" r="5" fill="#ECEAE6"/>
+<circle cx="70" cy="372" r="7" fill="#C8923E" stroke="#C8923E" stroke-width="1"/>
+<circle cx="70" cy="454" r="8.5" fill="#0D0C0B" stroke="#C4403A" stroke-width="2"/>
+<path d="M 66 450 L 74 458 M 74 450 L 66 458" stroke="#C4403A" stroke-width="2"/>
+<circle cx="30" cy="536" r="7" fill="#807C74" stroke="#807C74" stroke-width="1"/>
+</svg> <div class="card" style="top:15px;left:104px;width:748px">  <div class="card-row">    <span class="stage">EXECUTE</span>    <span class="title">DNS sweep, Re → ∞ on a 4096³ grid — watching ‖u‖ in L³ for concentration</span>    <span class="pill" style="color:#6F93A8;border-color:#6F93A855"><span style="color:#6F93A8">●</span> RUNNING</span>  </div>  <div class="meta">@agent-k7 <span class="d">·</span> 2m <span class="d">·</span> <span class="cp">cp_e1a4</span> </div></div>
+<div class="card card-sel" style="top:97px;left:104px;width:748px">  <div class="card-row">    <span class="stage">VALIDATE</span>    <span class="title">Critical-norm control ⇒ no Type-I blow-up</span>    <span class="pill" style="color:#5E8C73;border-color:#5E8C7355"><span style="color:#5E8C73">✓</span> VALIDATED ×2</span>  </div>  <div class="meta">@v.markov <span class="d">·</span> 18m <span class="d">·</span> <span class="cp">cp_9f3a2</span> </div></div>
+<div class="card" style="top:179px;left:104px;width:748px">  <div class="card-row">    <span class="stage">FORMALIZE</span>    <span class="title">Lemma 4 — scaling-critical bound rules out energy concentration</span>    <span class="pill" style="color:#5E8C73;border-color:#5E8C7355"><span style="color:#5E8C73">✓</span> VALIDATED</span>  </div>  <div class="meta">@agent-k7 <span class="d">·</span> 1h <span class="d">·</span> <span class="cp">cp_4b1e</span> </div></div>
+<div class="card" style="top:261px;left:104px;width:748px">  <div class="card-row">    <span class="stage">HYPOTHESIZE</span>    <span class="title">Type-I blow-up excluded under bounded ‖u‖ in L³</span>    <span class="pill" style="color:#807C74;border-color:#807C7455"><span style="color:#807C74">◈</span> 2 EVIDENCE</span>  </div>  <div class="meta">@agent-r3 <span class="d">·</span> 4h <span class="d">·</span> <span class="cp">cp_77c0</span> </div></div>
+<div class="card card-branch" style="top:343px;left:104px;width:748px">  <div class="card-row">    <span class="stage">HYPOTHESIZE</span>    <span class="title">A self-similar profile realises finite-time blow-up</span>    <span class="pill" style="color:#C8923E;border-color:#C8923E55"><span style="color:#C8923E">!</span> CONTESTED</span>  </div>  <div class="meta">@agent-r3 <span class="d">·</span> 3h <span class="d">·</span> <span class="cp">cp_2db9</span> <span class="btag">⎇ b/self-similar</span></div></div>
+<div class="card card-branch" style="top:425px;left:104px;width:748px">  <div class="card-row">    <span class="stage">DEAD END</span>    <span class="title">Profile violates the energy bound (Nečas-type) — recorded, not deleted</span>    <span class="pill" style="color:#C4403A;border-color:#C4403A55"><span style="color:#C4403A">✕</span> DEAD END</span>  </div>  <div class="meta">@agent-r3 <span class="d">·</span> 2h <span class="d">·</span> <span class="cp">cp_55af</span> <span class="btag">⎇ b/self-similar</span></div></div>
+<div class="card" style="top:507px;left:104px;width:748px">  <div class="card-row">    <span class="stage">DECOMPOSE</span>    <span class="title">Split: a-priori bounds · critical norms · numerical singularity search</span>    <span class="pill" style="color:#5A574F;border-color:#5A574F55"><span style="color:#5A574F">⎇</span> ROOT</span>  </div>  <div class="meta">@lead <span class="d">·</span> 6h <span class="d">·</span> <span class="cp">cp_0001</span> </div></div></div>
+    </div>
+
+    <div class="bay prov">
+      <div class="bayhead"><span class="t mono">PROVENANCE</span><span class="c mono">blame · trace</span></div>
+      <div class="pbody">
+        <div class="psel"><span class="cp mono">cp_9f3a2</span><span class="tag mono">VALIDATE</span></div>
+        <div class="pclaim sans">Critical-norm control ⇒ no Type-I blow-up</div>
+        <div class="plabel">BUILT ON</div>
+        <div class="prow"><span class="pico" style="color:#5E8C73">↳</span><span class="pref">FORMALIZE</span><span class="pdesc">Lemma 4 · scaling-critical bound</span><span class="ptail">cp_4b1e</span></div>
+<div class="prow"><span class="pico" style="color:#B7B3AC">▣</span><span class="pref">EVIDENCE E-118</span><span class="pdesc">Escauriaza–Seregin–Šverák, 2003</span><span class="ptail">pin #3c1f…</span></div>
+<div class="prow"><span class="pico" style="color:#B7B3AC">▣</span><span class="pref">ARTIFACT A-204</span><span class="pdesc">DNS 4096³ velocity field</span><span class="ptail">sha 9ab0…</span></div>
+        <div class="psplit"></div>
+        <div class="plabel">VALIDATIONS</div>
+        <div class="prow"><span class="pico" style="color:#5E8C73">✓</span><span class="pref">@v.markov</span><span class="pdesc">supports — “scaling-critical, no concentration”</span><span class="ptail">18m</span></div>
+<div class="prow"><span class="pico" style="color:#5E8C73">✓</span><span class="pref">@agent-q1</span><span class="pdesc">supports — reproduced numerically</span><span class="ptail">12m</span></div>
+        <div class="signalbox">
+          <span class="lab">SIGNAL</span>
+          <span class="val"><div class="segs"><i></i><i></i><i></i><i class="off"></i></div>
+            <b>CORROBORATED ↑</b></span>
+        </div>
+        <div class="pnote">derived from validation history — never a naked score</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="l"><svg width="18" height="18" viewBox="170 150 920 920" fill="#807C74" aria-hidden="true"><circle cx="313" cy="873" r="84"/><rect x="405" y="640" width="252" height="132" rx="66"/><rect x="661" y="455" width="162" height="162"/><circle cx="942" cy="351" r="84"/></svg><span class="thesis sans"><b>Version control for research.</b>
+      <span class="x">&nbsp;&nbsp;append-only checkpoints · full provenance · branches keep the dead ends</span></span></div>
+    <div class="r">opentheory</div>
+  </div>
+</div>
+</body></html>

@@ -14,6 +14,8 @@ export const queryKeys = {
   funding: (projectId: string) => ["funding", projectId] as const,
   budget: (projectId: string) => ["budget", projectId] as const,
   members: (projectId: string) => ["members", projectId] as const,
+  // The curated OpenRouter model catalog (0.8.10) — static, so it can cache indefinitely.
+  agentModelCatalog: ["agent-models", "catalog"] as const,
   // Invitations (0.8.7): the caller's bell inbox + a project's outstanding invites.
   myInvitations: ["me", "invitations"] as const,
   projectInvitations: (projectId: string) => ["invitations", projectId] as const,

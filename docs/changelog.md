@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.8.10` — **Research crew + collaborators as an avatar stack.** Collaborators collapse from a full-width block into an avatar stack beside *Edit* that opens a modal (member list + governance + invite, unchanged); a new *Research crew* section assigns an OpenRouter model to each of four roles (Research Lead / Thread Manager / Researcher / Research Assistant) from a curated catalog. Adds `projects.agent_models` (JSON) + two routes; migration `0011_project_agent_models` (additive).
 - `0.8.9` — **Calmer background field.** Halves the alpha of the measured-field grid (crosshairs, major + minor lines) so the texture reads as quiet substrate, not noise.
 - `0.8.8` — **Concurrency hardening on the `0.8.7` invitation flow.** `accept`/`decline`/`revoke` now lock the invitation row `FOR UPDATE`, so a double-accept can't race a duplicate membership (or a `500`) and an accept can't interleave with a revoke. Backend-only — no schema, no migration.
 - `0.8.7` — **Collaborators + invitation inbox.** Owner/admin invites an existing user by `@username` or email; the invitee accepts (→ admin) or declines from a top-right bell inbox. Adds `ProjectInvitation` + six routes; migration `0010_project_invitations` (additive).
@@ -41,6 +42,97 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.8.10
+
+**Research crew + collaborators as an avatar stack.** Two project-page changes that recompose the
+overview around the *people* and the *models* behind a project. (1) **Collaborators** stop being a
+first-class full-width block and become a compact **avatar stack** next to the *Edit* control; a
+click opens a modal carrying the full member list, owner governance, and the
+invite-by-`@username`-or-email flow (all the `0.8.1`/`0.8.7` data and mutations, unchanged — only
+relocated). (2) A new **Research crew** section, high in the page, assigns an **OpenRouter model**
+to each of four research roles — **Research Lead / Thread Manager / Researcher / Research
+Assistant** — from a curated catalog. The roles' behavioural meaning is deliberately *not* encoded
+yet; this ships the assignment surface and its persistence. Migration `0011_project_agent_models`
+(additive).
+
+### Design guardrail (carried from the stewardship line): model assignment is configuration, not credit
+
+The roster is **project configuration**, the same class as the title or `background` — not
+intellectual credit. So, by construction, the `agent_models` map lives on the `projects` row, is
+mutated **in place** (no checkpoint, no `Contribution`), and never touches
+`Contribution`/`Validation`/`FundingAllocation`. It is **not** registered in
+`models/append_only.py` (assigning a model is not a ledger event). When a real `Actor` of type
+`agent` eventually executes, it will be *driven by* this config through the same human-facing API —
+no parallel model.
+
+### Backend
+
+- **`projects.agent_models`** — a `JSON` map keyed by role name → OpenRouter model id (an
+  unassigned role is absent/`None`). `NOT NULL`, server-defaults to `'{}'`, mutated in place.
+  Stored generic `JSON` for parity with the other metadata maps (`account_metadata` /
+  `actor_metadata`). The role↔id *shape* is enforced in the schema layer, not the DB, so the roster
+  can evolve without a migration.
+- **Curated catalog as the single source of truth** (`core/openrouter_models.py`) — a short,
+  hand-picked list of OpenRouter models (`ModelOption{id,name,provider}`) spanning Anthropic /
+  OpenAI / Google / DeepSeek / Meta / Mistral / xAI / Qwen. It backs **both** the dropdown (served
+  read-only) **and** write validation, so the menu can never offer an id a save would reject.
+  Expanding it is a one-line edit — no migration, no frontend change.
+- **Two read/write schemas, split for a reason** (`schemas/project.py`): `AgentModels` (read/storage
+  shape) is **lenient** — it normalizes but never rejects, so a project read can't `500` if the
+  curated list later drops a previously-assigned id. `AgentModelsUpdate` (the `PUT` body) adds the
+  catalog check (`422` on an unknown id) and normalizes blank → `None`. `agent_models` is exposed on
+  `ProjectRead` (hence `ProjectOverview`), defaulting to all-unassigned for pre-feature rows.
+- **Two endpoints**: `GET /agent-models/catalog` (public, root-mounted, static reference data) and
+  `PUT /projects/{id}/agent-models` (**owner/admin only** via `ensure_can_manage`, **full-replace**:
+  the body is the complete roster, so an omitted role becomes unassigned).
+
+### Frontend
+
+- **First modal primitive** (`components/console/modal.tsx`) — there was no dialog in the Kamino
+  library (D1 shipped only bays/fields). A portalled `--panel` surface that *lifts off* behind a
+  scrim, with `role="dialog"` + `aria-modal` + `aria-labelledby`, Escape / scrim-click to close,
+  focus moved in on open and restored to the trigger on close, and body-scroll lock.
+- **`collaborators-panel.tsx` → `Collaborators`** — the same queries/mutations, re-rendered as an
+  **avatar-stack trigger** (initials discs, the signed-in user's disc carrying the single crimson
+  signal, a `+N` overflow disc) that opens the member list + invite UI inside the modal. Mounted in
+  the workspace header beside *Edit*; the old full-width block is removed.
+- **`research-crew-panel.tsx`** — the four roles as a read-only readout for visitors; owner/admins
+  get a per-role `<select>` grouped by provider, sourced from the catalog. A stale assignment (id no
+  longer in the catalog) surfaces honestly as `… (unavailable)` rather than silently snapping to the
+  first option. The `PUT` returns the full project, seeded straight into the `project` cache (no
+  refetch) with the overview invalidated. Guards a not-yet-upgraded backend by degrading a missing
+  `agent_models` to all-unassigned instead of crashing the page.
+- Plumbing: `AgentRole` / `AgentModels` / `ModelOption` types + `agent_models` on `Project`;
+  `getAgentModelCatalog` / `updateAgentModels` (+ a `putInit` helper); an `agentModelCatalog` query
+  key (cached indefinitely — the catalog is static).
+
+### Schema & migration
+
+`0011_project_agent_models` (additive, `down_revision="0010_project_invitations"`): adds the
+`agent_models` `JSON` column `NOT NULL` with a `'{}'` server default, so every existing row gets an
+empty roster with no backfill pass. `downgrade()` drops the column. `alembic heads` confirms a
+single linear head.
+
+### Verification
+
+```bash
+cd backend && uv run ruff check . && uv run pytest    # ruff clean; 57 passed / 76 skipped (no DB)
+cd frontend && npm run typecheck && npm run lint && npm run build   # all green
+```
+
+The `+2` passing (over `0.8.9`'s 55) are the new DB-free agent-model gates — the public catalog
+endpoint and the `PUT` auth gate. **Not run here** (no-local-DB policy): the DB-backed
+model-assignment round-trip (assign → read-back, the owner/admin `403`, and the unknown-id `422`
+after auth) against real Postgres — the post-deploy live check or a throwaway-DB pass.
+
+### Deploy
+
+`fly deploy` from `backend/` — `alembic upgrade head` applies `0011` — and a **Vercel redeploy** for
+the frontend. No manual data step. (The frontend degrades gracefully if it deploys first: the crew
+section shows all-unassigned and an empty dropdown until the backend is up.)
 
 ---
 

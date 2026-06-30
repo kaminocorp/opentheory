@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.routes import (
     accounts,
     actors,
+    agent_models,
     branches,
     checkpoints,
     claims,
@@ -34,3 +35,5 @@ api_router.include_router(funding.router)
 # Invitations span /projects/{id}/invitations and /me/invitations + /invitations/{id}/…, so the
 # router mounts at the root and declares full paths itself (like threads/funding).
 api_router.include_router(invitations.router)
+# Agent-model catalog is a root-level, project-less read (/agent-models/catalog).
+api_router.include_router(agent_models.router, tags=["agent-models"])

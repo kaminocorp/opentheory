@@ -3,6 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.openrouter_models import VALID_MODEL_IDS
 from app.models.enums import ProjectRole, ProjectStatus
 from app.schemas.account import AccountSummary
 from app.schemas.funding import ProjectBudget
@@ -10,6 +11,52 @@ from app.schemas.funding import ProjectBudget
 # Generous soft cap on the long-form background (0.8.1): roomy enough for a deep briefing, bounded
 # so an unbounded body can't be posted. No hard DB cap (the column is TEXT).
 _BACKGROUND_MAX = 50_000
+
+# The four research roles a model can be assigned to. Fixed by product (their semantics land later);
+# the JSON map on the project is keyed by exactly these.
+AGENT_ROLE_FIELDS = ("research_lead", "thread_manager", "researcher", "research_assistant")
+
+
+class AgentModels(BaseModel):
+    """Which OpenRouter model powers each research role (config, never credit).
+
+    Read/storage shape — **lenient by design**: it normalizes but never rejects, so a project read
+    can't 500 if the curated catalog later drops a previously-assigned id. Catalog membership is
+    enforced only on write (:class:`AgentModelsUpdate`). Each role is optional; ``None`` =
+    unassigned.
+    """
+
+    research_lead: str | None = None
+    thread_manager: str | None = None
+    researcher: str | None = None
+    research_assistant: str | None = None
+
+
+class AgentModelsUpdate(AgentModels):
+    """Body for ``PUT /projects/{id}/agent-models``: the **complete** roster (full replace — a role
+    the client omits becomes unassigned). Adds catalog validation: a blank string normalizes to
+    ``None``; any non-empty id must be in the curated catalog, else ``422``.
+    """
+
+    @field_validator(*AGENT_ROLE_FIELDS)
+    @classmethod
+    def _validate_model_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        candidate = value.strip()
+        if not candidate:
+            return None
+        if candidate not in VALID_MODEL_IDS:
+            raise ValueError(f"unknown model id: {candidate}")
+        return candidate
+
+
+class ModelOptionRead(BaseModel):
+    """One entry in the curated OpenRouter catalog, served to populate the assignment dropdown."""
+
+    id: str
+    name: str
+    provider: str
 
 
 class ProjectBase(BaseModel):
@@ -82,6 +129,9 @@ class ProjectRead(ProjectBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    # Per-role model roster (lenient read shape). Defaults to all-unassigned for projects that
+    # predate the feature (the column server-defaults to ``{}``).
+    agent_models: AgentModels = Field(default_factory=AgentModels)
     created_at: datetime
     updated_at: datetime
 

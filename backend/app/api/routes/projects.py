@@ -9,6 +9,7 @@ from app.api.deps import ActingActor
 from app.db.session import get_db
 from app.models.project import Project
 from app.schemas.project import (
+    AgentModelsUpdate,
     MemberRoleUpdate,
     ProjectCreate,
     ProjectMemberRead,
@@ -65,6 +66,25 @@ async def update_project(
     updates = payload.model_dump(exclude_unset=True)
     for field, value in updates.items():
         setattr(project, field, value)
+    await db.commit()
+    await db.refresh(project)
+    return project
+
+
+@router.put("/{project_id}/agent-models", response_model=ProjectRead)
+async def set_project_agent_models(
+    project_id: UUID, payload: AgentModelsUpdate, db: DbSession, actor: ActingActor
+) -> Project:
+    """Assign an OpenRouter model to each research role — owner/admin only.
+
+    Authorization mirrors ``update_project`` (``ensure_can_manage``: ``401`` unauthenticated,
+    ``403`` non-member, ``404`` missing). **Full-replace** semantics: the body is the complete
+    roster, so an omitted role becomes unassigned. Plain in-place mutation — assigning a model is
+    config, not a ledger event, so no checkpoint and no contribution. The body's validator already
+    rejected any id outside the curated catalog with a ``422``.
+    """
+    project = await member_service.ensure_can_manage(db, project_id, actor)
+    project.agent_models = payload.model_dump()
     await db.commit()
     await db.refresh(project)
     return project

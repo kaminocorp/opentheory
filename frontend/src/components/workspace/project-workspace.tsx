@@ -23,10 +23,11 @@ import type { Project } from "@/types/project";
 import { BranchBar } from "./branch-bar";
 import { CheckpointTimelinePanel } from "./checkpoint-timeline-panel";
 import { ClaimListPanel } from "./claim-list-panel";
-import { CollaboratorsPanel } from "./collaborators-panel";
+import { Collaborators } from "./collaborators-panel";
 import { FundingPanel } from "./funding-panel";
 import { Markdown } from "./markdown";
 import { ProjectEditForm } from "./project-edit-form";
+import { ResearchCrewPanel } from "./research-crew-panel";
 import { ThreadListPanel } from "./thread-list-panel";
 
 type ProjectWorkspaceProps = {
@@ -125,13 +126,17 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
       <Bay as="header" bracketed chamfer density="narrative" className="grid gap-3">
         <div className="flex items-start justify-between gap-3">
           <StatusPill tone={projectStatusTone[project.status]} label={project.status} />
-          {/* Write affordance: shown only to owner/admin (the backend still authorizes the PATCH). */}
-          {canManageProject ? (
-            <ActionGhost size="sm" onClick={() => setEditing((v) => !v)}>
-              <Icon icon={editing ? X : Pencil} size={14} />
-              {editing ? "Cancel" : "Edit"}
-            </ActionGhost>
-          ) : null}
+          {/* Collaborators (avatar stack → modal) sit beside the Edit control; the stack is public,
+              the Edit write affordance is owner/admin only (the backend still authorizes the PATCH). */}
+          <div className="flex items-center gap-3">
+            <Collaborators projectId={projectId} />
+            {canManageProject ? (
+              <ActionGhost size="sm" onClick={() => setEditing((v) => !v)}>
+                <Icon icon={editing ? X : Pencil} size={14} />
+                {editing ? "Cancel" : "Edit"}
+              </ActionGhost>
+            ) : null}
+          </div>
         </div>
         <h1 className="text-balance text-2xl font-medium leading-snug text-text">{project.title}</h1>
         <p className="max-w-3xl text-[14px] leading-[1.55] text-text-soft">{project.question}</p>
@@ -189,6 +194,14 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
         <ProjectEditForm project={project} onDone={() => setEditing(false)} />
       ) : null}
 
+      {/* Research crew (0.8.10): which model powers each research role. High in the page — it is
+          project configuration, read-only for visitors and assignable by owner/admin. */}
+      <ResearchCrewPanel
+        projectId={projectId}
+        agentModels={project.agent_models}
+        canManage={canManageProject}
+      />
+
       {/* Background / Context (0.8.1): a collapsible Bay rendering the stored Markdown. Only shown
           when present; the editor lives in the edit form, the read path uses the light renderer. */}
       {project.background ? (
@@ -207,8 +220,6 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
       ) : null}
 
       <FundingPanel projectId={projectId} />
-
-      <CollaboratorsPanel projectId={projectId} />
 
       <BranchBar
         projectId={projectId}

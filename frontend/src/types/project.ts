@@ -2,6 +2,25 @@
 // has no such status, so the frontend must not type-permit a value a save would 422 on.
 export type ProjectStatus = "draft" | "active" | "paused" | "archived";
 
+// Which OpenRouter model powers each research role (0.8.10). Config, *not* credit. A `null` role is
+// unassigned. Mirrors the backend `AgentModels`; the API always returns all four keys.
+export type AgentRole = "research_lead" | "thread_manager" | "researcher" | "research_assistant";
+
+export type AgentModels = {
+  research_lead: string | null;
+  thread_manager: string | null;
+  researcher: string | null;
+  research_assistant: string | null;
+};
+
+// One entry in the curated OpenRouter catalog (`GET /agent-models/catalog`). `id` is the slug
+// stored on the project; `name` is the label; `provider` groups the dropdown.
+export type ModelOption = {
+  id: string;
+  name: string;
+  provider: string;
+};
+
 export type Project = {
   id: string;
   title: string;
@@ -11,6 +30,8 @@ export type Project = {
   // Deep, optional long-form briefing as Markdown (0.8.1).
   background: string | null;
   status: ProjectStatus;
+  // Per-role model roster (0.8.10).
+  agent_models: AgentModels;
   created_at: string;
   updated_at: string;
 };

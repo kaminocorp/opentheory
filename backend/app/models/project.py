@@ -1,4 +1,6 @@
-from sqlalchemy import Enum, String, Text
+from typing import Any
+
+from sqlalchemy import JSON, Enum, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, IdMixin, TimestampMixin
@@ -21,6 +23,15 @@ class Project(IdMixin, TimestampMixin, Base):
         default=ProjectStatus.DRAFT,
         nullable=False,
     )
+    # Which OpenRouter model powers each research role — config, *not* credit (it never touches
+    # Contribution/Validation/FundingAllocation). A plain JSON map keyed by role name
+    # (research_lead / thread_manager / researcher / research_assistant) → OpenRouter model id; an
+    # unassigned role is simply absent/None. Mutable in place (like title/background) — assigning a
+    # model is not a ledger event, so no checkpoint. The shape is enforced in the schema layer
+    # (`AgentModels`), not the DB, so the roster can evolve without a migration; values are
+    # validated against the curated catalog only on write. Stored generic JSON for parity with the
+    # other metadata maps (account_metadata/actor_metadata).
+    agent_models: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
     threads = relationship("Thread", back_populates="project", cascade="all, delete-orphan")
     claims = relationship("Claim", back_populates="project", cascade="all, delete-orphan")

@@ -11,6 +11,7 @@ export { StatusPill } from "./status-pill";
 export { LiveDot } from "./live-dot";
 export { Action, ActionGhost, ActionText, ActionDestructive, type ActionVariant } from "./action";
 export { Input, Select, Textarea } from "./input";
+export { Modal } from "./modal";
 export { Icon } from "./icon";
 export { BrandMark } from "./brand-mark";
 export { AwaitingState, type AwaitingVariant } from "./awaiting-state";
