@@ -126,17 +126,14 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
       <Bay as="header" bracketed chamfer density="narrative" className="grid gap-3">
         <div className="flex items-start justify-between gap-3">
           <StatusPill tone={projectStatusTone[project.status]} label={project.status} />
-          {/* Collaborators (avatar stack → modal) sit beside the Edit control; the stack is public,
-              the Edit write affordance is owner/admin only (the backend still authorizes the PATCH). */}
-          <div className="flex items-center gap-3">
-            <Collaborators projectId={projectId} />
-            {canManageProject ? (
-              <ActionGhost size="sm" onClick={() => setEditing((v) => !v)}>
-                <Icon icon={editing ? X : Pencil} size={14} />
-                {editing ? "Cancel" : "Edit"}
-              </ActionGhost>
-            ) : null}
-          </div>
+          {/* The Edit write affordance is owner/admin only (the backend still authorizes the PATCH).
+              Collaborators moved out of this header into their own box beside Research crew (0.8.11). */}
+          {canManageProject ? (
+            <ActionGhost size="sm" onClick={() => setEditing((v) => !v)}>
+              <Icon icon={editing ? X : Pencil} size={14} />
+              {editing ? "Cancel" : "Edit"}
+            </ActionGhost>
+          ) : null}
         </div>
         <h1 className="text-balance text-2xl font-medium leading-snug text-text">{project.title}</h1>
         <p className="max-w-3xl text-[14px] leading-[1.55] text-text-soft">{project.question}</p>
@@ -194,13 +191,17 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
         <ProjectEditForm project={project} onDone={() => setEditing(false)} />
       ) : null}
 
-      {/* Research crew (0.8.10): which model powers each research role. High in the page — it is
-          project configuration, read-only for visitors and assignable by owner/admin. */}
-      <ResearchCrewPanel
-        projectId={projectId}
-        agentModels={project.agent_models}
-        canManage={canManageProject}
-      />
+      {/* Research crew + Collaborators side by side (0.8.11): two people/config surfaces — which
+          model powers each research role, and who can steward the project. High in the page,
+          read-only for visitors and managed by owner/admin. They stack on narrow viewports. */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ResearchCrewPanel
+          projectId={projectId}
+          agentModels={project.agent_models}
+          canManage={canManageProject}
+        />
+        <Collaborators projectId={projectId} />
+      </div>
 
       {/* Background / Context (0.8.1): a collapsible Bay rendering the stored Markdown. Only shown
           when present; the editor lives in the edit form, the read path uses the light renderer. */}

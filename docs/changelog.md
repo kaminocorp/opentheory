@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.8.11` — **Collaborators promoted to a box beside Research crew.** The `0.8.10` avatar stack + modal becomes a full `Bay` panel — member list, inline owner governance, and the invite-by-`@username`-or-email flow — sitting side by side with Research crew in a two-column row. Frontend-only — no backend, schema, or migration.
 - `0.8.10` — **Research crew + collaborators as avatar bubbles.** Collaborators move to an avatar stack + modal beside *Edit*; a new *Research crew* section assigns an OpenRouter model to four research roles. Migration `0011_project_agent_models` (additive).
 - `0.8.9` — **Calmer background field.** Halves the alpha of the measured-field grid (crosshairs, major + minor lines) so the texture reads as quiet substrate, not noise.
 - `0.8.8` — **Concurrency hardening on the `0.8.7` invitation flow.** `accept`/`decline`/`revoke` now lock the invitation row `FOR UPDATE`, so a double-accept can't race a duplicate membership (or a `500`) and an accept can't interleave with a revoke. Backend-only — no schema, no migration.
@@ -42,6 +43,69 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.8.11
+
+**Collaborators promoted to a box, side by side with Research crew.** `0.8.10` compacted
+collaborators into an avatar stack + modal tucked beside the *Edit* control. This reverses that
+move: collaborators return to a **full panel** — the same `Bay` shape as the Research crew box —
+rendered **side by side** with Research crew in a two-column row high on the project page. The panel
+lists every member inline (avatar, display name, `@username`, role), keeps the owner's inline
+governance (change role / transfer / remove), and carries the invite-by-`@username`-or-email flow
+for owner/admins. Same queries, same mutations, same authorization — **only the presentation
+moved.** Frontend-only — no backend, schema, or migration.
+
+### Why a box, not the header stack
+
+The avatar stack read as a small, secondary affordance — easy to miss, and a modal hop away from the
+member list. Putting collaborators *next to* Research crew states the intent plainly: these are the
+project's two "who/what runs this" surfaces — **which models** power the research roles, and **which
+people** can steward the project — so they belong at the same altitude and weight.
+
+### The naming line we did *not* cross
+
+The box is **Collaborators**, not "Contributors" — deliberately. In the domain model these are
+distinct: a **collaborator** is a `project_members` row (access control — owner/admin who can edit
+and invite), whereas a **contributor** earns credit through the append-only `Contribution` primitive
+by *doing* research. You can invite a collaborator; you cannot invite a contributor (contribution is
+recorded, never granted). Keeping the label precise preserves the platform's load-bearing rule that
+funding, contribution, and validation are never conflated (`docs/primitives.md`).
+
+### Frontend
+
+- **`collaborators-panel.tsx` → a `Bay` box.** Dropped the avatar-stack trigger and the `Modal`
+  wrapper; the component now renders directly as a panel with a header (`Users` glyph +
+  *Collaborators* label + member count), the inline member list with governance, and the
+  manager-only invite form + pending-invitation list. The `Avatar` disc is retained for the list
+  rows (the signed-in user's own disc still carries the lone crimson signal); the `+N` overflow disc
+  and `title`-tooltip plumbing the stack needed are gone. **No query or mutation changed** —
+  `listProjectMembers` / `listProjectInvitations`, the role/remove/invite/revoke mutations, the
+  `canManage` and `isOwner` gates, and the `enabled: canManage` invitation fetch are carried over
+  verbatim, so the backend authorization contract is identical.
+- **`project-workspace.tsx` layout.** Removed `<Collaborators>` from the header (leaving just the
+  owner/admin *Edit* control), and wrapped `ResearchCrewPanel` + `Collaborators` in a
+  `grid gap-4 lg:grid-cols-2` so they sit side by side on desktop and stack on narrow viewports.
+- **`Modal` is now unused** (this panel was its only consumer). It is **retained** in the console
+  barrel (`components/console/modal.tsx`) as a library primitive for future dialogs — not deleted,
+  since removing a shipped primitive is out of scope for a layout change.
+
+### Verification
+
+```bash
+cd frontend && npm run typecheck && npm run lint && npm run build   # all green
+```
+
+No backend was touched, so no `pytest` / `ruff` run is implicated. **Not run here** (frontend
+visual): the signed-in round-trip on the live deploy — open a project as owner, confirm the box
+renders beside Research crew, and that invite / govern / revoke still work — best checked
+post-deploy.
+
+### Deploy
+
+**Vercel redeploy only** — frontend-only, no migration, no backend change. (Collaborators data and
+endpoints are unchanged from `0.8.7`/`0.8.8`, so there is no ordering constraint with the backend.)
 
 ---
 
