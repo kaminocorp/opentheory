@@ -2,7 +2,7 @@
 
 ## Index
 
-- `0.8.10` — **Research crew + collaborators as an avatar stack.** Collaborators collapse from a full-width block into an avatar stack beside *Edit* that opens a modal (member list + governance + invite, unchanged); a new *Research crew* section assigns an OpenRouter model to each of four roles (Research Lead / Thread Manager / Researcher / Research Assistant) from a curated catalog. Adds `projects.agent_models` (JSON) + two routes; migration `0011_project_agent_models` (additive).
+- `0.8.10` — **Research crew + collaborators as avatar bubbles.** Collaborators move to an avatar stack + modal beside *Edit*; a new *Research crew* section assigns an OpenRouter model to four research roles. Migration `0011_project_agent_models` (additive).
 - `0.8.9` — **Calmer background field.** Halves the alpha of the measured-field grid (crosshairs, major + minor lines) so the texture reads as quiet substrate, not noise.
 - `0.8.8` — **Concurrency hardening on the `0.8.7` invitation flow.** `accept`/`decline`/`revoke` now lock the invitation row `FOR UPDATE`, so a double-accept can't race a duplicate membership (or a `500`) and an accept can't interleave with a revoke. Backend-only — no schema, no migration.
 - `0.8.7` — **Collaborators + invitation inbox.** Owner/admin invites an existing user by `@username` or email; the invitee accepts (→ admin) or declines from a top-right bell inbox. Adds `ProjectInvitation` + six routes; migration `0010_project_invitations` (additive).
