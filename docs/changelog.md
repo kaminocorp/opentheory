@@ -2,6 +2,12 @@
 
 ## Index
 
+- `0.9.6` — **Post-review hardening on the toolbench (`0.9.1`–`0.9.5`).** Two math-honesty fixes: `expr.compare` refutes only on a *provably* non-zero difference (`is_zero is False`, not `is_number`), so a true identity SymPy can't close (`cos(π/7) − cos(2π/7) + cos(3π/7) = ½`) reads as `undecided` rather than a false counterexample; `geometry.coordinate_measure` refuses a zero-length angle leg (no `nan` "measurement") and mixed-dimension point sets. Backend-only — no schema, no migration.
+- `0.9.5` — **Toolbench frontend — drive & show surfaces.** A collapsible workspace panel to pick an instrument, drive it (formula / points / terms + a visible assumptions editor), run it as a member, and see the result with its assumptions and the `instrument@version · engine@version` blame line — the honesty rules carried into the UI (`undecided` = escalate, `refuted` = a definitive counterexample). Frontend-only — no backend, schema, or migration.
+- `0.9.4` — **`oeis.search` — the first retrieval instrument (Tier 1).** Identify an integer sequence by its terms via the OEIS API, landing a *pinned* citation (`url` + `retrieved_at` + `raw_response_hash`; cite, don't redistribute). Adds the async `run` path, the mockable/cached `RetrievalClient`, and the reusable `source.pin` primitive. `uv add httpx`. Backend-only — no migration.
+- `0.9.3` — **`expr.compare` + `geometry.coordinate_measure` (Tier 0).** Expression equivalence with the three honest outcomes, and the flagship *measuring across a corner* (`dist(A,C)=5`, `angle(A,B,C)=90°`) — both exact, never a float. Backend-only — no migration.
+- `0.9.2` — **The toolbench becomes usable end-to-end.** The adapter contract + code registry + conformance harness (Phase 2), the chokepoint-composed tool-run write path (Phase 3), the first instrument `calc.eval` (Phase 4), and the HTTP surface — public `GET /instruments` + membership-gated `POST /projects/{id}/instruments/{name}/run` (Phase 6). `uv add sympy`. Backend-only — no migration.
+- `0.9.1` — **Toolbench provenance spine.** The ledger can now hold a validated **blame tuple** on a checkpoint, a typed `Evidence → Artifact` link, and the **`assumptions`** a result was computed under. A data-model change first, not a SymPy wrapper. Migration `0012_toolbench_provenance` (additive).
 - `0.8.11` — **Collaborators promoted to a box beside Research crew.** The `0.8.10` avatar stack + modal becomes a full `Bay` panel — member list, inline owner governance, and the invite-by-`@username`-or-email flow — sitting side by side with Research crew in a two-column row. Frontend-only — no backend, schema, or migration.
 - `0.8.10` — **Research crew + collaborators as avatar bubbles.** Collaborators move to an avatar stack + modal beside *Edit*; a new *Research crew* section assigns an OpenRouter model to four research roles. Migration `0011_project_agent_models` (additive).
 - `0.8.9` — **Calmer background field.** Halves the alpha of the measured-field grid (crosshairs, major + minor lines) so the texture reads as quiet substrate, not noise.
@@ -43,6 +49,276 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.9.6
+
+**Post-review hardening on the toolbench (`0.9.1`–`0.9.5`).** A full review of the completed bench
+found the chokepoint-composed write path, the lenient-read/strict-write schema split, the conformance
+harness, the retrieval/pinning layer, and the whole frontend **sound** — and **two math-honesty bugs**
+in the Tier-0 instruments, both now fixed with regression tests. Backend-only — no schema, no
+migration.
+
+### `expr.compare` now refutes only on a *proven* non-zero difference
+
+The `refuted` branch keyed off `difference.is_number` (concrete) instead of `difference.is_zero is
+False` (proven non-zero). SymPy's `is_zero` is three-valued — `True` / `False` / `None` (can't
+decide) — so for a **true identity** `simplify` cannot close (e.g. `cos(π/7) − cos(2π/7) + cos(3π/7) =
+½`, whose residue is symbol-free with `is_zero = None`) the old code rendered the claim as a
+**definitive counterexample** — the one error a provenance ledger must never make. It now escalates to
+`undecided`. Notably `calc.eval` already handled the same input correctly (it keys off `is_zero`
+directly), which is what surfaced the asymmetry. Genuine refutations are unchanged: a concrete
+non-zero (`2 ≠ 3`) and a symbolic difference SymPy can *prove* is never zero (`Abs(x) + 1 ≥ 1`) both
+still `refuted`.
+
+### `geometry.coordinate_measure` refuses a degenerate or mixed measurement
+
+A zero-length angle leg — the vertex coincident with an endpoint, e.g. `angle(A,A,C)` — divided by
+zero and recorded a `nan` "measurement" as a `result`, permanent in the append-only ledger. It now
+raises (→ `422`, mints nothing). The input validator also rejects **mixed 2-D/3-D** point sets (SymPy
+silently pads a 2-D point up to 3-D with a warning), so a measurement is never taken across dimensions
+the caller did not intend. The flagship corner is untouched (`dist(A,C)=5`, `angle(A,B,C)=90°`).
+
+### Verification
+
+```bash
+cd backend && uv run ruff check . && uv run pytest   # ruff clean; 119 passed / 93 skipped
+```
+
+The `+4` over the pre-fix suite are the regression tests: the true-identity → `undecided`, the
+still-`refuted` cases, and the degenerate-angle + mixed-dimension rejections. The frontend review
+surfaced only LOW UX notes (a silently-dropped malformed geometry row), no functional defects.
+
+### Still pending before prod (recorded honestly)
+
+The `0.9.x` line is **not yet deployed**, and the ~17 DB-backed toolbench tests — the entire
+**ledger-invariant surface** (atomic single commit, exactly one `tool_run` contribution per run, the
+blame-tuple round-trip, append-only immutability, the evidence/link/ref shape, and the
+`source_type`/`relation_kind`/`undecided`/async-await mapping) — have **never run**: they skip without
+a database, and the test harness's `DROP SCHEMA public CASCADE` makes the live Supabase DB an unsafe
+target (an explicit `TEST_DATABASE_URL` bypasses conftest's localhost-only guard). Gate before
+shipping: run them against a throwaway/branch Postgres (never prod), or as a post-deploy smoke test
+through the live API, then `fly deploy` (applies `0012`) + a Vercel redeploy.
+
+---
+
+## 0.9.5
+
+**Toolbench frontend — drive & show surfaces (Phase 7).** A person standing in a project workspace
+can pick a deterministic instrument, drive it (with a visible **assumptions** input), run it as a
+project member, and watch the result land in the ledger — the measurement, its assumptions, and the
+`instrument@version · engine@version` blame line, all rendered honestly. The flagship corner is one
+click. Frontend-only — no backend, schema, or migration.
+
+### The surfaces
+
+- **`toolbench-panel.tsx`** — a collapsible `Bay` (discoverable, not dominating) that fetches the
+  public catalog, renders a segmented instrument picker over the code registry, and shows each
+  instrument's **self-describing outcome legend** — so "undecided ≠ pass" is stated up front.
+  `InstrumentRunner` is keyed on the instrument name, so switching resets state to that instrument's
+  demo, and invalidates `checkpoints` + `overview` (+ `evidence` when a claim was targeted) on
+  success so the produced checkpoint appears in the timeline.
+- **`drive-forms.tsx`** — one bespoke form per instrument, each pre-filled with its demo (the corner,
+  `3**2 + 4**2 == 5**2`, `1,1,2,3,5,8`), plus a JSON fallback for any future instrument. Coordinates
+  coerce whole numbers to ints and keep everything else a string (`1/2`, `sqrt(2)`) — **never a
+  float**, matching the exactness contract.
+- **`assumptions-editor.tsx`** — assumptions as an explicit, editable surface: a per-symbol SymPy
+  predicate (from a menu that can only offer ids a run accepts) or a contextual scalar (`angle = 90`,
+  the geometry demo's seed).
+- **`result-view.tsx`** — value/measurement cards, the `refuted` **counterexample card** (a definitive
+  finding, not an error), the `oeis` **citation card** (A-number, source link, `retrieved_at`,
+  `raw_response_hash`), and a provenance footer (artifact / evidence / checkpoint ids + content hash).
+
+### Honesty rules + the render seam
+
+One tone table (`outcome.ts`): `result → ok`, `refuted → fail` (definitive counterexample), `undecided
+→ warn` ("escalate to a proof, never a pass") — never softened. Every expression routes through one
+`<Formula>` component: v1 a monospace value chip (on-brand, and *incapable of mis-rendering* a formula
+in a provenance ledger); a KaTeX v2 fed by a server-supplied `latex` field is a change to that one
+file, no call site moves.
+
+### Verification
+
+```bash
+cd frontend && npm run typecheck && npm run lint && npm run build   # all green
+```
+
+The signed-in round-trip is a post-deploy check — it exercises the same DB-backed write path whose
+backend round-trips are still pending (see `0.9.6`).
+
+---
+
+## 0.9.4
+
+**`oeis.search` — the first retrieval instrument (Tier 1, Phase 5).** Identify an integer sequence by
+its leading terms via the OEIS search API, landing **solid, cited retrieval evidence** rather than a
+flimsy quote: look up `1,1,2,3,5,8` and the ledger holds an `A000045` pin. This is the first
+instrument whose output is **not** a pure function of its inputs, which forced three small, principled
+extensions to the Phase-2/3 contract. `uv add httpx` (promotes it from a dev-only to a production
+dependency). Backend-only — no migration.
+
+### The contract extensions (backward-compatible; compute instruments untouched)
+
+- **`Instrument.run` may be `async`** — its return widens to `InstrumentResult | Awaitable[...]`. The
+  write path awaits when the result is awaitable — still **before any `db.add`**, so a network failure
+  (`RetrievalError`) follows the same "did not run → mint nothing → 4xx" failure split as a compute
+  exception.
+- **`InstrumentResult.source_type`** — an optional provenance hint so a retrieval marks its `Evidence`
+  as externally sourced (`"oeis"`) rather than the default `"tool"`. A *where-it-came-from* hint, not
+  a new credit axis (funding ≠ contribution ≠ validation is untouched).
+- **Conformance is async-aware** — structural-only for an `async` `run`, closing the un-awaited
+  coroutine; the async instrument's output is verified in a dedicated async test.
+
+### Retrieval + pinning
+
+- **`toolbench/retrieval.py::RetrievalClient`** — async JSON fetch with a `transport` injection seam
+  (tests drive the real parse/hash/cache path via `httpx.MockTransport` — **no live network in CI**)
+  and a small LRU cache; any fetch/parse failure becomes one `RetrievalError`.
+- **`toolbench/pinning.py::build_pin_record`** — the reusable `source.pin` pattern: `provider` +
+  `identifier` + `url` + `retrieved_at` + cited `name`/`formula` snippets + `raw_response_hash`
+  (sha256 of the exact bytes). The hash is the honesty anchor — it proves *what* was retrieved
+  **without redistributing it** (OEIS's licence is cite-don't-redistribute).
+- **`oeis.search`** — a match → `result` (`pinned_source`, `source_type="oeis"`); a clean no-match →
+  `undecided` (escalate, but still a citable pin); a failed fetch → `RetrievalError` (did not run).
+
+### Verification
+
+`ruff` clean; the DB-free tests (the pin hash; the mocked retrieval client incl. the cache-hit path; `oeis.search` identify / no-match / fetch-fail / `<3`-terms) pass. The DB-backed async write-path test skips without a database.
+
+### Deploy
+
+`uv sync` (adds `httpx` as a production dep) then `fly deploy`.
+
+---
+
+## 0.9.3
+
+**`expr.compare` + `geometry.coordinate_measure` (Tier 0, Phase 4 cont.).** Two more SymPy instruments
+on the Phase-4 substrate, exact throughout. Backend-only — no migration.
+
+### `expr.compare`
+
+*Are two expressions the same thing?* via `simplify(left - right)` with the three honest outcomes:
+equivalent → `result`; not-equivalent (a witness) → `refuted`; unknown → `undecided` — the seam to
+escalate, never a pass. Assumptions plumb through: `√(x²) = x` is `undecided` unconditionally but
+`equivalent` under `{"x": {"positive": true}}`. *(The refuted/undecided boundary was tightened in
+`0.9.6` — a true identity SymPy cannot close now reads as `undecided`, not a false counterexample.)*
+
+### `geometry.coordinate_measure` (the flagship)
+
+The *measuring across a corner* thread in one run: `A=[0,0], B=[3,0], C=[3,4]` → `dist(A,C)=5` and
+`angle(A,B,C)=90°` — the distance the integer `5`, the right angle the exact `pi/2`, computed on
+`sympy.geometry.Point`. Coordinates accept exact ints / exact strings (`"1/2"`, `"sqrt(2)"`) / floats
+(inexact, documented). A measurement always `result`s. The corner's `angle = 90` rides on the artifact
+as contextual provenance. *(Degenerate/mixed-dimension inputs are rejected as of `0.9.6`.)*
+
+### Verification
+
+`ruff` clean; the DB-free instrument tests (the three outcomes, the assumptions flip, the exact corner, exact strings + 3-D coordinates) pass. The DB-backed write-path tests skip without a database.
+
+---
+
+## 0.9.2
+
+**The toolbench becomes usable end-to-end.** Four phases land together to take the bench from "a
+provenance column" to "`curl` the catalog, run `3²+4²==5²` over HTTP, and watch the checkpoint appear":
+the **adapter contract + code registry + conformance harness** (Phase 2), the **tool-run write path**
+(Phase 3), the first instrument **`calc.eval`** (Phase 4), and the **HTTP surface** (Phase 6). `uv add
+sympy` (resolved 1.14). Backend-only — no migration (it rides on the `0.9.1` spine).
+
+### The adapter contract (the real build object)
+
+- **`toolbench/adapter.py`** — `Instrument`, a `@runtime_checkable` `Protocol`
+  (`name`/`namespace`/`version`/`engine`/`engine_version`/`description`/`InputModel`/`OutputModel`/`run`),
+  and `InstrumentResult` (`output`, `status`, `artifact_kind`, optional `source_type`). The status is
+  **returned** by the instrument, never inferred.
+- **`toolbench/registry.py`** — a **code** registry (the single source of truth, the
+  `core/openrouter_models.py` pattern) that fail-fasts on a blank name, a non-conforming object, or a
+  duplicate. **`toolbench/conformance.py`** — `check_conformance` returns a list of problems
+  (structural always; behavioural given `example_inputs`, incl. that `run`'s output validates against
+  its own `OutputModel`). **`toolbench/catalog.py`** — registry → `InstrumentDescriptor` (real JSON
+  Schema + the universal three-outcome `result_contract`).
+
+### The write path (the chokepoint invariant)
+
+**`services/tool_runs.py::run_instrument`** turns *"run instrument X in project P"* into an `Artifact`
+(+ optional `Evidence` and the `0.9.1` links when targeting a claim) and a `Checkpoint` carrying the
+blame tuple, **composed through `create_checkpoint` in one transaction**. It `db.add`s and lets the
+chokepoint own the single commit; `run` executes *before* any `db.add`, so a tool exception mints
+nothing (the failure split). `contributions.ACTION_TOOL_RUN` attributes the run as exactly one
+contribution.
+
+### The API (Phase 6)
+
+- **`GET /instruments`** — public, root-mounted catalog (the `GET /agent-models/catalog` pattern);
+  reflects the code registry, so it can never advertise an instrument the runtime lacks.
+- **`POST /projects/{id}/instruments/{name}/run`** — authenticate (`ActingActor` → `401`), resolve the
+  instrument (`404`), authorize **membership** via the new `ensure_is_member` (`404`/`403`), then run.
+  Membership — not owner/admin — because a run is *research* (a contribution), not governance; and it
+  omits the `FOR UPDATE` project lock `ensure_can_manage` holds, so concurrent runs on one project
+  don't needlessly serialize. `201 Created`, returning the checkpoint + blame tuple + `artifact_id` /
+  `evidence_id`.
+
+### `calc.eval` (the first instrument)
+
+The exact calculator + falsification engine: `2+2 → 4`, `1/3+1/6 → 1/2`, `sqrt(2) → sqrt(2)` (exact,
+never a float — the ledger hashes the output); a relation settles to `result` / `refuted` (a false
+relation is a counterexample) / `undecided`. A curated-namespace parser (`_sympy_support.py`)
+restricts `parse_expr` to an allow-list — a cheap injection reduction, **not** a sandbox (that's the
+deferred execution substrate).
+
+### Verification
+
+`ruff` clean; the DB-free suite (real math, conformance, the hermetic pre-DB failure split, and the public-catalog + unauthenticated-run auth gates) passes. The end-to-end atomic write is covered only by the DB-backed tests — see `0.9.6`.
+
+### Deploy
+
+`uv sync` (adds `sympy`) then `fly deploy`. No migration.
+
+---
+
+## 0.9.1
+
+**Toolbench provenance spine (Phase 1).** The first slice of the maths toolbench
+(`docs/executing/toolbench-provenance-and-first-instruments.md`) is deliberately a **data-model change,
+not a SymPy wrapper**: the value of the bench is the recorded, reproducible instrument, so the
+load-bearing work is the provenance record the later phases land on. Three facts become storable — a
+validated **blame tuple**, a typed **`Evidence → Artifact`** link, and the **`assumptions`** a result
+was computed under. No instrument runs yet. Migration `0012_toolbench_provenance` (additive).
+
+### The blame tuple (no DB change)
+
+- **`ResultStatus`** (`result | refuted | undecided`) — a plain `StrEnum` (it lives *inside* the JSON
+  tuple, not as a column); `undecided` is the documented seam to escalate, never a pass.
+- **`schemas/tool_invocation.py::ToolInvocation`** — the strict-write shape (`instrument`,
+  `instrument_version`, `engine`, `engine_version`, `inputs`, `output`, `assumptions`, `status`,
+  `produced_artifact_id`), `extra="forbid"` so a stamped `grade` or any stray key is rejected.
+- **`Checkpoint.tool_invocations`** already existed as free-form JSON (baseline 0.1.0), so the
+  promotion is entirely schema/service-layer: `create_checkpoint` gains a trusted `tool_invocations`
+  kwarg (modeled on `extra_refs`); `CheckpointRead` surfaces the column as **raw `list[dict]`** — the
+  lenient-read half of the split, so a pre-/future-shape entry can never `500` a read. Immutability
+  rides free on the append-only `Checkpoint`.
+
+### The link + the assumptions
+
+- **`models/links.py::EvidenceArtifactLink`** — a typed join mirroring `ClaimEvidenceLink` (`role` ∈
+  `derived_from` / `attachment`, validated in the service). Exported from `models/__init__.py` — the
+  load-bearing step for Alembic discovery.
+- **`evidence.assumptions` + `artifacts.assumptions`** — dedicated `JSON NOT NULL DEFAULT '{}'` columns
+  (not buried in `*_metadata`), so an unconditional claim recorded without its assumptions is never
+  silently lost. Surfaced on `EvidenceRead`.
+
+### Schema & migration
+
+`0012_toolbench_provenance` (additive, `down_revision="0011_project_agent_models"`): creates
+`evidence_artifact_links` and adds the two `assumptions` columns, backfilling existing rows to `{}`
+with no data pass; **no change** to `checkpoints.tool_invocations` (already present). `downgrade()`
+drops both columns and the join table in FK-safe order. `alembic heads` confirms a single linear head.
+
+### Verification
+
+`ruff` clean; the DB-free provenance tests (`ToolInvocation` parse / forbid-extra / required fields, the engine pin) pass. The DB-backed round-trips (the blame tuple's immutability via the checkpoint guard, the link resolving both directions) skip without a database.
 
 ---
 

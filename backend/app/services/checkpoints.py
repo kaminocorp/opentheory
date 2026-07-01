@@ -37,6 +37,7 @@ from app.schemas.checkpoint import (
     CheckpointRefInput,
     CheckpointRefRead,
 )
+from app.schemas.tool_invocation import ToolInvocation
 from app.services import contributions
 
 # Allowed checkpoint-ref target types -> the model whose existence/project we verify,
@@ -81,6 +82,8 @@ def _to_read(
         summary=checkpoint.summary,
         content=checkpoint.content,
         notes=checkpoint.notes,
+        # Raw passthrough (lenient read): the column is already JSON; never re-validate on read.
+        tool_invocations=checkpoint.tool_invocations,
         parent_ids=[parent.id for parent in checkpoint.parents],
         refs=[
             CheckpointRefRead(
@@ -220,6 +223,7 @@ async def create_checkpoint(
     actor: Actor,
     *,
     extra_refs: list[CheckpointRefInput] | None = None,
+    tool_invocations: list[ToolInvocation] | None = None,
     contribution_action: str | None = None,
 ) -> CheckpointRead:
     """Create the project's sole kind of ledger write: an immutable checkpoint.
@@ -231,6 +235,12 @@ async def create_checkpoint(
     ``contribution_action`` overrides the recorded contribution's action (default
     ``create_checkpoint``) so flows like ``validate`` attribute correctly while still
     going through this one chokepoint.
+
+    ``tool_invocations`` are the blame tuples a tool-run flow records (0.9.1, plan Phase 3): each is
+    already a validated :class:`ToolInvocation` (strict-write is the model itself — a malformed
+    tuple can never be constructed), and is serialised to JSON onto the append-only ``Checkpoint``,
+    which is where its immutability comes from. Absent for every non-tool flow, so those are
+    unaffected.
     """
     project = await db.get(Project, project_id)
     if project is None:
@@ -284,6 +294,9 @@ async def create_checkpoint(
         summary=payload.summary,
         content=payload.content,
         notes=payload.notes,
+        # ``mode="json"`` renders UUID/enum fields to their string forms for the JSON column; the
+        # default is an empty list for every non-tool flow.
+        tool_invocations=[ti.model_dump(mode="json") for ti in (tool_invocations or [])],
     )
     checkpoint.parents = parents
     db.add(checkpoint)

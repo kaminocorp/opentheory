@@ -29,6 +29,7 @@ import { Markdown } from "./markdown";
 import { ProjectEditForm } from "./project-edit-form";
 import { ResearchCrewPanel } from "./research-crew-panel";
 import { ThreadListPanel } from "./thread-list-panel";
+import { ToolbenchPanel } from "./toolbench/toolbench-panel";
 
 type ProjectWorkspaceProps = {
   projectId: string;
@@ -226,6 +227,15 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
         projectId={projectId}
         selectedBranchId={selectedBranchId}
         onSelectBranch={setSelectedBranchId}
+      />
+
+      {/* Toolbench (Phase 7): run a deterministic maths instrument and land the result in the
+          ledger. Scoped to the selected thread; the run is membership-gated (canManageProject),
+          the catalog is public. Produced checkpoints appear in the timeline below. */}
+      <ToolbenchPanel
+        projectId={projectId}
+        selectedThreadId={selectedThreadId}
+        canRun={canManageProject}
       />
 
       <div className="enter-stagger grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)_340px]">

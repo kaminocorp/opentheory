@@ -38,5 +38,9 @@ class EvidenceRead(EvidenceBase):
     thread_id: UUID | None
     relation_kind: RelationKind
     link_id: UUID
+    # The assumption set the evidence was recorded under (0.9.1) — surfaced so the evidence card can
+    # show it. Defaults to ``{}`` for evidence created outside a tool run (the generic create path
+    # does not set assumptions; the tool-run write path in Phase 3 does).
+    assumptions: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime

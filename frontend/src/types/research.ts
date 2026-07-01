@@ -225,6 +225,28 @@ export type CheckpointRef = {
   label: string | null;
 };
 
+// --- Toolbench provenance (0.9.1) -------------------------------------------
+// The three honest outcomes of a deterministic instrument run (models/enums.py ResultStatus).
+// Never four: an instrument that *did not run* mints nothing (it is an error), so only genuine,
+// citable outcomes ever appear in the ledger.
+export type ResultStatus = "result" | "refuted" | "undecided";
+
+// One blame-tuple entry on `Checkpoint.tool_invocations` — the (tool, version, inputs) -> output
+// record that makes a tool-produced result reproducible and blamable. The backend surfaces it as
+// *lenient raw JSON* (a pre-shape / future-shape historical entry must never 500 a project read),
+// so every field is optional here and the UI renders it defensively.
+export type ToolInvocation = {
+  instrument?: string;
+  instrument_version?: string;
+  engine?: string;
+  engine_version?: string;
+  inputs?: Record<string, unknown>;
+  output?: Record<string, unknown>;
+  assumptions?: Record<string, unknown>;
+  status?: ResultStatus;
+  produced_artifact_id?: string | null;
+};
+
 export type Checkpoint = {
   id: string;
   project_id: string;
@@ -238,6 +260,8 @@ export type Checkpoint = {
   summary: string;
   content: Record<string, unknown>;
   notes: string | null;
+  // The blame tuples recorded on this checkpoint (0.9.1) — raw JSON, rendered defensively.
+  tool_invocations: ToolInvocation[];
   parent_ids: string[];
   refs: CheckpointRef[];
   created_at: string;

@@ -77,6 +77,11 @@ class CheckpointRead(BaseModel):
     summary: str
     content: dict[str, Any]
     notes: str | None
+    # The blame tuples recorded on this checkpoint (0.9.1), surfaced as **raw JSON** — the lenient
+    # read half of the split (``ToolInvocation`` is the strict-write shape). Passed through verbatim
+    # rather than re-validated, so a pre-shape / future-shape historical entry can never 500 a
+    # project read; the frontend renders the provenance line from these dicts.
+    tool_invocations: list[dict[str, Any]] = Field(default_factory=list)
     parent_ids: list[UUID]
     refs: list[CheckpointRefRead]
     created_at: datetime

@@ -10,6 +10,7 @@ from app.api.routes import (
     evidence,
     funding,
     health,
+    instruments,
     invitations,
     me,
     projects,
@@ -37,3 +38,6 @@ api_router.include_router(funding.router)
 api_router.include_router(invitations.router)
 # Agent-model catalog is a root-level, project-less read (/agent-models/catalog).
 api_router.include_router(agent_models.router, tags=["agent-models"])
+# Toolbench: a public catalog (/instruments) + a project-scoped run
+# (/projects/{id}/instruments/{name}/run), so the router mounts at the root and declares full paths.
+api_router.include_router(instruments.router)

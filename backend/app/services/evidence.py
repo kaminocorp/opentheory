@@ -29,6 +29,7 @@ def _to_read(evidence: Evidence, relation_kind: str, link_id: UUID) -> EvidenceR
         citation=evidence.citation,
         notes=evidence.notes,
         evidence_metadata=evidence.evidence_metadata,
+        assumptions=evidence.assumptions,
         relation_kind=relation_kind,  # type: ignore[arg-type]
         link_id=link_id,
         created_at=evidence.created_at,

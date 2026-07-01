@@ -9,9 +9,11 @@ dependencies = [
     "asyncpg>=0.30.0",
     "certifi>=2024.0.0",
     "fastapi[standard]>=0.115.0",
+    "httpx>=0.28.1",
     "pydantic-settings>=2.6.0",
     "pyjwt[crypto]>=2.9.0",
     "sqlalchemy[asyncio]>=2.0.36",
+    "sympy>=1.13",
 ]
 
 [dependency-groups]

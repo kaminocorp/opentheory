@@ -117,3 +117,25 @@ class ValidationOutcome(StrEnum):
     NEEDS_REPRODUCTION = "needs_reproduction"
     CONTRADICTS = "contradicts"
     RETRACT = "retract"
+
+
+class ResultStatus(StrEnum):
+    """The three honest outcomes of a deterministic toolbench instrument run (0.9.1).
+
+    Carried as a field inside the blame tuple on ``Checkpoint.tool_invocations`` (JSON) — **not** a
+    DB column — so it stays a plain ``StrEnum`` serialised as its string value; promotion to a named
+    Postgres enum is deferred until (and only if) it ever becomes a column (plan Decision;
+    docs/executing/toolbench-provenance-and-first-instruments.md Phase 1).
+
+    - ``RESULT``    — the instrument ran and produced a result.
+    - ``REFUTED``   — the instrument ran and falsified the claim (a counterexample, e.g. ``5 ≠ 7``).
+    - ``UNDECIDED`` — the instrument ran but could not decide (the seam to escalate to a deferred
+      proof — never rendered as a pass).
+
+    An instrument *exception* (it did not run) is not one of these: it mints no checkpoint and
+    surfaces as an error, so only genuine, citable outcomes are recorded (plan Phase 3).
+    """
+
+    RESULT = "result"
+    REFUTED = "refuted"
+    UNDECIDED = "undecided"

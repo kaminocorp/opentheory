@@ -92,6 +92,27 @@ async def ensure_can_manage(
     return project
 
 
+async def ensure_is_member(db: AsyncSession, project_id: UUID, actor: Actor) -> Project:
+    """Authorize ``actor`` as a *member* of ``project_id`` (a research-write gate); return it.
+
+    The companion to :func:`ensure_can_manage` for writes that are **research**, not governance — a
+    tool run mints ledger records but does not mutate the project row, so it must **not** take the
+    ``FOR UPDATE`` project lock ``ensure_can_manage`` holds (that lock serializes owner-mutating
+    writes; borrowing it here would needlessly serialize concurrent runs on the same project). Same
+    authorization otherwise: ``404`` if the project is missing, ``403`` if the actor's account is
+    not a member (or the actor is account-less). It does not distinguish owner/admin — any member
+    may run an instrument, which is the right semantics (running is contribution, not management),
+    and stays correct if a lower-privilege member role is added later.
+    """
+    project = await _get_project_or_404(db, project_id)
+    if actor.account_id is None or await _membership(db, project_id, actor.account_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not a member of this project",
+        )
+    return project
+
+
 async def list_members(db: AsyncSession, project_id: UUID) -> list[ProjectMemberRead]:
     """Public member list (id + handle + role), owner first then by join time.
 

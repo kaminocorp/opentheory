@@ -5,6 +5,7 @@ import type {
   ProjectCreate,
   ProjectUpdate,
 } from "@/types/project";
+import type { InstrumentDescriptor, ToolRunRequest, ToolRunResult } from "@/types/toolbench";
 import type {
   AccountUpdate,
   Branch,
@@ -296,4 +297,26 @@ export function getProjectBudget(projectId: string): Promise<ProjectBudget> {
 
 export function createFunding(projectId: string, payload: FundingCreate): Promise<Funding> {
   return request<Funding>(`/projects/${projectId}/funding`, writeInit(payload));
+}
+
+// --- Toolbench instruments (0.9.x) ------------------------------------------
+
+// The public instrument catalog (name, schemas, three-outcome contract) — reflects the code
+// registry, so it is static reference data and callers can cache it aggressively. Public read.
+export function getInstrumentCatalog(): Promise<InstrumentDescriptor[]> {
+  return request<InstrumentDescriptor[]>("/instruments");
+}
+
+// Run an instrument in a project and land the durable, attributed result in the ledger. Membership
+// gated (the acting actor rides on the request). A bad `inputs` payload surfaces as a 422 and mints
+// nothing; an unknown instrument name is a 404.
+export function runInstrument(
+  projectId: string,
+  name: string,
+  payload: ToolRunRequest,
+): Promise<ToolRunResult> {
+  return request<ToolRunResult>(
+    `/projects/${projectId}/instruments/${encodeURIComponent(name)}/run`,
+    writeInit(payload),
+  );
 }

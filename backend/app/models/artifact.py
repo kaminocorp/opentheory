@@ -27,7 +27,17 @@ class Artifact(IdMixin, TimestampMixin, Base):
     uri: Mapped[str | None] = mapped_column(Text)
     content_hash: Mapped[str | None] = mapped_column(String(128), index=True)
     artifact_metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    # The assumption set the artifact was produced *under* (0.9.1); see ``Evidence.assumptions``.
+    # A dedicated column (not buried in ``artifact_metadata``) so provenance is honestly surfaced.
+    # Free-form object in v1; defaults to ``{}`` (no assumptions recorded).
+    assumptions: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
     project = relationship("Project", back_populates="artifacts")
     thread = relationship("Thread", back_populates="artifacts")
     validations = relationship("Validation", back_populates="artifact")
+    # Evidence rows derived from / attaching this artifact (0.9.1), via evidence_artifact_links.
+    evidence_links = relationship(
+        "EvidenceArtifactLink",
+        back_populates="artifact",
+        cascade="all, delete-orphan",
+    )
