@@ -19,10 +19,11 @@ Two invariants this file must never break (the plan's top review checks):
 
 import hashlib
 import json
-from inspect import isawaitable
+from inspect import isawaitable, iscoroutinefunction
 from typing import Any
 from uuid import UUID
 
+import anyio
 from fastapi import HTTPException, status
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,6 +34,7 @@ from app.models.claim import Claim
 from app.models.enums import ResultStatus
 from app.models.evidence import Evidence
 from app.models.links import ClaimEvidenceLink, EvidenceArtifactLink
+from app.models.thread import Thread
 from app.schemas.checkpoint import CheckpointCreate, CheckpointRefInput
 from app.schemas.tool_invocation import ToolInvocation
 from app.schemas.tool_run import ToolRunResult
@@ -88,6 +90,13 @@ async def run_instrument(
     """
     assumptions = assumptions or {}
 
+    # ``relation_kind`` labels the claim↔evidence link, so it is meaningless without a claim;
+    # passing it alone is a caller mistake, not a silent no-op.
+    if relation_kind is not None and claim_id is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "relation_kind requires a claim_id"
+        )
+
     # Validate the target claim up front (fail fast, mint nothing) when the run targets one.
     claim: Claim | None = None
     if claim_id is not None:
@@ -103,6 +112,19 @@ async def run_instrument(
                 status.HTTP_422_UNPROCESSABLE_CONTENT,
                 f"relation_kind must be one of {sorted(RELATION_KINDS)}",
             )
+    # A free-standing thread target must be validated up front too, for the same reason the claim
+    # is: the artifact is flushed with this ``thread_id`` *before* the chokepoint validates it (step
+    # 6), so an unknown/foreign id would otherwise surface as a 500 (FK violation at the flush)
+    # instead of a clean 4xx. (When a claim is given, the thread is the claim's own — validated
+    # above — so this only guards the no-claim path, which is exactly when ``thread_id`` is used.)
+    elif thread_id is not None:
+        thread = await db.get(Thread, thread_id)
+        if thread is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Thread not found")
+        if thread.project_id != project_id:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, "Thread belongs to a different project"
+            )
 
     # 1. Validate the inputs against the instrument's declared InputModel.
     try:
@@ -113,14 +135,19 @@ async def run_instrument(
             f"Invalid inputs for {instrument.name}: {exc}",
         ) from exc
 
-    # 2. Run. A tool exception means it did not run: mint nothing, surface a 4xx. (This happens
-    #    before any db.add, so the session is untouched — no rollback needed.) A retrieval
-    #    instrument's ``run`` is async (it hits the network); await it here, before any db.add,
-    #    so a network failure follows the same "mint nothing" path.
+    # 2. Run. A tool exception means it did not run: mint nothing, surface a 4xx. This is before
+    #    any db.add, so the session is untouched (no rollback needed). A compute instrument's
+    #    ``run`` is synchronous and CPU-bound; run it in a worker thread so a slow expression cannot
+    #    block the event loop and freeze every concurrent request on this worker. A retrieval
+    #    instrument's ``run`` is async (it hits the network); await it directly. Either way the
+    #    await precedes any db.add, so a network/compute failure mints nothing too.
     try:
-        result = instrument.run(validated, assumptions)
-        if isawaitable(result):
-            result = await result
+        if iscoroutinefunction(instrument.run):
+            result = await instrument.run(validated, assumptions)
+        else:
+            result = await anyio.to_thread.run_sync(instrument.run, validated, assumptions)
+            if isawaitable(result):  # a sync run that returned an awaitable — await it on the loop
+                result = await result
     except HTTPException:
         raise
     except Exception as exc:

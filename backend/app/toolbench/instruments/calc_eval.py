@@ -35,6 +35,7 @@ _RELATIONAL_OPS = ("==", "!=", "<=", ">=", "<", ">")
 class CalcEvalInput(BaseModel):
     expression: str = Field(
         min_length=1,
+        max_length=1000,
         description=(
             "An exact expression to evaluate (e.g. '3**2 + 4**2', '1/3 + 1/6', 'sqrt(2)'), or a "
             "relation to test using a relational operator (==, !=, <, <=, >, >=), e.g. "

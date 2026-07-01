@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.9.7` — **Security hardening on the toolbench parser (post-review).** A production-readiness review found the bench's ledger composition, honesty model, schemas, data model, and frontend sound — and **one critical defect**: `calc.eval` / `expr.compare` / `geometry` fed input to SymPy's `parse_expr` (which compiles to `eval`), and the namespace allow-list did not sandbox it — confirmed member-reachable **remote code execution**. Closed with an AST allow-list applied before `parse_expr`; also mitigates an event-loop-blocking DoS (input bounds + running synchronous CAS off the loop) and fixes two write-path nits. Backend-only — no schema, no migration.
 - `0.9.6` — **Post-review hardening on the toolbench (`0.9.1`–`0.9.5`).** Two math-honesty fixes: `expr.compare` refutes only on a *provably* non-zero difference (`is_zero is False`, not `is_number`), so a true identity SymPy can't close (`cos(π/7) − cos(2π/7) + cos(3π/7) = ½`) reads as `undecided` rather than a false counterexample; `geometry.coordinate_measure` refuses a zero-length angle leg (no `nan` "measurement") and mixed-dimension point sets. Backend-only — no schema, no migration.
 - `0.9.5` — **Toolbench frontend — drive & show surfaces.** A collapsible workspace panel to pick an instrument, drive it (formula / points / terms + a visible assumptions editor), run it as a member, and see the result with its assumptions and the `instrument@version · engine@version` blame line — the honesty rules carried into the UI (`undecided` = escalate, `refuted` = a definitive counterexample). Frontend-only — no backend, schema, or migration.
 - `0.9.4` — **`oeis.search` — the first retrieval instrument (Tier 1).** Identify an integer sequence by its terms via the OEIS API, landing a *pinned* citation (`url` + `retrieved_at` + `raw_response_hash`; cite, don't redistribute). Adds the async `run` path, the mockable/cached `RetrievalClient`, and the reusable `source.pin` primitive. `uv add httpx`. Backend-only — no migration.
@@ -49,6 +50,68 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.9.7
+
+**Security hardening on the toolbench parser (post-review).** A production-readiness review of the
+completed `0.9.1`–`0.9.6` bench found the chokepoint-composed write path, the honesty model, the
+schemas, the data model, and the frontend sound — and **one critical defect**: the SymPy parser was
+not the sandbox its docstring claimed, exposing arbitrary code execution to any project member.
+Fixed here, with a DoS mitigation and two write-path nits. Backend-only — no schema, no migration.
+
+### Confirmed RCE → closed with an AST allow-list
+
+`toolbench/instruments/_sympy_support.py::parse` fed input to `sympy.parse_expr`, which compiles to
+`eval`. The namespace allow-list (`_SAFE_NAMESPACE`) did **not** sandbox it: an allow-listed object
+leaks the real builtins via `sqrt.__globals__`, and an attribute/subscript walk reaches
+`object.__subclasses__` — both verified to *execute* (an `__import__('os')` gadget ran and returned a
+live PID; `subprocess.Popen` was reachable). Any project member could run arbitrary code on the
+shared backend through `POST /projects/{id}/instruments/{name}/run` (via `calc.eval`, `expr.compare`,
+or `geometry` string coordinates), with output returned in the response and written to the
+append-only ledger. `parse` now validates the input's AST against a strict allow-list *before*
+`parse_expr` runs — arithmetic over numeric literals and calls to bare math names only; **no**
+attribute access, subscripting, dunder names, or comprehensions — which removes the eval-escape class
+entirely. Every legitimate expression (`sqrt(2)`, `3^2 + 4^2`, `sin(x)**2`, rationals, symbolic
+assumptions) still parses; the eval-escape vectors and cheap resource bombs are rejected. Locked in
+by parametrized regression tests (`tests/toolbench/test_instruments.py`).
+
+### DoS mitigated (hard bound still deferred)
+
+Compute instruments ran synchronous, unbounded SymPy on the event loop, so a ~20-byte
+`factorial(10**8)` could freeze every concurrent request on the worker. Now: `expression` / `left` /
+`right` are length-capped, `oeis` `terms` count-capped, the AST gate rejects an over-long expression
+and the cheapest constant-exponent bombs, and the write path runs synchronous `run()` off the event
+loop (`anyio.to_thread`) so a slow-but-legal expression degrades one worker thread, not the process.
+A *hard* CPU/memory bound on legal-but-expensive input (power towers, huge `factorial`) remains the
+job of the deferred execution sandbox (`agent-research-tools.md` §6), now recorded honestly in the
+parser docstring rather than overclaimed.
+
+### Write-path nits
+
+`relation_kind` without a `claim_id` is now a `422` (was silently ignored); a free-standing
+`thread_id` is validated up front (was validated only in the chokepoint, *after* the artifact flush,
+so an unknown/foreign id surfaced as a `500` FK error instead of a clean `4xx`).
+
+### Verification
+
+```bash
+cd backend && uv run ruff check . && uv run pytest   # ruff clean; 127 passed / 93 skipped
+```
+
+The `+8` over 0.9.6 are the security regressions (the five eval-escape vectors, two resource bombs,
+and a legitimate-math guard). The frontend is untouched.
+
+### Still pending before prod (unchanged from 0.9.6)
+
+The ~17 DB-backed toolbench tests — the entire **ledger-invariant surface** (atomic single commit,
+one `tool_run` contribution per run, blame-tuple round-trip, append-only immutability, the
+evidence/link/ref shape, the async mapping) — still skip without a database and have **never run**;
+and the DoS *hard* bound is deferred. Gate before shipping: run the invariant tests against a
+throwaway/branch Postgres (never prod), add the missing atomic-rollback and claim-path
+contribution-count assertions, then decide whether the deferred CPU sandbox is acceptable for launch
+or is a prerequisite.
 
 ---
 

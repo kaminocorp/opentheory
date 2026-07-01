@@ -33,8 +33,14 @@ from app.toolbench.instruments._sympy_support import (
 
 
 class ExprCompareInput(BaseModel):
-    left: str = Field(min_length=1, description="Left-hand expression, e.g. '(a + b)**2 - 2*a*b'.")
-    right: str = Field(min_length=1, description="Right-hand expression, e.g. 'a**2 + b**2'.")
+    left: str = Field(
+        min_length=1,
+        max_length=1000,
+        description="Left-hand expression, e.g. '(a + b)**2 - 2*a*b'.",
+    )
+    right: str = Field(
+        min_length=1, max_length=1000, description="Right-hand expression, e.g. 'a**2 + b**2'."
+    )
 
 
 class ExprCompareOutput(BaseModel):

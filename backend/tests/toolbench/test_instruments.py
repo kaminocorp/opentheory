@@ -231,10 +231,49 @@ def test_geometry_rejects_mixed_dimension_points() -> None:
 
 
 def test_parse_namespace_blocks_the_obvious_injection() -> None:
-    # Not a real sandbox (that is the deferred execution substrate) — but the curated namespace must
-    # at least stop a bare ``__import__`` reaching anything: the instrument fails to run (→ 422).
+    # A bare ``__import__`` reaching anything: the instrument fails to run (→ 422).
     with pytest.raises(ValueError):
         _run(CALC_EVAL, {"expression": "__import__('os').getcwd()"})
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        # The eval-escape vectors (all confirmed to execute against the un-gated parse_expr): the
+        # AST allow-list must reject every one *before* parse_expr's eval sees it.
+        "sqrt.__globals__['__builtins__']['__import__']('os').getpid()",  # builtins via __globals__
+        "(1).__class__.__mro__[-1].__subclasses__()",  # attribute walk to object.__subclasses__
+        "().__class__",  # attribute access on a literal
+        "sqrt.__doc__[0]",  # subscripting
+        "__import__('os')",  # a bare dunder name
+    ],
+    ids=["globals-walk", "class-walk", "attr-on-literal", "subscript", "dunder-name"],
+)
+def test_parse_blocks_the_eval_escape(payload: str) -> None:
+    # The load-bearing security invariant: no input can reach attribute access, subscripting, or a
+    # dunder name — the only routes to arbitrary code execution through parse_expr's eval.
+    with pytest.raises(ValueError):
+        _run(CALC_EVAL, {"expression": payload})
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "2**100000",  # a single huge constant exponent — the cheapest compute bomb
+        "9" * 1001,  # over the raw-length cap
+    ],
+    ids=["huge-exponent", "too-long"],
+)
+def test_parse_rejects_cheap_resource_bombs(payload: str) -> None:
+    with pytest.raises(ValueError):
+        _run(CALC_EVAL, {"expression": payload})
+
+
+def test_parse_still_allows_legitimate_math() -> None:
+    # The gate must not regress real inputs: functions, symbols, powers, '^'-as-exponent, rationals.
+    result = _run(CALC_EVAL, {"expression": "sqrt(2) + sin(x)**2 + 1/3"})
+    assert result.status is ResultStatus.RESULT
+    assert _run(CALC_EVAL, {"expression": "3^2 + 4^2"}).output["value"] == "25"
 
 
 def test_every_run_output_validates_against_its_output_model() -> None:

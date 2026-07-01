@@ -5,12 +5,18 @@ Three concerns live here so the instruments themselves stay thin:
 - **The engine pin.** ``ENGINE`` / ``ENGINE_VERSION`` are read from the installed SymPy at import
   and stamped into every blame tuple, so a recorded result names the exact engine that produced it
   (the reproducibility contract — the write-path test asserts it lands verbatim).
-- **A curated-namespace parser.** ``parse`` turns a text expression into a SymPy object through
-  ``parse_expr`` restricted to an allow-list of math names (``_SAFE_NAMESPACE``). This is *not* a
-  security sandbox — it is a cheap, honest reduction of the obvious ``__import__('os')`` /
-  attribute-walk vectors, because a bare ``sympify`` ``eval``s against the whole SymPy namespace.
-  The real resource/exec sandbox is the deferred execution substrate (``agent-research-tools.md``
-  §6); until then these instruments are human-invokable and Phase 6 gates them to project members.
+- **A safe parser.** ``parse`` turns a text expression into a SymPy object through ``parse_expr``.
+  ``parse_expr`` compiles to ``eval``, and a namespace allow-list (``_SAFE_NAMESPACE``) alone does
+  **not** sandbox it: an allow-listed object leaks the real builtins via ``sqrt.__globals__`` and an
+  attribute/subscript walk reaches ``object.__subclasses__`` — i.e. arbitrary code execution. So
+  before ``parse_expr`` ever sees the text, ``_reject_unsafe_source`` validates its AST against a
+  strict allow-list (arithmetic + calls to bare math names only; **no** attribute access,
+  subscripting, dunder names, or comprehensions), which removes the eval-escape class entirely, and
+  applies size/exponent caps against the cheapest resource bombs. What remains deferred to the
+  execution sandbox (``agent-research-tools.md`` §6) is a *hard CPU/memory bound* on an expression
+  that is legal but expensive (a power tower, ``factorial`` of a huge n); the write path mitigates
+  that by running these synchronous instruments off the event loop, so such a case degrades one
+  worker thread rather than freezing the process. Phase 6 additionally gates runs to members.
 - **Assumptions → SymPy symbols.** ``symbol_assumptions`` reads the free-form assumption map the
   ledger records and pulls out the *per-symbol* SymPy assumptions (``{"x": {"positive": true}}``),
   so a result can be computed *under* them (``Symbol('x', positive=True)``) — the plumbing that lets
@@ -18,6 +24,8 @@ Three concerns live here so the instruments themselves stay thin:
   left alone; a *misspelled* SymPy predicate fails loud (a silently-ignored assumption would record
   a misleading unconditional result the append-only ledger could never edit out).
 """
+
+import ast
 
 import sympy
 from sympy import Symbol
@@ -96,14 +104,78 @@ def symbol_assumptions(assumptions: dict[str, object]) -> dict[str, dict[str, bo
     return out
 
 
+# --- the source-safety gate (run before ``parse_expr``'s ``eval``) -------------------------------
+# Only these AST node types may appear in an input expression: arithmetic over numeric literals and
+# calls to bare (math) names. Attribute access, subscripting, comprehensions, lambdas, and every
+# other construct are absent — which is what forecloses the ``eval`` escape (``sqrt.__globals__`` /
+# ``(1).__class__.__mro__[-1].__subclasses__()``) a namespace allow-list cannot.
+_ALLOWED_AST_NODES = frozenset(
+    {
+        ast.Expression,
+        ast.BinOp, ast.UnaryOp, ast.Call, ast.Name, ast.Load, ast.Constant,
+        ast.Add, ast.Sub, ast.Mult, ast.Div, ast.FloorDiv, ast.Mod, ast.Pow, ast.BitXor,
+        ast.UAdd, ast.USub,
+    }  # fmt: skip
+)
+_MAX_SOURCE_LEN = 1000  # raw expression length
+_MAX_AST_NODES = 500  # structural size
+_MAX_POW_EXPONENT = 1000  # a constant exponent ('**' / '^') — stops the cheapest 2**huge bomb
+
+
+def _reject_unsafe_source(text: str) -> None:
+    """Raise ``ValueError`` unless ``text`` is a safe, bounded arithmetic expression.
+
+    A strict AST allow-list applied *before* ``parse_expr`` (which compiles to ``eval``): attribute
+    access, subscripting, dunder names, calls to a non-name target, and non-numeric literals are all
+    rejected, so the eval-escape vectors never reach ``eval``. Size and constant-exponent caps
+    reject the cheapest resource bombs. (A hard bound on legal-but-expensive expressions — power
+    towers, huge ``factorial`` — is the deferred sandbox's job; see the module docstring.)
+    """
+    if len(text) > _MAX_SOURCE_LEN:
+        raise ValueError(f"expression too long ({len(text)} > {_MAX_SOURCE_LEN} characters)")
+    try:
+        tree = ast.parse(text, mode="eval")
+    except SyntaxError as exc:
+        raise ValueError(f"could not parse {text!r}: {exc}") from exc
+
+    nodes = list(ast.walk(tree))
+    if len(nodes) > _MAX_AST_NODES:
+        raise ValueError("expression is too complex")
+    for node in nodes:
+        if type(node) not in _ALLOWED_AST_NODES:
+            raise ValueError(
+                f"unsupported syntax ({type(node).__name__}) — only arithmetic over numbers and "
+                "calls to the allowed math functions are permitted"
+            )
+        if isinstance(node, ast.Name) and node.id.startswith("_"):
+            raise ValueError(f"name {node.id!r} is not allowed")
+        if isinstance(node, ast.Call):
+            if node.keywords:
+                raise ValueError("keyword arguments are not allowed")
+            if not isinstance(node.func, ast.Name):
+                raise ValueError("only direct calls to named functions are allowed")
+        if isinstance(node, ast.Constant) and not isinstance(node.value, int | float | complex):
+            raise ValueError("only numeric literals are allowed")
+        if (
+            isinstance(node, ast.BinOp)
+            and isinstance(node.op, ast.Pow | ast.BitXor)
+            and isinstance(node.right, ast.Constant)
+            and isinstance(node.right.value, int)
+            and abs(node.right.value) > _MAX_POW_EXPONENT
+        ):
+            raise ValueError(f"exponent too large (> {_MAX_POW_EXPONENT})")
+
+
 def parse(text: str, assumptions: dict[str, dict[str, bool]]) -> Expr:
     """Parse ``text`` to a SymPy expression, binding named symbols to their assumptions.
 
     ``assumptions`` is the *per-symbol* map from :func:`symbol_assumptions`; each name is pre-bound
     as an assumption-carrying ``Symbol`` so a symbol used in ``text`` is created *under* its flags.
-    Any parse failure is re-raised as a plain ``ValueError`` (the write path turns that into a 422:
-    the instrument did not run, so nothing is minted).
+    The text is first run through :func:`_reject_unsafe_source` (the eval-escape gate); any parse
+    failure is re-raised as a plain ``ValueError`` (the write path turns that into a 422: the
+    instrument did not run, so nothing is minted).
     """
+    _reject_unsafe_source(text)
     local = {name: Symbol(name, **flags) for name, flags in assumptions.items()}
     try:
         return parse_expr(

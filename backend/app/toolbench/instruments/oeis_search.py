@@ -33,8 +33,9 @@ _LICENSE_NOTE = (
 class OeisSearchInput(BaseModel):
     terms: list[int] = Field(
         min_length=3,
+        max_length=64,
         description="The leading terms of an integer sequence, e.g. [1, 1, 2, 3, 5, 8]. "
-        "At least three, to make the lookup meaningful.",
+        "At least three, to make the lookup meaningful (at most 64).",
     )
 
 
