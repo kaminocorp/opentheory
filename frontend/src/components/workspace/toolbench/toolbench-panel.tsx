@@ -12,7 +12,12 @@ import { useActingIdentity } from "@/lib/use-identity";
 import type { Claim } from "@/types/research";
 import type { InstrumentDescriptor, ToolRunResult } from "@/types/toolbench";
 
-import { AssumptionsEditor, buildAssumptions, demoAssumptionRows } from "./assumptions-editor";
+import {
+  AssumptionsEditor,
+  buildAssumptions,
+  demoAssumptionRows,
+  instrumentAcceptsAssumptions,
+} from "./assumptions-editor";
 import { DriveForm } from "./drive-forms";
 import { outcomeMeta } from "./outcome";
 import { ResultView } from "./result-view";
@@ -110,11 +115,13 @@ function InstrumentRunner({
       <div className="grid content-start gap-4">
         <DriveForm descriptor={descriptor} onInputs={setInputs} disabled={!canRun} />
 
-        <AssumptionsEditor
-          initialRows={demoAssumptionRows(descriptor.name)}
-          onChange={setAssumptions}
-          disabled={!canRun}
-        />
+        {instrumentAcceptsAssumptions(descriptor.name) ? (
+          <AssumptionsEditor
+            initialRows={demoAssumptionRows(descriptor.name)}
+            onChange={setAssumptions}
+            disabled={!canRun}
+          />
+        ) : null}
 
         {/* Scope + optional evidence target. A run always records on the ledger; a claim target also
             mints Evidence linked to that claim. */}

@@ -65,6 +65,11 @@ export function demoAssumptionRows(instrumentName: string): AssumptionRow[] {
   return [];
 }
 
+/** Grid-search instruments reject non-empty assumptions server-side (0.10.1). */
+export function instrumentAcceptsAssumptions(instrumentName: string): boolean {
+  return instrumentName !== "counterexample.search";
+}
+
 /**
  * The assumptions input (plan Phase 7.2/7.4): assumptions are recorded *with* the result, so they
  * are shown as an explicit, editable surface — never a hidden flag. Manages its own rows and reports

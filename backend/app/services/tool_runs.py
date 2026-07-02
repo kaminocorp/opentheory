@@ -55,15 +55,29 @@ _STATUS_RELATION_DEFAULT: dict[ResultStatus, str] = {
 _EVIDENCE_FROM_ARTIFACT = "derived_from"
 
 
+def _strip_latex_keys(value: Any) -> Any:
+    """Drop presentation-only ``*_latex`` keys recursively — they must not affect content hashes."""
+    if isinstance(value, dict):
+        return {
+            key: _strip_latex_keys(nested)
+            for key, nested in value.items()
+            if not key.endswith("_latex")
+        }
+    if isinstance(value, list):
+        return [_strip_latex_keys(item) for item in value]
+    return value
+
+
 def _canonical_output_hash(output: dict[str, Any]) -> str:
     """A stable content hash of the result output (canonical JSON → sha256).
 
     v1 instruments produce exact/symbolic/string outputs, so JSON-hashing is reproducible. Never
     feed a bare float through here and treat it as an exact hash — numeric instruments (Phase 4/5)
     must canonicalise first (``srepr`` / a pinned tolerance), per the maths-toolbox
-    float-reproducibility caveat.
+    float-reproducibility caveat. ``*_latex`` render hints are stripped first (0.10.4).
     """
-    canonical = json.dumps(output, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    hashable = _strip_latex_keys(output)
+    canonical = json.dumps(hashable, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 

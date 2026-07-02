@@ -20,7 +20,7 @@ from sympy.geometry import Point
 
 from app.models.enums import ResultStatus
 from app.toolbench.adapter import InstrumentResult
-from app.toolbench.instruments._sympy_support import ENGINE, ENGINE_VERSION, parse
+from app.toolbench.instruments._sympy_support import ENGINE, ENGINE_VERSION, latex_of, parse
 
 # A coordinate: an exact int, an exact string ("1/2", "sqrt(2)"), or a float (inexact — see _coord).
 CoordScalar = StrictInt | StrictFloat | StrictStr
@@ -86,11 +86,14 @@ class CoordinateMeasureInput(BaseModel):
 class AngleMeasure(BaseModel):
     radians: str  # exact, e.g. "pi/2"
     degrees: str  # exact, e.g. "90"
+    radians_latex: str | None = None  # render hints only — excluded from content hashes
+    degrees_latex: str | None = None
 
 
 class CoordinateMeasureOutput(BaseModel):
     distances: dict[str, str]  # "A-C" → "5"
     angles: dict[str, AngleMeasure]  # "A-B-C" → {radians: "pi/2", degrees: "90"}
+    distances_latex: dict[str, str] | None = None
 
 
 def _coord(value: CoordScalar) -> Any:
@@ -125,11 +128,17 @@ class CoordinateMeasure:
             for name, coords in inputs.points.items()
         }
 
-        distances = {
-            f"{p}-{q}": str(points[p].distance(points[q])) for p, q in inputs.distances
-        }
+        distances: dict[str, str] = {}
+        distances_latex: dict[str, str] = {}
+        for p, q in inputs.distances:
+            dist_expr = points[p].distance(points[q])
+            key = f"{p}-{q}"
+            distances[key] = str(dist_expr)
+            if dist_latex := latex_of(dist_expr):
+                distances_latex[key] = dist_latex
 
         angles: dict[str, AngleMeasure] = {}
+        angles_latex: dict[str, dict[str, str]] = {}
         for start, vertex, end in inputs.angles:
             leg_a = points[start] - points[vertex]  # vector from the vertex to each endpoint
             leg_b = points[end] - points[vertex]
@@ -146,13 +155,26 @@ class CoordinateMeasure:
             cosine = simplify(leg_a.dot(leg_b) / (len_a * len_b))
             radians = simplify(acos(cosine))
             degrees = simplify(radians * 180 / pi)
-            angles[f"{start}-{vertex}-{end}"] = AngleMeasure(
-                radians=str(radians), degrees=str(degrees)
-            )
+            angle_key = f"{start}-{vertex}-{end}"
+            angles[angle_key] = AngleMeasure(radians=str(radians), degrees=str(degrees))
+            nested: dict[str, str] = {}
+            if rad_latex := latex_of(radians):
+                nested["radians_latex"] = rad_latex
+            if deg_latex := latex_of(degrees):
+                nested["degrees_latex"] = deg_latex
+            if nested:
+                angles_latex[angle_key] = nested
 
-        output = CoordinateMeasureOutput(distances=distances, angles=angles)
+        payload = CoordinateMeasureOutput(distances=distances, angles=angles).model_dump(
+            mode="json"
+        )
+        if distances_latex:
+            payload["distances_latex"] = distances_latex
+        for angle_key, nested in angles_latex.items():
+            payload["angles"][angle_key].update(nested)
+
         return InstrumentResult(
-            output=output.model_dump(mode="json"),
+            output=payload,
             status=ResultStatus.RESULT,
             artifact_kind="measurement",
         )

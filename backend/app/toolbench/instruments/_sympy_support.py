@@ -29,9 +29,10 @@ Three concerns live here so the instruments themselves stay thin:
 """
 
 import ast
+from typing import Any
 
 import sympy
-from sympy import Symbol
+from sympy import Symbol, latex, simplify
 from sympy.core.expr import Expr
 from sympy.parsing.sympy_parser import (
     convert_xor,
@@ -181,6 +182,117 @@ def _reject_unsafe_source(text: str) -> None:
             # see the module docstring.)
             if _contains(exponent, ast.Pow | ast.BitXor) and not _contains(exponent, ast.Name):
                 raise ValueError("exponent is a numeric power tower (too large to evaluate)")
+
+
+# Two-char operators must be tested before their one-char prefixes ("<=" before "<"); a lone "="
+# is rejected (see :func:`split_relation`) so equality is always the unambiguous "==".
+RELATIONAL_OPS = ("==", "!=", "<=", ">=", "<", ">")
+
+
+def split_relation(text: str) -> tuple[str, str, str] | None:
+    """Split ``text`` at its first top-level relational operator → ``(left, op, right)``.
+
+    Only depth-0 operators split (so a relational buried inside ``Max(a < b, ...)`` — unusual —
+    is left for the parser). Returns ``None`` when the input is a plain expression. A lone ``=``
+    (not part of ``==`` / ``<=`` / ``>=`` / ``!=``) is a caller mistake and raises.
+    """
+    depth = 0
+    i = 0
+    n = len(text)
+    while i < n:
+        ch = text[i]
+        if ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+        elif depth == 0:
+            for op in RELATIONAL_OPS:
+                if text.startswith(op, i):
+                    return text[:i].strip(), op, text[i + len(op) :].strip()
+            if ch == "=":  # a lone '=' at top level — not one of the operators above
+                raise ValueError("use '==' for equality, not '='")
+        i += 1
+    return None
+
+
+def relation_holds(left: Any, right: Any, op: str) -> bool | None:
+    """Decide ``left op right`` exactly → ``True`` / ``False`` / ``None`` (could not decide).
+
+    ``==`` / ``!=`` hinge on whether the simplified difference is provably zero; the inequalities
+    need its sign, which is only available for a concrete (symbol-free) real difference. Anything
+    SymPy cannot settle returns ``None`` — recorded as ``undecided``, never guessed.
+    """
+    diff = simplify(left - right)
+    is_zero = diff.is_zero  # True / False / None (fuzzy)
+
+    if op == "==":
+        return is_zero
+    if op == "!=":
+        return None if is_zero is None else (not is_zero)
+
+    # Inequalities: need a decidable sign of a concrete real difference.
+    if diff.free_symbols:
+        return None
+    if is_zero:
+        sign = 0
+    elif diff.is_positive:
+        sign = 1
+    elif diff.is_negative:
+        sign = -1
+    else:  # non-real / undecidable magnitude
+        return None
+    return {"<": sign < 0, "<=": sign <= 0, ">": sign > 0, ">=": sign >= 0}[op]
+
+
+_LATEX_RELATION_OPS = {
+    "==": "=",
+    "!=": r"\neq",
+    "<=": r"\leq",
+    ">=": r"\geq",
+    "<": "<",
+    ">": ">",
+}
+
+
+def latex_of(expr: Any) -> str | None:
+    """Render a SymPy object as LaTeX, or ``None`` when conversion fails."""
+    try:
+        return latex(expr)
+    except Exception:  # noqa: BLE001 — presentation-only; the SymPy string remains authoritative
+        return None
+
+
+def to_latex(text: str, assumptions: dict[str, dict[str, bool]] | None = None) -> str | None:
+    """Parse ``text`` and render as LaTeX — a render hint only, never hashed as ground truth."""
+    try:
+        return latex(parse(text, assumptions or {}))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def relation_to_latex(
+    text: str, assumptions: dict[str, dict[str, bool]] | None = None
+) -> str | None:
+    """LaTeX for a top-level relational expression, or a plain expression when none is present."""
+    parts = split_relation(text)
+    if parts is None:
+        return to_latex(text, assumptions)
+    left, op, right = parts
+    left_l = to_latex(left, assumptions)
+    right_l = to_latex(right, assumptions)
+    if left_l is None or right_l is None:
+        return None
+    op_latex = _LATEX_RELATION_OPS.get(op, op)
+    return f"{left_l} {op_latex} {right_l}"
+
+
+def attach_latex(output: dict[str, Any], **latex_fields: str | None) -> dict[str, Any]:
+    """Add optional ``*_latex`` companion keys — omitted when ``None`` so hashes stay stable."""
+    enriched = dict(output)
+    for key, value in latex_fields.items():
+        if value is not None:
+            enriched[key] = value
+    return enriched
 
 
 def parse(text: str, assumptions: dict[str, dict[str, bool]]) -> Expr:

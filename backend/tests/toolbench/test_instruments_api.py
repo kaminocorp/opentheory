@@ -31,7 +31,13 @@ def test_instruments_catalog_is_public(dbfree_client: TestClient) -> None:
     resp = dbfree_client.get("/api/v1/instruments")
     assert resp.status_code == 200, resp.text
     names = {d["name"] for d in resp.json()}
-    assert {"calc.eval", "expr.compare", "geometry.coordinate_measure", "oeis.search"} <= names
+    assert {
+        "calc.eval",
+        "counterexample.search",
+        "expr.compare",
+        "geometry.coordinate_measure",
+        "oeis.search",
+    } <= names
     # every descriptor carries the universal three-outcome contract
     contract = {o["status"] for o in resp.json()[0]["result_contract"]}
     assert contract == {"result", "refuted", "undecided"}
@@ -85,6 +91,43 @@ async def test_run_calc_eval_over_the_api(
     assert tuples[0]["output"]["holds"] is True
 
     # the checkpoint really landed in the project's ledger
+    async with session_factory() as session:
+        checkpoints = (
+            await session.execute(
+                select(Checkpoint).where(Checkpoint.project_id == UUID(project_id))
+            )
+        ).scalars().all()
+        assert len(checkpoints) == 1
+
+
+async def test_run_counterexample_search_over_the_api(
+    client: AsyncClient, session_factory: async_sessionmaker, internal_funder
+) -> None:
+    actor_id, _ = await internal_funder(client, roles=(), display_name="Runner")
+    project_id = await _project_owned_by(client, actor_id, "api-ce-search")
+
+    resp = await client.post(
+        f"/api/v1/projects/{project_id}/instruments/counterexample.search/run",
+        json={
+            "inputs": {
+                "relation": "d == a + b",
+                "variables": {
+                    "a": {"min": 3, "max": 3},
+                    "b": {"min": 4, "max": 4},
+                    "d": {"min": 5, "max": 5},
+                },
+            }
+        },
+        headers={"X-Dev-Actor-Id": actor_id},
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["status"] == "refuted"
+    assert body["artifact_id"]
+    tuples = body["checkpoint"]["tool_invocations"]
+    assert tuples[0]["instrument"] == "counterexample.search"
+    assert tuples[0]["output"]["witness_relation"] == "5 == 7"
+
     async with session_factory() as session:
         checkpoints = (
             await session.execute(

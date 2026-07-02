@@ -470,3 +470,24 @@ def test_canonical_output_hash_is_stable_and_key_order_independent() -> None:
     assert h1 == h2
     assert len(h1) == 64  # sha256 hexdigest
     assert _canonical_output_hash({"a": 1}) != h1
+
+
+def test_canonical_output_hash_ignores_latex_companions() -> None:
+    base = {
+        "distances": {"A-C": "5"},
+        "angles": {"A-B-C": {"radians": "pi/2", "degrees": "90"}},
+    }
+    with_latex = {
+        **base,
+        "distances_latex": {"A-C": "5"},
+        "angles": {
+            "A-B-C": {
+                "radians": "pi/2",
+                "degrees": "90",
+                "radians_latex": r"\frac{\pi}{2}",
+                "degrees_latex": "90",
+            }
+        },
+        "expression_latex": r"x^{2}",
+    }
+    assert _canonical_output_hash(base) == _canonical_output_hash(with_latex)

@@ -27,8 +27,11 @@ from app.toolbench.adapter import InstrumentResult
 from app.toolbench.instruments._sympy_support import (
     ENGINE,
     ENGINE_VERSION,
+    attach_latex,
+    latex_of,
     parse,
     symbol_assumptions,
+    to_latex,
 )
 
 
@@ -49,6 +52,9 @@ class ExprCompareOutput(BaseModel):
     # The simplified difference: "0" when equivalent, the witness constant when not, the unreduced
     # form when undecided — so provenance always shows *why* the outcome is what it is.
     difference: str
+    left_latex: str | None = None  # render hints only — excluded from content hashes
+    right_latex: str | None = None
+    difference_latex: str | None = None
 
 
 class ExprCompare:
@@ -80,9 +86,18 @@ class ExprCompare:
             # is_number). Escalate, never guess. See the module docstring for the worked example.
             equivalent, status, kind = None, ResultStatus.UNDECIDED, "derivation"
 
-        output = ExprCompareOutput(equivalent=equivalent, difference=str(difference))
+        payload = ExprCompareOutput(equivalent=equivalent, difference=str(difference)).model_dump(
+            mode="json"
+        )
         return InstrumentResult(
-            output=output.model_dump(mode="json"), status=status, artifact_kind=kind
+            output=attach_latex(
+                payload,
+                left_latex=to_latex(inputs.left, syms),
+                right_latex=to_latex(inputs.right, syms),
+                difference_latex=latex_of(difference),
+            ),
+            status=status,
+            artifact_kind=kind,
         )
 
 

@@ -330,6 +330,142 @@ function CoordinateMeasureForm({ onInputs, disabled }: FormProps) {
   );
 }
 
+// --- counterexample.search --------------------------------------------------
+
+type VarRangeRow = { id: string; name: string; min: string; max: string };
+
+let _ceSeq = 0;
+const nextCeId = (): string => `ce-${++_ceSeq}`;
+const varRangeRow = (name: string, min: string, max: string): VarRangeRow => ({
+  id: nextCeId(),
+  name,
+  min,
+  max,
+});
+
+function CounterexampleSearchForm({ onInputs, disabled }: FormProps) {
+  const [relation, setRelation] = useState("d == a + b");
+  const [maxSamples, setMaxSamples] = useState("500");
+  const [variables, setVariables] = useState<VarRangeRow[]>([
+    varRangeRow("a", "1", "10"),
+    varRangeRow("b", "1", "10"),
+    varRangeRow("d", "1", "15"),
+  ]);
+  const emit = useEmit(onInputs);
+
+  useEffect(() => {
+    const rel = relation.trim();
+    if (!rel) {
+      emit.current(null);
+      return;
+    }
+    const maxParsed = Number.parseInt(maxSamples.trim(), 10);
+    if (!Number.isInteger(maxParsed) || maxParsed < 1) {
+      emit.current(null);
+      return;
+    }
+
+    const vars: Record<string, { min: number; max: number }> = {};
+    for (const row of variables) {
+      const name = row.name.trim();
+      const min = Number.parseInt(row.min.trim(), 10);
+      const max = Number.parseInt(row.max.trim(), 10);
+      if (!name || !Number.isInteger(min) || !Number.isInteger(max) || min > max) {
+        emit.current(null);
+        return;
+      }
+      vars[name] = { min, max };
+    }
+    if (Object.keys(vars).length === 0) {
+      emit.current(null);
+      return;
+    }
+
+    emit.current({ relation: rel, variables: vars, max_samples: maxParsed });
+  }, [relation, variables, maxSamples, emit]);
+
+  const patchVar = (index: number, patch: Partial<VarRangeRow>) =>
+    setVariables((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+
+  return (
+    <div className="grid gap-3">
+      <Field
+        label="Relation to falsify"
+        hint="Top-level ==, !=, <, <=, >, >= — e.g. d == a + b for the sum-of-legs claim."
+      >
+        <Input
+          mono
+          value={relation}
+          onChange={(event) => setRelation(event.target.value)}
+          placeholder="d == a + b"
+          disabled={disabled}
+        />
+      </Field>
+
+      <Field
+        label="Variables"
+        hint="Inclusive integer bounds per name in the relation. Pin min=max to test one assignment."
+      >
+        <ul className="grid gap-1.5">
+          {variables.map((row, index) => (
+            <li key={row.id} className="flex items-center gap-1.5">
+              <Input
+                mono
+                value={row.name}
+                onChange={(event) => patchVar(index, { name: event.target.value })}
+                placeholder="a"
+                aria-label={`Variable ${index + 1} name`}
+                disabled={disabled}
+                className="w-16 shrink-0"
+              />
+              <Input
+                mono
+                value={row.min}
+                onChange={(event) => patchVar(index, { min: event.target.value })}
+                placeholder="min"
+                aria-label={`Variable ${index + 1} minimum`}
+                disabled={disabled}
+                className="w-20 shrink-0"
+              />
+              <span className="text-text-faint">…</span>
+              <Input
+                mono
+                value={row.max}
+                onChange={(event) => patchVar(index, { max: event.target.value })}
+                placeholder="max"
+                aria-label={`Variable ${index + 1} maximum`}
+                disabled={disabled}
+                className="w-20 shrink-0"
+              />
+              <RemoveButton
+                onClick={() => setVariables((rows) => rows.filter((_, i) => i !== index))}
+                disabled={disabled || variables.length <= 1}
+                label={`Remove variable ${index + 1}`}
+              />
+            </li>
+          ))}
+        </ul>
+        <AddRow
+          label="Add variable"
+          onClick={() => setVariables((rows) => [...rows, varRangeRow("", "1", "10")])}
+          disabled={disabled || variables.length >= 8}
+        />
+      </Field>
+
+      <Field label="Max samples" hint="Cap assignments tried before stopping (1–5000).">
+        <Input
+          mono
+          value={maxSamples}
+          onChange={(event) => setMaxSamples(event.target.value)}
+          placeholder="500"
+          disabled={disabled}
+          className="w-28"
+        />
+      </Field>
+    </div>
+  );
+}
+
 // --- generic fallback (any future instrument, no bespoke form yet) ----------
 
 function JsonForm({ descriptor, onInputs, disabled }: FormProps & { descriptor: InstrumentDescriptor }) {
@@ -392,6 +528,8 @@ export function DriveForm({
       return <CoordinateMeasureForm onInputs={onInputs} disabled={disabled} />;
     case "oeis.search":
       return <OeisSearchForm onInputs={onInputs} disabled={disabled} />;
+    case "counterexample.search":
+      return <CounterexampleSearchForm onInputs={onInputs} disabled={disabled} />;
     default:
       return <JsonForm descriptor={descriptor} onInputs={onInputs} disabled={disabled} />;
   }

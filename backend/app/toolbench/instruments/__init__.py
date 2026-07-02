@@ -9,15 +9,29 @@ rejects a duplicate or a non-conforming object, so a broken instrument can never
 """
 
 from app.toolbench.instruments.calc_eval import CALC_EVAL
+from app.toolbench.instruments.counterexample_search import COUNTEREXAMPLE_SEARCH
 from app.toolbench.instruments.expr_compare import EXPR_COMPARE
 from app.toolbench.instruments.geometry_measure import COORDINATE_MEASURE
 from app.toolbench.instruments.oeis_search import OEIS_SEARCH
 from app.toolbench.registry import registry
 
 # The production instrument set, in the order they are registered (registry sorts by name on read).
-INSTRUMENTS = (CALC_EVAL, EXPR_COMPARE, COORDINATE_MEASURE, OEIS_SEARCH)
+INSTRUMENTS = (
+    CALC_EVAL,
+    COUNTEREXAMPLE_SEARCH,
+    EXPR_COMPARE,
+    COORDINATE_MEASURE,
+    OEIS_SEARCH,
+)
 
 for _instrument in INSTRUMENTS:
     registry.register(_instrument)
 
-__all__ = ["CALC_EVAL", "COORDINATE_MEASURE", "EXPR_COMPARE", "OEIS_SEARCH", "INSTRUMENTS"]
+__all__ = [
+    "CALC_EVAL",
+    "COUNTEREXAMPLE_SEARCH",
+    "COORDINATE_MEASURE",
+    "EXPR_COMPARE",
+    "OEIS_SEARCH",
+    "INSTRUMENTS",
+]

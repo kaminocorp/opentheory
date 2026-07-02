@@ -2,6 +2,11 @@
 
 ## Index
 
+- `0.10.5` — **KaTeX math rendering in the toolbench.** `formula.tsx` typesets backend `*_latex` companions via KaTeX with monospace SymPy fallback; all Tier-0 result cards wired. Closes the `0.10.x` Falsify & Render line — flagship claims 1–4 walkthrough-ready. Frontend-only — no schema, no migration.
+- `0.10.4` — **Backend LaTeX companions on toolbench outputs.** Additive `*_latex` render hints on all five instruments; `_canonical_output_hash` recursively strips `*_latex` keys so presentation never changes dedup semantics. Backend-only — no schema, no migration.
+- `0.10.3` — **Toolbench UI for `counterexample.search`.** Drive form (relation + variable ranges + `max_samples`), definitive counterexample card, and honest weak-support card (never “proven”). Hides assumptions editor (v1 rejects non-empty). Frontend-only — no schema, no migration.
+- `0.10.2` — **`counterexample.search` on the ledger.** DB-backed write-path + API round-trip tests prove refuted and weak-support runs compose through the chokepoint; catalog lists the new instrument. Tests-only slice — no production code change.
+- `0.10.1` — **`counterexample.search` — the Bench 4 falsifier (Tier 0).** Deterministic integer grid search; `refuted` + witness or weak-support `result`; shared `split_relation` / `relation_holds` extracted to `_sympy_support.py`. Backend-only — no schema, no migration.
 - `0.9.9` — **Second post-review hardening on the toolbench (`0.9.1`–`0.9.8`).** No CRITICAL/HIGH; closes three MEDIUM honesty gaps — a reproducible OEIS `source_url` pin, an OEIS match gated to a contiguous `data` run (else `undecided`), and a branch switch clearing its stale card. No schema, no migration.
 - `0.9.8` — **Post-review hardening on the completed toolbench (`0.9.1`–`0.9.7`).** Fixes the review punch-list: a selected branch ignored on runs, a stale result card, a false `undecided` caption, a power-tower DoS (`2**(2**30)`), unbounded geometry inputs, and UI polish. Backend + frontend — no schema, no migration.
 - `0.9.7` — **Security hardening on the toolbench parser (post-review).** SymPy's `parse_expr` compiles to `eval` and the namespace allow-list didn't sandbox it — a confirmed member-reachable RCE, closed with an AST allow-list before `parse_expr` (plus a DoS mitigation). Backend-only — no schema, no migration.
@@ -52,6 +57,158 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.10.5
+
+**KaTeX math rendering in the toolbench — closes the `0.10.x` Falsify & Render line.** Phase 5
+typesets the Phase 4 `*_latex` companions in the single `Formula` render seam; Phase 6 documents the
+flagship *measuring across a corner* walkthrough (claims 1–4). Frontend-only — **no schema, no
+migration**.
+
+### Readable math without touching provenance
+
+- **`formula.tsx`** — accepts optional `latex`; `katex.renderToString(..., { throwOnError: false })`
+  renders HTML inheriting `--text`; on failure or absence, falls back to the monospace SymPy `expr`
+  chip (the ledger ground truth).
+- **`result-view.tsx`** — all Tier-0 cards pass companions: `calc.eval` (`expression_latex`,
+  `value_latex`), `expr.compare` (`left_latex`, `right_latex`, `difference_latex`),
+  `geometry.coordinate_measure` (`distances_latex`, per-angle `degrees_latex` / `radians_latex`),
+  `counterexample.search` (`relation_latex`, `witness_relation_latex`).
+- **`npm install katex`** (+ `@types/katex`). KaTeX CSS imported in `formula.tsx` only.
+
+### Flagship walkthrough (manual sign-off)
+
+See `docs/completions/falsify-render-phase-6-walkthrough-and-changelog.md` and
+`docs/executing/falsify-and-render-0.10.md` Appendix A: geometry measure → support,
+`counterexample.search` on `d == a + b` → refuted, `calc.eval` / `expr.compare` on squared forms —
+all with typeset results. Claim 5 (Lean) stays out of scope.
+
+### Verification
+
+```bash
+cd frontend && npm run typecheck && npm run lint && npm run build   # all green
+cd backend && uv run ruff check . && uv run pytest -q              # 151 passed / 99 skipped (no DB)
+```
+
+Re-run the throwaway-Postgres full suite before prod merge per `0.10.x` prerequisite.
+
+---
+
+## 0.10.4
+
+**Backend LaTeX companions on toolbench outputs.** Additive `*_latex` render hints beside exact SymPy
+strings on all five Tier-0 instruments; content hashing unchanged. Backend-only — **no schema, no
+migration**.
+
+### `to_latex` helpers (`_sympy_support.py`)
+
+- `latex_of`, `to_latex`, `relation_to_latex`, `attach_latex` — failures return `None` / omit keys;
+  SymPy strings remain authoritative.
+
+### Per-instrument companions
+
+| Instrument | Fields |
+|---|---|
+| `calc.eval` | `expression_latex`, `value_latex` |
+| `expr.compare` | `left_latex`, `right_latex`, `difference_latex` |
+| `geometry.coordinate_measure` | `distances_latex`; nested `radians_latex`, `degrees_latex` |
+| `counterexample.search` | `relation_latex`, `witness_relation_latex` |
+
+### Hash excludes presentation
+
+- **`services/tool_runs.py`** — `_strip_latex_keys()` recursive drop of `*_latex` suffix keys before
+  `_canonical_output_hash()` — nested geometry angle latex included.
+
+### Verification
+
+```bash
+cd backend && uv run ruff check . && uv run pytest tests/toolbench/ -q   # 87 passed / 19 skipped
+```
+
+---
+
+## 0.10.3
+
+**Toolbench UI for `counterexample.search`.** Human-invokable drive + show surfaces with honesty rules
+so weak support never reads as proof. Frontend-only — **no schema, no migration**.
+
+### Drive (`drive-forms.tsx`)
+
+- `CounterexampleSearchForm`: relation default `d == a + b`, variable range rows (`a,b:1–10`, `d:1–15`),
+  `max_samples` default `500`, stable row ids.
+
+### Show (`result-view.tsx`)
+
+- `refuted` + witness → `CounterexampleCard` (fail edge, assignment chips).
+- `result` + `found=false` → `WeakSupportCard` (hatched, neutral edge); shows `samples_tried`,
+  `search_space`, `truncated` caveat — **never** “proven” / “validated”.
+- `resolveOutcomeMeta` → warn tone / “No witness” for weak-support runs.
+
+### Assumptions hidden
+
+- `instrumentAcceptsAssumptions()` returns `false` for `counterexample.search` (backend rejects
+  non-empty assumptions in v1).
+
+### Verification
+
+```bash
+cd frontend && npm run typecheck && npm run lint && npm run build
+```
+
+---
+
+## 0.10.2
+
+**`counterexample.search` on the ledger — write-path + API round-trip tests.** Proves the Phase 1
+instrument composes through `run_instrument` → `create_checkpoint` on real Postgres. **Tests-only** —
+no production code changes (generic path already instrument-agnostic).
+
+### DB-backed tests
+
+- Refuted run targeting a claim → `Evidence` + `weaken` link + `counterexample` artifact + blame tuple.
+- No-find run → `result` + `support` link + `found=false` in output.
+- API: catalog lists `counterexample.search`; member round-trip → `201`.
+
+### Verification
+
+```bash
+TEST_DATABASE_URL='postgresql+asyncpg://…' uv run pytest \
+  tests/toolbench/test_instruments_write_path.py tests/toolbench/test_instruments_api.py -q
+```
+
+---
+
+## 0.10.1
+
+**`counterexample.search` — the Bench 4 falsifier (Tier 0).** Fifth production instrument: deterministic
+integer grid search over relational expressions, sharing the AST-gated parser with `calc.eval`. Backend-only
+— **no schema, no migration**.
+
+### Instrument (`counterexample_search.py`)
+
+- Cartesian product over inclusive integer ranges; sorted variable order; early exit on first witness.
+- `refuted` + `counterexample` when relation is false at an assignment; `result` + `derivation` when
+  search completes with no witness (weak support — never `undecided` for “none found”).
+- Bounds: ≤8 variables, width ≤50 per variable, product ≤50_000, `max_samples` ≤5000; `truncated`
+  when capped before exhausting space.
+- v1 rejects non-empty `assumptions`.
+
+### Shared relation logic (`_sympy_support.py`)
+
+- `split_relation`, `relation_holds` extracted from `calc_eval.py` — one evaluation semantics path.
+
+### Flagship witness
+
+- `d == a + b` with `a=3,b=4,d=5` → `5 == 7` → `refuted` (pinned-range test); demo ranges find
+  `(1,1,1) → 1 == 2` first in deterministic order.
+
+### Verification
+
+```bash
+cd backend && uv run ruff check . && uv run pytest tests/toolbench/test_instruments.py tests/toolbench/test_conformance.py -q
+```
 
 ---
 

@@ -7,9 +7,13 @@ import { Icon, StatusPill } from "@/components/console";
 import type { InstrumentDescriptor, ToolInvocation, ToolRunResult } from "@/types/toolbench";
 
 import { Formula } from "./formula";
-import { formatAssumptions, outcomeMeta } from "./outcome";
+import { formatAssumptions, outcomeMeta, type OutcomeMeta } from "./outcome";
 
 const asString = (value: unknown): string => (value == null ? "" : String(value));
+const asLatex = (value: unknown): string | undefined => {
+  const s = asString(value).trim();
+  return s.length > 0 ? s : undefined;
+};
 const short = (id: string | null | undefined, n = 8): string => (id ? id.slice(0, n) : "—");
 
 // A small mono chip (assumptions, machine tokens).
@@ -39,6 +43,26 @@ function KeyValue({ k, children }: { k: string; children: ReactNode }) {
  * definitive* finding it is — a single witness settles the claim. Marked by a `--state-fail` edge
  * tick (the claim is false), never softened or hidden.
  */
+/**
+ * Weak-support card for a completed search that found no witness — hatched, neutral edge, never
+ * read as "proven" or "validated" (plan Phase 3 / maths-toolbox Bench 4).
+ */
+function WeakSupportCard({ caption, children }: { caption: string; children: ReactNode }) {
+  return (
+    <div
+      className="relative hatch rounded-built bg-panel p-3 pl-4"
+      style={{ border: "0.5px solid var(--hairline)" }}
+    >
+      <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-text-faint" />
+      <p className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-text-mute">
+        No counterexample found
+      </p>
+      <div className="mt-1.5">{children}</div>
+      <p className="mt-1.5 text-[12px] leading-[1.5] text-text-mute">{caption}</p>
+    </div>
+  );
+}
+
 function CounterexampleCard({ caption, children }: { caption: string; children: ReactNode }) {
   return (
     <div className="relative rounded-built bg-panel p-3 pl-4" style={{ border: "0.5px solid var(--hairline)" }}>
@@ -56,14 +80,23 @@ function CounterexampleCard({ caption, children }: { caption: string; children: 
 
 function CalcEvalBody({ output, status }: { output: Record<string, unknown>; status: string }) {
   const expression = asString(output.expression);
+  const expressionLatex = asLatex(output.expression_latex);
   if (!output.is_relation) {
     return (
       <div className="grid gap-2">
         <KeyValue k="Value">
-          <Formula expr={asString(output.value)} className="text-[15px]" />
+          <Formula
+            expr={asString(output.value)}
+            latex={asLatex(output.value_latex)}
+            className="text-[15px]"
+          />
         </KeyValue>
         <p className="font-mono text-[12px] text-text-faint">
-          <Formula expr={expression} className="text-[12px] text-text-faint" />
+          <Formula
+            expr={expression}
+            latex={expressionLatex}
+            className="text-[12px] text-text-faint"
+          />
         </p>
       </div>
     );
@@ -71,7 +104,7 @@ function CalcEvalBody({ output, status }: { output: Record<string, unknown>; sta
   if (status === "refuted") {
     return (
       <CounterexampleCard caption="The relation is false — settled exactly over concrete values.">
-        <Formula expr={expression} className="text-[15px]" />
+        <Formula expr={expression} latex={expressionLatex} className="text-[15px]" />
       </CounterexampleCard>
     );
   }
@@ -79,7 +112,7 @@ function CalcEvalBody({ output, status }: { output: Record<string, unknown>; sta
   // labelled as a pass — the neutral "Relation" heading, with the outcome pill carrying the verdict.
   return (
     <KeyValue k={status === "result" ? "Holds" : "Relation"}>
-      <Formula expr={expression} className="text-[15px]" />
+      <Formula expr={expression} latex={expressionLatex} className="text-[15px]" />
     </KeyValue>
   );
 }
@@ -98,16 +131,19 @@ function ExprCompareBody({
   const left = asString(inputs.left);
   const right = asString(inputs.right);
   const difference = asString(output.difference);
+  const leftLatex = asLatex(output.left_latex);
+  const rightLatex = asLatex(output.right_latex);
+  const differenceLatex = asLatex(output.difference_latex);
 
   return (
     <div className="grid gap-2">
       <KeyValue k="Compare">
         <span className="flex flex-wrap items-baseline gap-2">
-          <Formula expr={left} />
+          <Formula expr={left} latex={leftLatex} />
           <span aria-hidden className="text-text-mute">
             ≟
           </span>
-          <Formula expr={right} />
+          <Formula expr={right} latex={rightLatex} />
         </span>
       </KeyValue>
       {status === "refuted" ? (
@@ -116,12 +152,12 @@ function ExprCompareBody({
             <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-mute">
               difference
             </span>
-            <Formula expr={difference} className="text-[15px]" />
+            <Formula expr={difference} latex={differenceLatex} className="text-[15px]" />
           </span>
         </CounterexampleCard>
       ) : (
         <KeyValue k="Difference">
-          <Formula expr={difference} className="text-[15px]" />
+          <Formula expr={difference} latex={differenceLatex} className="text-[15px]" />
           {status === "undecided" ? (
             // Honest: SymPy could not prove the difference is zero — this covers both a residue with
             // free symbols *and* a symbol-free constant it cannot settle (a true identity it can't
@@ -140,7 +176,11 @@ function ExprCompareBody({
 
 function GeometryBody({ output }: { output: Record<string, unknown> }) {
   const distances = (output.distances ?? {}) as Record<string, unknown>;
-  const angles = (output.angles ?? {}) as Record<string, { radians?: unknown; degrees?: unknown }>;
+  const distancesLatex = (output.distances_latex ?? {}) as Record<string, unknown>;
+  const angles = (output.angles ?? {}) as Record<
+    string,
+    { radians?: unknown; degrees?: unknown; radians_latex?: unknown; degrees_latex?: unknown }
+  >;
   const label = (key: string) => key.replaceAll("-", "–");
 
   return (
@@ -151,7 +191,11 @@ function GeometryBody({ output }: { output: Record<string, unknown> }) {
             dist {label(key)}
           </dt>
           <dd>
-            <Formula expr={asString(value)} className="text-[15px]" />
+            <Formula
+              expr={asString(value)}
+              latex={asLatex(distancesLatex[key])}
+              className="text-[15px]"
+            />
           </dd>
         </div>
       ))}
@@ -161,14 +205,115 @@ function GeometryBody({ output }: { output: Record<string, unknown> }) {
             angle {label(key)}
           </dt>
           <dd className="flex flex-wrap items-baseline gap-2">
-            <Formula expr={`${asString(measure.degrees)}°`} className="text-[15px]" />
+            <span className="inline-flex items-baseline gap-0">
+              <Formula
+                expr={asString(measure.degrees)}
+                latex={asLatex(measure.degrees_latex)}
+                className="text-[15px]"
+              />
+              <span className="text-[15px] text-text">°</span>
+            </span>
             <span className="text-[12px] text-text-faint">
-              (<Formula expr={asString(measure.radians)} className="text-[12px] text-text-faint" /> rad)
+              (
+              <Formula
+                expr={asString(measure.radians)}
+                latex={asLatex(measure.radians_latex)}
+                className="text-[12px] text-text-faint"
+              />{" "}
+              rad)
             </span>
           </dd>
         </div>
       ))}
     </dl>
+  );
+}
+
+// --- counterexample.search --------------------------------------------------
+
+function CounterexampleSearchBody({
+  output,
+  status,
+}: {
+  output: Record<string, unknown>;
+  status: string;
+}) {
+  const relation = asString(output.relation);
+  const relationLatex = asLatex(output.relation_latex);
+  const found = Boolean(output.found);
+  const witness = (output.witness ?? {}) as Record<string, unknown>;
+  const witnessRelation = asString(output.witness_relation);
+  const witnessRelationLatex = asLatex(output.witness_relation_latex);
+  const searchSpace = (output.search_space ?? {}) as Record<string, unknown>;
+  const samplesTried = output.samples_tried;
+  const truncated = Boolean(output.truncated);
+
+  if (status === "refuted" && found) {
+    return (
+      <div className="grid gap-2">
+        <KeyValue k="Relation">
+          <Formula expr={relation} latex={relationLatex} className="text-[15px]" />
+        </KeyValue>
+        <CounterexampleCard caption="Definitively falsifies the relation in this search space — a single witness settles the claim.">
+          {witnessRelation ? (
+            <Formula
+              expr={witnessRelation}
+              latex={witnessRelationLatex}
+              className="text-[15px]"
+            />
+          ) : null}
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {Object.entries(witness).map(([name, value]) => (
+              <Chip key={name}>
+                {name}={asString(value)}
+              </Chip>
+            ))}
+          </div>
+        </CounterexampleCard>
+      </div>
+    );
+  }
+
+  if (status === "result" && !found) {
+    return (
+      <div className="grid gap-2">
+        <KeyValue k="Relation">
+          <Formula expr={relation} latex={relationLatex} className="text-[15px]" />
+        </KeyValue>
+        <WeakSupportCard
+          caption={
+            truncated
+              ? "Search capped before the full space was exhausted — weak support only, never proof."
+              : "No assignment in this search space broke the relation — weak support only, never proof."
+          }
+        >
+          <div className="grid gap-1.5">
+            {typeof samplesTried === "number" ? (
+              <KeyValue k="Samples tried">
+                <span className="font-mono text-[13px] tabular-nums text-text">{samplesTried}</span>
+              </KeyValue>
+            ) : null}
+            {Object.keys(searchSpace).length > 0 ? (
+              <KeyValue k="Search space">
+                <span className="flex flex-wrap gap-1.5">
+                  {Object.entries(searchSpace).map(([name, range]) => (
+                    <Chip key={name}>
+                      {name}: {asString(range)}
+                    </Chip>
+                  ))}
+                </span>
+              </KeyValue>
+            ) : null}
+          </div>
+        </WeakSupportCard>
+      </div>
+    );
+  }
+
+  return (
+    <pre className="overflow-x-auto rounded-built bg-panel p-3 font-mono text-[12px] text-text-soft">
+      {JSON.stringify(output, null, 2)}
+    </pre>
   );
 }
 
@@ -242,6 +387,26 @@ function OeisBody({ output }: { output: Record<string, unknown> }) {
   );
 }
 
+/** Honest outcome chrome — weak-support search results must not read as a pass. */
+function resolveOutcomeMeta(
+  instrumentName: string,
+  status: string,
+  output: Record<string, unknown>,
+): OutcomeMeta {
+  if (
+    instrumentName === "counterexample.search" &&
+    status === "result" &&
+    output.found === false
+  ) {
+    return {
+      tone: "warn",
+      label: "No witness",
+      gloss: "Weak support only — absence in this search space is not proof.",
+    };
+  }
+  return outcomeMeta(status);
+}
+
 // --- dispatch + provenance footer -------------------------------------------
 
 function ResultBody({
@@ -264,6 +429,8 @@ function ResultBody({
       return <GeometryBody output={output} />;
     case "oeis.search":
       return <OeisBody output={output} />;
+    case "counterexample.search":
+      return <CounterexampleSearchBody output={output} status={status} />;
     default:
       return (
         <pre className="overflow-x-auto rounded-built bg-panel p-3 font-mono text-[12px] text-text-soft">
@@ -317,7 +484,7 @@ export function ResultView({
   const invocation = result.checkpoint.tool_invocations[0];
   const output = invocation?.output ?? {};
   const inputs = invocation?.inputs ?? {};
-  const meta = outcomeMeta(result.status);
+  const meta = resolveOutcomeMeta(descriptor.name, result.status, output);
   const assumptionChips = formatAssumptions(invocation?.assumptions);
 
   return (

@@ -15,10 +15,15 @@ import pytest
 from app.models.enums import ResultStatus
 from app.toolbench.adapter import InstrumentResult
 from app.toolbench.conformance import check_conformance
-from app.toolbench.instruments import CALC_EVAL, COORDINATE_MEASURE, EXPR_COMPARE
-from app.toolbench.instruments._sympy_support import ENGINE_VERSION
+from app.toolbench.instruments import (
+    CALC_EVAL,
+    COORDINATE_MEASURE,
+    COUNTEREXAMPLE_SEARCH,
+    EXPR_COMPARE,
+)
+from app.toolbench.instruments._sympy_support import ENGINE_VERSION, to_latex
 
-ALL_INSTRUMENTS = (CALC_EVAL, EXPR_COMPARE, COORDINATE_MEASURE)
+ALL_INSTRUMENTS = (CALC_EVAL, COUNTEREXAMPLE_SEARCH, EXPR_COMPARE, COORDINATE_MEASURE)
 
 
 def _run(instrument: Any, inputs: dict[str, Any], assumptions: dict[str, Any] | None = None):
@@ -60,12 +65,10 @@ def test_calc_eval_true_relation_is_result() -> None:
     result = _run(CALC_EVAL, {"expression": "3**2 + 4**2 == 5**2"})
     assert result.status is ResultStatus.RESULT
     assert result.artifact_kind == "derivation"
-    assert result.output == {
-        "expression": "3**2 + 4**2 == 5**2",
-        "is_relation": True,
-        "value": None,
-        "holds": True,
-    }
+    assert result.output["expression"] == "3**2 + 4**2 == 5**2"
+    assert result.output["is_relation"] is True
+    assert result.output["value"] is None
+    assert result.output["holds"] is True
 
 
 def test_calc_eval_false_relation_is_a_refuted_counterexample() -> None:
@@ -104,7 +107,8 @@ def test_expr_compare_conforms() -> None:
 def test_expr_compare_equivalent_is_result() -> None:
     result = _run(EXPR_COMPARE, {"left": "(a + b)**2 - 2*a*b", "right": "a**2 + b**2"})
     assert result.status is ResultStatus.RESULT
-    assert result.output == {"equivalent": True, "difference": "0"}
+    assert result.output["equivalent"] is True
+    assert result.output["difference"] == "0"
     # a classic identity too
     assert _run(EXPR_COMPARE, {"left": "sin(x)**2 + cos(x)**2", "right": "1"}).output[
         "equivalent"
@@ -115,7 +119,8 @@ def test_expr_compare_not_equivalent_is_refuted_with_a_witness() -> None:
     result = _run(EXPR_COMPARE, {"left": "x + 1", "right": "x"})
     assert result.status is ResultStatus.REFUTED
     assert result.artifact_kind == "counterexample"
-    assert result.output == {"equivalent": False, "difference": "1"}
+    assert result.output["equivalent"] is False
+    assert result.output["difference"] == "1"
 
 
 def test_expr_compare_unknown_is_undecided() -> None:
@@ -179,7 +184,9 @@ def test_geometry_measures_the_corner_exactly() -> None:
     assert result.status is ResultStatus.RESULT
     assert result.artifact_kind == "measurement"
     assert result.output["distances"] == {"A-C": "5"}  # exact 3-4-5
-    assert result.output["angles"] == {"A-B-C": {"radians": "pi/2", "degrees": "90"}}
+    angle = result.output["angles"]["A-B-C"]
+    assert angle["radians"] == "pi/2"
+    assert angle["degrees"] == "90"
 
 
 def test_geometry_supports_exact_string_and_3d_coordinates() -> None:
@@ -242,6 +249,149 @@ def test_geometry_bounds_its_input_collections() -> None:
     with pytest.raises(ValidationError, match="too many measurements"):
         COORDINATE_MEASURE.InputModel.model_validate(
             {"points": {"A": [0, 0], "B": [3, 4]}, "distances": [["A", "B"]] * 201}
+        )
+
+
+# --- counterexample.search -----------------------------------------------------------------------
+
+
+_FLAGSHIP_FALSIFICATION = {
+    "relation": "d == a + b",
+    "variables": {
+        "a": {"min": 1, "max": 10},
+        "b": {"min": 1, "max": 10},
+        "d": {"min": 1, "max": 15},
+    },
+}
+
+
+def test_counterexample_search_conforms() -> None:
+    assert check_conformance(COUNTEREXAMPLE_SEARCH, example_inputs=_FLAGSHIP_FALSIFICATION) == []
+
+
+def test_counterexample_search_finds_a_definitive_witness_for_d_equals_a_plus_b() -> None:
+    # Deterministic (a,b,d) order finds the first falsifying assignment — (1,1,1) → 1 == 2, not
+    # necessarily the geometry-story triple (3,4,5) → 5 == 7, which appears later in the grid.
+    result = _run(COUNTEREXAMPLE_SEARCH, _FLAGSHIP_FALSIFICATION)
+    assert result.status is ResultStatus.REFUTED
+    assert result.artifact_kind == "counterexample"
+    assert result.output["found"] is True
+    assert result.output["witness_relation"] == "1 == 2"
+    assert result.output["witness"] == {"a": "1", "b": "1", "d": "1"}
+    assert result.output["search_space"] == {"a": "1..10", "b": "1..10", "d": "1..15"}
+    assert result.output["samples_tried"] == 1
+
+
+def test_counterexample_search_finds_the_geometry_story_witness_in_isolation() -> None:
+    # Pin the search space so the narrative (3,4,5) → 5 == 7 is the first assignment tried.
+    result = _run(
+        COUNTEREXAMPLE_SEARCH,
+        {
+            "relation": "d == a + b",
+            "variables": {
+                "a": {"min": 3, "max": 3},
+                "b": {"min": 4, "max": 4},
+                "d": {"min": 5, "max": 5},
+            },
+        },
+    )
+    assert result.status is ResultStatus.REFUTED
+    assert result.output["witness"] == {"a": "3", "b": "4", "d": "5"}
+    assert result.output["witness_relation"] == "5 == 7"
+
+
+def test_counterexample_search_no_witness_is_weak_support_not_proof() -> None:
+    result = _run(
+        COUNTEREXAMPLE_SEARCH,
+        {
+            "relation": "a + b == b + a",
+            "variables": {"a": {"min": 1, "max": 3}, "b": {"min": 1, "max": 3}},
+        },
+    )
+    assert result.status is ResultStatus.RESULT
+    assert result.artifact_kind == "derivation"
+    assert result.output["found"] is False
+    assert result.output["samples_tried"] == 9
+
+
+def test_counterexample_search_honours_max_samples_truncation() -> None:
+    # A tautology stays true across the grid; cap the search before the space is exhausted.
+    result = _run(
+        COUNTEREXAMPLE_SEARCH,
+        {
+            "relation": "a + b == b + a",
+            "variables": {
+                "a": {"min": 1, "max": 10},
+                "b": {"min": 1, "max": 10},
+            },
+            "max_samples": 5,
+        },
+    )
+    assert result.status is ResultStatus.RESULT
+    assert result.output["found"] is False
+    assert result.output["samples_tried"] == 5
+    assert result.output["truncated"] is True
+
+
+def test_counterexample_search_rejects_unused_variables() -> None:
+    with pytest.raises(ValueError, match="not used in relation"):
+        _run(
+            COUNTEREXAMPLE_SEARCH,
+            {
+                "relation": "a + b == b + a",
+                "variables": {
+                    "a": {"min": 1, "max": 2},
+                    "b": {"min": 1, "max": 2},
+                    "z": {"min": 1, "max": 2},
+                },
+            },
+        )
+
+
+def test_counterexample_search_rejects_a_plain_expression() -> None:
+    with pytest.raises(ValueError, match="relational operator"):
+        _run(
+            COUNTEREXAMPLE_SEARCH,
+            {
+                "relation": "a + b",
+                "variables": {"a": {"min": 1, "max": 2}, "b": {"min": 1, "max": 2}},
+            },
+        )
+
+
+def test_counterexample_search_rejects_an_oversized_grid() -> None:
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="search space too large"):
+        COUNTEREXAMPLE_SEARCH.InputModel.model_validate(
+            {
+                "relation": "a + b + c == d",
+                "variables": {
+                    "a": {"min": 1, "max": 17},
+                    "b": {"min": 1, "max": 17},
+                    "c": {"min": 1, "max": 17},
+                    "d": {"min": 1, "max": 17},
+                },
+            }
+        )
+
+
+def test_counterexample_search_rejects_assumptions() -> None:
+    with pytest.raises(ValueError, match="does not accept assumptions"):
+        COUNTEREXAMPLE_SEARCH.run(
+            COUNTEREXAMPLE_SEARCH.InputModel.model_validate(_FLAGSHIP_FALSIFICATION),
+            {"x": {"positive": True}},
+        )
+
+
+def test_counterexample_search_blocks_injection_in_the_relation() -> None:
+    with pytest.raises(ValueError):
+        _run(
+            COUNTEREXAMPLE_SEARCH,
+            {
+                "relation": "a == __import__('os').getpid()",
+                "variables": {"a": {"min": 1, "max": 2}},
+            },
         )
 
 
@@ -317,11 +467,61 @@ def test_parse_still_allows_legitimate_math() -> None:
     assert _run(CALC_EVAL, {"expression": "3^2 + 4^2"}).output["value"] == "25"
 
 
+# --- LaTeX companions (0.10.4) -------------------------------------------------------------------
+
+
+def test_to_latex_renders_superscripts() -> None:
+    latex = to_latex("x**2 - 1")
+    assert latex is not None
+    assert "^{" in latex  # superscript markup, not raw "**"
+
+
+def test_calc_eval_emits_expression_and_value_latex() -> None:
+    result = _run(CALC_EVAL, {"expression": "x**2 - 1"})
+    assert result.output["expression_latex"] is not None
+    assert "^{" in result.output["expression_latex"]
+    assert result.output["value_latex"] is not None
+
+
+def test_expr_compare_emits_latex_companions() -> None:
+    result = _run(EXPR_COMPARE, {"left": "x**2", "right": "x"})
+    assert result.output["left_latex"] is not None
+    assert result.output["right_latex"] is not None
+    assert result.output["difference_latex"] is not None
+
+
+def test_geometry_emits_latex_companions() -> None:
+    result = _run(COORDINATE_MEASURE, _CORNER)
+    assert result.output["distances_latex"]["A-C"] == "5"
+    angle = result.output["angles"]["A-B-C"]
+    assert angle["radians_latex"] is not None
+    assert angle["degrees_latex"] == "90"
+
+
+def test_counterexample_search_emits_relation_latex() -> None:
+    result = _run(
+        COUNTEREXAMPLE_SEARCH,
+        {
+            "relation": "d == a + b",
+            "variables": {
+                "a": {"min": 3, "max": 3},
+                "b": {"min": 4, "max": 4},
+                "d": {"min": 5, "max": 5},
+            },
+        },
+    )
+    assert result.output["relation_latex"] is not None
+    assert result.output["witness_relation_latex"] is not None
+    assert "5" in result.output["witness_relation_latex"]
+    assert "7" in result.output["witness_relation_latex"]
+
+
 def test_every_run_output_validates_against_its_output_model() -> None:
     # The write path hashes ``output``; the conformance harness also re-checks it, but assert here
     # that each instrument's live output round-trips through its declared OutputModel.
     cases = [
         (CALC_EVAL, {"expression": "2 + 2"}),
+        (COUNTEREXAMPLE_SEARCH, _FLAGSHIP_FALSIFICATION),
         (EXPR_COMPARE, {"left": "x", "right": "x"}),
         (COORDINATE_MEASURE, _CORNER),
     ]

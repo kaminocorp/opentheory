@@ -24,7 +24,7 @@ from app.models.enums import ResultStatus
 from app.models.evidence import Evidence
 from app.models.links import ClaimEvidenceLink
 from app.services.tool_runs import run_instrument
-from app.toolbench.instruments import CALC_EVAL, COORDINATE_MEASURE
+from app.toolbench.instruments import CALC_EVAL, COORDINATE_MEASURE, COUNTEREXAMPLE_SEARCH
 from app.toolbench.instruments._sympy_support import ENGINE_VERSION
 from app.toolbench.instruments.oeis_search import OeisSearch
 from app.toolbench.retrieval import Retrieval
@@ -166,6 +166,98 @@ async def test_geometry_corner_records_its_assumption_on_the_artifact(
     assert entry["assumptions"] == assumptions
     assert entry["output"]["distances"] == {"A-C": "5"}
     assert entry["output"]["angles"] == {"A-B-C": {"radians": "pi/2", "degrees": "90"}}
+
+
+# --- Phase 0.10.2: counterexample.search --------------------------------------------------------
+
+_GEOMETRY_STORY_SEARCH = {
+    "relation": "d == a + b",
+    "variables": {"a": {"min": 3, "max": 3}, "b": {"min": 4, "max": 4}, "d": {"min": 5, "max": 5}},
+}
+
+
+async def test_counterexample_search_refutes_a_claim_as_a_counterexample(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    actor_id = await _actor(client)
+    project_id = await _project(client, "instr-ce-refute")
+    thread_id = await _thread(client, project_id, actor_id)
+    claim_id = await _claim(
+        client, thread_id, actor_id, "Return distance equals the sum of the legs."
+    )
+    pid = UUID(project_id)
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        run = await run_instrument(
+            session,
+            pid,
+            COUNTEREXAMPLE_SEARCH,
+            actor,
+            inputs=_GEOMETRY_STORY_SEARCH,
+            claim_id=UUID(claim_id),
+        )
+
+    assert run.status is ResultStatus.REFUTED
+    assert run.evidence_id is not None
+
+    async with session_factory() as session:
+        artifact = await session.get(Artifact, run.artifact_id)
+        assert artifact.kind == "counterexample"
+        link = (
+            await session.execute(
+                select(ClaimEvidenceLink).where(ClaimEvidenceLink.evidence_id == run.evidence_id)
+            )
+        ).scalar_one()
+        assert link.relation_kind == "weaken"
+
+    entry = run.checkpoint.tool_invocations[0]
+    assert entry["instrument"] == "counterexample.search"
+    assert entry["engine_version"] == ENGINE_VERSION
+    assert entry["output"]["found"] is True
+    assert entry["output"]["witness_relation"] == "5 == 7"
+
+
+async def test_counterexample_search_no_find_supports_weakly(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    actor_id = await _actor(client)
+    project_id = await _project(client, "instr-ce-weak")
+    thread_id = await _thread(client, project_id, actor_id)
+    claim_id = await _claim(client, thread_id, actor_id, "Addition commutes on small integers.")
+    pid = UUID(project_id)
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        run = await run_instrument(
+            session,
+            pid,
+            COUNTEREXAMPLE_SEARCH,
+            actor,
+            inputs={
+                "relation": "a + b == b + a",
+                "variables": {"a": {"min": 1, "max": 3}, "b": {"min": 1, "max": 3}},
+            },
+            claim_id=UUID(claim_id),
+        )
+
+    assert run.status is ResultStatus.RESULT
+    assert run.evidence_id is not None
+
+    async with session_factory() as session:
+        artifact = await session.get(Artifact, run.artifact_id)
+        assert artifact.kind == "derivation"
+        link = (
+            await session.execute(
+                select(ClaimEvidenceLink).where(ClaimEvidenceLink.evidence_id == run.evidence_id)
+            )
+        ).scalar_one()
+        # Weak support — the search ran and found no witness in the stated space.
+        assert link.relation_kind == "support"
+
+    entry = run.checkpoint.tool_invocations[0]
+    assert entry["output"]["found"] is False
+    assert entry["output"]["samples_tried"] == 9
 
 
 # --- Phase 5: oeis.search (async retrieval instrument) --------------------------------------------

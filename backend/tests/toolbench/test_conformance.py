@@ -110,6 +110,7 @@ def test_production_registry_holds_the_tier0_instruments() -> None:
     names = {i.name for i in registry.all()}
     assert {
         "calc.eval",
+        "counterexample.search",
         "expr.compare",
         "geometry.coordinate_measure",
         "oeis.search",
