@@ -175,7 +175,14 @@ _FIB_OEIS_RAW = json.dumps(
         "query": "1,1,2,3,5,8",
         "count": 1,
         "results": [
-            {"number": 45, "name": "Fibonacci numbers.", "formula": ["F(n)=F(n-1)+F(n-2)."]}
+            {
+                "number": 45,
+                "name": "Fibonacci numbers.",
+                "formula": ["F(n)=F(n-1)+F(n-2)."],
+                # A real OEIS hit carries the sequence's own terms; the identification gate confirms
+                # the queried run occurs here (it opens with a leading 0 before 1,1,2,3,5,8).
+                "data": "0,1,1,2,3,5,8,13,21,34",
+            }
         ],
     }
 )

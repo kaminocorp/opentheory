@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.9.9` — **Second post-review hardening on the toolbench (`0.9.1`–`0.9.8`).** No CRITICAL/HIGH; closes three MEDIUM honesty gaps — a reproducible OEIS `source_url` pin, an OEIS match gated to a contiguous `data` run (else `undecided`), and a branch switch clearing its stale card. No schema, no migration.
 - `0.9.8` — **Post-review hardening on the completed toolbench (`0.9.1`–`0.9.7`).** Fixes the review punch-list: a selected branch ignored on runs, a stale result card, a false `undecided` caption, a power-tower DoS (`2**(2**30)`), unbounded geometry inputs, and UI polish. Backend + frontend — no schema, no migration.
 - `0.9.7` — **Security hardening on the toolbench parser (post-review).** SymPy's `parse_expr` compiles to `eval` and the namespace allow-list didn't sandbox it — a confirmed member-reachable RCE, closed with an AST allow-list before `parse_expr` (plus a DoS mitigation). Backend-only — no schema, no migration.
 - `0.9.6` — **Post-review hardening on the toolbench (`0.9.1`–`0.9.5`).** Two math-honesty fixes: `expr.compare` refutes only on a *provably* non-zero difference (a true identity SymPy can't close reads `undecided`), and `geometry` refuses degenerate and mixed-dimension inputs. Backend-only — no schema, no migration.
@@ -51,6 +52,78 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.9.9
+
+**Second post-review hardening on the completed toolbench (`0.9.1`–`0.9.8`).** A fresh
+production-readiness review (backend breadth, frontend, and a full test/lint/build + doc cross-check)
+found **no CRITICAL/HIGH defect reachable through the current wiring**, and re-confirmed the parts
+that most needed to hold: the SymPy sandbox's AST allow-list still forecloses the eval-escape class,
+the run route is genuinely membership-gated (401 → 403), the `0012_toolbench_provenance` model↔migration
+pair has no drift, and the append-only/atomic-composition story is intact. It closes a focused
+punch-list of three MEDIUM honesty/reproducibility gaps — all in the retrieval/pinning and frontend
+layers, none in the compute core. Backend + frontend; `PinRecord` is embedded JSON, so **no schema,
+no migration**.
+
+### The retrieval pin was not reproducible from what it recorded
+
+- **`source_url` split from the citation `url`** (`toolbench/pinning.py`, `instruments/oeis_search.py`).
+  On a match the pin's `url` cited the sequence page (`oeis.org/A000045`) but `raw_response_hash`
+  fingerprinted the *search-API JSON* — a different resource — so a verifier who fetched the cited
+  `url` could never recompute the hash. The pin now carries **both**: `url` (the human-facing
+  citation) and `source_url` (the exact URL whose response was hashed). The no-match branch was
+  already self-consistent; the two branches now agree, and the pinning primitive's "what was seen,
+  when, and *from where*" promise is honest again.
+
+### OEIS's top *relevance* hit was recorded as a definitive result
+
+- **Identification gate** (`instruments/oeis_search.py`). OEIS search returns sequences that merely
+  *contain* the query terms, ranked by relevance — so recording `results[0]` as a definitive `result`
+  over-claimed certainty (a short query like `[1,2,3]` matches thousands). The instrument now reports
+  `result` **only** when the queried terms occur as a **contiguous run** in the top hit's own terms
+  (`data`) — an actual identification of a sequence with those consecutive terms (it tolerates a
+  leading offset, e.g. Fibonacci's `data` opens with a `0`). A fuzzy hit that lacks the run — or no
+  hit — is `undecided`, never a confident, possibly-wrong A-number, and the pin leaves `identifier`
+  unset (self-consistent with the no-match branch). A new `match_count` field carries how many
+  sequences OEIS matched, so the ledger and UI are honest about ambiguity even on a confirmed match.
+
+### A branch switch left a stale result card (the 0.9.8 fix, extended)
+
+- **Clear the shown result on `branchId` change** (`toolbench/toolbench-panel.tsx`). `0.9.8` cleared
+  the result card on a *thread* switch and on every new run, but not on a *branch* switch — the prop
+  that same release introduced. So a result that landed on branch A lingered under branch B's caption
+  (which may read "sealed"), reading as if it belonged to a line it did not. The reset now also fires
+  on `branchId`; `claimId` is thread-scoped, not branch-scoped, so it is left untouched. The OEIS
+  result card also surfaces the new `match_count` and `source_url`.
+
+### Tests
+
+New in the default (DB-free) suite: a fuzzy-hit-lacks-the-run → `undecided` regression and
+`match_count`/`source_url` assertions (`tests/toolbench/test_oeis_search.py`). The DB-gated OEIS
+write-path fixture gained the realistic `data` field a real hit always carries, so it still asserts
+`result` under the new gate when those tests are run against a throwaway Postgres.
+
+### Verification
+
+```bash
+cd backend && uv run ruff check . && uv run pytest      # ruff clean; 133 passed / 96 skipped
+cd frontend && npm run typecheck && npm run lint && npm run build   # all green
+```
+
+The `+1` passing over `0.9.8` is the new fuzzy-hit regression.
+
+### Still pending before prod (unchanged from 0.9.8)
+
+The ~20 DB-backed toolbench **ledger-invariant** tests (atomic single commit, one `tool_run`
+contribution per run, blame-tuple round-trip, append-only immutability, the branch/evidence/link/ref
+shape, the async mapping) **still skip without a database and have never run** — verify via the
+non-destructive live-API path or a throwaway/branch Postgres, never the localhost-guarded suite
+against prod. And the *hard* CPU/memory bound on legal-but-expensive input (a huge `factorial`/`gamma`
+can still OOM a worker; off-loop execution mitigates the freeze, not the allocation) remains deferred
+to the execution sandbox — a prerequisite before an untrusted/agent caller, not the member-gated
+surface shipped here.
 
 ---
 

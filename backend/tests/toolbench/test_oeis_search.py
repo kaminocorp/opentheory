@@ -41,6 +41,15 @@ _FIB_RAW = json.dumps(
     }
 )
 _NO_MATCH_RAW = json.dumps({"query": "2,4,8,7,7,7", "count": 0, "results": None})
+# A relevance hit that does NOT contain the queried run (its data is a different sequence) — OEIS's
+# fuzzy fallback. Must read as undecided (a candidate), never a confident identification.
+_FUZZY_RAW = json.dumps(
+    {
+        "query": "1,1,2,3,5,8",
+        "count": 137,
+        "results": [{"number": 27, "name": "The natural numbers.", "data": "1,2,3,4,5,6,7,8,9"}],
+    }
+)
 
 
 class _FakeFetcher:
@@ -76,6 +85,7 @@ def test_build_pin_record_captures_the_irreversible_facts() -> None:
     pin = build_pin_record(
         provider="oeis",
         url="https://oeis.org/A000045",
+        source_url="https://oeis.org/search?q=1,1,2,3,5,8&fmt=json",
         retrieved_at=datetime(2026, 7, 1, 12, 0, tzinfo=UTC),
         raw_response=_FIB_RAW,
         license_note="cite, don't redistribute",
@@ -88,6 +98,9 @@ def test_build_pin_record_captures_the_irreversible_facts() -> None:
     assert pin.identifier == "A000045"
     assert pin.retrieved_at == "2026-07-01T12:00:00+00:00"  # ISO-8601, captured
     assert pin.raw_response_hash == raw_response_hash(_FIB_RAW)  # fingerprint, not the bytes
+    # The hash fingerprints the response fetched from source_url, not the human-facing citation url.
+    assert pin.url == "https://oeis.org/A000045"  # where a reader should look
+    assert pin.source_url == "https://oeis.org/search?q=1,1,2,3,5,8&fmt=json"  # what was hashed
     assert pin.terms == [1, 1, 2, 3, 5, 8]
 
 
@@ -143,13 +156,34 @@ async def test_oeis_search_identifies_and_pins_fibonacci() -> None:
 
     pin = result.output["pin"]
     assert result.output["found"] is True
+    assert result.output["match_count"] == 1  # the ambiguity signal rides along
     assert pin["identifier"] == "A000045"  # the A-number is the pin
     assert pin["url"] == "https://oeis.org/A000045"  # cites the sequence page
+    # source_url is the search URL actually hashed — a verifier fetches *this* to recheck the hash.
+    assert pin["source_url"] == "https://oeis.org/search?q=1,1,2,3,5,8&fmt=json"
     assert pin["raw_response_hash"] == raw_response_hash(_FIB_RAW)
     assert pin["retrieved_at"]  # captured
     assert "OEIS" in pin["license_note"] and "redistribut" in pin["license_note"]
     # the raw OEIS body is fingerprinted, never stored wholesale (cite, don't redistribute)
     assert _FIB_RAW not in json.dumps(result.output)
+
+
+async def test_oeis_search_fuzzy_hit_that_lacks_the_run_is_undecided() -> None:
+    # OEIS's top relevance hit does not actually contain the queried terms as consecutive terms — it
+    # is a candidate, not an identification, so the honest outcome is undecided (never a confident,
+    # possibly-wrong A-number). match_count still records how many sequences OEIS matched.
+    result = await OeisSearch(_FakeFetcher(_FUZZY_RAW)).run(
+        OeisSearch.InputModel(terms=[1, 1, 2, 3, 5, 8]), {}
+    )
+    assert result.status is ResultStatus.UNDECIDED
+    assert result.output["found"] is False
+    assert result.output["match_count"] == 137
+    pin = result.output["pin"]
+    search_url = "https://oeis.org/search?q=1,1,2,3,5,8&fmt=json"
+    assert pin["identifier"] is None  # not claimed
+    assert pin["url"] == search_url  # cites the search that was run, not the top candidate's page
+    assert pin["source_url"] == pin["url"]  # unconfirmed: citation and hashed source coincide
+    assert pin["raw_response_hash"]  # still a citable retrieval record
 
 
 async def test_oeis_search_no_match_is_undecided() -> None:
@@ -159,7 +193,9 @@ async def test_oeis_search_no_match_is_undecided() -> None:
     # A successful query that found nothing is undecided (escalate) — never a false negative claim.
     assert result.status is ResultStatus.UNDECIDED
     assert result.output["found"] is False
+    assert result.output["match_count"] == 0
     assert result.output["pin"]["identifier"] is None
+    assert result.output["pin"]["source_url"]  # the search URL that was hashed
     assert result.output["pin"]["raw_response_hash"]  # still a citable retrieval record
 
 

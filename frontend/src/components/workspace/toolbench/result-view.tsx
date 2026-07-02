@@ -176,8 +176,10 @@ function GeometryBody({ output }: { output: Record<string, unknown> }) {
 
 function OeisBody({ output }: { output: Record<string, unknown> }) {
   const found = Boolean(output.found);
+  const matchCount = typeof output.match_count === "number" ? output.match_count : null;
   const pin = (output.pin ?? {}) as Record<string, unknown>;
   const url = asString(pin.url);
+  const sourceUrl = asString(pin.source_url);
   const identifier = asString(pin.identifier);
   const hash = asString(pin.raw_response_hash);
 
@@ -187,10 +189,17 @@ function OeisBody({ output }: { output: Record<string, unknown> }) {
         <KeyValue k="Sequence">
           <Formula expr={identifier} className="text-[15px] text-text" />
           {pin.name ? <span className="text-[13px] text-text-soft">{asString(pin.name)}</span> : null}
+          {/* How many sequences OEIS matched — the ambiguity signal, so a confident A-number is
+              read against how many candidates contained these terms. */}
+          {matchCount != null ? (
+            <span className="text-[12px] text-text-faint">
+              {matchCount === 1 ? "sole OEIS match" : `1 of ${matchCount} OEIS matches`}
+            </span>
+          ) : null}
         </KeyValue>
       ) : (
         <p className="text-[13px] text-text-soft">
-          OEIS could not identify this sequence — escalate; never recorded as an unknown-sequence claim.
+          OEIS did not identify this sequence — escalate; never recorded as an unknown-sequence claim.
         </p>
       )}
       {found && pin.formula ? (
@@ -198,7 +207,8 @@ function OeisBody({ output }: { output: Record<string, unknown> }) {
           <Formula expr={asString(pin.formula)} className="text-[12px]" />
         </KeyValue>
       ) : null}
-      {/* The pin — what makes this citable, not flimsy: url + when + a fingerprint of the exact bytes. */}
+      {/* The pin — what makes this citable, not flimsy: the citation url, the source actually hashed,
+          when it was retrieved, and a fingerprint of the exact bytes. */}
       <div className="grid gap-1 pt-1 font-mono text-[11px] text-text-faint">
         {url ? (
           <a
@@ -212,7 +222,18 @@ function OeisBody({ output }: { output: Record<string, unknown> }) {
           </a>
         ) : null}
         {pin.retrieved_at ? <span>retrieved {asString(pin.retrieved_at)}</span> : null}
-        {hash ? <span title={hash}>sha256 {short(hash, 16)}…</span> : null}
+        {/* The URL whose response the hash fingerprints — shown when it differs from the citation, so
+            a verifier knows to fetch *this* to recompute the sha256. */}
+        {sourceUrl && sourceUrl !== url ? (
+          <span className="break-all" title="the URL whose response was hashed">
+            source {sourceUrl}
+          </span>
+        ) : null}
+        {hash ? (
+          <span title={hash}>
+            sha256 {short(hash, 16)}…
+          </span>
+        ) : null}
         {pin.license_note ? (
           <span className="not-italic text-text-faint">{asString(pin.license_note)}</span>
         ) : null}

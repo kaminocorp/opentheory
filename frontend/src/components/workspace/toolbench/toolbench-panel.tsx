@@ -50,13 +50,20 @@ function InstrumentRunner({
   const [claimId, setClaimId] = useState<string>("");
   const [result, setResult] = useState<ToolRunResult | null>(null);
 
-  // A claim belongs to a specific thread, so a stale selection must not survive a scope change —
+  // A claim belongs to a specific thread, so a stale selection must not survive a thread change —
   // otherwise a run could attach Evidence to a claim from a thread it is no longer scoped to. The
   // shown result is cleared too: a card from the previous thread must not linger under a new scope.
   useEffect(() => {
     setClaimId("");
     setResult(null);
   }, [threadId]);
+
+  // The branch is also a scope: switching lines must clear the shown card too, so a result that
+  // landed on branch A never lingers under branch B's caption (which may read "sealed"). claimId is
+  // thread-scoped, not branch-scoped, so it is left untouched here.
+  useEffect(() => {
+    setResult(null);
+  }, [branchId]);
 
   // Claims of the selected thread — offered as an optional evidence target (a run against a claim
   // mints Evidence linked to it). Only fetched when a thread is in scope.
