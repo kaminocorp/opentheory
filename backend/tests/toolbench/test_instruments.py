@@ -227,6 +227,24 @@ def test_geometry_rejects_mixed_dimension_points() -> None:
         )
 
 
+def test_geometry_bounds_its_input_collections() -> None:
+    # 0.9.8: cap points and measurements so one request cannot fan out into an unbounded number of
+    # exact-CAS `simplify`s (the other instruments cap their inputs; this is geometry's equivalent).
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="too many points"):
+        COORDINATE_MEASURE.InputModel.model_validate(
+            {
+                "points": {f"P{i}": [i, 0] for i in range(101)},
+                "distances": [["P0", "P1"]],
+            }
+        )
+    with pytest.raises(ValidationError, match="too many measurements"):
+        COORDINATE_MEASURE.InputModel.model_validate(
+            {"points": {"A": [0, 0], "B": [3, 4]}, "distances": [["A", "B"]] * 201}
+        )
+
+
 # --- safety boundary ------------------------------------------------------------------------------
 
 
@@ -267,6 +285,29 @@ def test_parse_blocks_the_eval_escape(payload: str) -> None:
 def test_parse_rejects_cheap_resource_bombs(payload: str) -> None:
     with pytest.raises(ValueError):
         _run(CALC_EVAL, {"expression": payload})
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "2**(2**30)",  # right-nested numeric power — exponent evaluates to ~10^9
+        "2^(2^30)",  # same via '^' (convert_xor) — must be caught after xor-folding too
+        "2**(1 + 2**40)",  # the power is buried inside the exponent, still numeric-only
+    ],
+    ids=["tower", "tower-caret", "tower-buried"],
+)
+def test_parse_rejects_a_numeric_power_tower(payload: str) -> None:
+    # 0.9.8: the constant-exponent cap never sees a power tower (the exponent is a BinOp, not a
+    # literal), yet 2**(2**30) OOMs the worker. The AST gate must reject a *numeric* power exponent.
+    with pytest.raises(ValueError):
+        _run(CALC_EVAL, {"expression": payload})
+
+
+def test_parse_allows_a_symbolic_power_tower_and_plain_numeric_exponents() -> None:
+    # The discriminator is a *name* in the exponent: a symbolic exponent stays symbolic in SymPy (no
+    # giant int), so it must not be rejected; a numeric exponent that is not itself a power is fine.
+    assert _run(CALC_EVAL, {"expression": "2**(2**n)"}).status is ResultStatus.RESULT
+    assert _run(CALC_EVAL, {"expression": "2**(2*10)"}).output["value"] == "1048576"
 
 
 def test_parse_still_allows_legitimate_math() -> None:

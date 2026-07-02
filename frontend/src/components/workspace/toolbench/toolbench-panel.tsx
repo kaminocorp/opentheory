@@ -29,11 +29,15 @@ function InstrumentRunner({
   descriptor,
   projectId,
   threadId,
+  branchId,
+  lineSealed,
   canRun,
 }: {
   descriptor: InstrumentDescriptor;
   projectId: string;
   threadId: string | null;
+  branchId: string | null;
+  lineSealed: boolean;
   canRun: boolean;
 }) {
   const { isAuthed, hydrated } = useActingIdentity();
@@ -47,9 +51,11 @@ function InstrumentRunner({
   const [result, setResult] = useState<ToolRunResult | null>(null);
 
   // A claim belongs to a specific thread, so a stale selection must not survive a scope change —
-  // otherwise a run could attach Evidence to a claim from a thread it is no longer scoped to.
+  // otherwise a run could attach Evidence to a claim from a thread it is no longer scoped to. The
+  // shown result is cleared too: a card from the previous thread must not linger under a new scope.
   useEffect(() => {
     setClaimId("");
+    setResult(null);
   }, [threadId]);
 
   // Claims of the selected thread — offered as an optional evidence target (a run against a claim
@@ -67,8 +73,12 @@ function InstrumentRunner({
         inputs: inputs as Record<string, unknown>,
         assumptions,
         thread_id: threadId,
+        branch_id: branchId,
         claim_id: claimId || null,
       }),
+    // Clear the prior card the moment a new run starts, so a stale success can never sit beside a
+    // fresh error (or under changed inputs) — the shown result always matches the last run.
+    onMutate: () => setResult(null),
     onSuccess: (produced) => {
       setResult(produced);
       // The run landed a checkpoint (+ maybe evidence) in the ledger — refresh what shows it.
@@ -78,10 +88,14 @@ function InstrumentRunner({
     },
   });
 
-  const runnable = canRun && inputs !== null && !run.isPending;
+  // A sealed line (closed / dead-end / merged) cannot receive checkpoints — the backend would
+  // reject the run with a 400; disable it here and say why rather than letting it fail on submit.
+  const runnable = canRun && !lineSealed && inputs !== null && !run.isPending;
   const gateHint = !isAuthed
     ? "Sign in to run instruments."
-    : "You must be a project member to run instruments.";
+    : lineSealed
+      ? "This branch is sealed — reopen or switch lines to run instruments here."
+      : "You must be a project member to run instruments.";
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -99,7 +113,12 @@ function InstrumentRunner({
             mints Evidence linked to that claim. */}
         <div className="grid gap-2">
           <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-mute">
-            {threadId ? "Scoped to the selected thread" : "Records on the project main line"}
+            {branchId
+              ? lineSealed
+                ? "Records on a sealed branch — reopen to run"
+                : "Records on the selected branch"
+              : "Records on the project main line"}
+            {threadId ? ", scoped to the selected thread" : ""}
           </span>
           {threadId && claims.length > 0 ? (
             <Select
@@ -129,7 +148,9 @@ function InstrumentRunner({
             <Icon icon={Play} size={15} />
             {run.isPending ? "Running…" : "Run"}
           </Action>
-          {!canRun && hydrated ? <p className="text-[12px] text-state-warn">{gateHint}</p> : null}
+          {(!canRun || lineSealed) && hydrated ? (
+            <p className="text-[12px] text-state-warn">{gateHint}</p>
+          ) : null}
           {run.isError ? (
             <p role="alert" className="text-[12px] text-state-fail">
               {(run.error as Error).message}
@@ -164,10 +185,14 @@ function InstrumentRunner({
 export function ToolbenchPanel({
   projectId,
   selectedThreadId,
+  selectedBranchId,
+  lineSealed,
   canRun,
 }: {
   projectId: string;
   selectedThreadId: string | null;
+  selectedBranchId: string | null;
+  lineSealed: boolean;
   canRun: boolean;
 }) {
   const [open, setOpen] = useState(true);
@@ -203,8 +228,11 @@ export function ToolbenchPanel({
       {open ? (
         catalogQuery.isLoading ? (
           <AwaitingState variant="loading" label="loading instruments" />
-        ) : catalogQuery.isError || !selected ? (
+        ) : catalogQuery.isError ? (
           <AwaitingState variant="error" label="instruments unavailable" />
+        ) : !selected ? (
+          // A successful fetch with an empty registry is a neutral empty state, not an error.
+          <AwaitingState variant="empty" label="no instruments registered" />
         ) : (
           <div className="grid gap-4">
             {/* Instrument picker — a segmented control over the code registry. */}
@@ -259,6 +287,8 @@ export function ToolbenchPanel({
               descriptor={selected}
               projectId={projectId}
               threadId={selectedThreadId}
+              branchId={selectedBranchId}
+              lineSealed={lineSealed}
               canRun={canRun}
             />
           </div>

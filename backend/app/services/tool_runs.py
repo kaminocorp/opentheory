@@ -76,6 +76,7 @@ async def run_instrument(
     inputs: dict[str, Any],
     assumptions: dict[str, Any] | None = None,
     thread_id: UUID | None = None,
+    branch_id: UUID | None = None,
     claim_id: UUID | None = None,
     relation_kind: str | None = None,
 ) -> ToolRunResult:
@@ -86,7 +87,8 @@ async def run_instrument(
     ``inputs`` is the raw client dict (validated here against ``instrument.InputModel``);
     ``assumptions`` is recorded on the produced rows and in the blame tuple. When ``claim_id`` is
     given, the result is also minted as ``Evidence`` linked to that claim (``relation_kind``
-    defaults from the outcome).
+    defaults from the outcome). ``branch_id`` records the produced checkpoint on a branch (validated
+    — project match + still open — by the chokepoint); ``None`` records on the project main line.
     """
     assumptions = assumptions or {}
 
@@ -106,6 +108,14 @@ async def run_instrument(
         if claim.project_id != project_id:
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST, "Claim belongs to a different project"
+            )
+        # A claim carries its own thread, and the result lands on it (``effective_thread_id``
+        # below). Silently ignoring a conflicting ``thread_id`` would mislead the caller about
+        # where the result went, so a mismatch is a 422 (a matching ``thread_id`` is harmless).
+        if thread_id is not None and thread_id != claim.thread_id:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                "thread_id conflicts with the claim's thread; omit it or pass the claim's thread",
             )
         if relation_kind is not None and relation_kind not in RELATION_KINDS:
             raise HTTPException(
@@ -237,6 +247,7 @@ async def run_instrument(
         project_id,
         CheckpointCreate(
             thread_id=effective_thread_id,
+            branch_id=branch_id,
             summary=f"Ran {instrument.name} → {result.status.value}",
             content={"instrument": instrument.name, "status": result.status.value},
         ),

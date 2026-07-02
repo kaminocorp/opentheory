@@ -176,11 +176,20 @@ function OeisSearchForm({ onInputs, disabled }: FormProps) {
 
 // --- geometry.coordinate_measure --------------------------------------------
 
-type PointRow = { name: string; coords: string };
+// `id` is a stable React key (removing a middle row must reconcile by identity, not index, or the
+// caret/focus jumps to the shifted-up neighbour). `value` rows back the distances/angles lists.
+type PointRow = { id: string; name: string; coords: string };
+type ValueRow = { id: string; value: string };
 
-// A coordinate token → an exact JSON scalar: whole numbers as ints, everything else as a string
-// ("1/2", "sqrt(2)") so it stays exact server-side. Floats are deliberately not produced (the
-// instrument is exact; a float is not an exact hash).
+let _geoSeq = 0;
+const nextGeoId = (): string => `geo-${++_geoSeq}`;
+const pointRow = (name: string, coords: string): PointRow => ({ id: nextGeoId(), name, coords });
+const valueRow = (value: string): ValueRow => ({ id: nextGeoId(), value });
+
+// A coordinate token → a JSON scalar: whole numbers as ints, everything else forwarded as a string
+// ("1/2", "sqrt(2)") for exact server-side parsing. A *decimal* string ("0.5") is not coerced — it
+// parses to an inexact SymPy Float, which the result card then renders honestly — so the field hint
+// steers to an exact form ("1/2") rather than the frontend silently reinterpreting the input.
 function coordToken(text: string): number | string {
   const t = text.trim();
   return /^-?\d+$/.test(t) ? Number.parseInt(t, 10) : t;
@@ -195,12 +204,12 @@ function CoordinateMeasureForm({ onInputs, disabled }: FormProps) {
   // Pre-filled with the flagship "measuring across a corner" thread: A=[0,0], B=[3,0], C=[3,4],
   // so dist(A,C)=5 and angle(A,B,C)=90° is one click.
   const [points, setPoints] = useState<PointRow[]>([
-    { name: "A", coords: "0, 0" },
-    { name: "B", coords: "3, 0" },
-    { name: "C", coords: "3, 4" },
+    pointRow("A", "0, 0"),
+    pointRow("B", "3, 0"),
+    pointRow("C", "3, 4"),
   ]);
-  const [distances, setDistances] = useState<string[]>(["A, C"]);
-  const [angles, setAngles] = useState<string[]>(["A, B, C"]);
+  const [distances, setDistances] = useState<ValueRow[]>([valueRow("A, C")]);
+  const [angles, setAngles] = useState<ValueRow[]>([valueRow("A, B, C")]);
   const emit = useEmit(onInputs);
 
   useEffect(() => {
@@ -210,8 +219,8 @@ function CoordinateMeasureForm({ onInputs, disabled }: FormProps) {
       if (!name) continue;
       pts[name] = point.coords.split(",").map((t) => t.trim()).filter(Boolean).map(coordToken);
     }
-    const dists = distances.map(names).filter((pair) => pair.length === 2);
-    const angs = angles.map(names).filter((triple) => triple.length === 3);
+    const dists = distances.map((d) => names(d.value)).filter((pair) => pair.length === 2);
+    const angs = angles.map((a) => names(a.value)).filter((triple) => triple.length === 3);
     const complete = Object.keys(pts).length > 0 && (dists.length > 0 || angs.length > 0);
     emit.current(complete ? { points: pts, distances: dists, angles: angs } : null);
   }, [points, distances, angles, emit]);
@@ -224,7 +233,7 @@ function CoordinateMeasureForm({ onInputs, disabled }: FormProps) {
       <Field label="Points" hint="Name → coordinates. Use exact values: 3, 1/2, sqrt(2) — not decimals.">
         <ul className="grid gap-1.5">
           {points.map((point, index) => (
-            <li key={index} className="flex items-center gap-1.5">
+            <li key={point.id} className="flex items-center gap-1.5">
               <Input
                 mono
                 value={point.name}
@@ -253,7 +262,7 @@ function CoordinateMeasureForm({ onInputs, disabled }: FormProps) {
         </ul>
         <AddRow
           label="Add point"
-          onClick={() => setPoints((rows) => [...rows, { name: "", coords: "" }])}
+          onClick={() => setPoints((rows) => [...rows, pointRow("", "")])}
           disabled={disabled}
         />
       </Field>
@@ -261,12 +270,14 @@ function CoordinateMeasureForm({ onInputs, disabled }: FormProps) {
       <Field label="Distances" hint="A pair of point names, e.g. A, C.">
         <ul className="grid gap-1.5">
           {distances.map((pair, index) => (
-            <li key={index} className="flex items-center gap-1.5">
+            <li key={pair.id} className="flex items-center gap-1.5">
               <Input
                 mono
-                value={pair}
+                value={pair.value}
                 onChange={(event) =>
-                  setDistances((rows) => rows.map((row, i) => (i === index ? event.target.value : row)))
+                  setDistances((rows) =>
+                    rows.map((row, i) => (i === index ? { ...row, value: event.target.value } : row)),
+                  )
                 }
                 placeholder="A, C"
                 aria-label={`Distance ${index + 1}`}
@@ -283,7 +294,7 @@ function CoordinateMeasureForm({ onInputs, disabled }: FormProps) {
         </ul>
         <AddRow
           label="Add distance"
-          onClick={() => setDistances((rows) => [...rows, ""])}
+          onClick={() => setDistances((rows) => [...rows, valueRow("")])}
           disabled={disabled}
         />
       </Field>
@@ -291,12 +302,14 @@ function CoordinateMeasureForm({ onInputs, disabled }: FormProps) {
       <Field label="Angles" hint="A triple [P, vertex, Q]; the angle is measured at the vertex, e.g. A, B, C.">
         <ul className="grid gap-1.5">
           {angles.map((triple, index) => (
-            <li key={index} className="flex items-center gap-1.5">
+            <li key={triple.id} className="flex items-center gap-1.5">
               <Input
                 mono
-                value={triple}
+                value={triple.value}
                 onChange={(event) =>
-                  setAngles((rows) => rows.map((row, i) => (i === index ? event.target.value : row)))
+                  setAngles((rows) =>
+                    rows.map((row, i) => (i === index ? { ...row, value: event.target.value } : row)),
+                  )
                 }
                 placeholder="A, B, C"
                 aria-label={`Angle ${index + 1}`}
@@ -311,7 +324,7 @@ function CoordinateMeasureForm({ onInputs, disabled }: FormProps) {
             </li>
           ))}
         </ul>
-        <AddRow label="Add angle" onClick={() => setAngles((rows) => [...rows, ""])} disabled={disabled} />
+        <AddRow label="Add angle" onClick={() => setAngles((rows) => [...rows, valueRow("")])} disabled={disabled} />
       </Field>
     </div>
   );

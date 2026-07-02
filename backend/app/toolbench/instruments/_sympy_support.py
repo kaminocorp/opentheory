@@ -12,11 +12,14 @@ Three concerns live here so the instruments themselves stay thin:
   before ``parse_expr`` ever sees the text, ``_reject_unsafe_source`` validates its AST against a
   strict allow-list (arithmetic + calls to bare math names only; **no** attribute access,
   subscripting, dunder names, or comprehensions), which removes the eval-escape class entirely, and
-  applies size/exponent caps against the cheapest resource bombs. What remains deferred to the
-  execution sandbox (``agent-research-tools.md`` §6) is a *hard CPU/memory bound* on an expression
-  that is legal but expensive (a power tower, ``factorial`` of a huge n); the write path mitigates
-  that by running these synchronous instruments off the event loop, so such a case degrades one
-  worker thread rather than freezing the process. Phase 6 additionally gates runs to members.
+  applies size/exponent caps against the cheapest resource bombs — including (0.9.8) a numeric
+  **power tower** (``2**(2**30)``), which the constant-exponent cap misses because the exponent is
+  itself an expression. What remains deferred to the execution sandbox (``agent-research-tools.md``
+  §6) is a *hard CPU/memory bound* on the remaining legal-but-expensive inputs (chiefly a
+  ``factorial`` / ``gamma`` of a huge argument); the write path mitigates that by running these
+  synchronous instruments off the event loop, so such a case degrades one worker thread rather than
+  freezing the process — but a single huge-integer allocation can still OOM the worker, so the hard
+  bound is a genuine prerequisite for an untrusted/agent caller. Phase 6 gates runs to members.
 - **Assumptions → SymPy symbols.** ``symbol_assumptions`` reads the free-form assumption map the
   ledger records and pulls out the *per-symbol* SymPy assumptions (``{"x": {"positive": true}}``),
   so a result can be computed *under* them (``Symbol('x', positive=True)``) — the plumbing that lets
@@ -122,6 +125,11 @@ _MAX_AST_NODES = 500  # structural size
 _MAX_POW_EXPONENT = 1000  # a constant exponent ('**' / '^') — stops the cheapest 2**huge bomb
 
 
+def _contains(node: ast.AST, types: type | tuple[type, ...]) -> bool:
+    """Whether ``node`` (or any descendant) is one of ``types``."""
+    return any(isinstance(child, types) for child in ast.walk(node))
+
+
 def _reject_unsafe_source(text: str) -> None:
     """Raise ``ValueError`` unless ``text`` is a safe, bounded arithmetic expression.
 
@@ -156,14 +164,23 @@ def _reject_unsafe_source(text: str) -> None:
                 raise ValueError("only direct calls to named functions are allowed")
         if isinstance(node, ast.Constant) and not isinstance(node.value, int | float | complex):
             raise ValueError("only numeric literals are allowed")
-        if (
-            isinstance(node, ast.BinOp)
-            and isinstance(node.op, ast.Pow | ast.BitXor)
-            and isinstance(node.right, ast.Constant)
-            and isinstance(node.right.value, int)
-            and abs(node.right.value) > _MAX_POW_EXPONENT
-        ):
-            raise ValueError(f"exponent too large (> {_MAX_POW_EXPONENT})")
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Pow | ast.BitXor):
+            exponent = node.right
+            if (
+                isinstance(exponent, ast.Constant)
+                and isinstance(exponent.value, int)
+                and abs(exponent.value) > _MAX_POW_EXPONENT
+            ):
+                raise ValueError(f"exponent too large (> {_MAX_POW_EXPONENT})")
+            # A *numeric* power used as an exponent is a power tower (``2**(2**30)``): the constant
+            # cap above never sees it (the exponent is a BinOp, not a literal), yet it evaluates to
+            # an astronomically large integer that OOMs the worker. Reject it. A *symbolic* exponent
+            # (``2**(2**n)``) stays symbolic in SymPy — no giant int — so it is left alone; the
+            # discriminator is the absence of any name in the exponent subtree. (A huge
+            # ``factorial``/``gamma`` argument is a different bomb, still deferred to the sandbox —
+            # see the module docstring.)
+            if _contains(exponent, ast.Pow | ast.BitXor) and not _contains(exponent, ast.Name):
+                raise ValueError("exponent is a numeric power tower (too large to evaluate)")
 
 
 def parse(text: str, assumptions: dict[str, dict[str, bool]]) -> Expr:

@@ -40,6 +40,9 @@ export type ToolRunRequest = {
   inputs: Record<string, unknown>;
   assumptions?: Record<string, unknown>;
   thread_id?: string | null;
+  // Records the produced checkpoint on a branch (else the project main line), so a run made while
+  // viewing a branch lands on that line rather than silently on main.
+  branch_id?: string | null;
   claim_id?: string | null;
   relation_kind?: string | null;
 };

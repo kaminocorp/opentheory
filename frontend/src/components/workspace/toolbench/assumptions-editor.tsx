@@ -7,8 +7,15 @@ import { Icon, Input, Select } from "@/components/console";
 import { cn } from "@/lib/cn";
 
 // A row in the editor. `is` → a per-symbol SymPy predicate ({ x: { positive: true } }); `=` → a
-// contextual scalar ({ angle: 90 }) that rides on the record but is not a symbol flag.
-export type AssumptionRow = { symbol: string; mode: "is" | "="; value: string };
+// contextual scalar ({ angle: 90 }) that rides on the record but is not a symbol flag. `id` is a
+// stable React key so removing a middle row reconciles by identity, not index (which would leave
+// focus/caret attached to the shifted-up neighbour). It is UI-only — `buildAssumptions` ignores it.
+export type AssumptionRow = { id: string; symbol: string; mode: "is" | "="; value: string };
+
+// A process-wide monotonic id for row keys — stable across renders, no Math.random/crypto needed.
+let _rowSeq = 0;
+const nextRowId = (): string => `assumption-${++_rowSeq}`;
+const blankRow = (): AssumptionRow => ({ id: nextRowId(), symbol: "", mode: "is", value: "" });
 
 // The SymPy predicates the backend accepts on a symbol (_sympy_support.SYMPY_ASSUMPTION_KEYS,
 // curated to the commonly-useful set). An unknown one fails loud server-side, so the dropdown only
@@ -53,7 +60,7 @@ export function buildAssumptions(rows: AssumptionRow[]): Record<string, unknown>
 // — SymPy ignores it as a symbol flag, but it rides on the Evidence/Artifact and the blame tuple.
 export function demoAssumptionRows(instrumentName: string): AssumptionRow[] {
   if (instrumentName === "geometry.coordinate_measure") {
-    return [{ symbol: "angle", mode: "=", value: "90" }];
+    return [{ id: nextRowId(), symbol: "angle", mode: "=", value: "90" }];
   }
   return [];
 }
@@ -80,7 +87,7 @@ export function AssumptionsEditor({
     onChange(buildAssumptions(next));
   }
 
-  const addRow = () => commit([...rows, { symbol: "", mode: "is", value: "" }]);
+  const addRow = () => commit([...rows, blankRow()]);
   const removeRow = (index: number) => commit(rows.filter((_, i) => i !== index));
   const patchRow = (index: number, patch: Partial<AssumptionRow>) =>
     commit(rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
@@ -111,7 +118,7 @@ export function AssumptionsEditor({
       ) : (
         <ul className="grid gap-1.5">
           {rows.map((row, index) => (
-            <li key={index} className="flex items-center gap-1.5">
+            <li key={row.id} className="flex items-center gap-1.5">
               <Input
                 mono
                 value={row.symbol}

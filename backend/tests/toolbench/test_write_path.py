@@ -21,9 +21,10 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.models.actor import Actor
 from app.models.artifact import Artifact
+from app.models.branch import Branch
 from app.models.checkpoint import Checkpoint
 from app.models.contribution import Contribution
-from app.models.enums import ActorType, ResultStatus
+from app.models.enums import ActorType, BranchStatus, ResultStatus
 from app.models.evidence import Evidence
 from app.models.links import CheckpointRef, ClaimEvidenceLink, EvidenceArtifactLink
 from app.services.tool_runs import _canonical_output_hash, run_instrument
@@ -336,6 +337,88 @@ async def test_engine_error_leaves_zero_rows(
             )
         ).scalars().all()
         assert contribs == []
+
+
+async def _open_branch(
+    session_factory: async_sessionmaker, project_id: UUID, *, status: BranchStatus
+) -> UUID:
+    """Create a branch row directly (fork id is nullable) and return its id."""
+    async with session_factory() as session:
+        branch = Branch(project_id=project_id, name="exploration", status=status)
+        session.add(branch)
+        await session.commit()
+        return branch.id
+
+
+async def test_run_records_the_checkpoint_on_a_branch(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    # 0.9.8 (F1): a branch_id lands the produced checkpoint on that line, not silently on main.
+    actor_id = await _actor(client)
+    project_id = await _project(client, "toolrun-branch")
+    pid = UUID(project_id)
+    branch_id = await _open_branch(session_factory, pid, status=BranchStatus.OPEN)
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        run = await run_instrument(
+            session, pid, Stub("calc.eval"), actor, inputs={"value": 4}, branch_id=branch_id
+        )
+
+    assert run.checkpoint.branch_id == branch_id
+    checkpoints = await _rows(session_factory, Checkpoint, pid)
+    assert len(checkpoints) == 1
+    assert checkpoints[0].branch_id == branch_id
+
+
+async def test_run_on_a_sealed_branch_is_rejected_and_mints_nothing(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    # A sealed (closed/dead-end/merged) line cannot receive checkpoints; the chokepoint rejects it.
+    # This also pins the *post-flush* atomic rollback: the artifact is flushed before the chokepoint
+    # validates the branch, so a clean 400 here proves the flushed artifact rolls back (no orphan).
+    actor_id = await _actor(client)
+    project_id = await _project(client, "toolrun-sealed-branch")
+    pid = UUID(project_id)
+    branch_id = await _open_branch(session_factory, pid, status=BranchStatus.CLOSED)
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        with pytest.raises(HTTPException) as exc_info:
+            await run_instrument(
+                session, pid, Stub("calc.eval"), actor, inputs={"value": 4}, branch_id=branch_id
+            )
+        assert exc_info.value.status_code == 400
+
+    assert await _rows(session_factory, Artifact, pid) == []
+    assert await _rows(session_factory, Checkpoint, pid) == []
+
+
+async def test_thread_id_conflicting_with_the_claim_thread_is_422(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    # A claim carries its own thread; passing a *different* thread_id would mislead about where the
+    # result landed, so it is a 422 (not silently ignored).
+    actor_id = await _actor(client)
+    project_id = await _project(client, "toolrun-thread-conflict")
+    thread_a = await _thread(client, project_id, actor_id)
+    other_thread = await _thread(client, project_id, actor_id)
+    claim_id = await _claim(client, thread_a, actor_id)
+    pid = UUID(project_id)
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        with pytest.raises(HTTPException) as exc_info:
+            await run_instrument(
+                session,
+                pid,
+                Stub("calc.eval"),
+                actor,
+                inputs={"value": 4},
+                claim_id=UUID(claim_id),
+                thread_id=UUID(other_thread),
+            )
+        assert exc_info.value.status_code == 422
 
 
 # --- DB-free: the failure split touches the session *not at all* before raising -------------------

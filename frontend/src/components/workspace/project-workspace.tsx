@@ -230,11 +230,14 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
       />
 
       {/* Toolbench (Phase 7): run a deterministic maths instrument and land the result in the
-          ledger. Scoped to the selected thread; the run is membership-gated (canManageProject),
-          the catalog is public. Produced checkpoints appear in the timeline below. */}
+          ledger. Scoped to the selected thread and branch (so a run made while viewing a branch
+          lands on that line); the run is membership-gated (canManageProject), the catalog is
+          public. Produced checkpoints appear in the timeline below. */}
       <ToolbenchPanel
         projectId={projectId}
         selectedThreadId={selectedThreadId}
+        selectedBranchId={selectedBranchId}
+        lineSealed={lineSealed}
         canRun={canManageProject}
       />
 

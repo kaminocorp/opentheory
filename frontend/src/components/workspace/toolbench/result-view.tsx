@@ -75,8 +75,10 @@ function CalcEvalBody({ output, status }: { output: Record<string, unknown>; sta
       </CounterexampleCard>
     );
   }
+  // "Holds" only on a definite result; undecided (or any unexpected lenient-read status) is never
+  // labelled as a pass — the neutral "Relation" heading, with the outcome pill carrying the verdict.
   return (
-    <KeyValue k={status === "undecided" ? "Relation" : "Holds"}>
+    <KeyValue k={status === "result" ? "Holds" : "Relation"}>
       <Formula expr={expression} className="text-[15px]" />
     </KeyValue>
   );
@@ -121,7 +123,12 @@ function ExprCompareBody({
         <KeyValue k="Difference">
           <Formula expr={difference} className="text-[15px]" />
           {status === "undecided" ? (
-            <span className="text-[12px] text-text-mute">did not reduce — free symbols remain</span>
+            // Honest: SymPy could not prove the difference is zero — this covers both a residue with
+            // free symbols *and* a symbol-free constant it cannot settle (a true identity it can't
+            // close). Never claim a specific reason, and never read as a pass.
+            <span className="text-[12px] text-text-mute">
+              SymPy could not decide whether this is zero — escalate to a proof, never a pass
+            </span>
           ) : null}
         </KeyValue>
       )}

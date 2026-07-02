@@ -25,6 +25,13 @@ from app.toolbench.instruments._sympy_support import ENGINE, ENGINE_VERSION, par
 # A coordinate: an exact int, an exact string ("1/2", "sqrt(2)"), or a float (inexact — see _coord).
 CoordScalar = StrictInt | StrictFloat | StrictStr
 
+# Bound each collection so one request cannot fan out into an unbounded number of exact-CAS
+# measurements (each angle runs several `simplify`s). The other instruments cap their inputs
+# (expression length, oeis term count); this is geometry's equivalent. Generous for any real
+# coordinate figure, cheap against a member submitting thousands of measurements as a CPU sink.
+_MAX_POINTS = 100
+_MAX_MEASUREMENTS = 200  # distances and angles, each
+
 
 class CoordinateMeasureInput(BaseModel):
     points: dict[str, list[CoordScalar]] = Field(
@@ -44,6 +51,13 @@ class CoordinateMeasureInput(BaseModel):
     def _check(self) -> "CoordinateMeasureInput":
         if not self.points:
             raise ValueError("at least one point is required")
+        if len(self.points) > _MAX_POINTS:
+            raise ValueError(f"too many points (max {_MAX_POINTS})")
+        if len(self.distances) > _MAX_MEASUREMENTS or len(self.angles) > _MAX_MEASUREMENTS:
+            raise ValueError(
+                f"too many measurements (max {_MAX_MEASUREMENTS} distances and {_MAX_MEASUREMENTS} "
+                "angles)"
+            )
         for name, coords in self.points.items():
             if len(coords) not in (2, 3):
                 raise ValueError(f"point {name!r} must have 2 or 3 coordinates")

@@ -75,6 +75,7 @@ async def run_instrument(
         inputs=payload.inputs,
         assumptions=payload.assumptions,
         thread_id=payload.thread_id,
+        branch_id=payload.branch_id,
         claim_id=payload.claim_id,
         relation_kind=payload.relation_kind,
     )

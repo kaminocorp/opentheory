@@ -13,13 +13,16 @@ class ToolRunRequest(BaseModel):
     ``inputs`` is the raw instrument payload — validated against the resolved instrument's
     ``InputModel`` *in the service* (a mismatch is a ``422``), not here, so the envelope stays
     generic across every instrument. ``assumptions`` are recorded on the produced Evidence/Artifact
-    and in the blame tuple. ``thread_id`` scopes the result to a thread; ``claim_id`` (with an
-    optional ``relation_kind`` override) also mints ``Evidence`` linked to that claim.
+    and in the blame tuple. ``thread_id`` scopes the result to a thread; ``branch_id`` records the
+    produced checkpoint on a branch (0.9.8 — so a run made while viewing a branch lands on that
+    line, not silently on main); ``claim_id`` (with an optional ``relation_kind`` override) also
+    mints ``Evidence`` linked to that claim.
     """
 
     inputs: dict[str, Any]
     assumptions: dict[str, Any] = Field(default_factory=dict)
     thread_id: UUID | None = None
+    branch_id: UUID | None = None
     claim_id: UUID | None = None
     relation_kind: str | None = None
 
