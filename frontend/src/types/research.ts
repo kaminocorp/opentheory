@@ -245,6 +245,8 @@ export type ToolInvocation = {
   assumptions?: Record<string, unknown>;
   status?: ResultStatus;
   produced_artifact_id?: string | null;
+  // Operator-facing execution metadata (0.11.5) — wall_ms, sandbox mode, optional memory cap.
+  resource_used?: Record<string, unknown> | null;
 };
 
 export type Checkpoint = {

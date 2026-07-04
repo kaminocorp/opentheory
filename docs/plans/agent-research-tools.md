@@ -1,13 +1,17 @@
 # Agent Research Tools — The Deterministic Instrument Bench
 
-> **Status — proposal (2026-06-29).** This is a design proposal for the *tool
-> surface* an `Actor` (human now, agent later) uses to produce ground-truth
-> research results. It is the missing substance behind the roadmap's
-> **"Agent-Ready Execution Surface"** (`docs/plans/roadmap-next-steps.md` §0.7.0,
-> *not yet built* — the repo's `0.7.x` was an auth-principal refactor, a different
-> scope that reused the number). It depends on, and extends, the primitives in
-> `docs/primitives.md`, the ledger semantics in `docs/research-git.md`, and the
-> stage skeleton in `docs/research-flow.md`. Nothing here is implemented yet.
+> **Status — design proposal (2026-06-29), partially implemented (`0.9.x`–`0.10.5`).**
+> This doc argues for the *tool surface* an `Actor` (human now, agent later) uses to
+> produce ground-truth research results. The **instrument bench spine** is shipped:
+> adapter protocol, registry, conformance harness, chokepoint-composed write path,
+> membership-gated `POST …/instruments/{name}/run`, workspace drive/show UI, and five
+> production instruments (see `docs/plans/maths-toolbox.md` §Shipped in production).
+>
+> **Still not built:** autonomous agents as operators, the execution sandbox (`0.11.x`),
+> Z3/Lean verifier instruments, and the roadmap's original **"Agent-Ready Execution
+> Surface"** label (`docs/plans/roadmap-next-steps.md` §0.7.0 — that version number was
+> taken by the `0.7.x` auth-principal refactor). Depends on `docs/primitives.md`,
+> `docs/research-git.md`, and `docs/research-flow.md`.
 
 ## 1. The ask, in one line
 

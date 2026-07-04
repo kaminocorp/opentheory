@@ -116,6 +116,9 @@ class OeisSearch:
     # OEIS has no library version; reproducibility is anchored by the pin (retrieved_at +
     # raw_response_hash) in the output, not by this. It labels the API surface queried.
     engine_version = "search-api"
+    # Retrieval hits the network on the event loop — not a subprocess child (0.11.x policy). The
+    # execution layer derives this from ``run`` being ``async def`` (execution_mode_for), so no
+    # explicit mode attribute is needed.
     description = (
         "Identify an integer sequence by its leading terms via the OEIS search API; returns the "
         "A-number pinned as a citable record (url, retrieved_at, raw_response_hash)."

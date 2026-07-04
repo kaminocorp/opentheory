@@ -1,13 +1,19 @@
 # Toolbench Catalog — The Buildable Tool List, Sorted by Integration Cost
 
-> **Status — working catalog (2026-06-30).** A concrete, buildable companion to the
-> design proposal in `docs/plans/agent-research-tools.md`. That doc argues *why* the
-> bench exists and *what each tool is for* (the four families: Compute / Verify /
-> Retrieve / Visualize). This doc re-sorts the same tools by the axis that actually
-> governs build effort — **integration cost** — and names the libraries, licenses,
-> and a recommended starter kit. Scope here is deliberately narrow: the *tools and
-> libraries themselves*. Data-model questions (the evidence-grade ladder,
-> `tool_invocations` shape, artifact write path) are out of scope for this file.
+> **Status — working catalog (2026-06-30), partially shipped (`0.9.x`–`0.10.5`).** A
+> concrete, buildable companion to the design proposal in
+> `docs/plans/agent-research-tools.md`. That doc argues *why* the bench exists and *what
+> each tool is for* (the four families: Compute / Verify / Retrieve / Visualize). This doc
+> re-sorts the same tools by the axis that actually governs build effort — **integration
+> cost** — and names the libraries, licenses, and a recommended starter kit.
+>
+> **Shipped:** Tier 0 SymPy instruments (`calc.eval`, `expr.compare`,
+> `geometry.coordinate_measure`, `counterexample.search`) + Tier 1 `oeis.search`; adapter
+> registry, write path, provenance spine, workspace UI, KaTeX render. See
+> `docs/plans/maths-toolbox.md` §Shipped in production.
+>
+> **Not shipped:** Z3, Arb/`interval.eval`, literature pins (Crossref/arXiv/OpenAlex), Lean,
+> visualization instruments (Vega-Lite tables/plots).
 
 ## The organizing principle
 
@@ -143,39 +149,33 @@ coincide, which is convenient for sequencing.
 
 ## Recommended starter kit
 
-The smallest set that is genuinely useful, buildable now, and needs no sandbox —
-while covering all three working families (compute, verify, retrieve):
+The original starter kit argued for SymPy + Z3 + OEIS. **As of `0.10.5` we shipped SymPy
+(four instruments) + OEIS — not Z3 yet.** That already covers the flagship demo
+(`agent-research-tools.md` §5) **claims 1–4** (geometry measure, sum-of-legs falsification,
+Pythagorean check, squared-form compare) with readable KaTeX output. Claim 5 (Lean proof)
+still needs the execution substrate.
 
 ```text
-SymPy   — symbolic CAS + exact rational arithmetic   (compute, Grade B)
-Z3      — SMT/SAT: counterexamples & unsat certs      (verify,  Grade A-ish)
-OEIS    — sequence lookup by terms                     (retrieve, cited)
+Shipped (0.9.x–0.10.5):
+  SymPy   — calc.eval, expr.compare, geometry.coordinate_measure, counterexample.search
+  OEIS    — oeis.search (Tier 1, pinned retrieval)
+
+Next in-process adds (no Lean infra):
+  Z3      — SMT/SAT: counterexamples & unsat certs      (verify, Grade A-ish)
+  Arb     — interval.eval (optional 0.10.6+ stretch)
 ```
 
-That four-capability set (SymPy covers both symbolic derivation *and* exact
-arithmetic) already lets a user:
-
-- **compute** a symbolic derivation — `factor`, `solve`, `simplify`;
-- **falsify** with exact arithmetic — `3 + 4 → 5, not 7` via SymPy `Rational` (no
-  separate `gmpy2` needed yet);
-- **machine-check** a constraint or find a counterexample — Z3;
-- **look up** a sequence or known result — OEIS.
-
-…which is the entire "measuring across a corner" flagship demo
-(`agent-research-tools.md` §5) **except** the final Lean proof — and not one of the
-four needs the execution substrate.
-
-The thinnest possible first build is **SymPy alone** (one adapter). The
-proves-all-three-families build is **SymPy + Z3 + OEIS**, still with no extra infra.
+The thinnest *remaining* high-value add is **Z3** — still Tier 0, still no sandbox.
+**Lean** remains the tool that forces net-new infrastructure.
 
 ---
 
-## Open threads (not yet decided)
+## Open threads
 
-- **First build width** — SymPy only, vs the SymPy + Z3 + OEIS starter kit.
-- **The adapter interface** — the common shape every tool conforms to
-  (`inputs → run → outputs`, version-pinned). This interface is the actual reusable
-  thing being built; SymPy / Z3 / OEIS should all implement the same one.
+- **Z3 instrument shape** — which claims get `z3.prove` / `z3.refute` first; certificate
+  storage on the artifact.
 - **Lean toolchain hosting** — when Lean lands, how Mathlib is built/cached and which
-  sandbox (Fly microVM / Sprites vs E2B vs gVisor) wraps it. Deferred until the
-  in-process tools are real.
+  sandbox (Fly microVM / Sprites vs E2B vs gVisor) wraps it. Blocked on `0.11.x` sandbox
+  at minimum.
+- **Resolved:** first build width (SymPy + OEIS + flagship instruments, not Z3 yet);
+  adapter interface (`0.9.2`); provenance spine (`0.9.1`).

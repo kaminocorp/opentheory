@@ -1,9 +1,10 @@
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.enums import ResultStatus
+from app.toolbench.execution.outcome import ALLOWED_RESOURCE_USED_KEYS
 
 
 class ToolInvocation(BaseModel):
@@ -41,3 +42,20 @@ class ToolInvocation(BaseModel):
     # Set by the write path once the produced Artifact has an id (plan Phase 3). Optional here so a
     # tuple can be built before the artifact is flushed and stamped afterwards.
     produced_artifact_id: UUID | None = None
+    # Operator-facing execution metadata (0.11.5) — presentation only, never content-hashed.
+    # Allowed keys: ``wall_ms`` (float), ``sandbox`` (``subprocess`` | ``in-thread`` | ``async``),
+    # ``memory_limit_mb`` (int, when configured), ``terminated`` (failure paths that mint nothing).
+    # Omitted on historical tuples; never stamped grades.
+    resource_used: dict[str, Any] | None = None
+
+    @field_validator("resource_used")
+    @classmethod
+    def _resource_used_keys_are_known(cls, value: dict[str, Any] | None) -> dict[str, Any] | None:
+        if value is None:
+            return value
+        unknown = set(value) - ALLOWED_RESOURCE_USED_KEYS
+        if unknown:
+            keys = ", ".join(sorted(unknown))
+            msg = f"resource_used has unknown keys: {keys}"
+            raise ValueError(msg)
+        return value

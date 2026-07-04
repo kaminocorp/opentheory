@@ -19,11 +19,10 @@ Two invariants this file must never break (the plan's top review checks):
 
 import hashlib
 import json
-from inspect import isawaitable, iscoroutinefunction
+import logging
 from typing import Any
 from uuid import UUID
 
-import anyio
 from fastapi import HTTPException, status
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,6 +41,17 @@ from app.services import checkpoints as checkpoint_service
 from app.services import contributions
 from app.services.evidence import RELATION_KINDS
 from app.toolbench.adapter import Instrument
+from app.toolbench.execution.errors import (
+    ToolbenchBusy,
+    ToolbenchMemoryExceeded,
+    ToolbenchTimeout,
+)
+from app.toolbench.execution.policy import acquire_run_slot
+from app.toolbench.execution.runner import execute_instrument
+
+logger = logging.getLogger(__name__)
+
+_RESOURCE_LIMITS_PREFIX = "Instrument run exceeded resource limits"
 
 # When the caller does not pin a relation_kind, derive a sensible default from the honest outcome:
 # a counterexample weakens; a result supports; a couldn't-decide is context (never support/weaken).
@@ -159,26 +169,54 @@ async def run_instrument(
             f"Invalid inputs for {instrument.name}: {exc}",
         ) from exc
 
-    # 2. Run. A tool exception means it did not run: mint nothing, surface a 4xx. This is before
-    #    any db.add, so the session is untouched (no rollback needed). A compute instrument's
-    #    ``run`` is synchronous and CPU-bound; run it in a worker thread so a slow expression cannot
-    #    block the event loop and freeze every concurrent request on this worker. A retrieval
-    #    instrument's ``run`` is async (it hits the network); await it directly. Either way the
-    #    await precedes any db.add, so a network/compute failure mints nothing too.
+    # 2. Run under the execution sandbox (0.11.x): concurrency slot + bounded sync subprocess or
+    #    async wall-clock wrap. A tool exception means it did not run: mint nothing, surface a 4xx.
+    #    This is before any db.add, so the session is untouched (no rollback needed).
     try:
-        if iscoroutinefunction(instrument.run):
-            result = await instrument.run(validated, assumptions)
-        else:
-            result = await anyio.to_thread.run_sync(instrument.run, validated, assumptions)
-            if isawaitable(result):  # a sync run that returned an awaitable — await it on the loop
-                result = await result
+        async with acquire_run_slot(instrument_name=instrument.name):
+            outcome = await execute_instrument(instrument, validated, assumptions)
     except HTTPException:
         raise
+    except ToolbenchBusy as exc:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            str(exc),
+        ) from exc
+    except (ToolbenchTimeout, ToolbenchMemoryExceeded) as exc:
+        logger.warning(
+            "instrument_run_resource_limit instrument=%s reason=%s wall_ms=%s project_id=%s "
+            "actor_id=%s",
+            instrument.name,
+            exc.reason,
+            exc.wall_ms,
+            project_id,
+            actor.id,
+        )
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            f"{_RESOURCE_LIMITS_PREFIX}: {exc}",
+        ) from exc
     except Exception as exc:
+        # A ToolbenchWorkerError, a re-raised instrument ValueError, or anything unexpected: the
+        # tool did not run, so mint nothing and surface a 422 (never a 500). Busy/timeout/memory
+        # are handled above with their own statuses; this is the catch-all failure path.
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             f"Instrument {instrument.name} failed to run: {exc}",
         ) from exc
+
+    result = outcome.result
+    resource_used = outcome.resource_used
+
+    logger.info(
+        "instrument_run_complete name=%s wall_ms=%s status=%s sandbox=%s project_id=%s actor_id=%s",
+        instrument.name,
+        resource_used.get("wall_ms"),
+        result.status.value,
+        resource_used.get("sandbox"),
+        project_id,
+        actor.id,
+    )
 
     content_hash = _canonical_output_hash(result.output)
     # Evidence/artifact/checkpoint all sit on the claim's thread when targeting a claim.
@@ -252,6 +290,7 @@ async def run_instrument(
         assumptions=assumptions,
         status=result.status,
         produced_artifact_id=artifact.id,
+        resource_used=resource_used,
     )
 
     # 6. Compose through the chokepoint — it owns the single commit, so artifact + evidence + links

@@ -7,12 +7,15 @@
 > rendered artifact, a pinned source — **always recorded against the instrument that
 > derived it.**
 
-> **Status — working spec (2026-06-30).** The *agreed scope* for the first toolbox,
-> math-first. Third doc in the toolbench set and the one that fixes the list:
+> **Status — working spec (2026-06-30), partially shipped (`0.9.x`–`0.10.5`).** The
+> *agreed scope* for the first toolbox, math-first. Third doc in the toolbench set and
+> the one that fixes the list:
 > - `agent-research-tools.md` — *why* the bench exists; the four families
 >   (Compute / Verify / Retrieve / Visualize).
 > - `toolbench-catalog.md` — the full buildable bench re-sorted by **integration cost**.
 > - **this doc** — the **agreed v1 instrument set**, enumerated at *function* granularity.
+> - `docs/executing/falsify-and-render-0.10.md` — **completed** execution plan for Bench 4
+>   falsifier + KaTeX render (`0.10.1`–`0.10.5`).
 >
 > **Decisions baked in (2026-06-30):**
 > - **Scope** = Core math bench. **Discipline** = Math-first.
@@ -24,8 +27,30 @@
 >   retrieved — and any future A/B/C/D grade — is a *function of which instrument ran*, so
 >   it's derivable on demand from the blame tuple, never stamped. See *"What every result
 >   records"* below.
-> - **Interval arithmetic (Arb) is in** the core (it gives a numeric result a proven bound).
+> - **Interval arithmetic (Arb) is in** the agreed core (not yet shipped — optional `0.10.6+`).
 > - The verifier layer (Z3 / Lean) and all physics-specific tools are *deferred*.
+
+## Shipped in production (`0.9.x`–`0.10.5`)
+
+These instruments are registered, conformance-tested, membership-gated on the run route,
+and have workspace drive/show surfaces (KaTeX where `*_latex` companions exist):
+
+| Instrument | Bench | Release | Notes |
+|---|---|---|---|
+| `calc.eval` | Calculate | `0.9.2` | Exact calculator + relation falsifier |
+| `expr.compare` | Express | `0.9.3` | Three honest outcomes (`result` / `refuted` / `undecided`) |
+| `geometry.coordinate_measure` | Geometry | `0.9.3` | Flagship corner measure — exact, never float |
+| `oeis.search` | Falsify & discover | `0.9.4` | Tier 1 retrieval; embeds `source.pin` on match |
+| `counterexample.search` | Falsify & discover | `0.10.1` | Integer grid falsifier; weak-support honesty in UI |
+
+**Cross-cutting (shipped):** blame tuple on `Checkpoint.tool_invocations`, assumptions on
+Evidence/Artifact (`0.9.1` migration `0012_toolbench_provenance`), AST-gated SymPy parser
+(`0.9.7`), additive `*_latex` render hints with hash exclusion (`0.10.4`), KaTeX in
+`formula.tsx` (`0.10.5`).
+
+**Not shipped as standalone instruments:** `expr.parse`, `formula.render` (UI need met by
+`*_latex` + KaTeX), `sample.grid`, `pattern.find_relation`, `table.*`, `plot.*`,
+`interval.eval`, Z3, Lean.
 
 ## The picture
 
@@ -259,20 +284,19 @@ through the *same* API.
 
 ## Open items
 
-- **Completeness** — is anything missing from your mental picture of a mathematician's
-  desk that doesn't have an instrument above? (Resolved: interval arithmetic **in**;
-  grades & stamped result-kind **out** — derived from the recorded instrument.)
+- **Completeness** — resolved for v1 scope: interval arithmetic stays **in** the agreed
+  list but **unshipped**; grades & stamped result-kind stay **out** (derived from the
+  recorded instrument).
+- **Next instrument candidates** — see `docs/plans/roadmap-next-steps.md`: `interval.eval`
+  (optional), Tier 1 literature pins, Z3, then Bench 6 tables/plots.
 
-## Next steps (not part of the agreed list yet)
+## Build infrastructure (done — `0.9.x`)
 
-- **Map the UI** — give every instrument two columns: *drive* (input affordance — formula
-  field, terms box, point editor) and *show* (render surface — formula card, table,
-  counterexample card, plot, citation card). The handful of render surfaces becomes the
-  toolbench's frontend component library.
-- **Design the adapter interface** — the common `inputs → run → outputs` shape
-  (version-pinned; the three-outcome result: ran→result / ran→refuted / couldn't-decide)
-  every instrument conforms to. *This interface is the real build object;* `calc.eval` /
-  `expr.compare` / `oeis.search` are its first conformance tests.
-- **Data-model** — schema-enforce the `tool_invocations` blame tuple + record assumptions
-  on `Evidence` / `Artifact`, additive to `docs/primitives.md`. **No grade field, no
-  stamped result-kind.**
+The following were open at spec time and are now shipped:
+
+- **Adapter interface** — `Instrument` protocol, registry, conformance harness (`0.9.2`).
+- **Write path** — `run_instrument` → `create_checkpoint` chokepoint composition (`0.9.2`).
+- **Data-model** — validated blame tuple + assumptions (`0.9.1`, migration `0012`).
+- **UI drive/show** — toolbench panel, per-instrument forms, result cards, `Formula` seam
+  (`0.9.5`–`0.10.5`). New instruments should extend `drive-forms.tsx` / `result-view.tsx`
+  rather than inventing parallel surfaces.

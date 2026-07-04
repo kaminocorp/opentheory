@@ -1,5 +1,10 @@
 # `0.10.x` — Falsify & Render (Toolbench Wave 2)
 
+> **Status — completed (`0.10.5`, 2026-07-02).** All six phases shipped; see
+> `docs/completions/falsify-render-phase-*.md` and `docs/changelog.md`. **What comes next:**
+> `docs/executing/execution-sandbox-0.11.md` (then `0.12.x` agent loop per
+> `docs/plans/roadmap-next-steps.md`).
+
 > Extend the shipped toolbench (`0.9.1`–`0.9.9`) with the **next Tier-0 instruments and render
 > surfaces** needed for the flagship math demo in `docs/plans/agent-research-tools.md` §5 — a theorem
 > *emerging* from claim pressure, not asserted. This plan turns the agreed Bench 4 + Bench 6 slices

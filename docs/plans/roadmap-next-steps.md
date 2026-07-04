@@ -1,127 +1,115 @@
 # Roadmap Next Steps
 
-## Context
+> **Last updated:** 2026-07-03 · **Current release line:** `0.11.6` (Execution Sandbox shipped).
+> For the per-phase ledger see `docs/changelog.md`; for the completed `0.11.x` execution
+> plan see `docs/executing/execution-sandbox-0.11.md`.
 
-OpenTheory has the foundation for a research platform:
+## Where we are
 
-- `0.1.0` established the FastAPI backend, core domain models, Alembic setup, and smoke-test tooling.
-- `0.2.0` established the Next.js frontend, typed API reads, project index, and project detail surfaces.
+OpenTheory is a **live, human-operable research ledger** with a deterministic toolbench.
+The foundation through `0.4.x` (ledger writes, validation, branching), identity and
+collaboration through `0.8.x`, auth and funding through `0.6.x`–`0.7.x`, and the
+toolbench spine plus flagship math instruments through `0.9.x`–`0.10.x`, and the execution
+sandbox through `0.11.x`, are all shipped and deployed.
 
-The next phase should turn the existing primitives into a human-operable research ledger before adding autonomous agents, payments, or advanced graph views. Agents should eventually use the same primitives that humans can use manually.
+A signed-in member can today:
 
-## Guiding Principle
+1. Own or collaborate on a project; invite others; assign Research crew models (UI only).
+2. Decompose work into threads; add claims; attach evidence; record checkpoints.
+3. Fork and close branches; record validations; read contradiction signals.
+4. Run five production instruments from the workspace — with KaTeX-readable math and bounded
+   execution (subprocess isolation, wall-clock/memory caps, concurrency limit):
+   `calc.eval`, `expr.compare`, `geometry.coordinate_measure`, `oeis.search`,
+   `counterexample.search` — each landing an attributed checkpoint through the chokepoint.
 
-Build the smallest complete research workflow that records what changed, why it changed, who changed it, and what evidence or artifacts were involved.
+The flagship *measuring across a corner* thread (claims 1–4) is walkthrough-ready with
+shipped instruments. Claim 5 (Lean proof → Grade A) remains explicitly out of scope until
+the execution substrate exists.
 
-The product should first answer one practical question:
+**Agents are not operators yet.** Research crew model picks are configuration only; nothing
+autonomously drives `POST …/instruments/{name}/run`. The guiding constraint still holds:
+any new capability is human-usable through the API *first*, so agents can later use the
+same primitives.
 
-> Can OpenTheory remember a research move with provenance and show it back clearly?
+## Guiding principle (unchanged)
 
-## Recommended Next Release: `0.3.0`
+Build the smallest complete research workflow that records what changed, why it changed,
+who changed it, and what evidence or artifacts were involved — then extend it without
+bypassing the checkpoint chokepoint or conflating funder / contributor / validator roles.
 
-### Human-Operable Research Ledger
+## Recommended next releases
 
-Create the first end-to-end vertical slice of the ledger:
+### `0.12.x` — Thin agent loop (recommended next)
 
-1. Open or create a project.
-2. Open a research thread inside the project.
-3. Add a structured claim.
-4. Attach supporting, weakening, or contextual evidence.
-5. Create an immutable checkpoint that records the state change.
-6. Show the checkpoint in the project ledger UI.
+**Why after sandbox:** Research crew UI (`0.8.10`) already names four roles and OpenRouter
+models. The missing piece is an orchestrator that turns a thread + stage into instrument
+runs on the **same** membership-gated API humans use.
 
-This should remain manual and product-shaped. The goal is not agent automation yet; the goal is to make the ledger primitives real and usable.
+**Goal:** one bounded agent pass on a thread — propose checkpoints via existing write paths;
+human accepts, rejects, or branches (no parallel agent data model).
 
-### Backend Scope
+**Scope (sketch):**
 
-- Add API routes for `Thread`, `Claim`, `Evidence`, and `Checkpoint`.
-- Add read models for project detail pages that include threads, claims, evidence, and recent checkpoints.
-- Add create flows that record `Contribution` entries for meaningful user actions.
-- Add a service layer for checkpoint creation so append-only ledger rules are enforced in one place.
-- Generate the first real Alembic migration for the existing domain models.
-- Add focused tests for:
-  - project thread creation
-  - claim creation
-  - evidence attachment
-  - checkpoint creation
-  - append-only checkpoint behavior
+- Background job or worker invoking `POST …/instruments/{name}/run` with the acting actor
+  attributed correctly.
+- Stage-aware metadata from `docs/research-flow.md` (optional hints, not hard law).
+- Rate/token budget per project (ties to existing `FundingAllocation` simulation).
+- Human-visible trace: what the agent tried, what landed on the ledger.
 
-### Frontend Scope
+**Out of scope:** full autonomous continuous research, reputation scoring, real payments.
 
-- Expand the project detail page into a lightweight research workspace.
-- Add a thread list for each project.
-- Add a claim and evidence panel scoped to the selected thread.
-- Add a checkpoint timeline showing research state changes.
-- Add loading, empty, and error states for the new reads.
-- Keep creation flows simple enough to validate the core workflow without overbuilding editors or dashboards.
+### `0.10.6+` (optional stretch) — `interval.eval`
 
-### Out of Scope
+Proven numeric enclosures via `python-flint` / Arb — `docs/executing/falsify-and-render-0.10.md`
+Appendix B. Not required for flagship claims 1–4; pick up if interval bounds become a demo
+need before Z3.
 
-- Autonomous agents.
-- Real payment processing.
-- Reputation and influence scoring.
-- Complex DAG visualization.
-- Full authentication and authorization.
-- Artifact storage for large uploaded files.
+### Tier 1 retrieval wave — literature pin instruments
 
-## Follow-On Releases
+After sandbox or in parallel if capacity allows:
 
-### `0.4.0` - Validation And Branching
+- Crossref / arXiv / OpenAlex pin instruments (reuse `source.pin` pattern from `oeis.search`).
+- See `docs/plans/toolbench-catalog.md` Tier 1 table.
 
-Add the next layer of research integrity:
+### Verifier wave — Z3 before Lean
 
-- Validation records for claims, evidence, artifacts, checkpoints, and branches.
-- Branch creation from checkpoints.
-- Dead-end and rejected branch states.
-- UI for validations, contradictions, and branch status.
-- Tests for validation targets and branch lifecycle behavior.
+- **Z3** (`z3-solver`): Tier 0, in-process, near-free — counterexamples and unsat certificates.
+- **Lean**: Tier 2 — forces execution substrate; Claim 5 / Grade A. Do not start until sandbox
+  + agent loop are stable.
 
-### `0.5.0` - Demo Research Projects
+### Deferred / deprioritized
 
-Seed the product with realistic public research state:
+| Item | Notes |
+|---|---|
+| **`0.5.0` demo seeding** | Plan exists (`docs/plans/0.5.0-demo-research-projects.md`); team preference is **no seed data** — projects start from scratch. Revisit only if empty-state UX becomes a product problem. |
+| **`formula.render` instrument** | Superseded for v1 by additive `*_latex` + KaTeX in `formula.tsx` (`0.10.4`–`0.10.5`). |
+| **Tables / plots (`table.*`, `plot.*`)** | Bench 6; after core agent loop or when a demo needs tabular falsification grids. |
+| **Real funding / settlement** | `FundingAllocation` is recorded; Stripe etc. remain future. |
+| **Reputation / influence** | Vision doc; no data model yet. |
+| **Object storage for large artifacts** | Blobs stay off Postgres; upload path not built. |
 
-- Add one or two demo projects from the vision areas.
-- Prefer domains where claims, evidence, and constraints can be shown concretely.
-- Include seeded threads, claims, evidence, checkpoints, and dead ends.
-- Use demo data to make the frontend feel like a living research map instead of an empty scaffold.
+## Priority order (from here)
 
-Good candidates:
+1. **Execution sandbox** (`0.11.x`) — safe ceiling before agents and Z3/Lean.
+2. **Thin agent loop** (`0.12.x`) — Research crew becomes an operator, not just config.
+3. **Tier 1 retrieval** — literature pin instruments on the proven `source.pin` shape.
+4. **Z3 instrument** — machine-checked falsification / unsat without Lean infra.
+5. **Bench 6 surfaces** — tables and Vega-Lite plots when a thread needs them.
+6. **Lean + full substrate** — Claim 5; only after the above.
 
-- Dark matter model constraints.
-- High-temperature superconductivity mechanisms.
-- Protein folding beyond known structures.
+## Shipped milestones (reference)
 
-### `0.6.0` - Auth, Attribution, And Funding Simulation
+| Release | What landed |
+|---|---|
+| `0.3.x` | Human-operable ledger write path + workspace |
+| `0.4.x` | Validation, branching, enriched read models |
+| `0.6.x`–`0.7.x` | Auth (Supabase JWT), `Account`/`Actor`, funding allocations, live deploy |
+| `0.8.x` | Kamino Console, stewardship, `@username`, invitations, Research crew UI |
+| `0.9.x` | Toolbench spine, adapter/registry, five instruments, drive/show UI, security hardening |
+| `0.10.x` | `counterexample.search`, LaTeX companions, KaTeX — flagship claims 1–4 ready |
 
-Add identity and stewardship without introducing real money yet:
+## Success criteria for the next milestone
 
-- Basic user identity.
-- Actor-aware contribution records.
-- Simulated funding allocations.
-- Project-level budget and funding history views.
-- Clear separation between funding, contribution, and validation.
-
-### `0.7.0` - Agent-Ready Execution Surface
-
-Prepare for agents once the human workflow is stable:
-
-- Agent actor type.
-- Agent-facing API keys or scoped credentials.
-- Stage-aware thread execution metadata.
-- Tool-result artifacts.
-- Checkpoint proposals that can be accepted, rejected, or branched by a human or orchestrator.
-
-## Priority Order
-
-1. Make the ledger write path real.
-2. Show ledger state clearly in the frontend.
-3. Preserve append-only provenance.
-4. Add validation and branching.
-5. Seed realistic demo research. (NOTE: NO SEEDING NEEDED, WE WILL START FROM SCRATCH).
-6. Add identity, attribution, and funding simulation.
-7. Introduce agents as operators of the same primitives.
-
-## Success Criteria For The Next Milestone
-
-`0.3.0` is successful when a user can manually perform a meaningful research action and see a durable, attributed checkpoint representing that action in the project UI.
-
+`0.11.x` is successful when a deliberately expensive or blocking instrument input is
+terminated by the sandbox with a clear client error, no checkpoint is minted, and normal
+bounded runs (flagship walkthrough) are unaffected.

@@ -53,7 +53,9 @@ Run from `backend/`.
    fly secrets set \
      DATABASE_URL='postgresql+asyncpg://postgres.<ref>:<pwd>@aws-0-<region>.pooler.supabase.com:6543/postgres?ssl=require' \
      MIGRATION_DATABASE_URL='postgresql+asyncpg://postgres:<pwd>@db.<ref>.supabase.co:5432/postgres?ssl=require' \
-     BACKEND_CORS_ORIGINS='https://example.vercel.app'
+     BACKEND_CORS_ORIGINS='https://example.vercel.app' \
+     TOOLBENCH_MEMORY_LIMIT_MB=256 \
+     TOOLBENCH_MAX_CONCURRENT_RUNS=2
    ```
 
    - `DATABASE_URL` → the **transaction pooler** (port `6543`). The app disables asyncpg's
@@ -122,6 +124,21 @@ record a validation, fork a branch. If the browser console shows a CORS error, t
 `BACKEND_CORS_ORIGINS` doesn't exactly match the site's origin (scheme + host, no trailing slash).
 
 ---
+
+## Toolbench execution caps (`0.11.x`)
+
+The backend runs SymPy instruments in killable subprocesses on the `shared-cpu-1x` / `512mb` Fly
+machine. Set these secrets alongside the DB URLs (tune after observing `resource_used` logs in
+`0.11.5`):
+
+| Secret | Suggested prod value | Role |
+|---|---|---|
+| `TOOLBENCH_MEMORY_LIMIT_MB` | `256` | Child `RLIMIT_AS` ceiling (Linux) |
+| `TOOLBENCH_MAX_CONCURRENT_RUNS` | `2` | Semaphore on instrument runs |
+| `TOOLBENCH_WALL_TIMEOUT_S` | `30` (default) | Wall-clock kill for sync + async runs |
+
+Leave `TOOLBENCH_SUBPROCESS_SANDBOX_ENABLED=true` in production. Local dev defaults
+`TOOLBENCH_MEMORY_LIMIT_MB=0` because `RLIMIT_AS` is unreliable on macOS.
 
 ## Operating notes
 

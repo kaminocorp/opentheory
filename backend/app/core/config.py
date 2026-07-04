@@ -41,6 +41,19 @@ class Settings(BaseSettings):
     # (Decision #4). Comma-split like backend_cors_origins; compared case-insensitively.
     internal_actor_emails: Annotated[list[str], NoDecode] = []
 
+    # --- Toolbench execution sandbox (0.11.x) -----------------------------------------
+    # Wall-clock cap for instrument runs (sync subprocess and async retrieval).
+    toolbench_wall_timeout_s: float = 30.0
+    # Child-process memory ceiling via RLIMIT_AS (Linux prod). 0 = disabled — default locally
+    # because RLIMIT_AS is unreliable on macOS dev; set 256 on Fly (see docs/deploy.md).
+    toolbench_memory_limit_mb: int = 0
+    # Max concurrent instrument runs per API process; excess waiters get 503 after acquire timeout.
+    toolbench_max_concurrent_runs: int = 2
+    # How long a run may wait for a concurrency slot before returning 503.
+    toolbench_acquire_timeout_s: float = 5.0
+    # When False, sync instruments run in-thread (fast unit tests only); production keeps True.
+    toolbench_subprocess_sandbox_enabled: bool = True
+
     @field_validator("backend_cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, value: str | list[str]) -> list[str] | str | list[AnyHttpUrl]:

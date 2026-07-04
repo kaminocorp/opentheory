@@ -2,6 +2,13 @@
 
 ## Index
 
+- `0.11.7` — **Post-review hardening on the completed Execution Sandbox (`0.11.1`–`0.11.6`).** A production-readiness review found **no CRITICAL/HIGH defect** and the sandbox's atomicity, append-only, and eval-escape surface sound. Closes a broken DB-gate test (`actor_type`→`type`) that would have failed the mandatory pre-prod Postgres run — the very test proving *a timeout mints nothing*; collapses two sync/async dispatch sources of truth into one (mode derived from `run`'s signature behind a single `execute_instrument`); classifies an in-child `RLIMIT_AS` memory kill as `ToolbenchMemoryExceeded` (the resource-limit `422`, not a generic worker error); and **drains the result queue concurrently** with execution so an over-large output can't wedge the child and be misreported as a timeout. Backend + tests — **no schema, no migration**.
+- `0.11.6` — **Toolbench execution errors in Kamino copy.** Maps resource-limit `422` and busy `503` instrument failures to stable user-facing strings in `runInstrument`; closes the `0.11.x` Execution Sandbox line. Frontend-only — no schema, no migration.
+- `0.11.5` — **`resource_used` on the blame tuple.** Successful runs record `wall_ms`, `sandbox` mode, and optional `memory_limit_mb` on `ToolInvocation`; structured INFO/WARNING logs for operators. Additive JSON only — no migration.
+- `0.11.4` — **Execution sandbox safety + flagship regression tests.** Timeout mint-nothing, expensive SymPy adversarial cases, parametrized flagship walkthrough, concurrency `503` semantics — `test_execution_safety.py`. Tests-only — no production code change.
+- `0.11.3` — **Wire the execution sandbox chokepoint.** All instrument runs go through `acquire_run_slot` + bounded sync/async executors; timeout/OOM → `422`, busy → `503`. Backend-only — no migration.
+- `0.11.2` — **Killable subprocess runner.** `spawn` child with wall-clock join/terminate/kill for sync Tier-0 instruments; `test.sleep` stub proves timeout. Backend-only — no migration.
+- `0.11.1` — **Execution sandbox policy + error types.** `Settings` caps, `ToolbenchTimeout`/`ToolbenchBusy` taxonomy, `oeis.search` marked `execution_mode = async`. Backend-only — no migration.
 - `0.10.5` — **KaTeX math rendering in the toolbench.** `formula.tsx` typesets backend `*_latex` companions via KaTeX with monospace SymPy fallback; all Tier-0 result cards wired. Closes the `0.10.x` Falsify & Render line — flagship claims 1–4 walkthrough-ready. Frontend-only — no schema, no migration.
 - `0.10.4` — **Backend LaTeX companions on toolbench outputs.** Additive `*_latex` render hints on all five instruments; `_canonical_output_hash` recursively strips `*_latex` keys so presentation never changes dedup semantics. Backend-only — no schema, no migration.
 - `0.10.3` — **Toolbench UI for `counterexample.search`.** Drive form (relation + variable ranges + `max_samples`), definitive counterexample card, and honest weak-support card (never “proven”). Hides assumptions editor (v1 rejects non-empty). Frontend-only — no schema, no migration.
@@ -57,6 +64,174 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.11.7
+
+**Post-review hardening on the completed Execution Sandbox (`0.11.1`–`0.11.6`).** A production-readiness
+review of the whole `0.11.x` line found **no CRITICAL/HIGH defect**: the failure split (run the
+instrument *before* the first `db.add`, so an exception mints nothing), the checkpoint chokepoint's
+single-commit atomicity, the ORM append-only guards, and the pre-existing AST eval-escape gate all
+hold. It closed one gate-blocking test bug, two `MEDIUM` quality gaps, and three `LOW` robustness /
+classification nits. Backend + tests only — **no schema, no migration** (`ToolInvocation` /
+`PinRecord` untouched).
+
+### The broken pre-prod gate test (`MEDIUM`)
+
+- `tests/toolbench/test_execution_wiring.py` created its actor with `{"actor_type": "human", …}`,
+  but `ActorCreate` requires `type` (every other test posts `{"type": …}`). Pydantic drops the
+  unknown key, leaving required `type` missing → the API returns **`422`, not `201`**, so
+  `test_run_instrument_timeout_mints_nothing` fails at actor creation. That is the test proving *a
+  timeout mints nothing on the real ledger*, and it only looked green because DB-backed tests skip
+  without Postgres — it would have failed the completion doc's mandatory
+  `TEST_DATABASE_URL=… uv run pytest tests/toolbench/` gate. Fixed to `type`.
+
+### One source of truth for sync/async dispatch (`MEDIUM`)
+
+- The write path dispatched on `iscoroutinefunction(instrument.run)` while `ExecutionLimits.mode`
+  (from a hand-set `execution_mode` class attribute) was computed on every run but **consulted only
+  by tests** — two independent truths that could silently drift.
+- `execution_mode_for` now **derives** the mode from `run`'s signature (`async def` → `async`, else
+  `subprocess`) — the same predicate dispatch uses — and a single `execute_instrument(…)` entrypoint
+  (`execution/runner.py`) hides the branch, so `run_instrument` no longer knows sync from async.
+- Removed the now-redundant `execution_mode = "async"` attribute on `oeis.search` and the unused
+  `DEFAULT_EXECUTION_MODE` constant.
+
+### In-child memory classification (`LOW`)
+
+- An `RLIMIT_AS` breach surfaces as a Python `MemoryError` **inside** the child (an external cgroup
+  OOM `SIGKILL`s it and is classified from the exit code). That in-child case was tagged
+  `worker_error` → the generic *"failed to run"* `422` + generic UI copy. The worker now tags it
+  `memory`; `envelope_to_result` maps `memory` → `ToolbenchMemoryExceeded` → the resource-limit
+  `422` + *"narrow the search space"* Kamino copy, matching the external-kill path.
+
+### Concurrent result drain — a latent deadlock closed (`LOW`→`MEDIUM` latent)
+
+- `_run_in_subprocess` used to `join(timeout)` **then** `get_nowait()`. A result larger than the OS
+  pipe buffer (~64 KB) blocks the `Queue` feeder thread, which blocks the child's exit, which the
+  join-first path misreads as a **wall-clock timeout** — a *successful* run killed and reported as a
+  timeout.
+- Rewritten to read the result **concurrently** with execution (`_drain_result`: block on the queue,
+  wake every 50 ms only to notice an early result-less death), so an over-large payload flows out of
+  the child instead of wedging it. The queue is now `close()`d in a `finally`, and typed sandbox
+  errors `(ValueError, ToolbenchExecutionError)` propagate rather than being re-wrapped.
+- **Not reachable by the four current instruments** — CPython's `int_max_str_digits` (4300) caps
+  numeric strings and `simplify` never expands to monomials — but a genuine trap for any future
+  instrument returning a large list/string. New `test.blob` stub + `test_large_output_completes_without_deadlock`
+  (~200 KB output) proves the drain.
+
+### Cleanup (`LOW`)
+
+- `run_instrument`'s duplicate trailing `except` branches (worker/value errors vs. unexpected — both
+  `422` *"failed to run"*) merged into one catch-all, so an unexpected error still maps to `422`
+  (never `500`) and mints nothing.
+
+### Verification
+
+```bash
+cd backend && uv run ruff check .                 # all checks passed
+cd backend && uv run pytest -q                     # 177 passed / 102 skipped (no DB)
+# Before prod merge (the gate the review re-armed):
+TEST_DATABASE_URL='postgresql+asyncpg://…' uv run pytest tests/toolbench/ -q
+```
+
+---
+
+## 0.11.6
+
+**Toolbench execution errors in Kamino copy — closes the `0.11.x` Execution Sandbox line.** Phase 6
+maps sandbox failures to legible workspace strings without changing success/result cards.
+Frontend-only — **no schema, no migration**.
+
+### User-facing error copy
+
+- **`lib/instrument-run-errors.ts`** — `formatInstrumentRunError` / `friendlyInstrumentRunError`.
+- **Resource limit `422`** (body contains `resource limits` or `timed out`) → *"This run exceeded
+  the server time or memory limit — narrow the search space or simplify the expression."*
+- **Busy `503`** (body contains `busy`) → *"The server is running other instrument jobs — try again
+  in a moment."*
+- **`runInstrument`** in `lib/api.ts` catches `request` errors and rethrows with friendly copy;
+  `toolbench-panel.tsx` unchanged (still renders `run.error.message`).
+
+### Release ledger
+
+- Index + sections for `0.11.1`–`0.11.6` (this file).
+- Execution plan marked completed; roadmap points at `0.12.x` agent loop.
+- Per-phase notes: `docs/completions/execution-sandbox-phase-*.md`.
+
+### Verification
+
+```bash
+cd frontend && npm run typecheck && npm run lint && npm run build
+cd backend && uv run ruff check . && uv run pytest -q
+```
+
+---
+
+## 0.11.5
+
+**`resource_used` on the blame tuple + structured logs.** Phase 5 adds operator-facing timing
+metadata on successful instrument runs. Additive JSON on `Checkpoint.tool_invocations` — **no
+migration**.
+
+- **`ToolInvocation.resource_used`** — optional; strict-write allows `wall_ms`, `sandbox`,
+  `memory_limit_mb`, `terminated` only.
+- **`ExecutionOutcome`** — execution layer pairs `InstrumentResult` with `resource_used`.
+- **`tool_runs.py`** — INFO `instrument_run_complete` on success; WARNING
+  `instrument_run_resource_limit` on timeout/OOM (no checkpoint minted).
+
+See `docs/completions/execution-sandbox-phase-5.md`.
+
+---
+
+## 0.11.4
+
+**Execution sandbox safety + flagship regression tests.** Phase 4 proves safety properties without
+production code changes.
+
+- `test_execution_safety.py` — timeout mint-nothing, `factorial(50000)` fails fast, max-samples
+  grid, parametrized flagship regression, concurrency (2 slots / 3 waiters → `ToolbenchBusy`).
+
+See `docs/completions/execution-sandbox-phase-4.md`.
+
+---
+
+## 0.11.3
+
+**Wire the execution sandbox chokepoint.** Phase 3 routes all production runs through the sandbox.
+
+- `acquire_run_slot` semaphore on `run_instrument` step 2.
+- `execute_sync_instrument` / `execute_async_instrument` replace bare `to_thread` / direct await.
+- HTTP mapping: timeout/OOM → `422` (`Instrument run exceeded resource limits`), busy → `503`.
+- `docs/deploy.md` — Fly `TOOLBENCH_MEMORY_LIMIT_MB=256`, `TOOLBENCH_MAX_CONCURRENT_RUNS=2`.
+
+See `docs/completions/execution-sandbox-phase-3.md`.
+
+---
+
+## 0.11.2
+
+**Killable subprocess runner.** Phase 2 isolates sync Tier-0 instruments in a `spawn` child.
+
+- `execution/worker.py` + `subprocess_runner.py` — `run_bounded_sync` with join/terminate/kill.
+- `test.sleep` stub for timeout proofs; in-thread fallback when `toolbench_subprocess_sandbox_enabled=False`.
+
+See `docs/completions/execution-sandbox-phase-2.md`.
+
+---
+
+## 0.11.1
+
+**Execution sandbox policy + error types.** Phase 1 establishes configuration and typed failures
+without changing runtime behaviour.
+
+- `Settings`: `toolbench_wall_timeout_s`, `toolbench_memory_limit_mb`, `toolbench_max_concurrent_runs`,
+  `toolbench_acquire_timeout_s`, `toolbench_subprocess_sandbox_enabled`.
+- `ToolbenchTimeout`, `ToolbenchMemoryExceeded`, `ToolbenchBusy`, `ToolbenchWorkerError`.
+- `oeis.search` → `execution_mode = "async"`.
+
+See `docs/completions/execution-sandbox-phase-1.md`.
 
 ---
 
