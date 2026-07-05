@@ -66,8 +66,11 @@ def _run_in_subprocess(
     )
 
     started = time.monotonic()
-    process.start()
     try:
+        # start() sits inside the try so a spawn failure (rare — OSError under resource
+        # exhaustion) still reaches the finally that closes the result queue, rather than leaking
+        # its pipe fds until GC.
+        process.start()
         envelope = _drain_result(process, result_queue, limits.wall_timeout_s)
         wall_ms = (time.monotonic() - started) * 1000
 

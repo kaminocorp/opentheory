@@ -2,7 +2,8 @@
 
 ## Index
 
-- `0.11.7` — **Post-review hardening on the completed Execution Sandbox (`0.11.1`–`0.11.6`).** A production-readiness review found **no CRITICAL/HIGH defect** and the sandbox's atomicity, append-only, and eval-escape surface sound. Closes a broken DB-gate test (`actor_type`→`type`) that would have failed the mandatory pre-prod Postgres run — the very test proving *a timeout mints nothing*; collapses two sync/async dispatch sources of truth into one (mode derived from `run`'s signature behind a single `execute_instrument`); classifies an in-child `RLIMIT_AS` memory kill as `ToolbenchMemoryExceeded` (the resource-limit `422`, not a generic worker error); and **drains the result queue concurrently** with execution so an over-large output can't wedge the child and be misreported as a timeout. Backend + tests — **no schema, no migration**.
+- `0.11.8` — **Third post-review hardening on the Execution Sandbox (`0.11.1`–`0.11.7`).** Closes a LOW fd leak on spawn failure; flags two ops gates (Postgres toolbench suite; prod `TOOLBENCH_MEMORY_LIMIT_MB=256`). Backend-only — no schema, no migration.
+- `0.11.7` — **Post-review hardening on the Execution Sandbox (`0.11.1`–`0.11.6`).** Four fixes: a broken DB-gate test (`actor_type`→`type`), unified sync/async dispatch, an `RLIMIT_AS`→`ToolbenchMemoryExceeded` mapping, and a concurrent result-queue drain. Backend + tests — no schema, no migration.
 - `0.11.6` — **Toolbench execution errors in Kamino copy.** Maps resource-limit `422` and busy `503` instrument failures to stable user-facing strings in `runInstrument`; closes the `0.11.x` Execution Sandbox line. Frontend-only — no schema, no migration.
 - `0.11.5` — **`resource_used` on the blame tuple.** Successful runs record `wall_ms`, `sandbox` mode, and optional `memory_limit_mb` on `ToolInvocation`; structured INFO/WARNING logs for operators. Additive JSON only — no migration.
 - `0.11.4` — **Execution sandbox safety + flagship regression tests.** Timeout mint-nothing, expensive SymPy adversarial cases, parametrized flagship walkthrough, concurrency `503` semantics — `test_execution_safety.py`. Tests-only — no production code change.
@@ -64,6 +65,56 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.11.8
+
+**Third post-review hardening on the completed Execution Sandbox (`0.11.1`–`0.11.7`).** A fresh
+production-readiness review of the whole `0.11.x` line found **no CRITICAL/HIGH defect** and
+re-confirmed the load-bearing guarantees: the failure split (the instrument runs *before* the first
+`db.add`, so a tool exception mints nothing — proven DB-free by `_RecordingSession`), the checkpoint
+chokepoint's single-commit atomicity, the ORM append-only guards, spawn isolation (the child
+inherits no asyncpg fds), and the `0.9.7` AST eval-escape gate. It closes one **LOW** fd-hygiene nit
+and records two **operational gates** that are process/ops steps, not code. Backend-only — **no
+schema, no migration**, and no behaviour change on the success or failure paths.
+
+### The fd leak on spawn failure (`LOW`)
+
+- `_run_in_subprocess` (`app/toolbench/execution/subprocess_runner.py`) called `process.start()`
+  **outside** the `try/…/finally: result_queue.close()`. A spawn failure — `OSError` when the OS
+  can't fork/spawn under resource exhaustion — would therefore raise *before* entering the `try`,
+  leaking the result `Queue`'s pipe fds until GC finalised it.
+- Moved `start()` **inside** the `try` so the `finally` always closes the queue. A spawn failure
+  still propagates and surfaces through the write path's catch-all as a `422` *"failed to run"* that
+  mints nothing — unchanged; only the fd-hygiene improves. Not reachable in normal operation (spawn
+  fails only under real resource pressure), so no new test — the existing spawn-path suite
+  (`test_subprocess_runner.py` + `test_execution_safety.py`, 14 tests) stays green.
+
+### Review outcome — two operational gates (no code change)
+
+The review re-armed two pre-merge checks the repo **cannot self-verify**; both must be satisfied
+before this line is trusted in prod:
+
+1. **The Postgres toolbench gate.** `TEST_DATABASE_URL=… uv run pytest tests/toolbench/` — the 22
+   DB-backed tests skip without it (the same blind spot that hid the `0.11.7` `actor_type` bug). The
+   default suite is green (177 passed / 102 skipped) but does not exercise the real-ledger
+   mint-nothing / round-trip paths.
+2. **The prod memory ceiling.** `toolbench_memory_limit_mb` defaults to `0` (**disabled**); the
+   256 MB `RLIMIT_AS` child ceiling is only active if `TOOLBENCH_MEMORY_LIMIT_MB=256` is set as a
+   Fly **secret** (`docs/deploy.md`). `fly.toml`'s `[env]` does not carry it, so confirm with
+   `fly secrets list -a opentheory-backend`. Without it, a runaway allocation is bounded only by the
+   machine's 512 MB cgroup OOM — coarser, with a small chance of OOM-killing the parent uvicorn
+   rather than the child (an availability blip, never a partial ledger write).
+
+### Verification
+
+```bash
+cd backend && uv run ruff check .                  # all checks passed
+cd backend && uv run pytest -q                      # 177 passed / 102 skipped (no DB)
+# Before prod merge (the gate the review re-armed):
+TEST_DATABASE_URL='postgresql+asyncpg://…' uv run pytest tests/toolbench/ -q
+```
 
 ---
 
