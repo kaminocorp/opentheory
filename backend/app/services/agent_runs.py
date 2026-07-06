@@ -102,6 +102,13 @@ async def select_agent_branch(
     2. **Fork** — else fork a fresh agent branch off the thread's latest main-line checkpoint,
        attributed to the agent Actor.
     3. **Main-line fallback** — else ``None`` (the thread has no forkable checkpoint yet).
+
+    Known v1 limitation: two passes commissioned on the *same thread* nearly simultaneously can each
+    reach the reuse query before the other has committed its ``branch_id``, so both fork — leaving
+    two open agent lines on the thread. Unlike the agent-Actor race (closed by a partial unique
+    index), there is no DB-level "one open agent line per thread" guard yet. It is non-destructive
+    (branches are recorded, not deleted; the next pass reuses the newest open line), so it is
+    accepted for the thin line; a durable-queue/serialized executor is the future fix.
     """
     reuse = await db.execute(
         select(Branch.id)

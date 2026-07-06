@@ -15,10 +15,12 @@ Research crew is *config only* today — nothing in the backend calls OpenRouter
 first LLM client in the codebase. Settings live in ``core/config.py`` (the ``agent_*`` /
 ``openrouter_*`` group); the key is a Fly secret, never ``fly.toml [env]``.
 
-On token caps: ``agent_pass_max_tokens`` is a *budget/usage* ceiling the orchestrator (0.12.2)
-enforces by comparing recorded ``usage.total_tokens`` — **not** the request's ``max_tokens`` (200k
-completion tokens would be rejected by most providers). So this client only sends ``max_tokens``
-when a caller passes one explicitly; the planner picks a sane completion budget.
+On token caps: ``agent_pass_max_tokens`` is a *budget/usage* ceiling — recorded on each pass but
+**not yet enforced** (a comparison against ``usage.total_tokens`` lands with the project-level
+budget in 0.12.5; the single planning call is meanwhile bounded by ``agent_llm_timeout_s`` and the
+planner's own completion cap). It is also **not** the request's ``max_tokens`` (200k completion
+tokens would be rejected by most providers). So this client only sends ``max_tokens`` when a caller
+passes one explicitly; the planner picks a sane completion budget.
 """
 
 from dataclasses import dataclass

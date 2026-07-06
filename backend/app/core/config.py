@@ -69,7 +69,9 @@ class Settings(BaseSettings):
     agent_llm_timeout_s: float = 60.0
     # Max instrument runs a single pass may execute (safety, not budget).
     agent_pass_max_runs: int = 5
-    # Token ceiling recorded/compared for a pass's planning call (safety, not budget).
+    # Token ceiling for a pass's planning call — recorded today, NOT yet enforced (the single
+    # planning call is already bounded by agent_llm_timeout_s + the planner's own completion cap; a
+    # real comparison against recorded usage lands with the project budget in 0.12.5).
     agent_pass_max_tokens: int = 200_000
     # Dark-launch flag: when False the agent-run routes 404 (indistinguishable from "not a route").
     agent_loop_enabled: bool = False

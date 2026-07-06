@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.12.6` — **Post-review pass on the completed thin agent loop (`0.12.0`–`0.12.4`).** No CRITICAL/HIGH; corrects a misleading `agent_pass_max_tokens` "enforced" comment (recorded-only until `0.12.5`) and records the concurrent-first-pass branch race as a known limitation. Docs/comments only — no code, schema, or migration.
 - `0.12.4` — **Thin agent loop — the frontend.** Members commission a pass and watch a live polling **trace**; **Review on its line** routes to the shipped reject/fork/validate paths. Completes `0.12.x`. Frontend-only.
 - `0.12.3` — **Thin agent loop — the API + background execution.** `POST …/agent-runs` → `202` + a pollable `AgentRun` run in a `BackgroundTask`; dark-launch-gated (`404` before auth while off). Backend-only — no schema, no migration.
 - `0.12.2` — **Thin agent loop — the bounded orchestrator.** `run_agent_pass` lands attributed checkpoints on a reused-or-forked **agent branch** through the same `run_instrument` chokepoint, safety-capped and traced; a failed/empty pass mints nothing. Backend-only — no schema, no migration.
@@ -70,6 +71,41 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.12.6
+
+**Post-review production-readiness pass on the completed thin agent loop (`0.12.0`–`0.12.4`).** A full
+read of the line (planner / orchestrator / LLM client / agent-actor provisioning / routes / migration
+/ frontend) plus seam verification (`run_instrument`, `latest_thread_checkpoint`, `create_branch`,
+`ToolRunResult`, the `expire_on_commit=False` the per-step commit loop depends on, router mount, the
+`Actor` partial unique index) found **no CRITICAL/HIGH defect**. Green on `ruff`, the DB-free suite
+(199 passed / 117 skipped), and frontend `typecheck` / `lint` / `build`. **Comments/docs only — no
+code behavior, schema, or migration.**
+
+- **Corrected a misleading `agent_pass_max_tokens` comment (F1).** Three sites (`core/config.py`,
+  `agent/llm.py`, `agent/planner.py`) claimed the orchestrator *enforces* the token ceiling by
+  comparing recorded `usage.total_tokens`. It does not — the value is **recorded, never compared**
+  (nor is it the request `max_tokens`; the planner sends its own 4096 completion cap). Softened to
+  "recorded today, enforcement deferred to `0.12.5`." Harmless in practice — the single planning call
+  is already bounded by `agent_llm_timeout_s` + the completion cap.
+- **Recorded the concurrent-first-pass branch race as a known limitation (F2).** Two passes
+  commissioned on the *same thread* nearly simultaneously can each fork a separate agent line (the
+  reuse query runs before either commits its `branch_id`); unlike the agent-Actor race (closed by a
+  partial unique index) there is no DB-level "one open agent line per thread" guard. Non-destructive
+  (branches are recorded; the next pass reuses the newest open line) — noted in `select_agent_branch`'s
+  docstring; the future fix is a serialized executor.
+- **Standing pre-enable gate (unchanged).** The line ships **dark** (`agent_loop_enabled=False` ⇒ every
+  route `404`s), so deploying is a safe no-op. Before flipping the flag live: run the DB-backed suite
+  (`TEST_DATABASE_URL=… uv run pytest tests/agent/ tests/toolbench/`), set the `OPENROUTER_API_KEY` Fly
+  **secret**, and run one staging flagship pass on *measuring across a corner*.
+
+```bash
+cd backend && uv run ruff check .                   # all checks passed
+cd backend && uv run pytest -q                       # 199 passed, 117 skipped (no DB)
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
+```
 
 ---
 
