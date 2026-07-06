@@ -2,6 +2,11 @@
 
 ## Index
 
+- `0.12.4` — **Thin agent loop — the frontend.** Members commission a pass and watch a live polling **trace**; **Review on its line** routes to the shipped reject/fork/validate paths. Completes `0.12.x`. Frontend-only.
+- `0.12.3` — **Thin agent loop — the API + background execution.** `POST …/agent-runs` → `202` + a pollable `AgentRun` run in a `BackgroundTask`; dark-launch-gated (`404` before auth while off). Backend-only — no schema, no migration.
+- `0.12.2` — **Thin agent loop — the bounded orchestrator.** `run_agent_pass` lands attributed checkpoints on a reused-or-forked **agent branch** through the same `run_instrument` chokepoint, safety-capped and traced; a failed/empty pass mints nothing. Backend-only — no schema, no migration.
+- `0.12.1` — **Thin agent loop — the planner.** *(thread + open claims + catalog)* → a validated, capped plan in one OpenRouter call, held to the fixed instrument menu. Backend-only — no schema, no migration.
+- `0.12.0` — **Thin agent loop — foundations.** Agent settings, an OpenRouter client, a lazy per-project agent `Actor`, and the mutable `AgentRun` trace table; dark-launch flag off. Migration `0013_agent_runs` (additive).
 - `0.11.8` — **Third post-review hardening on the Execution Sandbox (`0.11.1`–`0.11.7`).** Closes a LOW fd leak on spawn failure; flags two ops gates (Postgres toolbench suite; prod `TOOLBENCH_MEMORY_LIMIT_MB=256`). Backend-only — no schema, no migration.
 - `0.11.7` — **Post-review hardening on the Execution Sandbox (`0.11.1`–`0.11.6`).** Four fixes: a broken DB-gate test (`actor_type`→`type`), unified sync/async dispatch, an `RLIMIT_AS`→`ToolbenchMemoryExceeded` mapping, and a concurrent result-queue drain. Backend + tests — no schema, no migration.
 - `0.11.6` — **Toolbench execution errors in Kamino copy.** Maps resource-limit `422` and busy `503` instrument failures to stable user-facing strings in `runInstrument`; closes the `0.11.x` Execution Sandbox line. Frontend-only — no schema, no migration.
@@ -65,6 +70,177 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.12.4
+
+**Thin agent loop — the frontend (trigger · trace · review).** Phase 6 of
+`docs/executing/thin-agent-loop-0.12-implementation-plan.md`, and the **last** phase of the `0.12.x`
+line (the `0.12.5` project-budget metering is an independent stretch, deferred). The service +
+API from `0.12.0`–`0.12.3` become drivable from the workspace, in Kamino tone. Frontend-only — **no
+backend, schema, or migration**.
+
+- **Types + client** — `types/agent-run.ts` (mirroring `AgentRunSummary` / `AgentRunRead` and the
+  per-step JSON shape), `lib/api.ts` `triggerAgentPass` / `listAgentRuns` / `getAgentRun`, and
+  `isAgentLoopDisabled(error)` — a 404 on the surface means the dark-launch flag is off, so the UI
+  hides the trigger rather than surfacing an error. Query keys `agentRuns` / `agentRun`.
+- **`AgentPassPanel`** — a collapsible Bay after the toolbench: a role picker (each role's model
+  shown inline) + a **Run agent pass** control, member-gated and **disabled** when the role has no
+  model or the loop is dark. `POST` → `202`; the returned trace is cached and shown immediately.
+  Earlier passes on the thread are listed and re-selectable.
+- **`AgentRunTrace`** — polls `GET /agent-runs/{id}` every 2s **while `running`**, stopping the
+  instant it settles (the Phase-4 `202`+background design is what makes this clean). Renders the plan
+  step-by-step: a **landed** step reuses the toolbench's honest outcome vocabulary (`refuted` = fail,
+  `undecided` = warn, never a pass) and links to its checkpoint by id; **failed** steps show the
+  error (they minted nothing — the failure split); **dropped**/**skipped** steps are faint, hatched
+  notes with their reason. `runs` (`ran/planned`) and `tokens` are readouts. On the
+  `running → terminal` transition it invalidates the timeline / overview / branches so landed work
+  appears without a manual refresh.
+- **Review (accept / reject / branch) — reuse, don't duplicate.** A completed pass that landed on a
+  branch offers **Review on its line**, which selects that agent branch in the branch bar — where the
+  **shipped** write paths already live: reject = `close_branch(dead_end)`, branch further =
+  `create_branch` (fork), accept = record a `Validation` on a claim (`0.4.1`). The trace routes to
+  them rather than re-implementing them (Decision: honor "reuse shipped write paths").
+
+```bash
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
+```
+
+**Manual flagship walkthrough (deferred gate):** needs a backend with `AGENT_LOOP_ENABLED=true` and
+`OPENROUTER_API_KEY` set (prod ships the flag **off**). On *measuring across a corner*: assign a model
+to `researcher`, **Run agent pass**, watch the trace land a checkpoint on the agent branch, then
+**Review on its line** → close as dead-end (reject). The normal human toolbench walkthrough is
+unchanged (the panel is additive and dark-launch-aware).
+
+---
+
+## 0.12.3
+
+**Thin agent loop — the API surface + background execution.** Phase 4 of
+`docs/executing/thin-agent-loop-0.12-implementation-plan.md`. The service-layer orchestrator
+(`0.12.2`) gets its HTTP front door: a project **member** commissions a pass on a thread, the pass
+runs in a background task, and the `AgentRun` trace is pollable. Backend-only — **no schema, no
+migration** (the trace table shipped in `0.12.0`); the dark-launch flag `agent_loop_enabled` stays
+**off**, so this is inert in prod until flipped.
+
+- **`services/agent_runs.py::start_agent_pass`** — the `POST` half: mints the `running` `AgentRun`
+  in the **request** session and commits it (validating the thread belongs to the project → `404`),
+  so the route can return `202` + a pollable id immediately. It does *not* run the pass. An
+  unassigned role is deliberately **not** rejected here — it becomes a recorded `failed` trace
+  inside the pass (Decision #7), so the human sees *why* nothing ran.
+- **`run_agent_pass_background` + the `BackgroundExecutor` seam** — the FastAPI `BackgroundTask`
+  entrypoint. Because it runs *after* the `202` and its request session is closed, it opens its
+  **own** session; `run_agent_pass` already finalizes `failed` on any in-pass error, and this
+  wrapper additionally catches the pathological cases *outside* that guard (missing row / broken
+  session) and best-effort marks the row `failed` — a lost background task can never strand a row
+  `running`. `BackgroundExecutor` (session factory + planner + llm) is the single rebindable seam a
+  DB-backed test flips to run the pass against the test engine with a stub planner and no key.
+- **Routes** (`api/routes/agent_runs.py`, mounted at the root): `POST
+  /projects/{id}/threads/{thread_id}/agent-runs` (member-gated → `202` + `BackgroundTask`), `GET
+  …/agent-runs` (public list, newest-first), `GET /agent-runs/{id}` (public poll target). Body
+  `AgentRunTrigger{role}` validates `role ∈ AGENT_ROLE_FIELDS` → `422`.
+- **Dark launch as a router-level dependency** — `require_agent_loop_enabled` gates the whole
+  router, so it runs *before* `ActingActor`: with the flag off even an *unauthenticated* request is
+  `404` (not `401`), i.e. indistinguishable from a route that does not exist yet.
+- **Stale-`running` sweep on read** — both `GET`s flip any `running` row untouched past a
+  worst-case-pass TTL (`agent_llm_timeout_s + max_runs·toolbench_wall_timeout_s + margin`) to
+  `failed`, so a killed background worker never leaves a row stuck `running` forever. A live pass
+  keeps bumping `updated_at` on every per-step commit, so the sweep can't catch one in flight.
+- **Tests** — `tests/agent/test_agent_runs_api.py` (8): **3 DB-free gates** (dark-launch `POST`/`GET`
+  `404` — the `POST` proves the flag beats auth; unauthenticated `POST` `401` when enabled) that run
+  in the default suite, and **5 DB-backed** (non-member `403`, bad role `422`, cross-project thread
+  `404`, the full commission→poll→land round-trip, and the unassigned-role `202`-then-`failed`
+  trace) that are the **manual `TEST_DATABASE_URL` gate**.
+
+```bash
+cd backend && uv run ruff check .                  # all checks passed
+cd backend && uv run pytest -q                      # 199 passed, 117 skipped (no DB)
+TEST_DATABASE_URL='postgresql+asyncpg://…' uv run pytest tests/agent/ -q   # before trusting the line
+```
+
+---
+
+## 0.12.2
+
+**Thin agent loop — the bounded orchestrator + agent-branch selection (service layer).** Phase 3 of
+`docs/executing/thin-agent-loop-0.12-implementation-plan.md`. A real pass now lands attributed
+checkpoints on the (reused-or-forked) agent branch, safety-cap bounded, with a full `AgentRun` trace
+— driven at the **service layer** (no HTTP yet). Backend-only — **no schema, no migration** (the
+trace table shipped in `0.12.0`).
+
+- **`services/agent_runs.py::run_agent_pass`** — loads the pre-created `running` row (its single
+  source of truth for project/thread/role), resolves the agent Actor + role model, calls the planner
+  **once**, then — only if the plan has runnable steps — selects the agent branch and executes each
+  step through the **same** `run_instrument` chokepoint humans use, attributed to the agent Actor.
+- **`select_agent_branch`** (Decision #2) — reuse the thread's open agent line (join
+  `agent_runs → branches`), else fork from the latest main-line checkpoint, else the `branch_id=None`
+  main-line fallback. **`latest_thread_checkpoint`** is the fork-point query.
+- **Failure discipline.** A per-step `run_instrument` failure is caught and recorded (mints nothing —
+  the failure split); an unassigned role and a planner `AgentLlmError` finalize `failed` with a
+  legible reason; an unexpected error is caught, rolled back, and recorded `failed` — never a
+  dangling `running` row, never a `500`. **Fork happens *after* a successful plan**, so a failed or
+  empty pass mints nothing at all.
+- **`BudgetPolicy` seam** (Decision #4) — v1 passes `None` (per-pass safety caps only); a future
+  orchestrator agent injects a **project-budget**-derived policy here, never per-thread.
+- **Tests** — `tests/agent/test_orchestrator.py` (7, DB-backed): happy path (attributed checkpoint +
+  evidence on the agent branch, `tool_run` contribution), failure split (no orphan), safety cap,
+  branch reuse then re-fork after close, main-line fallback, unassigned role, planner failure. These
+  are the **manual `TEST_DATABASE_URL` gate** — the default suite skips them without Postgres.
+
+```bash
+cd backend && uv run ruff check .                  # all checks passed
+cd backend && uv run pytest -q                      # 196 passed, 112 skipped (no DB)
+TEST_DATABASE_URL='postgresql+asyncpg://…' uv run pytest tests/agent/ -q   # before trusting the line
+```
+
+---
+
+## 0.12.1
+
+**Thin agent loop — the planner (pure, injectable, no writes).** Phase 2. Given a thread, its open
+claims, and the instrument catalog, the planner produces a **validated, bounded** plan of instrument
+runs — deterministically testable with a stub LLM, **no DB writes, no network**. Backend-only — no
+schema, no migration.
+
+- **`app/agent/planner.py`** — `AgentPlan` / `PlannedRun` schemas, `PlanResult`, and
+  `plan(thread, open_claims, catalog, model, *, llm, max_runs, …)`: one LLM call, then two-stage
+  validation — (1) structural (JSON → `AgentPlan`; a bad body is an `AgentLlmError`, mints nothing),
+  (2) per-run semantic drops (`unknown_instrument`, `invalid_inputs`, `unknown_claim`,
+  `relation_kind_without_claim`, `invalid_relation_kind`) then `max_runs` truncation. So the
+  orchestrator only ever executes runnable, pre-validated steps.
+- **`app/agent/prompts.py`** — the system contract + user prompt (thread + `stage` **hint**, open
+  claims, the catalog as the fixed tool menu). Anti-injection is structural: claim/thread text is
+  data; the model's only lever is picking an instrument + inputs from the menu, all re-validated.
+- **Tests** — `tests/agent/test_planner.py` (11, DB-free) via a `StubLlm` + the real
+  `build_catalog()`: valid/bounded plans, every drop reason, non-JSON / schema-mismatch →
+  `AgentLlmError`, empty plan valid, `max_runs` truncation, fenced-JSON tolerance.
+
+---
+
+## 0.12.0
+
+**Thin agent loop — foundations: settings, OpenRouter client, agent Actor, trace table.** Phase 1.
+The config, the LLM client, the agent identity, and the (empty, migrated) `AgentRun` trace table now
+exist — **no loop yet; the dark-launch flag is off; zero behaviour change.** Migration
+`0013_agent_runs` (additive).
+
+- **Settings** — an `openrouter_*` / `agent_*` group mirroring `toolbench_*`
+  (`openrouter_api_key` a Fly **secret**; `agent_pass_max_runs` / `agent_pass_max_tokens` are
+  **safety** caps, not budget; `agent_loop_enabled` the dark-launch flag).
+- **`app/agent/llm.py`** — a minimal async OpenRouter client with a typed `AgentLlmError` for every
+  failure mode (missing key / timeout / non-2xx / malformed body), so a route maps it to `422`/`503`,
+  never a `500`; `httpx.MockTransport`-injectable like the retrieval client.
+- **`services/agent_actors.py`** — `get_or_create_project_agent_actor`: one account-less
+  `Actor(type=agent, display_name="Research crew")` per project, created lazily; idempotency is a
+  **partial functional unique index** on `actors ((actor_metadata->>'project_id')) WHERE type='AGENT'`,
+  declared on the model (create_all/Alembic lockstep) and installed by the migration.
+- **`AgentRunStatus` + `models/agent_run.py`** — the `agent_runs` trace table, a deliberately
+  **mutable** live trace (`running → completed|failed`) *outside* the append-only guards; exported
+  from `models/__init__.py`. `agent_actor_id` / `model` are nullable (resolved inside the background
+  pass, Decision #7). `schemas/agent_run.py` for the read models.
+- **Tests** — `tests/agent/test_llm_client.py` (6, DB-free), `tests/agent/test_migration_0013.py`
+  (2, DB-free), `tests/agent/test_agent_actors.py` (3, DB-backed / manual gate).
 
 ---
 

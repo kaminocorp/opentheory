@@ -18,12 +18,23 @@ class Actor(IdMixin, TimestampMixin, Base):
     # `Base.metadata.create_all` (the test harness) builds the *same* constraint migration 0006
     # installs in prod — keeping create_all and Alembic in lockstep. The enum label is uppercase
     # ('HUMAN' is the StrEnum member name, this DB's enum convention).
+    #
+    # One `agent` Actor per project (0.12.0, Decision #3): a partial *functional* unique index on
+    # `actor_metadata->>'project_id'` scoped to `type = 'AGENT'`. This is the durable answer to
+    # agent-actor idempotency — two concurrent first passes cannot mint two agent actors; the loser
+    # hits this constraint and refetches (`services/agent_actors.py`). Mirrored by migration 0013.
     __table_args__ = (
         Index(
             "uq_actors_one_human_per_account",
             "account_id",
             unique=True,
             postgresql_where=text("type = 'HUMAN'"),
+        ),
+        Index(
+            "uq_actors_one_agent_per_project",
+            text("(actor_metadata ->> 'project_id')"),
+            unique=True,
+            postgresql_where=text("type = 'AGENT'"),
         ),
     )
 

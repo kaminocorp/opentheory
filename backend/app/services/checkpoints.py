@@ -352,6 +352,30 @@ async def list_checkpoints_for_branch(
     return await _enrich(db, list(result.scalars()))
 
 
+async def latest_thread_checkpoint(
+    db: AsyncSession, project_id: UUID, thread_id: UUID
+) -> Checkpoint | None:
+    """The newest **main-line** checkpoint on a thread, or ``None`` (0.12.2).
+
+    An agent line forks from the thread's main line, so this deliberately filters to
+    ``branch_id IS NULL`` — it ignores checkpoints already sitting on a branch (e.g. a closed prior
+    agent line). ``None`` means the thread has no forkable checkpoint yet → the agent pass lands on
+    the main line (the ``branch_id=None`` fallback, Decision #3). Returns the ORM ``Checkpoint``
+    (not a read model) because the only caller needs its ``id`` as a fork point.
+    """
+    result = await db.execute(
+        select(Checkpoint)
+        .where(
+            Checkpoint.project_id == project_id,
+            Checkpoint.thread_id == thread_id,
+            Checkpoint.branch_id.is_(None),
+        )
+        .order_by(Checkpoint.created_at.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_checkpoint(db: AsyncSession, checkpoint_id: UUID) -> CheckpointRead:
     checkpoint = await _load_for_read(db, checkpoint_id)
     if checkpoint is None:

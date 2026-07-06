@@ -119,6 +119,21 @@ class ValidationOutcome(StrEnum):
     RETRACT = "retract"
 
 
+class AgentRunStatus(StrEnum):
+    """Lifecycle of one thin-agent pass (0.12.x) — a **mutable** live trace, not a ledger primitive.
+
+    Unlike ``Checkpoint`` / ``Validation`` / ``FundingAllocation`` (append-only, ORM-guarded in
+    ``models/append_only.py``), an ``AgentRun`` moves ``running`` → ``completed`` | ``failed`` in
+    place as the background pass progresses. It records what the agent *attempted* and what landed
+    on the ledger (through the chokepoint), so it is deliberately excluded from the append-only
+    guards — the ledger writes it triggers are immutable; the trace narrating them is not.
+    """
+
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 class ResultStatus(StrEnum):
     """The three honest outcomes of a deterministic toolbench instrument run (0.9.1).
 

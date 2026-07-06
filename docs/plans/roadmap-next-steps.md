@@ -1,16 +1,17 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-07-03 · **Current release line:** `0.11.6` (Execution Sandbox shipped).
-> For the per-phase ledger see `docs/changelog.md`; for the completed `0.11.x` execution
-> plan see `docs/executing/execution-sandbox-0.11.md`.
+> **Last updated:** 2026-07-06 · **Current release line:** `0.12.4` (Thin agent loop shipped).
+> For the per-phase ledger see `docs/changelog.md`; for the completed `0.12.x` plan see
+> `docs/executing/thin-agent-loop-0.12-implementation-plan.md` (proposal:
+> `docs/executing/thin-agent-loop-0.12.md`).
 
 ## Where we are
 
-OpenTheory is a **live, human-operable research ledger** with a deterministic toolbench.
+OpenTheory is a **live research ledger** with a deterministic toolbench and a **thin agent loop**.
 The foundation through `0.4.x` (ledger writes, validation, branching), identity and
-collaboration through `0.8.x`, auth and funding through `0.6.x`–`0.7.x`, and the
-toolbench spine plus flagship math instruments through `0.9.x`–`0.10.x`, and the execution
-sandbox through `0.11.x`, are all shipped and deployed.
+collaboration through `0.8.x`, auth and funding through `0.6.x`–`0.7.x`, the
+toolbench spine plus flagship math instruments through `0.9.x`–`0.10.x`, the execution
+sandbox through `0.11.x`, and the thin agent loop through `0.12.x`, are all shipped and deployed.
 
 A signed-in member can today:
 
@@ -26,10 +27,15 @@ The flagship *measuring across a corner* thread (claims 1–4) is walkthrough-re
 shipped instruments. Claim 5 (Lean proof → Grade A) remains explicitly out of scope until
 the execution substrate exists.
 
-**Agents are not operators yet.** Research crew model picks are configuration only; nothing
-autonomously drives `POST …/instruments/{name}/run`. The guiding constraint still holds:
-any new capability is human-usable through the API *first*, so agents can later use the
-same primitives.
+**Agents are now bounded operators.** A member commissions a **Run agent pass** on a thread
+(`0.12.x`): the assigned Research-crew model plans a capped sequence of *existing* instrument
+runs, and the agent Actor lands attributed checkpoints on a durable agent branch through the
+**same** `run_instrument` chokepoint humans use — a full `AgentRun` trace shows what it tried and
+what landed; the human then accepts, rejects (dead-end), or branches. Still bounded, not
+autonomous: no continuous/scheduled loop, no multi-thread orchestrator, no project-budget metering
+yet (`0.12.5`, deferred — per-pass safety caps bound blast radius). The guiding constraint held
+throughout: every capability was human-usable through the API *first*, so the agent simply uses
+what humans already could.
 
 ## Guiding principle (unchanged)
 
@@ -39,24 +45,17 @@ bypassing the checkpoint chokepoint or conflating funder / contributor / validat
 
 ## Recommended next releases
 
-### `0.12.x` — Thin agent loop (recommended next)
+### `0.12.x` — Thin agent loop ✅ **shipped** (`0.12.0`–`0.12.4`)
 
-**Why after sandbox:** Research crew UI (`0.8.10`) already names four roles and OpenRouter
-models. The missing piece is an orchestrator that turns a thread + stage into instrument
-runs on the **same** membership-gated API humans use.
+Delivered: a bounded pass (planner → capped instrument runs on a durable agent branch through the
+same chokepoint), a request-scoped `202` + background execution, the pollable `AgentRun` trace, and
+the workspace trigger/trace/review UI. **`0.12.5` (project-budget metering) deferred** — the
+per-pass safety caps (`agent_pass_max_runs`, token cap) bound blast radius, so the line demos without
+it. Prod enablement is a flag flip (`AGENT_LOOP_ENABLED=true`) + the `OPENROUTER_API_KEY` Fly secret.
 
-**Goal:** one bounded agent pass on a thread — propose checkpoints via existing write paths;
-human accepts, rejects, or branches (no parallel agent data model).
-
-**Scope (sketch):**
-
-- Background job or worker invoking `POST …/instruments/{name}/run` with the acting actor
-  attributed correctly.
-- Stage-aware metadata from `docs/research-flow.md` (optional hints, not hard law).
-- Rate/token budget per project (ties to existing `FundingAllocation` simulation).
-- Human-visible trace: what the agent tried, what landed on the ledger.
-
-**Out of scope:** full autonomous continuous research, reputation scoring, real payments.
+**Natural follow-ons (pick per demand):** `0.12.5` project-budget metering (debit the project's
+compute budget per pass, honoring funder/contributor separation); an iterative plan→observe→replan
+within a pass; and eventually the orchestrator agent that allocates project budget across subagents.
 
 ### `0.10.6+` (optional stretch) — `interval.eval`
 
@@ -90,12 +89,16 @@ After sandbox or in parallel if capacity allows:
 
 ## Priority order (from here)
 
-1. **Execution sandbox** (`0.11.x`) — safe ceiling before agents and Z3/Lean.
-2. **Thin agent loop** (`0.12.x`) — Research crew becomes an operator, not just config.
-3. **Tier 1 retrieval** — literature pin instruments on the proven `source.pin` shape.
-4. **Z3 instrument** — machine-checked falsification / unsat without Lean infra.
-5. **Bench 6 surfaces** — tables and Vega-Lite plots when a thread needs them.
-6. **Lean + full substrate** — Claim 5; only after the above.
+1. ~~**Execution sandbox** (`0.11.x`)~~ ✅ shipped.
+2. ~~**Thin agent loop** (`0.12.x`)~~ ✅ shipped — Research crew is now a bounded operator.
+3. **Tier 1 retrieval** — literature pin instruments (Crossref / arXiv / OpenAlex) on the proven
+   `source.pin` shape. Directly widens what an agent pass can *do*.
+4. **Z3 instrument** — machine-checked falsification / unsat without Lean infra; a strong new
+   instrument for the agent loop to reach for.
+5. **`0.12.5` project-budget metering** — debit the project's compute budget per pass (stretch; the
+   per-pass safety caps already bound a single pass).
+6. **Bench 6 surfaces** — tables and Vega-Lite plots when a thread needs them.
+7. **Lean + full substrate** — Claim 5; only after the above.
 
 ## Shipped milestones (reference)
 
@@ -107,9 +110,12 @@ After sandbox or in parallel if capacity allows:
 | `0.8.x` | Kamino Console, stewardship, `@username`, invitations, Research crew UI |
 | `0.9.x` | Toolbench spine, adapter/registry, five instruments, drive/show UI, security hardening |
 | `0.10.x` | `counterexample.search`, LaTeX companions, KaTeX — flagship claims 1–4 ready |
+| `0.11.x` | Execution sandbox — killable subprocess, wall-clock/memory caps, concurrency limit |
+| `0.12.x` | Thin agent loop — planner, bounded orchestrator, `202`+background API, workspace UI |
 
 ## Success criteria for the next milestone
 
-`0.11.x` is successful when a deliberately expensive or blocking instrument input is
-terminated by the sandbox with a clear client error, no checkpoint is minted, and normal
-bounded runs (flagship walkthrough) are unaffected.
+**Tier 1 retrieval** is successful when an agent pass (or a human) can pin a literature source
+(Crossref / arXiv / OpenAlex) as content-addressed Evidence via the same `source.pin` shape
+`oeis.search` proved — landing an attributed checkpoint through the chokepoint, with a reproducible
+citation (`url` + `retrieved_at` + `raw_response_hash`).

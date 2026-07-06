@@ -1,4 +1,9 @@
 import type {
+  AgentRunRead,
+  AgentRunSummary,
+  AgentRunTrigger,
+} from "@/types/agent-run";
+import type {
   AgentModels,
   ModelOption,
   Project,
@@ -325,4 +330,38 @@ export async function runInstrument(
   } catch (error) {
     throw new Error(friendlyInstrumentRunError(error));
   }
+}
+
+// --- Agent runs (0.12.x — the thin agent loop) ------------------------------
+
+// Commission one bounded agent pass on a thread (member-gated write). Returns 202 + the pollable
+// `running` trace. The whole surface is dark-launch-gated: while `agent_loop_enabled` is off on the
+// backend every route 404s — `isAgentLoopDisabled` below distinguishes that from a real error so the
+// UI can hide/disable the trigger instead of showing a failure.
+export function triggerAgentPass(
+  projectId: string,
+  threadId: string,
+  payload: AgentRunTrigger,
+): Promise<AgentRunRead> {
+  return request<AgentRunRead>(
+    `/projects/${projectId}/threads/${threadId}/agent-runs`,
+    writeInit(payload),
+  );
+}
+
+// A thread's agent passes, newest first (public read). 404 = the loop is dark for this deployment.
+export function listAgentRuns(projectId: string, threadId: string): Promise<AgentRunSummary[]> {
+  return request<AgentRunSummary[]>(`/projects/${projectId}/threads/${threadId}/agent-runs`);
+}
+
+// The poll target: one pass's full trace (plan + per-step outcomes). Public read.
+export function getAgentRun(agentRunId: string): Promise<AgentRunRead> {
+  return request<AgentRunRead>(`/agent-runs/${agentRunId}`);
+}
+
+// Feature-detect the dark launch: `request` throws `Error("404: …")` on a 404, which for the
+// agent-run surface means `agent_loop_enabled` is off (the router-level gate answers before any
+// handler runs). Used to disable the trigger rather than surface an error.
+export function isAgentLoopDisabled(error: unknown): boolean {
+  return error instanceof Error && /^404\b/.test(error.message);
 }

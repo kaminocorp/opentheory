@@ -22,4 +22,7 @@ export const queryKeys = {
   // Invitations (0.8.7): the caller's bell inbox + a project's outstanding invites.
   myInvitations: ["me", "invitations"] as const,
   projectInvitations: (projectId: string) => ["invitations", projectId] as const,
+  // Agent runs (0.12.x): a thread's passes (list + feature-detect) and one pass's polled trace.
+  agentRuns: (threadId: string) => ["agent-runs", threadId] as const,
+  agentRun: (agentRunId: string) => ["agent-run", agentRunId] as const,
 };

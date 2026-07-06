@@ -4,6 +4,7 @@ from app.api.routes import (
     accounts,
     actors,
     agent_models,
+    agent_runs,
     branches,
     checkpoints,
     claims,
@@ -41,3 +42,7 @@ api_router.include_router(agent_models.router, tags=["agent-models"])
 # Toolbench: a public catalog (/instruments) + a project-scoped run
 # (/projects/{id}/instruments/{name}/run), so the router mounts at the root and declares full paths.
 api_router.include_router(instruments.router)
+# Agent runs span /projects/{id}/threads/{thread_id}/agent-runs + the poll target /agent-runs/{id},
+# so the router mounts at the root and declares full paths (like threads/instruments). The whole
+# surface is dark-launch-gated (404 while agent_loop_enabled is off) via a router-level dependency.
+api_router.include_router(agent_runs.router)

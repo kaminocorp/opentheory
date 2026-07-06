@@ -1,5 +1,6 @@
 from app.models.account import Account
 from app.models.actor import Actor
+from app.models.agent_run import AgentRun
 from app.models.append_only import AppendOnlyError
 from app.models.artifact import Artifact
 from app.models.branch import Branch
@@ -18,6 +19,7 @@ from app.models.validation import Validation
 __all__ = [
     "Account",
     "Actor",
+    "AgentRun",
     "AppendOnlyError",
     "Artifact",
     "Branch",

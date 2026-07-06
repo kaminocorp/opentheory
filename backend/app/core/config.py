@@ -54,6 +54,26 @@ class Settings(BaseSettings):
     # When False, sync instruments run in-thread (fast unit tests only); production keeps True.
     toolbench_subprocess_sandbox_enabled: bool = True
 
+    # --- Thin agent loop (0.12.x) -----------------------------------------------------
+    # The agent loop turns the config-only Research crew into an operator: one bounded planning
+    # call (OpenRouter) → a validated, capped sequence of *existing* instrument runs on an agent
+    # branch, through the same chokepoint humans use.
+    #
+    # NOTE on caps: `agent_pass_max_runs` / `agent_pass_max_tokens` are SAFETY limits (they bound
+    # a single pass's blast radius), NOT budget. Real budget is a *project-level* concern wired in
+    # 0.12.5 (never per-thread). `OPENROUTER_API_KEY` is a Fly **secret** (`fly secrets set`), never
+    # `fly.toml [env]`; `AGENT_LOOP_ENABLED` is the dark-launch flag production flips when ready.
+    openrouter_api_key: str | None = None
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    # Wall-clock cap for the single planning call (the one LLM round-trip per pass).
+    agent_llm_timeout_s: float = 60.0
+    # Max instrument runs a single pass may execute (safety, not budget).
+    agent_pass_max_runs: int = 5
+    # Token ceiling recorded/compared for a pass's planning call (safety, not budget).
+    agent_pass_max_tokens: int = 200_000
+    # Dark-launch flag: when False the agent-run routes 404 (indistinguishable from "not a route").
+    agent_loop_enabled: bool = False
+
     @field_validator("backend_cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, value: str | list[str]) -> list[str] | str | list[AnyHttpUrl]:

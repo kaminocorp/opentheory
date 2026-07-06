@@ -20,6 +20,7 @@ import { queryKeys } from "@/lib/query-keys";
 import { useActingIdentity } from "@/lib/use-identity";
 import type { Project } from "@/types/project";
 
+import { AgentPassPanel } from "./agent-pass/agent-pass-panel";
 import { BranchBar } from "./branch-bar";
 import { CheckpointTimelinePanel } from "./checkpoint-timeline-panel";
 import { ClaimListPanel } from "./claim-list-panel";
@@ -239,6 +240,19 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
         selectedBranchId={selectedBranchId}
         lineSealed={lineSealed}
         canRun={canManageProject}
+      />
+
+      {/* Agent pass (0.12.4): commission the Research crew to plan + run a bounded sequence of
+          instruments on the selected thread, landing attributed checkpoints on a durable agent
+          branch — the same ledger the toolbench above lands on, driven by an agent. The trace polls
+          until it settles; the backend selects the agent branch, so no branch prop is threaded in.
+          Member-gated; dark-launch-aware (hides the trigger when the loop is off). */}
+      <AgentPassPanel
+        projectId={projectId}
+        selectedThreadId={selectedThreadId}
+        canRun={canManageProject}
+        agentModels={project.agent_models}
+        onSelectBranch={setSelectedBranchId}
       />
 
       <div className="enter-stagger grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)_340px]">
