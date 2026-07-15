@@ -1,5 +1,9 @@
 <div align="center">
 
+<img alt="Four figures in contemplation beneath a starfield — the OpenTheory research crew." src="docs/images/cover.jpg" width="100%">
+
+<br><br>
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="frontend/public/brand/mark-1024-dark.png">
   <source media="(prefers-color-scheme: light)" srcset="frontend/public/brand/mark-1024-light.png">
@@ -8,18 +12,23 @@
 
 # OpenTheory
 
-### Version control for research.
+### Autonomous research agents that have to show their work.
 
-**Append-only checkpoints · full provenance · branches that keep the dead ends**
+**Deterministic instruments · append-only provenance · branches that keep the dead ends**
 
-Most AI research tooling produces *chat output*: an answer, then a blank slate.
-OpenTheory produces a **research ledger** — a git-shaped, append-only record where
-every claim traces back to the exact evidence, instrument, and actor that produced
-it. Knowledge compounds. Nothing resets. Dead ends are recorded, not deleted.
+Most AI research tooling produces *chat output*: a confident answer, then a blank
+slate. OpenTheory runs **agents that do the research** — decomposing a question into
+parallel threads, following lines of inquiry, and settling them on **real
+deterministic instruments** (exact symbolic mathematics, counterexample search,
+pinned literature) instead of asserting them. Every run lands in a git-shaped,
+append-only **research ledger** where each claim traces back to the exact instrument,
+inputs, assumptions, evidence, and actor that produced it — so an agent's output is
+something you can *check*, not something you have to trust. Knowledge compounds.
+Nothing resets. Dead ends are recorded, not deleted.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-live-success)](https://opentheory.vercel.app)
-[![Version](https://img.shields.io/badge/version-0.12.6-crimson)](docs/changelog.md)
+[![Version](https://img.shields.io/badge/version-0.12.8-crimson)](docs/changelog.md)
 &nbsp;
 ![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
@@ -373,7 +382,7 @@ opentheory/
 ## Status
 
 **Live** (Vercel + Fly.io + Supabase), shipped in small, deployable phases tracked in
-[`docs/changelog.md`](docs/changelog.md). Currently `0.12.6`.
+[`docs/changelog.md`](docs/changelog.md). Currently `0.12.8`.
 
 **Shipped:**
 

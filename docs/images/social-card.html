@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>OpenTheory — social card</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<!--
+  OpenTheory social card — 1280x640 (GitHub "Social preview" spec; also the
+  og:image for the live app).
+
+  Render (from this folder, so ./cover.jpg resolves):
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+      --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=2 \
+      --screenshot=social-card@2x.png --window-size=1280,640 social-card.html
+    magick social-card@2x.png -resize 1280x640 -strip -quality 90 social-card.jpg
+
+  Rendered at 2x then downsampled: text is supersampled, and GitHub caps the
+  upload at 1MB, which a 2560px PNG would blow through.
+-->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --ground:#0D0C0B; --text:#ECEAE6; --soft:#B7B3AC; --mute:#807C74;
+    --signal:#C95A5A; --hair: rgba(236,234,230,0.10);
+  }
+  html, body { background:#000; }
+  .card {
+    width:1280px; height:640px; position:relative; overflow:hidden;
+    background:var(--ground); color:var(--text);
+    font-family:'IBM Plex Sans', system-ui, sans-serif;
+    -webkit-font-smoothing:antialiased;
+    display:flex; flex-direction:column;
+  }
+
+  /* — art band ————————————————————————————————— */
+  .art { position:relative; height:452px; flex:none; overflow:hidden; }
+  .art img {
+    width:100%; height:100%; object-fit:cover; object-position:50% 22%;
+    display:block;
+  }
+  /* Dissolve the art into the plate rather than butt-cutting it: the crop lands
+     mid-drapery, and a hard edge there reads as a mistake. Kept deliberately
+     shallow and late — the drapery is the warmest thing in the frame, and an
+     early fade turns cream into grey mud. */
+  .art::after {
+    content:""; position:absolute; inset:0; pointer-events:none;
+    background:
+      linear-gradient(to bottom, transparent 76%, rgba(13,12,11,.55) 93%, var(--ground) 100%),
+      radial-gradient(120% 125% at 50% 8%, transparent 70%, rgba(0,0,0,.28) 100%);
+  }
+
+  /* — signal hairline —————————————————————————— */
+  .rule { height:2px; flex:none; background:linear-gradient(to right,
+      var(--signal) 0, var(--signal) 132px, var(--hair) 132px, var(--hair) 100%); }
+
+  /* — plate ———————————————————————————————————— */
+  .plate {
+    flex:1; display:flex; align-items:center; justify-content:space-between;
+    padding:0 56px; gap:40px;
+  }
+  .lockup { display:flex; align-items:center; gap:24px; }
+  /* The mark's shapes are small relative to its 920² viewBox, so it needs more
+     box than a dense glyph would to carry the same weight. */
+  .lockup svg { width:74px; height:74px; flex:none; display:block; }
+  .wordmark { font-size:31px; font-weight:600; letter-spacing:.145em; line-height:1; }
+  .tagline {
+    margin-top:11px; font-size:16.5px; font-weight:400; color:var(--soft);
+    line-height:1.35; letter-spacing:.005em;
+  }
+  .tagline b { color:var(--text); font-weight:500; }
+
+  .meta {
+    font-family:'IBM Plex Mono', ui-monospace, Menlo, monospace;
+    text-align:right; flex:none;
+  }
+  .meta .row {
+    font-size:11.5px; letter-spacing:.17em; color:var(--mute);
+    display:flex; align-items:center; justify-content:flex-end; gap:9px;
+    white-space:nowrap;
+  }
+  .meta .row + .row { margin-top:9px; }
+  .meta .on { color:var(--soft); }
+  .dot { width:5px; height:5px; border-radius:50%; background:var(--signal); flex:none; }
+</style>
+</head>
+<body>
+<div class="card">
+
+  <div class="art">
+    <img src="./cover.jpg" alt="">
+  </div>
+
+  <div class="rule"></div>
+
+  <div class="plate">
+    <div class="lockup">
+      <!-- Brand mark: circle -> link -> square -> circle, stepping up a diagonal.
+           Geometry mirrors frontend/public/brand/mark-dark.svg exactly. -->
+      <svg viewBox="170 150 920 920" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <g fill="#ECEAE6">
+          <circle cx="313" cy="873" r="84" />
+          <rect x="405" y="640" width="252" height="132" rx="66" />
+          <rect x="661" y="455" width="162" height="162" />
+          <circle cx="942" cy="351" r="84" />
+        </g>
+      </svg>
+      <div>
+        <div class="wordmark">OPENTHEORY</div>
+        <div class="tagline">Autonomous research agents that <b>have to show their work</b>.</div>
+      </div>
+    </div>
+
+    <div class="meta">
+      <div class="row"><span class="dot"></span><span class="on">DETERMINISTIC INSTRUMENTS</span></div>
+      <div class="row">APPEND-ONLY PROVENANCE</div>
+      <div class="row">RESULT · REFUTED · UNDECIDED</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
