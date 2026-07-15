@@ -1,9 +1,5 @@
 <div align="center">
 
-<img alt="Four figures in contemplation beneath a starfield — the OpenTheory research crew." src="docs/images/cover.jpg" width="100%">
-
-<br><br>
-
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="frontend/public/brand/mark-1024-dark.png">
   <source media="(prefers-color-scheme: light)" srcset="frontend/public/brand/mark-1024-light.png">
@@ -15,6 +11,12 @@
 ### Autonomous research agents that have to show their work.
 
 **Deterministic instruments · append-only provenance · branches that keep the dead ends**
+
+<br>
+
+<img alt="Four figures in contemplation beneath a starfield — the OpenTheory research crew." src="docs/images/cover.jpg" width="100%">
+
+<br>
 
 Most AI research tooling produces *chat output*: a confident answer, then a blank
 slate. OpenTheory runs **agents that do the research** — decomposing a question into
