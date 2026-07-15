@@ -1,7 +1,7 @@
 import type { Config } from "tailwindcss";
 
 /**
- * Kamino Console token wiring.
+ * OpenTheory Console token wiring.
  *
  * Decision 4 (non-negotiable): tokens are stored in :root as space-separated RGB
  * *channel triplets* (e.g. `--panel: 22 21 19`) and consumed here through the

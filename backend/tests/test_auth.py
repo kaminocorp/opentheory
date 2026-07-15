@@ -32,7 +32,7 @@ from app.models.enums import ActorType
 _SIGNING_KEY = ec.generate_private_key(ec.SECP256R1())
 _PUBLIC_KEY = _SIGNING_KEY.public_key()
 _OTHER_KEY = ec.generate_private_key(ec.SECP256R1())
-INTERNAL_EMAIL = "insider@kamino.ai"
+INTERNAL_EMAIL = "insider@example.com"
 
 
 @pytest.fixture

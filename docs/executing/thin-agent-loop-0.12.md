@@ -4,7 +4,7 @@
 > **completed** (`0.11.8`; `docs/archive/execution-sandbox-0.11.md`). This is the roadmap's
 > recommended next line (`docs/plans/roadmap-next-steps.md` §`0.12.x`). Depends on
 > `docs/plans/agent-research-tools.md` (§8 build order, the human-first rule) and
-> `docs/research-flow.md` (stage semantics — used as **optional hints**, never enforced here).
+> `docs/vision/research-flow.md` (stage semantics — used as **optional hints**, never enforced here).
 
 > Turn the **config-only** Research crew (`0.8.10`) into an operator: a signed-in member
 > commissions one **bounded agent pass** on a thread; the agent uses the project's assigned
@@ -180,7 +180,7 @@ yet.
    - `agent_pass_max_runs: int = 5`
    - `agent_pass_max_tokens: int = 200_000`
    - `agent_loop_enabled: bool = False` (dark-launch flag; production sets it when ready)
-   - `.env.example` entries + `docs/deploy.md` note (the key is a **Fly secret**, never `fly.toml [env]`).
+   - `.env.example` entries + `docs/operations/deploy.md` note (the key is a **Fly secret**, never `fly.toml [env]`).
 2. **`app/agent/llm.py`** — a minimal async client: `async def complete(model, messages, *, response_format, timeout) -> LlmResponse` (text + `tokens_used`), one `httpx.AsyncClient` POST to `{base_url}/chat/completions`, `RetrievalError`-style typed failure (`AgentLlmError`) so a down provider is a clean `422/503`, never a `500`. Reuse the retrieval `Fetcher` posture (`toolbench/retrieval.py`).
 3. **`services/agent_actors.py`** — `get_or_create_project_agent_actor(db, project_id) -> Actor`: idempotent (unique on `actor_metadata->>'project_id'` or a dedicated lookup), `type=ActorType.AGENT`, `account_id=None`. Export nothing new from models (Actor already exists).
 4. **`models/agent_run.py`** — `AgentRun` (`IdMixin` + `TimestampMixin`): `project_id`, `thread_id`, `branch_id | None`, `agent_actor_id`, `triggered_by_actor_id`, `role`, `model`, `status` (`Enum(AgentRunStatus, name="agent_run_status")` — `running|completed|failed`), `plan` (JSON), `steps` (JSON list), `planned_count`, `ran_count`, `tokens_used`, `error | None`. **Export from `models/__init__.py`** (Alembic discovery). Add `AgentRunStatus` to `models/enums.py`.
@@ -273,11 +273,11 @@ to `completed`.
    assigned `researcher`), disabled when the role has no model or `agent_loop_enabled` is off.
 2. **Trace view** — poll `GET /agent-runs/{id}`: show the plan (rationale per step), what **landed**
    (link each to its checkpoint/evidence card), what **failed**, and tokens/runs consumed vs cap.
-   Kamino tone; reuse the instrument result-card components.
+   console tone; reuse the instrument result-card components.
 3. **Accept / reject / branch** — surface the agent branch in the existing **branch bar**:
    **reject** = `close_branch(dead_end)`; **accept** = record a validation on the surviving
    claim(s) (existing validation surface) — merge deferred; **branch** = fork further (existing).
-4. **`lib/api.ts`** typed calls; `types/`; `query-keys.ts`. Map `422`/`503` to Kamino copy
+4. **`lib/api.ts`** typed calls; `types/`; `query-keys.ts`. Map `422`/`503` to console copy
    (reuse `lib/instrument-run-errors.ts`).
 5. **`docs/changelog.md`** index + sections `0.12.0`–`0.12.4`; move this plan to `docs/archive/`;
    point `docs/plans/roadmap-next-steps.md` at the next line (Z3 / Tier-1 retrieval).

@@ -193,7 +193,7 @@ ActingActor = Annotated[Actor, Depends(get_acting_actor)]
 
 
 def require_internal(actor: ActingActor) -> Actor:
-    """Authz dependency: the acting actor must hold the ``internal`` (Kamino) role -> 403.
+    """Authz dependency: the acting actor must hold the ``internal`` role -> 403.
 
     Returned so a handler can both gate on and use the actor. Native funding gates *in the
     service* (only ``source=native`` requires it, Decision #4); this is the route-level reuse

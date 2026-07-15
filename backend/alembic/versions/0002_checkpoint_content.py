@@ -11,7 +11,7 @@ Create Date: 2026-06-04
   chain (the baseline creates it with no rows), and the ORM supplies a ``{}`` default on
   insert, so no backfill is required.
 - Make ``stage`` nullable: a research-flow stage is optional metadata, not platform law
-  (see docs/primitives.md), so a human may record a checkpoint without one.
+  (see docs/blueprints/primitives.md), so a human may record a checkpoint without one.
 
 No other tables change. ``relation_kind``/``target_type``/``role`` remain plain VARCHAR.
 """

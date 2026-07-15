@@ -7,7 +7,7 @@ The rigid skeleton every research thread moves through. Agents do not invent new
 > below have **not shipped**; the platform is human-operable today. The
 > `ThreadStage` enum is real, and a `Checkpoint` may carry a `stage` — but it is
 > **optional metadata, not platform law** (`backend/app/models/checkpoint.py`;
-> see `docs/primitives.md`): a human can record a checkpoint without committing
+> see `docs/blueprints/primitives.md`): a human can record a checkpoint without committing
 > to a stage, and nothing forces a thread through this skeleton. The *rigid
 > enforcement* in this doc is the future agent layer. See `docs/changelog.md` for
 > what has actually landed.

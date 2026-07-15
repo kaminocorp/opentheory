@@ -2,7 +2,7 @@
 #
 # Region is co-located with the Supabase database (Singapore / ap-southeast-1) so each DB
 # round-trip is LAN-local (~1-5ms) instead of a ~230ms cross-Pacific hop. That round-trip cost,
-# multiplied per request, dominated latency (a 2-row read was ~2s from iad). See docs/deploy.md
+# multiplied per request, dominated latency (a 2-row read was ~2s from iad). See docs/operations/deploy.md
 # "Relocating the backend region". `app` was set by `fly launch`.
 app = "opentheory-backend"
 primary_region = "sin"

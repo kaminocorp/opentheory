@@ -2,7 +2,7 @@
 
 ``Checkpoint``, ``CheckpointRef``, ``FundingAllocation``, and ``Validation`` are
 append-only: once written they are never updated or deleted (see CLAUDE.md /
-docs/primitives.md, which name ``Checkpoint`` and ``FundingAllocation`` as append-only;
+docs/blueprints/primitives.md, which name ``Checkpoint`` and ``FundingAllocation`` as append-only;
 0.4.1 adds ``Validation`` — a point-in-time assessment feeding provenance, so a
 re-assessment is a *new* row, never an edit). We enforce this at the ORM layer (not
 merely "there is no endpoint") so the invariant holds even if the route layer is

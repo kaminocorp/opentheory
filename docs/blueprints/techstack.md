@@ -187,11 +187,12 @@ opentheory/
       main.py
 
   docs/
-    vision.md
-    primitives.md
-    research-flow.md
-    research-git.md
-    techstack.md
+    TLDR.md
+    changelog.md
+    blueprints/      what is — primitives, conceptual-model, techstack, design-system
+    vision/          what's meant — product-vision, research-git, research-flow
+    operations/      runbooks — deploy
+    plans/ executing/ completions/ archive/
 ```
 
 ## Current Decision

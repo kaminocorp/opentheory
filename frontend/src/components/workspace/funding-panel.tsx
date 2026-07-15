@@ -41,7 +41,7 @@ function formatDate(iso: string): string {
     : date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
-const SOURCE_LABEL: Record<FundingSource, string> = { native: "Kamino", stripe: "external" };
+const SOURCE_LABEL: Record<FundingSource, string> = { native: "internal", stripe: "external" };
 
 // Funding status → a state tone. settled = healthy, pending = in motion (awaiting
 // settlement), failed = error, refunded = ambient/closed.

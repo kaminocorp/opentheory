@@ -2,8 +2,8 @@
 
 > A one-screen map of how OpenTheory's primitives fit together and *why* they're
 > shaped the way they are. This is the mental model, not the spec — for
-> authoritative detail read `docs/primitives.md` (the model + invariants),
-> `docs/research-git.md` (the ledger semantics), and the current backend
+> authoritative detail read `docs/blueprints/primitives.md` (the model + invariants),
+> `docs/vision/research-git.md` (the ledger semantics), and the current backend
 > `models/` (the truth when the docs and code disagree).
 
 ---
@@ -182,7 +182,7 @@ they simply use what humans already could.
 
 ## A note on staying in sync
 
-`docs/primitives.md` is the source-of-truth domain doc and now reflects the
+`docs/blueprints/primitives.md` is the source-of-truth domain doc and now reflects the
 `0.7.0` `Account` / `Actor` split (identity, `roles`, and funding attribution on
 `Account`; research provenance on `Actor`). This blueprint is the *compression* of
 that doc, not a competing source. When any doc and the code disagree, **the code

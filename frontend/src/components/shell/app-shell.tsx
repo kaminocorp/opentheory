@@ -8,7 +8,7 @@ import { CommandRail } from "@/components/shell/command-rail";
 import { InvitationInbox } from "@/components/shell/invitation-inbox";
 
 /**
- * The Kamino app shell (§4.1) — the structural signature. A fixed 6u header and a
+ * The OpenTheory app shell (§4.1) — the structural signature. A fixed 6u header and a
  * fixed 7u left command rail frame a full-bleed `<main>` that lays bays on the
  * measured field (the field shows through `<main>`, which paints nothing of its
  * own; the opaque header + rail cover it). Replaces the old centered, header-only

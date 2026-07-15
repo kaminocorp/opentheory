@@ -10,8 +10,8 @@
 > **Still not built:** autonomous agents as operators, the execution sandbox (`0.11.x`),
 > Z3/Lean verifier instruments, and the roadmap's original **"Agent-Ready Execution
 > Surface"** label (`docs/plans/roadmap-next-steps.md` §0.7.0 — that version number was
-> taken by the `0.7.x` auth-principal refactor). Depends on `docs/primitives.md`,
-> `docs/research-git.md`, and `docs/research-flow.md`.
+> taken by the `0.7.x` auth-principal refactor). Depends on `docs/blueprints/primitives.md`,
+> `docs/vision/research-git.md`, and `docs/vision/research-flow.md`.
 
 ## 1. The ask, in one line
 
@@ -290,7 +290,7 @@ env)`. Model the whole record on **W3C PROV** (Entity / Activity / Agent +
 
 ## 7. Data-model implications
 
-What this proposal asks of the schema (all additive to `docs/primitives.md`):
+What this proposal asks of the schema (all additive to `docs/blueprints/primitives.md`):
 
 1. **Schema-enforce `tool_invocations`.** Promote the free-form JSON on `Checkpoint`
    to a validated shape: `{ tool, version, inputs_hash, outputs_hash, grade,

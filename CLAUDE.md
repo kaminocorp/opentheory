@@ -8,12 +8,20 @@ OpenTheory is a platform for continuous, agent-driven research. A **project** po
 
 The product is currently a *human-operable* research ledger. Agents are explicitly modeled as a future `Actor` type that will use the **same** APIs, permissions, and provenance rules as humans — never a parallel data model. When adding capabilities, make them human-usable through the API first.
 
-`docs/` is the source of truth for intent. Read these before non-trivial domain work:
-- `docs/primitives.md` — the domain model and its invariants (most important).
-- `docs/research-git.md` — the git-for-research ledger semantics (checkpoint = commit, branch, merge, diff, blame, tag).
-- `docs/techstack.md` — stack choices and the rationale/boundaries behind them.
-- `docs/vision.md` — product vision and example research domains.
-- `docs/plans/` — versioned implementation plans. `0.4.0` (validation and branching) is shipped through `0.4.5`; `docs/plans/roadmap-next-steps.md` points at what's next. `docs/changelog.md` is the per-phase ledger of what landed and why.
+`docs/` is the source of truth for intent, split by whether a doc describes **what is** or **what's meant**:
+
+- **`docs/blueprints/`** — the *current* model and architecture. Describes what exists; if it disagrees with the code, the code wins and the blueprint is the bug.
+  - `docs/blueprints/primitives.md` — the domain model and its invariants (most important).
+  - `docs/blueprints/conceptual-model.md` — the mental model on one screen.
+  - `docs/blueprints/techstack.md` — stack choices and the rationale/boundaries behind them.
+  - `docs/blueprints/design-system.md` — the OpenTheory Console design language.
+- **`docs/vision/`** — *target* state and design intent. **Do not read as current build.** Each doc carries a status banner saying what is and isn't shipped.
+  - `docs/vision/research-git.md` — target git-for-research ledger semantics; operations are annotated *(built)* / *(planned)* (commit/branch/log are built; merge, tag, blame, semantic diff are not).
+  - `docs/vision/research-flow.md` — the stage skeleton for the future agent-execution layer; **not** the current build.
+  - `docs/vision/product-vision.md` — product vision and example research domains (the physics/Millennium examples convey ambition, they are not a build target).
+- **`docs/operations/`** — runbooks for deploying and operating the live system.
+- **`docs/plans/`** — versioned implementation plans; `docs/plans/roadmap-next-steps.md` points at what's next. `docs/executing/` is the plan being built now, `docs/completions/` finished ones, `docs/archive/` superseded ones.
+- **`docs/TLDR.md`** — one-page orientation. `docs/changelog.md` — the per-phase ledger of what landed and why (**the fastest way to learn current state**).
 
 ## Architecture
 
@@ -44,7 +52,7 @@ Requests flow `api/routes/` → `services/` → `models/`. Keep route handlers t
 
 ### Domain primitives
 
-The core graph (see `docs/primitives.md` for full relationships):
+The core graph (see `docs/blueprints/primitives.md` for full relationships):
 
 `Project` → has many `Thread`, `Claim`, `Artifact`, `Evidence`, `Checkpoint`, `Branch`, `Validation`, `Contribution`, `FundingAllocation`. `Actor` performs actions (`human` | `agent` | `system`) and authors `Checkpoint`s, makes `Contribution`s, performs `Validation`s, and creates `FundingAllocation`s.
 

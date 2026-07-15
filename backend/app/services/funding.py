@@ -6,7 +6,7 @@ in a single transaction the service owns — it does **not** mint a research che
 research checkpoint DAG stays research-only; funding is deliberately separate from the research
 ledger (funding implies no correctness, authorship, or validation).
 
-Source-aware (Decision #4): ``native`` = Kamino comps budget against the platform's own compute,
+Source-aware (Decision #4): ``native`` = the platform comps budget against its own compute,
 created **only** by an actor holding the ``internal`` role (``403`` otherwise), born ``settled``
 (Decision #5); ``stripe`` = external paid funding, modeled and born ``pending`` (no real
 settlement here). Budget = Σ settled allocations; ``spent`` is 0 until agents meter compute
@@ -93,7 +93,7 @@ async def create_funding(
             detail="Only native funding is available in this release; Stripe lands in 0.7.0",
         )
 
-    # Native funding (Kamino comps budget) is gated to internal actors (Decision #4).
+    # Native funding (the platform comps budget) is gated to internal actors (Decision #4).
     if payload.source == FundingSource.NATIVE and not actor_is_internal(actor):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

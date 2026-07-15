@@ -107,7 +107,7 @@ After sandbox or in parallel if capacity allows:
 | `0.3.x` | Human-operable ledger write path + workspace |
 | `0.4.x` | Validation, branching, enriched read models |
 | `0.6.x`–`0.7.x` | Auth (Supabase JWT), `Account`/`Actor`, funding allocations, live deploy |
-| `0.8.x` | Kamino Console, stewardship, `@username`, invitations, Research crew UI |
+| `0.8.x` | OpenTheory Console, stewardship, `@username`, invitations, Research crew UI |
 | `0.9.x` | Toolbench spine, adapter/registry, five instruments, drive/show UI, security hardening |
 | `0.10.x` | `counterexample.search`, LaTeX companions, KaTeX — flagship claims 1–4 ready |
 | `0.11.x` | Execution sandbox — killable subprocess, wall-clock/memory caps, concurrency limit |

@@ -6,7 +6,7 @@ a research graph compounding from lower-left to upper-right.
 The mark is **drawn natively** (geometry, not a raster trace), so the React
 component, the SVGs here, and the generated favicons all share one source of
 truth: viewBox `170 150 920 920` (a tight, centred crop of the original 1254²
-canvas). Palette is the Kamino tokens, not raw black/white:
+canvas). Palette is the OpenTheory Console tokens, not raw black/white:
 **`#0D0C0B`** (warm obsidian, on light) and **`#ECEAE6`** (off-white, on dark).
 
 ## Where the mark lives

@@ -45,8 +45,9 @@ class Checkpoint(IdMixin, TimestampMixin, Base):
         ForeignKey("branches.id", ondelete="SET NULL"),
         index=True,
     )
-    # Research-flow stage is optional metadata, not platform law (see docs/primitives.md):
-    # a human may record a checkpoint without committing to a research-flow stage.
+    # Research-flow stage is optional metadata, not platform law
+    # (see docs/blueprints/primitives.md): a human may record a checkpoint
+    # without committing to a research-flow stage.
     stage: Mapped[ThreadStage | None] = mapped_column(
         Enum(ThreadStage, name="thread_stage"),
         nullable=True,

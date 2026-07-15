@@ -2,7 +2,9 @@
 
 ## Index
 
-- `0.12.6` — **Post-review pass on the completed thin agent loop (`0.12.0`–`0.12.4`).** No CRITICAL/HIGH; corrects a misleading `agent_pass_max_tokens` "enforced" comment (recorded-only until `0.12.5`) and records the concurrent-first-pass branch race as a known limitation. Docs/comments only — no code, schema, or migration.
+- `0.12.8` — **Open-source readiness: the front door and the docs taxonomy.** Rewrites a `README.md` two release lines stale, adds a root `CONTRIBUTION-GUIDELINES.md`, and splits `docs/` into `blueprints/` (what *is*) vs `vision/` (what's *meant*) vs `operations/`. Docs/comments only.
+- `0.12.7` — **The design language is renamed, and the design system is scoped to this product.** `Kamino Console` → **`OpenTheory Console`** across code and docs; `design-system.md` rewritten as a product-local guideline; two UI strings become `internal` (the role *value* is unchanged). Naming/comments only.
+- `0.12.6` — **Post-review pass on the completed thin agent loop (`0.12.0`–`0.12.4`).** No CRITICAL/HIGH; corrects a misleading `agent_pass_max_tokens` "enforced" comment (recorded-only until `0.12.5`) and records the concurrent-first-pass branch race as a known limitation. Docs/comments only.
 - `0.12.4` — **Thin agent loop — the frontend.** Members commission a pass and watch a live polling **trace**; **Review on its line** routes to the shipped reject/fork/validate paths. Completes `0.12.x`. Frontend-only.
 - `0.12.3` — **Thin agent loop — the API + background execution.** `POST …/agent-runs` → `202` + a pollable `AgentRun` run in a `BackgroundTask`; dark-launch-gated (`404` before auth while off). Backend-only — no schema, no migration.
 - `0.12.2` — **Thin agent loop — the bounded orchestrator.** `run_agent_pass` lands attributed checkpoints on a reused-or-forked **agent branch** through the same `run_instrument` chokepoint, safety-capped and traced; a failed/empty pass mints nothing. Backend-only — no schema, no migration.
@@ -10,7 +12,7 @@
 - `0.12.0` — **Thin agent loop — foundations.** Agent settings, an OpenRouter client, a lazy per-project agent `Actor`, and the mutable `AgentRun` trace table; dark-launch flag off. Migration `0013_agent_runs` (additive).
 - `0.11.8` — **Third post-review hardening on the Execution Sandbox (`0.11.1`–`0.11.7`).** Closes a LOW fd leak on spawn failure; flags two ops gates (Postgres toolbench suite; prod `TOOLBENCH_MEMORY_LIMIT_MB=256`). Backend-only — no schema, no migration.
 - `0.11.7` — **Post-review hardening on the Execution Sandbox (`0.11.1`–`0.11.6`).** Four fixes: a broken DB-gate test (`actor_type`→`type`), unified sync/async dispatch, an `RLIMIT_AS`→`ToolbenchMemoryExceeded` mapping, and a concurrent result-queue drain. Backend + tests — no schema, no migration.
-- `0.11.6` — **Toolbench execution errors in Kamino copy.** Maps resource-limit `422` and busy `503` instrument failures to stable user-facing strings in `runInstrument`; closes the `0.11.x` Execution Sandbox line. Frontend-only — no schema, no migration.
+- `0.11.6` — **Toolbench execution errors in console copy.** Maps resource-limit `422` and busy `503` instrument failures to stable user-facing strings in `runInstrument`; closes the `0.11.x` Execution Sandbox line. Frontend-only — no schema, no migration.
 - `0.11.5` — **`resource_used` on the blame tuple.** Successful runs record `wall_ms`, `sandbox` mode, and optional `memory_limit_mb` on `ToolInvocation`; structured INFO/WARNING logs for operators. Additive JSON only — no migration.
 - `0.11.4` — **Execution sandbox safety + flagship regression tests.** Timeout mint-nothing, expensive SymPy adversarial cases, parametrized flagship walkthrough, concurrency `503` semantics — `test_execution_safety.py`. Tests-only — no production code change.
 - `0.11.3` — **Wire the execution sandbox chokepoint.** All instrument runs go through `acquire_run_slot` + bounded sync/async executors; timeout/OOM → `422`, busy → `503`. Backend-only — no migration.
@@ -48,11 +50,11 @@
 - `0.7.0` — **`Account` owns `Actor`**: a new auth-principal `Account` takes over `external_id`, `roles`, and funding attribution; `Actor` keeps research provenance and the `ActingActor` contract. Migration `0006_accounts` (destructive).
 - `0.6.10` — Post-review polish on `0.6.9`: clears the plaintext password from component state on success/sign-out, guards the submit against double-fire, and announces sign-in errors to assistive tech. No backend, schema, or migration.
 - `0.6.9` — **Email + password sign-in**, now the primary method, authenticating in-band against Supabase `auth.users` (magic-link + Google retained). Frontend-only — the backend verifies the session JWT regardless of method. No backend, schema, or migration.
-- `0.6.8` — Post-review hardening on the `0.6.x` auth/funding + Kamino slice: closes a recurring `cn`/`tailwind-merge` footgun, the conftest prod-wipe guard's host hole, and three untested security controls. No features, schema, or migration.
-- `0.6.7` — Post-review hardening on the `0.6.4` Kamino Console: an accessibility/robustness punch-list (inert command-rail zones, `aria-pressed` cues, accessible field names, an `Action` `size` prop, a `--state-fail` retune). Presentation-only, no migration.
-- `0.6.6` — Post-review hardening on the `0.6.4` Kamino primitive library: fixes an `Action` token-layering bug (CSS source order decided disabled/pending styling) by splitting each variant into shape/skin. No schema or migration.
+- `0.6.8` — Post-review hardening on the `0.6.x` auth/funding + console slice: closes a recurring `cn`/`tailwind-merge` footgun, the conftest prod-wipe guard's host hole, and three untested security controls. No features, schema, or migration.
+- `0.6.7` — Post-review hardening on the `0.6.4` OpenTheory Console: an accessibility/robustness punch-list (inert command-rail zones, `aria-pressed` cues, accessible field names, an `Action` `size` prop, a `--state-fail` retune). Presentation-only, no migration.
+- `0.6.6` — Post-review hardening on the `0.6.4` OpenTheory Console primitive library: fixes an `Action` token-layering bug (CSS source order decided disabled/pending styling) by splitting each variant into shape/skin. No schema or migration.
 - `0.6.5` — Post-review hardening on `4ca8be0`: adds the missing DB-free auth-gate regression (`POST /projects` unauthenticated → `401`), an `aria-live` console announcement, and a stale-comment fix. No features, schema, or migration.
-- `0.6.4` — Frontend redesign to the **Kamino Console** design language: a warm-obsidian command bridge (recessed bays, hairlines, IBM Plex Mono/Sans, a single crimson signal). Presentation-only, shipped as phases D1–D6; no migration.
+- `0.6.4` — Frontend redesign to the **OpenTheory Console** design language: a warm-obsidian command bridge (recessed bays, hairlines, IBM Plex Mono/Sans, a single crimson signal). Presentation-only, shipped as phases D1–D6; no migration.
 - `0.6.3` — Project creation from the browser: a write-gated "New project" form, and `POST /projects` now requires a verified actor. No schema, no migration.
 - `0.6.2` — Second pre-prod hardening on `0.6.0`/`0.6.1`: rejects `source=stripe` funding (native-only until `0.7.0`), stops a stale `X-Dev-Actor-Id` leaking in production, and first runs the DB-test gate on real Postgres. No features, schema, or migration.
 - `0.6.1` — Pre-prod hardening on `0.6.0`: closes an unauthenticated PII leak (`GET /actors`) and an open redirect in `/auth/callback`, and hardens the test harness against wiping production. No features, schema, or migration.
@@ -71,6 +73,156 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.12.8
+
+**Open-source readiness — the front door, the contributor contract, and the docs taxonomy.** The
+sibling of `0.12.7` in the same open-sourcing push (and its predecessor in practice: the
+`docs/blueprints/design-system.md` path `0.12.7` rewrites is the one this release created). Three
+things an outside reader hits first were wrong, missing, or unsorted: the README described a
+platform two release lines behind the code, there was no contributor guide, and `docs/` mixed
+*descriptions of what exists* with *statements of intent* in one flat folder. **Docs and comments
+only — a single comment rewrap is the sole code edit; no behaviour, schema, or migration.**
+
+- **`README.md` — rewritten; it was undersell, not just staleness.** It advertised **`0.8.10`** and
+  framed agents as "a *future* `Actor` type", so the toolbench (`0.9.x`–`0.10.x`), the execution
+  sandbox (`0.11.x`), and the thin agent loop (`0.12.x`) were invisible to a first-time reader —
+  the most compelling work in the repo, hidden. Now leads with the **honesty model** (the
+  `result`/`refuted`/`undecided` contract, `undecided` never a pass, a failed run minting nothing),
+  which is the genuinely distinctive stance and appeared nowhere before. Promotes the existing
+  `docs/images/x-launch-ledger.png` launch graphic (in-repo since `93855c3`) to a hero image —
+  captioned **illustrative**, because it is a mockup, not a screenshot of the running app — a real
+  `expr.compare` request/response, and the `instruments` + `agent-runs` API groups. Long reference
+  tables moved into `<details>`. Git-shape table is now annotated per operation
+  (commit/branch/log **built**; blame **recorded** but the semantic op planned; merge/diff/tag
+  **planned**), matching `docs/vision/research-git.md` rather than implying more than exists.
+- **Honest caveats, stated rather than smoothed over.** The README now says outright that the agent
+  loop **ships dark** (`AGENT_LOOP_ENABLED=false` ⇒ agent routes `404`), that **token budgets bound
+  nothing** until `0.12.5`, that funding is *recorded, not settled*, and that reputation, the
+  `merge`/`blame`/`tag` ops, and artifact object-storage are documented but unbuilt. A README that
+  oversells is the same defect class as an instrument rendering `undecided` as a pass.
+- **`CONTRIBUTION-GUIDELINES.md` — new (root).** Six prime directives drawn from the actual
+  invariants (chokepoint-only checkpoint writes; ORM-enforced append-only; backend as source of
+  truth; funder/contributor/validator never conflated; humans and agents on one API; honesty over
+  confidence), then a concrete do's/don'ts table. Weighted toward the rules that fail **quietly**:
+  a model missing from `models/__init__.py`'s `__all__` is *silently absent* from autogenerated
+  migrations; a `commit` inside a helper writer breaks the chokepoint's single-transaction
+  guarantee; and `pytest` is green-but-hollow without `TEST_DATABASE_URL` (199 passed / **117
+  skipped**). Carries two warnings the code learned the hard way: the suite **resets the `public`
+  schema** (throwaway DBs only — `conftest`'s localhost guard covers a stray `DATABASE_URL`, never
+  an explicit `TEST_DATABASE_URL`), and SymPy's `parse_expr` compiles to `eval` where a namespace
+  allow-list does **not** sandbox it (the confirmed RCE closed in `8de2a29` — go through
+  `_sympy_support.parse`, never `parse_expr`).
+- **`docs/` split by what a doc *claims*.** The docs already classified themselves in their status
+  banners — `research-flow.md` says *"design intent … not the current build"*, `research-git.md`
+  says *"target semantics"* — so the taxonomy formalises a distinction the authors were already
+  making informally, rather than imposing a new one:
+
+  | Move | |
+  |---|---|
+  | `docs/primitives.md` | → `docs/blueprints/primitives.md` |
+  | `docs/techstack.md` | → `docs/blueprints/techstack.md` |
+  | `docs/blueprints/design_blueprint.md` | → `docs/blueprints/design-system.md` (rewritten by `0.12.7`) |
+  | `docs/vision.md` | → `docs/vision/product-vision.md` (a folder and file can't share a name) |
+  | `docs/research-git.md` | → `docs/vision/research-git.md` |
+  | `docs/research-flow.md` | → `docs/vision/research-flow.md` |
+  | `docs/deploy.md` | → `docs/operations/deploy.md` |
+
+  The load-bearing rule, now stated in `CLAUDE.md`, the README, and the contributor guide: **if a
+  blueprint disagrees with the code, the code wins and the blueprint is the bug** — `vision/` carries
+  no such obligation, which is precisely why the two can't share a folder. All moves via `git mv`
+  (history preserved).
+- **17 files of path rewrites; frozen history left alone (Decision).** README, `CLAUDE.md`,
+  `CONTRIBUTION-GUIDELINES.md`, `docs/TLDR.md`, `blueprints/conceptual-model.md`,
+  `plans/agent-research-tools.md`, `executing/thin-agent-loop-0.12.md`, backend docstrings
+  (`models/checkpoint.py`, `models/append_only.py`, `core/config.py`, `api/routes/agent_runs.py`),
+  migration `0002`'s comment, `fly.toml`, `globals.css`, `console/index.ts`, and the `get_started`
+  command. **`changelog.md`, `docs/archive/`, and `docs/completions/` were deliberately not
+  rewritten** — they record what was true when written, and this project's own rule is that
+  corrections are new records, never edits to old ones. Their links to pre-move paths are stale *by
+  design*. Note most prose citations are bare filenames (`` `primitives.md` ``) and stayed valid —
+  only *paths* moved.
+- **`CLAUDE.md` — the docs section restructured** around the taxonomy, with each `vision/` doc's
+  shipped-vs-target status inline (including that the product-vision physics/Millennium examples
+  "convey ambition, they are not a build target").
+- **The one code edit.** `models/checkpoint.py:48` — the longer path (`docs/primitives.md` →
+  `docs/blueprints/primitives.md`) pushed a comment to 101 chars and tripped `ruff` `E501`
+  (line-length 100). Rewrapped across three lines; comment text otherwise unchanged.
+
+```bash
+cd backend && uv run ruff check .                     # all checks passed (after the E501 rewrap)
+cd backend && uv run pytest -q                         # 199 passed, 117 skipped (unchanged baseline)
+cd frontend && npm run typecheck && npm run lint       # all clean
+# link audit: 68 docs-path references resolve · 0 broken outside frozen history
+```
+
+**Found here, deliberately not fixed here** (each needs its own decision, and none is caused by this
+release):
+
+- **`docs/operations/deploy.md` is wrong about security.** It still warns *"⚠️ No authentication
+  yet … anyone with the URL can read and write to the database"* and documents `X-Dev-Actor-Id` — a
+  subsystem **deleted in `0.7.2`**, describing a posture that stopped being true at `0.6.0`. It is
+  the runbook for the live deploy. **The most urgent doc bug in the repo.**
+- **Production code cites two docs that no longer exist.** `models/enums.py`, seven toolbench test
+  files, and migration `0012` point at `docs/executing/toolbench-provenance-and-first-instruments.md`;
+  migrations `0007`–`0010` point at `docs/executing/project-stewardship-and-collaboration.md`. Both
+  were archived by an earlier docs cleanup and are now absent from the working tree (still in git
+  history). Dangling since before this release; the fix is a choice — restore to `archive/`, or
+  repoint the citations.
+- **`CLAUDE.md` is still stale on substance** — paths and taxonomy are fixed, but it opens with
+  agents as "a *future* `Actor` type" and describes `0.4.0` as the current line: the same `0.12.x`
+  staleness this release fixed in the README.
+- **One broken link inside frozen history** — `docs/completions/thin-agent-loop-0.12-implementation-plan.md`
+  → `./thin-agent-loop-0.12.md` (the proposal lives in `docs/executing/`). Pre-existing; left per the
+  frozen-history decision above.
+
+---
+
+## 0.12.7
+
+**The design language is renamed, and the design system is scoped to this product.** Preparation for
+the repository being read by outside contributors. The design language was named for the parent
+company rather than the product, and the blueprint behind it was written to travel across a family
+of products rather than to describe this one. Both are now product-local, so a contributor can read
+either without outside context. **Naming, comments, and one document rewrite — no behaviour, schema,
+or migration.** The `internal` role *value* is untouched everywhere; only the prose *around* it
+changed.
+
+- **`docs/blueprints/design-system.md` — rewritten as "OpenTheory Console — Design System."** The
+  former blueprint was written as a *portable contract*: a design language intended to be dropped
+  into any repo and re-skinned, with OpenTheory as one consumer among several. In this repo that
+  scope was wrong — a contributor reading it learned rules for products that aren't here, and had to
+  guess which parts applied. It is now a guideline about **this** console: same rules, same tokens,
+  same §-numbering (so `globals.css`'s `§2, §9` references still resolve), minus everything that was
+  not about OpenTheory. Net **9% shorter** (4561 → 4135 words), including one component section
+  **dropped outright** — it specified an instrument OpenTheory has never had. The mark section now
+  describes the **real** `0.8.0` mark (four shapes stepping up a diagonal) rather than a placeholder
+  it never used.
+- **`Kamino Console` → `OpenTheory Console`** — `globals.css`, `tailwind.config.ts`, the `console/`
+  primitive library, `registration.tsx`, `app-shell.tsx`, the styleguide, `brand/README.md`,
+  `README.md`, `CONTRIBUTION-GUIDELINES.md`, and every historical changelog/plan reference. "Kamino
+  tone/copy" reads "console tone/copy"; `instrument-run-errors.ts` is "User-facing copy".
+- **The two user-visible strings become `internal`** (Decision: name the surface after the *value* the
+  data model already uses, so UI and schema share one vocabulary). `funding-panel.tsx` labels
+  `native` → **`internal`**; `auth-menu.tsx` reads **"Internal · can fund"** with a matching
+  `aria-label`. `FundingSource` itself is unchanged.
+- **Backend comments drop the `(Kamino)` gloss.** `roles.py`, `deps.py`, `config.py`, `enums.py`,
+  `funding.py`, `services/funding.py`, and `0004_actor_roles.py` described "the `internal` (Kamino)
+  role" and "Kamino comps the budget"; they now read "the `internal` role" and "**the platform** comps
+  the budget" — which is what the code actually enforces (`account_is_internal`), and is legible to a
+  reader with no context. Fixtures follow: `conftest` seeds `display_name="Internal"`, `test_auth`
+  uses `insider@example.com`, `.env.example` suggests `you@example.com`.
+- **Deliberately kept:** the `kaminocorp/opentheory` clone URL, the security-advisory link, and the
+  `Kamino Corp and the OpenTheory Contributors` citation. OpenTheory *is* a Kamino project — the
+  affiliation is accurate and stays; only the *design language* and its blueprint were over-scoped.
+
+```bash
+cd backend && uv run ruff check .                    # all checks passed
+cd backend && uv run pytest -q                        # 199 passed, 117 skipped (unchanged baseline)
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
+```
 
 ---
 
@@ -114,7 +266,7 @@ cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
 **Thin agent loop — the frontend (trigger · trace · review).** Phase 6 of
 `docs/executing/thin-agent-loop-0.12-implementation-plan.md`, and the **last** phase of the `0.12.x`
 line (the `0.12.5` project-budget metering is an independent stretch, deferred). The service +
-API from `0.12.0`–`0.12.3` become drivable from the workspace, in Kamino tone. Frontend-only — **no
+API from `0.12.0`–`0.12.3` become drivable from the workspace, in console tone. Frontend-only — **no
 backend, schema, or migration**.
 
 - **Types + client** — `types/agent-run.ts` (mirroring `AgentRunSummary` / `AgentRunRead` and the
@@ -367,7 +519,7 @@ classification nits. Backend + tests only — **no schema, no migration** (`Tool
   OOM `SIGKILL`s it and is classified from the exit code). That in-child case was tagged
   `worker_error` → the generic *"failed to run"* `422` + generic UI copy. The worker now tags it
   `memory`; `envelope_to_result` maps `memory` → `ToolbenchMemoryExceeded` → the resource-limit
-  `422` + *"narrow the search space"* Kamino copy, matching the external-kill path.
+  `422` + *"narrow the search space"* console copy, matching the external-kill path.
 
 ### Concurrent result drain — a latent deadlock closed (`LOW`→`MEDIUM` latent)
 
@@ -403,7 +555,7 @@ TEST_DATABASE_URL='postgresql+asyncpg://…' uv run pytest tests/toolbench/ -q
 
 ## 0.11.6
 
-**Toolbench execution errors in Kamino copy — closes the `0.11.x` Execution Sandbox line.** Phase 6
+**Toolbench execution errors in console copy — closes the `0.11.x` Execution Sandbox line.** Phase 6
 maps sandbox failures to legible workspace strings without changing success/result cards.
 Frontend-only — **no schema, no migration**.
 
@@ -1259,7 +1411,7 @@ no parallel model.
 
 ### Frontend
 
-- **First modal primitive** (`components/console/modal.tsx`) — there was no dialog in the Kamino
+- **First modal primitive** (`components/console/modal.tsx`) — there was no dialog in the console
   library (D1 shipped only bays/fields). A portalled `--panel` surface that *lifts off* behind a
   scrim, with `role="dialog"` + `aria-modal` + `aria-labelledby`, Escape / scrim-click to close,
   focus moved in on open and restored to the trigger on close, and body-scroll lock.
@@ -1306,7 +1458,7 @@ section shows all-unassigned and an empty dropdown until the backend is up.)
 
 ## 0.8.9
 
-**Calmer background field.** The Kamino "measured field" (`globals.css` §2.1) — the
+**Calmer background field.** The console "measured field" (`globals.css` §2.1) — the
 crosshair + major/minor grid baked into the body background — read a touch too loud,
 competing with content rather than sitting under it. Halved the alpha of all three
 field layers (≈50% translucency): crosshairs `0.14 → 0.07`, major grid `0.06 → 0.03`,
@@ -1959,7 +2111,7 @@ upper-right: a research graph compounding. Rather than ship the raster, the geom
 off the source PNGs** (connected-component analysis → exact centres/sizes on the original 1254²
 canvas) and **redrawn natively** as four SVG primitives on a tight, centred crop (viewBox
 `170 150 920 920`). That one geometry is the single source of truth for every output below, so the
-favicon, the in-app logo, and the rasters cannot drift. Colour is the Kamino tokens, **not** raw
+favicon, the in-app logo, and the rasters cannot drift. Colour is the OpenTheory Console tokens, **not** raw
 black/white: `#0D0C0B` (warm obsidian, on light) and `#ECEAE6` (off-white, on dark) — honouring the
 "never `#000`" palette rule.
 
@@ -2410,7 +2562,7 @@ no password and keeps using magic-link until an admin sets one.
 
 A post-review hardening pass in the lineage of `0.6.5`/`0.6.6`/`0.6.7`, scoped to the whole
 `a70fd8f..HEAD` body (the `0.6.0` auth+funding slice, the `0.6.3` browser project-creation +
-auth gate, and the `0.6.4` Kamino redesign). The security- and money-critical backend was read
+auth gate, and the `0.6.4` console redesign). The security- and money-critical backend was read
 directly and the frontend covered by parallel reviewers; every verification claim was re-run, not
 trusted. The core held: HS256 is algorithm-pinned with `exp`/`sub` required and audience checked;
 both `GET` and `POST /actors` are gated in production; funding is native-only + internal-gated with
@@ -2492,7 +2644,7 @@ audits don't reach — fixed here. No features, schema, or migration; backend be
 ### Still gating the production push (unchanged from `0.6.3`–`0.6.7`)
 
 - **Redeploy both tiers** — Fly (the `POST /projects` auth gate ships in the backend) **and** Vercel
-  (the Kamino UI; `NEXT_PUBLIC_*` is baked at build).
+  (the console UI; `NEXT_PUBLIC_*` is baked at build).
 - **Confirm Fly secrets** — `SUPABASE_JWT_SECRET` set, `AUTH_DEV_HEADER_ENABLED` unset/false,
   `INTERNAL_ACTOR_EMAILS` populated before internal users first sign in.
 - **Live visual pass** — desaturate the deployed preview (grayscale test) and toggle reduced-motion.
@@ -2501,7 +2653,7 @@ audits don't reach — fixed here. No features, schema, or migration; backend be
 
 ## 0.6.7
 
-A post-review hardening pass on the `0.6.4` Kamino Console, in the lineage of `0.6.5`/`0.6.6`. An independent re-audit of the entire `adba55a..HEAD` frontend conversion — the **presentation-only / data-flow byte-for-byte** claim diffed component-by-component against the pre-redesign baseline, the **Decision-4** opacity-channel contract re-verified in the *emitted* production CSS (not just a green build), the console primitive library re-checked for the `cn`-no-`tailwind-merge` conflicting-class bug class that `0.6.6` fixed, and the three release gates (honesty/grayscale, signal-seldom, motion/reduced-motion) walked on the real markup — found the slice **sound**: zero data-flow change (every query key, mutation, invalidation, route, and write-gate preserved; `use-identity.ts` and `providers/` literally untouched), the opacity contract holding, the `Action` shape/skin fix correct and not recurring in any other primitive, and signal-seldom + reduced-motion + focus-ring + aria-live all holding. It surfaced a small accessibility/robustness punch-list — all in **bespoke markup** that the "by construction" audits structurally don't reach — fixed here. **No** new features, schema, or migration; backend untouched.
+A post-review hardening pass on the `0.6.4` OpenTheory Console, in the lineage of `0.6.5`/`0.6.6`. An independent re-audit of the entire `adba55a..HEAD` frontend conversion — the **presentation-only / data-flow byte-for-byte** claim diffed component-by-component against the pre-redesign baseline, the **Decision-4** opacity-channel contract re-verified in the *emitted* production CSS (not just a green build), the console primitive library re-checked for the `cn`-no-`tailwind-merge` conflicting-class bug class that `0.6.6` fixed, and the three release gates (honesty/grayscale, signal-seldom, motion/reduced-motion) walked on the real markup — found the slice **sound**: zero data-flow change (every query key, mutation, invalidation, route, and write-gate preserved; `use-identity.ts` and `providers/` literally untouched), the opacity contract holding, the `Action` shape/skin fix correct and not recurring in any other primitive, and signal-seldom + reduced-motion + focus-ring + aria-live all holding. It surfaced a small accessibility/robustness punch-list — all in **bespoke markup** that the "by construction" audits structurally don't reach — fixed here. **No** new features, schema, or migration; backend untouched.
 
 ### Accessibility
 
@@ -2531,7 +2683,7 @@ A post-review hardening pass on the `0.6.4` Kamino Console, in the lineage of `0
 
 ### Still gating the production push (unchanged from `0.6.3` / `0.6.4` / `0.6.5` / `0.6.6`)
 
-- **Redeploy both tiers** — Fly (the `0.6.3` `POST /projects` auth gate) **and** Vercel (the Kamino UI; `NEXT_PUBLIC_*` is baked at build).
+- **Redeploy both tiers** — Fly (the `0.6.3` `POST /projects` auth gate) **and** Vercel (the console UI; `NEXT_PUBLIC_*` is baked at build).
 - **Confirm Fly secrets** — `SUPABASE_JWT_SECRET` set and `AUTH_DEV_HEADER_ENABLED` unset/false.
 - **Live visual pass** — desaturate the deployed preview (grayscale test) and toggle reduced-motion.
 
@@ -2539,7 +2691,7 @@ A post-review hardening pass on the `0.6.4` Kamino Console, in the lineage of `0
 
 ## 0.6.6
 
-A post-review hardening pass on the `0.6.4` Kamino Console **primitive library** (the `console/` component layer added in `4ca8be0`). An independent re-read of the full `adba55a..HEAD` push — the `0.6.3` `POST /projects` auth gate read directly, the ~3,500-line reskin diffed file-by-file against the deployed baseline to confirm the **presentation-only** claim, the channel/opacity token contract checked in the emitted CSS — found the slice sound: zero data-flow changes to any query, mutation, write-gate, or branch-line filter; the auth gate correctly placed in the dependency layer; no legacy tokens or dangling imports. It surfaced one real correctness bug in a shared primitive and one accessibility gap, both fixed here. No new features, no schema change, no migration; backend untouched.
+A post-review hardening pass on the `0.6.4` OpenTheory Console **primitive library** (the `console/` component layer added in `4ca8be0`). An independent re-read of the full `adba55a..HEAD` push — the `0.6.3` `POST /projects` auth gate read directly, the ~3,500-line reskin diffed file-by-file against the deployed baseline to confirm the **presentation-only** claim, the channel/opacity token contract checked in the emitted CSS — found the slice sound: zero data-flow changes to any query, mutation, write-gate, or branch-line filter; the auth gate correctly placed in the dependency layer; no legacy tokens or dangling imports. It surfaced one real correctness bug in a shared primitive and one accessibility gap, both fixed here. No new features, no schema change, no migration; backend untouched.
 
 ### Correctness — the inert button state was decided by CSS source order
 
@@ -2563,7 +2715,7 @@ A post-review hardening pass on the `0.6.4` Kamino Console **primitive library**
 
 ### Still gating the production push (unchanged from `0.6.3` / `0.6.4` / `0.6.5`)
 
-- **Redeploy both tiers** — Fly (the `POST /projects` auth gate) **and** Vercel (the Kamino UI; `NEXT_PUBLIC_*` is baked at build).
+- **Redeploy both tiers** — Fly (the `POST /projects` auth gate) **and** Vercel (the console UI; `NEXT_PUBLIC_*` is baked at build).
 - **Confirm Fly secrets** — `SUPABASE_JWT_SECRET` set and `AUTH_DEV_HEADER_ENABLED` unset/false.
 - **Live visual pass** — desaturate the deployed preview (grayscale test) and toggle reduced-motion.
 
@@ -2571,11 +2723,11 @@ A post-review hardening pass on the `0.6.4` Kamino Console **primitive library**
 
 ## 0.6.5
 
-A post-review hardening pass on commit `4ca8be0` — the single commit that bundled two changelog releases: `0.6.3` (browser project-creation + the `ActingActor` gate on `POST /projects`) **and** the entire `0.6.4` Kamino Console redesign (D1–D6). A full read-through of that 56-file diff (the channel-pattern token wiring, every re-skinned surface, the auth gate, and the test bootstrap) found the slice sound — all builds green, the presentation-only claim holding everywhere except the legitimately-documented create-project feature, and the auth gate correctly placed in the route layer — and surfaced three small items, all fixed here. No new features, no schema change, no migration.
+A post-review hardening pass on commit `4ca8be0` — the single commit that bundled two changelog releases: `0.6.3` (browser project-creation + the `ActingActor` gate on `POST /projects`) **and** the entire `0.6.4` OpenTheory Console redesign (D1–D6). A full read-through of that 56-file diff (the channel-pattern token wiring, every re-skinned surface, the auth gate, and the test bootstrap) found the slice sound — all builds green, the presentation-only claim holding everywhere except the legitimately-documented create-project feature, and the auth gate correctly placed in the route layer — and surfaced three small items, all fixed here. No new features, no schema change, no migration.
 
 ### Commit-history note (the bundling)
 
-- **`4ca8be0`'s message describes only `0.6.3`**, but its contents also include all of `0.6.4` (50+ frontend files: `globals.css`, `tailwind.config.ts`, the `console/` primitive library, every workspace-panel re-skin). The two releases are documented separately in this changelog (above), so nothing is *undocumented* — but a reader of `git log` alone would not see the redesign. The message was **not** amended because `4ca8be0` is already published on `origin/main`, and rewriting shared history is more harmful than the mislabel. **This entry is the cross-reference: the Kamino redesign lives in `4ca8be0`, not in a commit of its own.**
+- **`4ca8be0`'s message describes only `0.6.3`**, but its contents also include all of `0.6.4` (50+ frontend files: `globals.css`, `tailwind.config.ts`, the `console/` primitive library, every workspace-panel re-skin). The two releases are documented separately in this changelog (above), so nothing is *undocumented* — but a reader of `git log` alone would not see the redesign. The message was **not** amended because `4ca8be0` is already published on `origin/main`, and rewriting shared history is more harmful than the mislabel. **This entry is the cross-reference: the console redesign lives in `4ca8be0`, not in a commit of its own.**
 
 ### Tests — a direct guard for the `0.6.3` auth gate
 
@@ -2597,7 +2749,7 @@ A post-review hardening pass on commit `4ca8be0` — the single commit that bund
 
 ### Still gating the production push (unchanged from `0.6.3`/`0.6.4`)
 
-- **Redeploy both tiers** — Fly (activates the `POST /projects` gate, the security half of `0.6.3`) **and** Vercel (the Kamino UI; `NEXT_PUBLIC_*` is baked at build). This is *not* a Vercel-only push, because the auth gate ships in the backend.
+- **Redeploy both tiers** — Fly (activates the `POST /projects` gate, the security half of `0.6.3`) **and** Vercel (the console UI; `NEXT_PUBLIC_*` is baked at build). This is *not* a Vercel-only push, because the auth gate ships in the backend.
 - **Confirm Fly secrets** — `SUPABASE_JWT_SECRET` set and `AUTH_DEV_HEADER_ENABLED` unset/false; project creation now hard-depends on a verified actor.
 - **Live visual pass** — desaturate the deployed preview (grayscale test) and toggle reduced-motion; built to pass, confirmed on the artifact.
 
@@ -2605,7 +2757,7 @@ A post-review hardening pass on commit `4ca8be0` — the single commit that bund
 
 ## 0.6.4
 
-The first **non-functional** release: the entire frontend is converted from the old light "marble" posture into the **Kamino Console** design language (`docs/design_blueprint.md`) — a warm-obsidian command bridge of recessed instrument **bays**, registration-bracket precision, IBM Plex Mono readouts over Plex Sans prose, the "square is built / round is alive" shape grammar, hairlines instead of boxes, lit by structure rather than glow, and themed by a single seldom-used crimson `--signal`. This is **presentation-only**: every TanStack Query call, mutation, route, write-gate (`useActingIdentity`), and read schema is unchanged — the diff is tokens, fonts, structure, and the visual grammar of every component. The acceptance bar is the blueprint's §0 **grayscale test** — desaturated, the UI must still read as a measured instrument console, because identity lives in *form* (substrate, proportion, shape, line, type), not colour. Shipped as six deployable phases (`D1`–`D6`); full per-phase detail in `docs/completions/frontend-kamino-console-D1…D6-*.md`, plan in `docs/executing/frontend-kamino-console-redesign.md`. No new runtime dependency, no schema, no migration.
+The first **non-functional** release: the entire frontend is converted from the old light "marble" posture into the **OpenTheory Console** design language (`docs/blueprints/design-system.md`) — a warm-obsidian command bridge of recessed instrument **bays**, registration-bracket precision, IBM Plex Mono readouts over Plex Sans prose, the "square is built / round is alive" shape grammar, hairlines instead of boxes, lit by structure rather than glow, and themed by a single seldom-used crimson `--signal`. This is **presentation-only**: every TanStack Query call, mutation, route, write-gate (`useActingIdentity`), and read schema is unchanged — the diff is tokens, fonts, structure, and the visual grammar of every component. The acceptance bar is the blueprint's §0 **grayscale test** — desaturated, the UI must still read as a measured instrument console, because identity lives in *form* (substrate, proportion, shape, line, type), not colour. Shipped as six deployable phases (`D1`–`D6`); full per-phase detail in `docs/completions/frontend-console-D1…D6-*.md`, plan in `docs/executing/frontend-console-redesign.md`. No new runtime dependency, no schema, no migration.
 
 ### Substrate + primitive library (D1)
 
@@ -2633,7 +2785,7 @@ The first **non-functional** release: the entire frontend is converted from the 
 ### Still gating the production push
 
 - **Vercel redeploy only.** The change is entirely frontend; `NEXT_PUBLIC_*` is baked at build, so the live preview updates on a frontend redeploy. **No backend/Fly redeploy, no `alembic` step, no schema/migration.**
-- **Interim brand mark.** `BrandMark` draws an original thin-line glyph (in the §7 drawing language) standing in for the real Kamino emblem — a one-file drop-in swap once the asset exists.
+- **Interim brand mark.** `BrandMark` draws an original thin-line glyph (in the §7 drawing language) standing in for the real OpenTheory mark — a one-file drop-in swap once the asset exists.
 - **A live visual desaturation + reduced-motion pass** against the deployed preview is the remaining acceptance confirmation (built to pass; no code blocks it).
 
 ---
@@ -2747,7 +2899,7 @@ Authentication and funding — real verified identity, then the funding write pa
 
 ### Verified identity (`0.6.1`)
 
-- **`actors.roles`** (migration `0004_actor_roles`) — an `ARRAY(String)` queryable-authorization column (server default `'{}'`); an `internal` (Kamino) role gates native funding. A mutable identity attribute, **not** append-only guarded.
+- **`actors.roles`** (migration `0004_actor_roles`) — an `ARRAY(String)` queryable-authorization column (server default `'{}'`); an `internal` role gates native funding. A mutable identity attribute, **not** append-only guarded.
 - **`app/core/auth.py`** — a swappable verification adapter: verifies a Supabase HS256 JWT (signature/audience/expiry) and returns `(subject, email, display_name)`. Swapping IdP changes only this file + config.
 - **`app/api/deps.py`** — `get_acting_actor` now resolves a verified bearer token to one `Actor` by `external_id == sub`, **JIT-provisioning** on first login (idempotent on the unique `external_id`); falls back to the `X-Dev-Actor-Id` path only behind `auth_dev_header_enabled` (local/test). **The `ActingActor` contract and every service are unchanged.** Adds `require_internal`.
 - `GET /me` (resolved actor + roles); `POST /actors` retired to `404` in production (kept behind the dev flag). New config: `supabase_jwt_secret`, `supabase_jwt_audience`, `auth_dev_header_enabled`, `internal_actor_emails`. Adds `pyjwt`.
@@ -2809,7 +2961,7 @@ Through `0.4.7` the apps built clean but had never been deployed — there was z
 ### Documentation
 
 - `docs/deploy.md` — full runbook (backend → frontend → CORS) with the production connection-string shapes and troubleshooting (IPv6 migration fallback, CORS, prepared-statement errors).
-- `docs/design_blueprint.md` and `docs/executing/0.6.0-auth-and-funding.md` also landed in this window — a Kamino console design system, and the `0.6.0` auth + funding implementation plan. These are forward-looking planning/design references, **not** part of this deployment release.
+- `docs/blueprints/design-system.md` and `docs/executing/0.6.0-auth-and-funding.md` also landed in this window — the console design system, and the `0.6.0` auth + funding implementation plan. These are forward-looking planning/design references, **not** part of this deployment release.
 
 ### Still Gating A Production Push (unchanged)
 

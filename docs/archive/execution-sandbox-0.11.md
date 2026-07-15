@@ -339,7 +339,7 @@ TEST_DATABASE_URL='…' uv run pytest tests/toolbench/test_instruments_write_pat
 
 1. **`toolbench-panel.tsx`** (or API client error mapper in `lib/api.ts`):
    - Map `422` bodies containing `"resource limits"` / `"timed out"` to a stable user-facing string
-     (Kamino tone): *"This run exceeded the server time or memory limit — narrow the search space or
+     (console tone): *"This run exceeded the server time or memory limit — narrow the search space or
      simplify the expression."*
    - Map `503` busy: *"The server is running other instrument jobs — try again in a moment."*
    - Do not change success/result cards.

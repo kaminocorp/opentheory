@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     # When True, the X-Dev-Actor-Id header path stays active (local + tests). In production
     # this is False and only a verified bearer token is accepted (api/deps.py).
     auth_dev_header_enabled: bool = False
-    # Emails granted the `internal` (Kamino) role on JIT provisioning — gates native funding
+    # Emails granted the `internal` role on JIT provisioning — gates native funding
     # (Decision #4). Comma-split like backend_cors_origins; compared case-insensitively.
     internal_actor_emails: Annotated[list[str], NoDecode] = []
 
@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     # Wall-clock cap for instrument runs (sync subprocess and async retrieval).
     toolbench_wall_timeout_s: float = 30.0
     # Child-process memory ceiling via RLIMIT_AS (Linux prod). 0 = disabled — default locally
-    # because RLIMIT_AS is unreliable on macOS dev; set 256 on Fly (see docs/deploy.md).
+    # because RLIMIT_AS is unreliable on macOS dev; set 256 on Fly (see docs/operations/deploy.md).
     toolbench_memory_limit_mb: int = 0
     # Max concurrent instrument runs per API process; excess waiters get 503 after acquire timeout.
     toolbench_max_concurrent_runs: int = 2

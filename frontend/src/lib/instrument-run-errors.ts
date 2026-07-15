@@ -1,4 +1,4 @@
-/** Kamino-facing copy for toolbench execution sandbox failures (0.11.6). */
+/** User-facing copy for toolbench execution sandbox failures (0.11.6). */
 
 export const INSTRUMENT_RESOURCE_LIMIT_MESSAGE =
   "This run exceeded the server time or memory limit — narrow the search space or simplify the expression.";

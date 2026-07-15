@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /* ============================================================================
-   Kamino Console — design tokens (docs/design_blueprint.md §2, §9)
+   OpenTheory Console — design tokens (docs/blueprints/design-system.md §2, §9)
    Structural ramp + state colours are stored as space-separated RGB *channels*
    so Tailwind's `/opacity` modifiers survive (Decision 4). Line/field overlays
    are alpha-native rgba() because they are inherently translucent.

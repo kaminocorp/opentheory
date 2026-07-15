@@ -173,7 +173,7 @@ def internal_funder():
         client: AsyncClient,
         *,
         roles: tuple[str, ...] = ("internal",),
-        display_name: str = "Kamino",
+        display_name: str = "Internal",
     ) -> tuple[str, str]:
         acct = await client.post(
             "/api/v1/accounts", json={"display_name": display_name, "roles": list(roles)}

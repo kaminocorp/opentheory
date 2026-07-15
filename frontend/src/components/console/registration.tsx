@@ -3,7 +3,7 @@ import { cn } from "@/lib/cn";
 /**
  * Registration brackets (§2.2): the signature corner L-marks — 12px arms in
  * `--hairline-strong`, four corners, not a closed box. The thing you would sketch
- * to draw "Kamino console" from memory. Absolute + inert; the parent must be
+ * to draw "OpenTheory console" from memory. Absolute + inert; the parent must be
  * positioned (the `Bay` is `relative`).
  */
 export function RegistrationBrackets({ className }: { className?: string }) {

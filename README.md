@@ -3,21 +3,23 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="frontend/public/brand/mark-1024-dark.png">
   <source media="(prefers-color-scheme: light)" srcset="frontend/public/brand/mark-1024-light.png">
-  <img alt="OpenTheory" src="frontend/public/brand/mark-1024-light.png" width="120">
+  <img alt="OpenTheory" src="frontend/public/brand/mark-1024-light.png" width="110">
 </picture>
 
 # OpenTheory
 
-**A platform for continuous, agent-driven research.**
+### Version control for research.
 
-Not one-off answers — *living* research projects. A tightly-scoped question is
-decomposed into parallel threads, worked continuously, and every meaningful move
-is written to an append-only, **git-shaped research ledger** with full provenance.
-Knowledge compounds. Nothing resets between sessions. Dead ends are recorded, not deleted.
+**Append-only checkpoints · full provenance · branches that keep the dead ends**
+
+Most AI research tooling produces *chat output*: an answer, then a blank slate.
+OpenTheory produces a **research ledger** — a git-shaped, append-only record where
+every claim traces back to the exact evidence, instrument, and actor that produced
+it. Knowledge compounds. Nothing resets. Dead ends are recorded, not deleted.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-live-success)](https://opentheory.vercel.app)
-[![Version](https://img.shields.io/badge/version-0.8.10-crimson)](docs/changelog.md)
+[![Version](https://img.shields.io/badge/version-0.12.6-crimson)](docs/changelog.md)
 &nbsp;
 ![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
@@ -25,84 +27,143 @@ Knowledge compounds. Nothing resets between sessions. Dead ends are recorded, no
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
 ![Postgres](https://img.shields.io/badge/Postgres-4169E1?logo=postgresql&logoColor=white)
 
-[**Live demo**](https://opentheory.vercel.app) · [Vision](docs/vision.md) · [Primitives](docs/primitives.md) · [Research-git](docs/research-git.md) · [Changelog](docs/changelog.md)
+[**Live demo**](https://opentheory.vercel.app) · [Quickstart](#quickstart) · [How it works](#how-it-works) · [Contributing](CONTRIBUTION-GUIDELINES.md) · [Vision](docs/vision/product-vision.md) · [Changelog](docs/changelog.md)
+
+<br>
+
+<img alt="The OpenTheory research ledger: a commit graph of attributed checkpoints beside a provenance panel showing what a result was built on." src="docs/images/x-launch-ledger.png" width="900">
+
+<sub><i>The ledger — an attributed commit graph beside its provenance panel. Illustrative;<br>see the <a href="https://opentheory.vercel.app">live demo</a> for the running app.</i></sub>
 
 </div>
 
 ---
 
-## Table of contents
+## Why this exists
 
-- [What is OpenTheory?](#what-is-opentheory)
-- [A git for research](#a-git-for-research)
-- [Three roles, never conflated](#three-roles-never-conflated)
-- [Domain primitives](#domain-primitives)
-- [Architecture](#architecture)
-- [Quickstart](#quickstart)
-- [API surface](#api-surface)
-- [Project structure](#project-structure)
-- [Status &amp; roadmap](#status--roadmap)
-- [Design principles](#design-principles-the-load-bearing-ones)
-- [Contributing](#contributing)
-- [License](#license)
-- [Citation](#citation)
+An LLM will happily tell you a claim is true. It will rarely tell you *how it
+knows*, *what would falsify it*, or *what it tried that didn't work*. And when the
+session ends, all of it is gone.
 
----
+OpenTheory is built on the opposite bet — that the valuable artifact of research is
+not the answer but **the traceable structure that produced it**:
 
-## What is OpenTheory?
-
-Most AI research tooling produces **chat output**: an answer, then a blank slate.
-OpenTheory produces a **transparent map of knowledge in motion** — active threads,
-key findings, contradictions, and confidence levels you can inspect and trace back
-to the exact evidence and actor that produced them.
-
-A **project** poses a research question and is broken into **threads** explored in
-parallel: proposing hypotheses, formalizing them, running simulations, testing
-constraints. Each meaningful state change is committed as an immutable
-**checkpoint** in the ledger, carrying *who* did it, *why*, and *what* evidence or
-artifacts were involved. Projects run against an explicit **token budget**, so the
-depth of investigation is bounded by the compute committed to it.
-
-The product today is a **human-operable research ledger** — every primitive can be
-driven by a person through the API. Agents are modeled as a *future* `Actor` type
-that will use the **same** APIs, permissions, and provenance rules as humans —
-never a parallel data model. The discipline: any capability is made
-human-usable-through-the-API *first*, so that when agents arrive, they simply use
-what humans already could.
-
-> Example domains (from the [vision](docs/vision.md)): dark-matter model
-> constraints, quantum gravity, the Riemann hypothesis, Navier–Stokes smoothness,
-> P vs NP, protein folding beyond known structures, high-temperature
-> superconductivity — hard, long-horizon problems where claims and constraints can
-> be shown concretely.
+- 🔒 **Nothing can be quietly rewritten.** Append-only isn't a convention here — it's
+  enforced at the ORM layer. Corrections are *new* records. A re-assessment is a new
+  validation row, never an edit.
+- 🔍 **Every result carries its blame line.** Which instrument, which version, which
+  inputs, which assumptions, which actor, at which time.
+- 🧭 **Being undecided is a first-class outcome.** A tool that can't settle a question
+  says `undecided` — *never* rendered as a pass. A tool that *fails* mints nothing at all.
+- 🌱 **Dead ends are the point.** A refuted branch is closed and kept, not deleted —
+  the record of what doesn't work is research output too.
+- 🤝 **Agents and humans share one API.** No parallel data model, no privileged agent
+  path. Every capability is built human-usable through the API *first*.
 
 ---
 
-## A git for research
+## How it works
 
-The ledger borrows git's shape (full semantics in [`docs/research-git.md`](docs/research-git.md)):
+A **project** poses a research question. It's decomposed into **threads** worked in
+parallel — proposing hypotheses, formalizing them, testing constraints. Every
+meaningful state change is committed as an immutable **checkpoint** carrying *who*,
+*why*, and *on what evidence*.
 
-| Git            | OpenTheory                                                |
-| -------------- | --------------------------------------------------------- |
-| commit         | **checkpoint** — an immutable, attributed state change    |
-| branch         | a parallel line of exploration (dead ends preserved)      |
-| merge / diff   | integrating or comparing research lines                   |
-| blame          | provenance — who contributed what, on what evidence       |
-| tag            | a marked, citable result                                  |
+### The ledger borrows git's shape
 
-Two invariants make this real rather than cosmetic:
+| Git | OpenTheory | Status |
+| --- | --- | --- |
+| commit | **checkpoint** — an immutable, attributed state change | ✅ built |
+| branch | a parallel line of exploration; dead ends preserved | ✅ built |
+| log / show | the checkpoint timeline and its detail | ✅ built |
+| blame | provenance — who contributed what, on what evidence | 🟡 *recorded* (every checkpoint carries its blame tuple); the semantic `blame` op is planned |
+| merge / diff | integrating or comparing research lines | ⬜ planned |
+| tag | a marked, citable result | ⬜ planned |
 
-- **Append-only is enforced in code, not by convention.** ORM-level
-  `before_update` / `before_delete` guards on `Checkpoint`, `CheckpointRef`,
-  `FundingAllocation`, and `Validation` raise on any mutation — so the invariant
-  holds even if the route layer is bypassed. Corrections, reversals, and
-  retractions are *new* records; a re-assessment is a new validation row, never an
-  edit.
-- **A single checkpoint chokepoint.** All ledger writes funnel through one service
-  (`create_checkpoint`) that validates context, writes the refs, links parents, and
-  auto-records a `Contribution` — in one transaction, with one commit. Composing
-  flows (validation, branching) call *into* it rather than minting checkpoints
-  themselves, so provenance and attribution can't be skipped.
+Two mechanisms make this real rather than cosmetic:
+
+**Append-only is enforced in code.** ORM-level `before_update` / `before_delete`
+guards on `Checkpoint`, `CheckpointRef`, `FundingAllocation`, and `Validation` raise
+on any mutation — so the invariant holds even if the route layer is bypassed.
+
+**One chokepoint writes the ledger.** All writes funnel through a single service
+(`create_checkpoint`) that validates context, writes refs, links parents, and
+auto-records a `Contribution` — one transaction, one commit. Composing flows
+(validation, branching, tool runs, agent passes) call *into* it rather than minting
+checkpoints themselves, so provenance and attribution can't be skipped.
+
+### The toolbench: results, not vibes
+
+Claims are tested with **deterministic instruments**, not model assertions. Five ship
+today, each landing an attributed checkpoint through the same chokepoint:
+
+| Instrument | Does |
+| --- | --- |
+| `calc.eval` | exact symbolic/numeric evaluation (SymPy) |
+| `expr.compare` | expression equivalence — refutes only on a *provably* non-zero difference |
+| `geometry.coordinate_measure` | exact coordinate geometry (distances, angles) |
+| `counterexample.search` | deterministic grid search for a falsifying witness |
+| `oeis.search` | identify an integer sequence — lands a *pinned* citation |
+
+Every instrument answers with the same three-outcome contract:
+
+```
+result     the instrument ran and produced a result
+refuted    the instrument ran and falsified the claim — a counterexample (definitive)
+undecided  the instrument ran but could not decide — escalate to a proof; never a pass
+```
+
+An instrument *exception* is not one of these: it mints **nothing**, so only genuine,
+citable outcomes ever reach the ledger. Runs execute in a sandbox — killable
+subprocess, wall-clock and memory caps, concurrency limit.
+
+<details>
+<summary><b>What a run actually looks like</b></summary>
+
+```http
+POST /api/v1/projects/{project_id}/instruments/expr.compare/run
+```
+```jsonc
+{
+  "inputs":      { "left": "(a+b)**2", "right": "a**2 + 2*a*b + b**2" },
+  "assumptions": {},
+  "claim_id":    "…",   // optional — attach the result to a claim
+  "thread_id":   "…",   // optional — record it on a thread
+  "branch_id":   "…"    // optional — record it on a branch
+}
+```
+Returns `201` with the ledger records the run produced — the `Checkpoint` (with its
+blame tuple and refs), the `Artifact`, any `Evidence`, the `status`, and the
+`content_hash`:
+```jsonc
+{
+  "checkpoint":  { /* … immutable, attributed … */ },
+  "artifact_id": "…",
+  "evidence_id": "…",
+  "status":      "result",
+  "content_hash": "…"
+}
+```
+A tool that fails to run is `422` and mints nothing. The catalog
+(`GET /api/v1/instruments`) is generated from the *code* registry, so it can never
+advertise an instrument the runtime lacks.
+
+</details>
+
+### Agents are bounded operators, not oracles
+
+A member commissions a **Run agent pass** on a thread. The assigned model plans a
+capped sequence of *existing* instrument runs; the agent `Actor` lands attributed
+checkpoints on a durable agent branch through the **same** `run_instrument`
+chokepoint a human uses. A live trace shows what it tried and what landed — then a
+human accepts, rejects (dead-end), or branches.
+
+Bounded, deliberately: per-pass safety caps, no continuous loop, no multi-thread
+orchestrator. The agent has no capability a human doesn't have through the API.
+
+> **Note:** the agent loop is complete in the codebase but **ships dark** —
+> `AGENT_LOOP_ENABLED=false` means every agent route `404`s. Enabling it is a flag
+> flip plus an `OPENROUTER_API_KEY`. See [Status](#status).
 
 ---
 
@@ -111,11 +172,11 @@ Two invariants make this real rather than cosmetic:
 A load-bearing design rule, enforced in the data model: **funding, intellectual
 contribution, and validation are kept strictly separate.**
 
-| Role            | Does                                                                 | Earns                                  |
-| --------------- | ------------------------------------------------------------------- | -------------------------------------- |
-| **Funder**      | finances a project/thread, directing compute via a **token budget** | influence over directions — *not* credit |
-| **Contributor** | produces intellectual work — hypotheses, evidence, artifacts         | attribution for the work itself        |
-| **Validator**   | assesses results, building *explainable* confidence                 | a provenance trail, *not* authorship   |
+| Role | Does | Earns |
+| --- | --- | --- |
+| **Funder** | finances a project/thread, directing effort | influence over directions — *not* credit |
+| **Contributor** | produces the work — hypotheses, evidence, artifacts | attribution for the work itself |
+| **Validator** | assesses results, building *explainable* confidence | a provenance trail, *not* authorship |
 
 A funder financing a thread earns no intellectual credit for it; a validator
 assessing a claim is not its author. Roles may overlap on the same person, but the
@@ -125,24 +186,83 @@ validation history, **never a naked score**.
 
 ---
 
-## Domain primitives
+## Quickstart
 
-The core graph (full relationships and invariants in [`docs/primitives.md`](docs/primitives.md)):
+> **Prerequisites:** [`uv`](https://docs.astral.sh/uv/) (Python 3.12+), Node.js +
+> `npm`, and a Postgres database (local or Supabase) for anything touching the ledger.
 
-| Primitive            | What it is                                                                 |
-| -------------------- | ------------------------------------------------------------------------- |
-| `Project`            | top-level research container — the question, scope, and everything under it |
-| `Thread`             | a focused line of inquiry worked in parallel with others                  |
-| `Claim`              | a first-class structured assertion (hypothesis, constraint, result, …)    |
-| `Evidence`           | a source/observation supporting, weakening, or falsifying a claim; content-pinned |
-| `Artifact`           | a produced research object (proof, model, dataset, plot); content-addressed |
-| `Checkpoint`         | an immutable, attributed snapshot of a meaningful state change            |
-| `Branch`             | a parallel research path; dead ends stay visible                          |
-| `Validation`         | an immutable structured review of a claim/checkpoint/branch               |
-| `Contribution`       | the attribution/provenance record — who did what, against which primitive |
-| `FundingAllocation`  | an append-only ledger entry for money directed at a project               |
-| `Account`            | the auth **principal** (one per login) that owns `Actor`s and funding     |
-| `Actor`              | the entity performing an action — `human` \| `agent` \| `system`          |
+```bash
+git clone https://github.com/kaminocorp/opentheory.git && cd opentheory
+
+# Backend  → http://localhost:8000  (OpenAPI at /docs)
+cd backend
+uv sync
+cp .env.example .env                 # DATABASE_URL, auth, CORS, …
+uv run alembic upgrade head
+uv run fastapi dev app/main.py
+
+# Frontend → http://localhost:3000
+cd ../frontend
+npm install
+cp .env.example .env.local           # NEXT_PUBLIC_API_BASE_URL
+npm run dev
+```
+
+A root `Makefile` wraps the common tasks — `make dev`, `make migrate`, `make test`,
+`make lint`, `make fe`. Run `make` to list every target.
+
+> [!IMPORTANT]
+> **The DB-backed test suites skip silently without a database.** Without
+> `TEST_DATABASE_URL` (or `DATABASE_URL`) pointing at a reachable Postgres, `pytest`
+> is green but mostly *skipped* — set it before trusting a passing run for any
+> ledger, service, toolbench, or agent change.
+
+Full contributor workflow, conventions, and do's/don'ts:
+**[CONTRIBUTION-GUIDELINES.md](CONTRIBUTION-GUIDELINES.md)**
+
+---
+
+## Architecture
+
+Intentionally a **modular monolith**: one Next.js frontend, one FastAPI backend, one
+Postgres database. We don't split into services until real load demands it.
+
+```text
+frontend/   Next.js (App Router) + React + TypeScript + Tailwind + TanStack Query  →  Vercel
+backend/    FastAPI + SQLAlchemy 2.0 (async) + Alembic + asyncpg + Pydantic v2     →  Fly.io
+database    Supabase Postgres
+```
+
+**The backend is the single source of truth and enforces every domain invariant even
+if the frontend is bypassed.** The frontend is presentation and interaction only — no
+core domain logic in Next.js routes. Large artifacts (PDFs, datasets, plots) go to
+object storage; Postgres stores only hashes, metadata, and links.
+
+Backend requests flow `api/routes/` → `services/` → `models/`. Route handlers stay
+thin; domain logic and invariant enforcement live in the **service layer**.
+Authentication is a verified Supabase JWT (ES256 / JWKS) that just-in-time provisions
+the acting `Actor`. Rationale for each choice: [`docs/blueprints/techstack.md`](docs/blueprints/techstack.md).
+
+<details>
+<summary><b>Domain primitives</b> — the core graph</summary>
+
+<br>
+
+| Primitive | What it is |
+| --- | --- |
+| `Project` | top-level research container — the question, scope, and everything under it |
+| `Thread` | a focused line of inquiry worked in parallel with others |
+| `Claim` | a first-class structured assertion (hypothesis, constraint, result, …) |
+| `Evidence` | a source/observation supporting, weakening, or falsifying a claim; content-pinned |
+| `Artifact` | a produced research object (proof, model, dataset, plot); content-addressed |
+| `Checkpoint` | an immutable, attributed snapshot of a meaningful state change |
+| `Branch` | a parallel research path; dead ends stay visible |
+| `Validation` | an immutable structured review of a claim/checkpoint/branch |
+| `Contribution` | the attribution record — who did what, against which primitive |
+| `FundingAllocation` | an append-only ledger entry for funding directed at a project |
+| `Account` | the auth **principal** (one per login) that owns `Actor`s and funding |
+| `Actor` | the entity performing an action — `human` \| `agent` \| `system` |
+| `AgentRun` | a *mutable* live trace of one agent pass — deliberately **not** a ledger primitive |
 
 ```text
 Project
@@ -160,210 +280,150 @@ Account  (auth principal)        Actor  (research provenance)
                                    └── Validation   (performs)
 ```
 
-> **Why `Account` *and* `Actor`?** Identity, authorization (`roles`), and funding
-> attribution describe the *principal* (the thing holding a login / payment method)
-> and live on `Account`. Research provenance is attributed to the `Actor`. An agent
-> is later just an `Actor` with metadata describing its model, provider, and run
-> context — no new foundation.
+**Why `Account` *and* `Actor`?** Identity, authorization (`roles`), and funding
+attribution describe the *principal* (the thing holding a login / payment method) and
+live on `Account`. Research provenance is attributed to the `Actor`. An agent is just
+an `Actor` with metadata describing its model, provider, and run context — no new
+foundation.
 
----
+Full relationships and invariants: [`docs/blueprints/primitives.md`](docs/blueprints/primitives.md).
 
-## Architecture
+</details>
 
-Intentionally a **modular monolith**: one Next.js frontend, one FastAPI backend,
-one Postgres database. We do not split into services until agent execution or
-background workloads create a real need.
+<details>
+<summary><b>API surface</b> — mounted at <code>/api/v1</code></summary>
 
-```text
-frontend/   Next.js (App Router) + React + TypeScript + Tailwind + TanStack Query  →  Vercel
-backend/    FastAPI + SQLAlchemy 2.0 (async) + Alembic + asyncpg + Pydantic v2     →  Fly.io
-database    Supabase Postgres
-```
+<br>
 
-**The backend is the single source of truth and enforces every domain invariant
-even if the frontend is bypassed.** The frontend is presentation and interaction
-only; it calls the backend for all authoritative reads and writes (no core domain
-logic in Next.js routes). Large artifacts (PDFs, datasets, plots, notebooks) go to
-object storage — Postgres stores only hashes, metadata, and links.
+Interactive OpenAPI docs at `/docs` when the backend is running.
+Live: `https://opentheory-backend.fly.dev/api/v1`.
 
-Backend requests flow `api/routes/` → `services/` → `models/`. Route handlers stay
-thin; domain logic and invariant enforcement live in the **service layer**.
-Authentication is a verified **Supabase JWT** (ES256 / JWKS), which just-in-time
-provisions the acting `Actor` for each write. Rationale for each choice is in
-[`docs/techstack.md`](docs/techstack.md).
+| Group | Surface |
+| --- | --- |
+| `health` | liveness probe |
+| `me` / `accounts` | the signed-in principal, `@username`, account management |
+| `projects` | projects, stewardship/ownership, rich-text background, agent-model roster |
+| `threads` | open and read threads inside a project |
+| `claims` | create/read claims and their validation history |
+| `evidence` | attach and browse content-pinned evidence |
+| `checkpoints` | the ledger write path (the chokepoint) and timeline reads |
+| `validations` | record immutable assessments of claims/checkpoints/branches |
+| `branches` | fork from a checkpoint, record on a branch, close as dead-end/superseded |
+| `funding` | source-aware funding allocations (append-only) |
+| `invitations` | invite collaborators by `@username`/email; accept/decline inbox |
+| `actors` | research-provenance actor identities |
+| `agent-models` | curated OpenRouter model catalog + per-project crew assignment |
+| `instruments` | public toolbench catalog + membership-gated instrument runs |
+| `agent-runs` | commission an agent pass; poll its trace *(flag-gated)* |
 
----
+</details>
 
-## Quickstart
+<details>
+<summary><b>Project structure</b></summary>
 
-> **Prerequisites:** [`uv`](https://docs.astral.sh/uv/) (Python 3.12+) for the
-> backend, Node.js + `npm` for the frontend, and a Postgres database (local or a
-> Supabase instance) for anything that touches the ledger.
-
-### Backend — `cd backend`
-
-```bash
-uv sync                            # install dependencies
-cp .env.example .env               # configure (DATABASE_URL, auth, CORS, …)
-uv run alembic upgrade head        # apply migrations
-uv run fastapi dev app/main.py     # → http://localhost:8000  (OpenAPI at /docs)
-```
-
-### Frontend — `cd frontend`
-
-```bash
-npm install
-cp .env.example .env.local         # set NEXT_PUBLIC_API_BASE_URL (default http://localhost:8000/api/v1)
-npm run dev                        # → http://localhost:3000
-```
-
-### Day-to-day
-
-```bash
-# backend
-uv run ruff check .                # lint (line-length 100; rules E/F/I/UP/B)
-uv run pytest                      # tests — DB-backed suites auto-skip without TEST_DATABASE_URL
-uv run alembic revision --autogenerate -m "message"
-
-# frontend
-npm run typecheck                  # tsc --noEmit
-npm run lint
-npm run build
-```
-
-A root `Makefile` wraps the common tasks: `make dev`, `make migrate`, `make test`, `make fe`.
-
-> **Note on tests:** the DB-backed suites (`test_checkpoints`, `test_validations`,
-> `test_branches`, `test_read_models`, `test_research_flow`) only run when
-> `TEST_DATABASE_URL` (or `DATABASE_URL`) points at a reachable Postgres. Without
-> one, `pytest` is green but mostly *skipped* — set the env var before trusting a
-> passing run for ledger or service changes.
-
----
-
-## API surface
-
-The versioned API is mounted at `/api/v1`. Interactive OpenAPI docs are served at
-`/docs` when the backend is running. Live: `https://opentheory-backend.fly.dev/api/v1`.
-
-| Group              | Surface                                                              |
-| ------------------ | ------------------------------------------------------------------- |
-| `health`           | liveness probe                                                      |
-| `me` / `accounts`  | the signed-in principal, `@username`, account management            |
-| `projects`         | projects, stewardship/ownership, rich-text background, agent-model roster |
-| `threads`          | open and read threads inside a project                              |
-| `claims`           | create/read claims and their validation history                    |
-| `evidence`         | attach and browse content-pinned evidence                           |
-| `checkpoints`      | the ledger write path (the chokepoint) and timeline reads          |
-| `validations`      | record immutable assessments of claims/checkpoints/branches        |
-| `branches`         | fork from a checkpoint, record on a branch, close as dead-end/superseded |
-| `funding`          | source-aware funding allocations (append-only)                     |
-| `invitations`      | invite collaborators by `@username`/email; accept/decline inbox    |
-| `actors`           | research-provenance actor identities                               |
-| `agent-models`     | curated OpenRouter model catalog + per-project crew assignment     |
-
----
-
-## Project structure
+<br>
 
 ```text
 opentheory/
 ├── backend/                 FastAPI service (source of truth)
-│   └── app/
-│       ├── api/routes/      thin HTTP handlers, one file per resource
-│       ├── services/        domain logic + invariant enforcement (checkpoint chokepoint)
-│       ├── models/          SQLAlchemy domain models, one per primitive
-│       ├── schemas/         Pydantic request/response models
-│       ├── core/            settings, config, curated model catalog
-│       └── db/              async engine, session, Base mixins
-│   └── alembic/             migrations (backend owns the schema)
+│   ├── app/
+│   │   ├── api/routes/      thin HTTP handlers, one file per resource
+│   │   ├── services/        domain logic + invariants (checkpoint chokepoint)
+│   │   ├── models/          SQLAlchemy domain models, one per primitive
+│   │   ├── schemas/         Pydantic request/response models
+│   │   ├── toolbench/       instrument adapter, registry, sandbox, instruments
+│   │   ├── agent/           the thin agent loop — planner, prompts, LLM client
+│   │   ├── core/            settings, config, curated model catalog
+│   │   └── db/              async engine, session, Base mixins
+│   ├── alembic/             migrations (the backend owns the schema)
+│   └── tests/
 ├── frontend/                Next.js App Router app
 │   └── src/
 │       ├── app/             pages
-│       ├── components/      feature-grouped UI (Kamino Console design language)
+│       ├── components/      feature-grouped UI (OpenTheory Console design language)
 │       ├── lib/api.ts       the single typed backend client
 │       └── types/           domain types mirroring backend read schemas
 └── docs/                    source of truth for intent — read before non-trivial work
-    ├── primitives.md        the domain model and its invariants (most important)
-    ├── research-git.md      git-for-research ledger semantics
-    ├── techstack.md         stack choices and their rationale
-    ├── vision.md            product vision and example domains
-    ├── plans/               versioned implementation plans
-    └── changelog.md         per-phase ledger of what shipped and why
+    ├── TLDR.md              one-page orientation — start here
+    ├── changelog.md         per-phase ledger of what shipped and why
+    ├── blueprints/          WHAT IS — the current model and architecture
+    │   ├── primitives.md        the domain model and its invariants (most important)
+    │   ├── conceptual-model.md  the mental model, one screen
+    │   ├── techstack.md         stack choices and their rationale
+    │   └── design-system.md     the OpenTheory Console design language
+    ├── vision/              WHAT'S MEANT — target state, not the current build
+    │   ├── product-vision.md    product vision and example domains
+    │   ├── research-git.md      target ledger semantics (annotated built/planned)
+    │   └── research-flow.md     the agent-execution stage skeleton (unshipped)
+    ├── operations/          runbooks — deploying and operating the live system
+    ├── plans/               versioned implementation plans + roadmap
+    ├── executing/           the plan currently being built
+    ├── completions/         finished implementation plans
+    └── archive/             superseded plans, kept not deleted
 ```
 
----
+> **`blueprints/` vs `vision/`** — the same split the ledger itself makes. `blueprints/`
+> describes what exists; `vision/` describes what's intended. When they disagree, the
+> code wins and the blueprint is the bug.
 
-## Status &amp; roadmap
-
-OpenTheory is **live** (Vercel frontend + Fly.io backend + Supabase) and ships in
-small, deployable phases tracked in [`docs/changelog.md`](docs/changelog.md).
-
-**Shipped — a human-operable research ledger:**
-
-- The full ledger write path: open projects/threads, add claims, attach evidence,
-  record immutable checkpoints, fork/close branches, record validations — all
-  through the enforced chokepoint, all attributed.
-- Real identity: verified Supabase auth provisions actors; project **ownership**,
-  `@username` handles, and a collaborator invitation/inbox flow.
-- Source-aware **funding allocations** as a separate, append-only concern.
-- A per-project **research crew** roster assigning OpenRouter models to four roles
-  (Research Lead / Thread Manager / Researcher / Research Assistant) — the
-  *configuration* layer that the agent execution surface will be driven by.
-
-**Next — toward an autonomous research engine:**
-
-- **Agents as first-class operators**, using the same APIs, permissions, and
-  provenance as humans; they *propose* checkpoints a human or orchestrator can
-  accept, reject, or branch.
-- Projects run **continuously** against their token budgets.
-- **Reputation and influence** accrue to those who consistently back, produce, and
-  validate the right directions.
-- Real funding and settlement replace simulated allocations.
+</details>
 
 ---
 
-## Design principles (the load-bearing ones)
+## Status
 
-If you contribute, preserve these — they are why the platform is trustworthy:
+**Live** (Vercel + Fly.io + Supabase), shipped in small, deployable phases tracked in
+[`docs/changelog.md`](docs/changelog.md). Currently `0.12.6`.
 
-1. **The checkpoint service is the only path that writes a `Checkpoint`.** Compose
-   with it; never mint checkpoints in another service.
-2. **Append-only is ORM-enforced.** Corrections are new rows. Never edit a
-   `Checkpoint`, `CheckpointRef`, `FundingAllocation`, or `Validation`.
-3. **The backend enforces invariants even if the frontend is bypassed.** No core
-   domain logic in the frontend.
-4. **Funding, contribution, and validation never conflate** in the data model.
-5. **Humans and agents use the same primitives** — build it human-usable through
-   the API first.
-6. **Workflow stages are optional metadata, not hard-coded platform law.**
+**Shipped:**
 
-New models must be exported from `backend/app/models/__init__.py` (Alembic
-discovers metadata via `from app.models import *`). See [`CLAUDE.md`](CLAUDE.md) for
-the full contributor contract.
+| Line | What landed |
+| --- | --- |
+| `0.3.x`–`0.4.x` | The ledger write path, validation, branching, enriched read models |
+| `0.6.x`–`0.7.x` | Auth (Supabase JWT), `Account`/`Actor` split, funding allocations, live deploy |
+| `0.8.x` | OpenTheory Console design language, stewardship, `@username`, invitations |
+| `0.9.x`–`0.10.x` | Toolbench spine, five instruments, KaTeX math, drive/show UI |
+| `0.11.x` | Execution sandbox — killable subprocess, wall-clock/memory caps, concurrency limit |
+| `0.12.x` | Thin agent loop — planner, bounded orchestrator, background API, workspace UI |
+
+**Honest caveats:**
+
+- The **agent loop ships dark** in production (`AGENT_LOOP_ENABLED=false` ⇒ agent
+  routes `404`). Enabling it is a flag flip plus an `OPENROUTER_API_KEY`.
+- **Token budgets bound nothing yet.** Per-pass safety caps limit blast radius;
+  project-budget metering (`0.12.5`) is deferred.
+- **Funding is recorded, not settled.** `FundingAllocation` is a real append-only
+  concern; payment rails are future work.
+- **Reputation/influence, merge/blame/tag ops, and object storage for large
+  artifacts** are described in the docs but not built.
+
+**Next up** (see [`docs/plans/roadmap-next-steps.md`](docs/plans/roadmap-next-steps.md)):
+Tier 1 retrieval instruments (Crossref / arXiv / OpenAlex literature pins on the
+proven `source.pin` shape), then a **Z3** instrument for machine-checked falsification
+— both directly widen what an agent pass can *do*. Lean 4 + Mathlib comes after.
 
 ---
 
 ## Contributing
 
-Contributions are welcome. Before non-trivial domain work, read
-[`docs/primitives.md`](docs/primitives.md) and [`docs/research-git.md`](docs/research-git.md)
-— `docs/` is the source of truth for intent.
+Contributions are welcome — the project is young and the surface area is wide.
+**Start with [CONTRIBUTION-GUIDELINES.md](CONTRIBUTION-GUIDELINES.md)**, which covers
+the development principles, the invariants you must not break, and the workflow.
 
-1. Fork and branch from `main`.
-2. Keep changes small and deployable; match the existing code's idiom.
-3. Run the checks: `uv run ruff check . && uv run pytest` (backend),
-   `npm run typecheck && npm run lint && npm run build` (frontend).
-4. Update [`docs/changelog.md`](docs/changelog.md) for any release-scoped change.
-5. Open a PR describing *what* changed and *why*.
+Good first areas: a **new Tier 0 instrument** (the adapter contract + conformance
+harness make this a well-paved path), **read-model surfaces** in the workspace, or
+**docs**. Before non-trivial domain work, read
+[`docs/blueprints/primitives.md`](docs/blueprints/primitives.md) and
+[`docs/vision/research-git.md`](docs/vision/research-git.md) — `docs/` is the source of truth for
+intent.
+
+If OpenTheory is useful or interesting to you, a ⭐ helps others find it.
 
 ---
 
 ## License
 
-Licensed under the [Apache License 2.0](LICENSE).
-
----
+[Apache License 2.0](LICENSE).
 
 ## Citation
 
@@ -377,5 +437,6 @@ Licensed under the [Apache License 2.0](LICENSE).
 ```
 
 <div align="center">
-<sub>Built as a modular monolith. Designed so that when agents arrive, they simply use what humans already could.</sub>
+<br>
+<sub>Built as a modular monolith. Designed so that when agents arrive,<br>they simply use what humans already could.</sub>
 </div>

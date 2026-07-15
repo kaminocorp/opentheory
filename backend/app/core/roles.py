@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from app.models.account import Account
     from app.models.actor import Actor
 
-# The Kamino (internal) role. Gates native funding (Decision #4) and is the substrate for
+# The internal role. Gates native funding (Decision #4) and is the substrate for
 # validator/agent permissions later. Lives on the Account now.
 INTERNAL_ROLE = "internal"
 

@@ -412,7 +412,7 @@ per-pass caps unchanged as safety. *(Stretch — the thin line demos without it.
 
 ### `0.12.4` — Frontend: trigger, trace, accept/reject
 
-**Goal:** the loop is drivable and legible from the workspace, in Kamino tone.
+**Goal:** the loop is drivable and legible from the workspace, in console tone.
 
 **Files:** **[new]** `frontend/src/components/workspace/agent-pass-*` (trigger + trace view);
 **[mod]** `frontend/src/lib/api.ts`, `frontend/src/types/…`, `query-keys.ts`, the branch bar,
@@ -433,7 +433,7 @@ per-pass caps unchanged as safety. *(Stretch — the thin line demos without it.
      of scope — v1 "accept" = validate-in-place / adopt.*
    - **Branch further** → `create_branch` from any landed checkpoint (existing).
 4. **API/types plumbing** — typed calls in `lib/api.ts`; mirror `AgentRunRead`/`AgentRunSummary` in
-   `types/`; query keys. Map `422`/`503` to Kamino copy (reuse `lib/instrument-run-errors.ts`).
+   `types/`; query keys. Map `422`/`503` to console copy (reuse `lib/instrument-run-errors.ts`).
 5. **Release ledger** — `docs/changelog.md` index + sections `0.12.0`–`0.12.4`; **move this plan and
    the proposal to `docs/archive/`**; point `docs/plans/roadmap-next-steps.md` at the next line
    (Z3 / Tier-1 retrieval).

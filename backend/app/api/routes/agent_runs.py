@@ -35,7 +35,7 @@ async def require_agent_loop_enabled() -> None:
     router/route ``dependencies`` at the front of the dependency tree, so even an *unauthenticated*
     request sees ``404`` (not ``401``). The flag therefore leaks nothing about the feature — the
     route is indistinguishable from one that is not registered yet, which is the point of a dark
-    launch. Production flips the flag when the line is trusted (``docs/deploy.md``).
+    launch. Production flips the flag when the line is trusted (``docs/operations/deploy.md``).
     """
     if not settings.agent_loop_enabled:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")

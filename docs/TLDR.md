@@ -19,7 +19,7 @@ contradictions, and confidence levels you can inspect and trace.
 
 ## The core idea: a git for research
 
-The ledger borrows git's shape (see `docs/research-git.md`):
+The ledger borrows git's shape (see `docs/vision/research-git.md`):
 
 | Git            | OpenTheory                                              |
 | -------------- | ------------------------------------------------------- |
@@ -58,7 +58,7 @@ meaningful while still allowing broad participation.
 `Validation`, `Contribution`, `FundingAllocation`. An **`Actor`** (`human` |
 `agent` | `system`) performs every action — authoring checkpoints, making
 contributions, performing validations, allocating funding. (Full relationships
-and invariants live in `docs/primitives.md`.)
+and invariants live in `docs/blueprints/primitives.md`.)
 
 ## Where it is today vs. where it's going
 
@@ -70,7 +70,7 @@ and invariants live in `docs/primitives.md`.)
 - Identity is real: verified auth provisions actors; funding allocations are
   recorded as a separate, source-aware concern.
 - It runs as a split Next.js frontend + FastAPI backend + Postgres, deployed
-  live, presented in the "Kamino Console" design language.
+  live, presented in the "OpenTheory Console" design language.
 
 **Once done — an autonomous research engine:**
 
@@ -98,6 +98,6 @@ structures, high-temperature superconductivity.
 ---
 
 *This is a high-level orientation. For depth, read (in order of importance):
-`docs/primitives.md` (the model and its invariants), `docs/research-git.md` (the
-ledger semantics), `docs/vision.md` (product vision), `docs/techstack.md` (stack
+`docs/blueprints/primitives.md` (the model and its invariants), `docs/vision/research-git.md` (the
+ledger semantics), `docs/vision/product-vision.md` (product vision), `docs/blueprints/techstack.md` (stack
 rationale), and `docs/changelog.md` (what has actually shipped).*

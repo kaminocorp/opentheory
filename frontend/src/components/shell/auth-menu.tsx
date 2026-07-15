@@ -142,7 +142,7 @@ export function AuthMenu() {
           <Icon icon={UserCircle} size={16} className="text-text-mute" />
           <span className="max-w-32 truncate">{displayName ?? "Account"}</span>
           {isInternal ? (
-            <Icon icon={ShieldCheck} size={16} className="text-signal" aria-label="Kamino internal" />
+            <Icon icon={ShieldCheck} size={16} className="text-signal" aria-label="Internal" />
           ) : null}
         </button>
 
@@ -162,7 +162,7 @@ export function AuthMenu() {
                 </button>
               ) : null}
               <p className="mt-0.5 text-xs text-text-mute">
-                {isInternal ? "Kamino internal · can fund" : "Contributor"}
+                {isInternal ? "Internal · can fund" : "Contributor"}
               </p>
             </div>
 

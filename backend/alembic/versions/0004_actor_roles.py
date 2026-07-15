@@ -8,7 +8,7 @@ Create Date: 2026-06-24
 
 - Add ``roles`` (``ARRAY(String)``, NOT NULL, server default empty array ``'{}'``). The
   server default makes the backfill a no-op — existing actors get ``[]``. An ``internal``
-  (Kamino) role gates native funding (0.6.3); the column is the reusable substrate for
+  role gates native funding (0.6.3); the column is the reusable substrate for
   validator/agent permissions later. ``roles`` is a mutable identity attribute (like
   ``branches.status``), not a ledger event, so it is intentionally *not* append-only guarded.
 

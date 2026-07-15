@@ -1,6 +1,6 @@
 /**
- * The Kamino Console primitive library — one source of truth for the shape
- * grammar (docs/design_blueprint.md §2/§3/§5). Built in D1; consumed by D2–D5.
+ * The OpenTheory Console primitive library — one source of truth for the shape
+ * grammar (docs/blueprints/design-system.md §2/§3/§5). Built in D1; consumed by D2–D5.
  * Import everything from "@/components/console".
  */
 export { Bay, BayHeader } from "./bay";

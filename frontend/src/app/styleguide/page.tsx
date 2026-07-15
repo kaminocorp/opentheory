@@ -44,7 +44,7 @@ export default function StyleguidePage() {
       <header className="mb-10 flex items-center gap-3">
         <BrandMark size={28} className="text-text" />
         <div>
-          <ReadoutLabel>Kamino Console · D1</ReadoutLabel>
+          <ReadoutLabel>OpenTheory Console · D1</ReadoutLabel>
           <h1 className="mt-1 text-2xl font-medium tracking-[-0.01em] text-text">Primitive styleguide</h1>
         </div>
       </header>

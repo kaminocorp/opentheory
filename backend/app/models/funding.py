@@ -32,8 +32,8 @@ class FundingAllocation(IdMixin, TimestampMixin, Base):
         Enum(FundingKind, name="funding_kind"),
         nullable=False,
     )
-    # Where the budget came from (0.6.3): native (Kamino comps) vs stripe (external). Orthogonal
-    # to `kind` (the accounting category). Native is gated to internal actors in the service.
+    # Where the budget came from (0.6.3): native (the platform comps) vs stripe (external).
+    # Orthogonal to `kind` (the accounting category). Native is gated to internal actors.
     source: Mapped[FundingSource] = mapped_column(
         Enum(FundingSource, name="funding_source"),
         nullable=False,
