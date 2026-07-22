@@ -1,6 +1,6 @@
 # Toolbench Catalog — The Buildable Tool List, Sorted by Integration Cost
 
-> **Status — working catalog (2026-06-30), partially shipped (`0.9.x`–`0.10.5`).** A
+> **Status — working catalog (updated 2026-07-22), partially shipped (`0.9.x`–`0.13.x`).** A
 > concrete, buildable companion to the design proposal in
 > `docs/plans/agent-research-tools.md`. That doc argues *why* the bench exists and *what
 > each tool is for* (the four families: Compute / Verify / Retrieve / Visualize). This doc
@@ -8,12 +8,12 @@
 > cost** — and names the libraries, licenses, and a recommended starter kit.
 >
 > **Shipped:** Tier 0 SymPy instruments (`calc.eval`, `expr.compare`,
-> `geometry.coordinate_measure`, `counterexample.search`) + Tier 1 `oeis.search`; adapter
-> registry, write path, provenance spine, workspace UI, KaTeX render. See
-> `docs/plans/maths-toolbox.md` §Shipped in production.
+> `geometry.coordinate_measure`, `counterexample.search`) + Tier 0 **`z3.prove`** (`0.13.x`)
+> + Tier 1 `oeis.search`; adapter registry, write path, provenance spine, workspace UI,
+> KaTeX render, execution sandbox. See `docs/plans/maths-toolbox.md` §Shipped in production.
 >
-> **Not shipped:** Z3, Arb/`interval.eval`, literature pins (Crossref/arXiv/OpenAlex), Lean,
-> visualization instruments (Vega-Lite tables/plots).
+> **Not shipped:** Arb/`interval.eval`, literature pins (Crossref/arXiv/OpenAlex), Lean,
+> visualization instruments (Vega-Lite tables/plots), `z3.satisfy` / boolean connectives.
 
 ## The organizing principle
 
@@ -149,33 +149,36 @@ coincide, which is convenient for sequencing.
 
 ## Recommended starter kit
 
-The original starter kit argued for SymPy + Z3 + OEIS. **As of `0.10.5` we shipped SymPy
-(four instruments) + OEIS — not Z3 yet.** That already covers the flagship demo
-(`agent-research-tools.md` §5) **claims 1–4** (geometry measure, sum-of-legs falsification,
-Pythagorean check, squared-form compare) with readable KaTeX output. Claim 5 (Lean proof)
-still needs the execution substrate.
+The original starter kit argued for SymPy + Z3 + OEIS. **As of `0.13.x` we shipped SymPy
+(four instruments) + OEIS + `z3.prove`.** That covers the flagship demo
+(`agent-research-tools.md` §5) **claims 1–4** with readable KaTeX *and* a machine-checked
+proof path for linear-arithmetic claims. Claim 5 (Lean proof) still needs a heavier
+execution substrate.
 
 ```text
-Shipped (0.9.x–0.10.5):
+Shipped (0.9.x–0.13.x):
   SymPy   — calc.eval, expr.compare, geometry.coordinate_measure, counterexample.search
   OEIS    — oeis.search (Tier 1, pinned retrieval)
+  Z3      — z3.prove (validity: proof / counter-model / undecided)
 
 Next in-process adds (no Lean infra):
-  Z3      — SMT/SAT: counterexamples & unsat certs      (verify, Grade A-ish)
   Arb     — interval.eval (optional 0.10.6+ stretch)
+  z3.satisfy / bool connectives / quantifiers — verifier-wave follow-ons
 ```
 
-The thinnest *remaining* high-value add is **Z3** — still Tier 0, still no sandbox.
-**Lean** remains the tool that forces net-new infrastructure.
+**Lean** remains the tool that forces net-new infrastructure beyond the existing sandbox.
 
 ---
 
 ## Open threads
 
-- **Z3 instrument shape** — which claims get `z3.prove` / `z3.refute` first; certificate
-  storage on the artifact.
+- **Resolved (`0.13.x`):** Z3 instrument shape = single **`z3.prove`** (validity check;
+  `sat` branch doubles as exact counterexample-finding). Certificate = **marker
+  (`"unsat"`) + optional unsat-core** of named hypotheses on the result payload;
+  `artifact_kind="proof"` (free-form VARCHAR, no migration). Full `solver.proof()` terms
+  deliberately out of scope for v1. See `docs/executing/z3-instrument-0.13.md`.
 - **Lean toolchain hosting** — when Lean lands, how Mathlib is built/cached and which
-  sandbox (Fly microVM / Sprites vs E2B vs gVisor) wraps it. Blocked on `0.11.x` sandbox
-  at minimum.
-- **Resolved:** first build width (SymPy + OEIS + flagship instruments, not Z3 yet);
-  adapter interface (`0.9.2`); provenance spine (`0.9.1`).
+  sandbox (Fly microVM / Sprites vs E2B vs gVisor) wraps it. Sandbox policy (`0.11.x`) is
+  the prerequisite; Lean still needs a heavier substrate for agent-written proof code.
+- **Resolved:** first build width (SymPy + OEIS + flagship instruments);
+  adapter interface (`0.9.2`); provenance spine (`0.9.1`); Z3 as Tier-0 verifier (`0.13.x`).

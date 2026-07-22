@@ -28,9 +28,9 @@
 >   it's derivable on demand from the blame tuple, never stamped. See *"What every result
 >   records"* below.
 > - **Interval arithmetic (Arb) is in** the agreed core (not yet shipped — optional `0.10.6+`).
-> - The verifier layer (Z3 / Lean) and all physics-specific tools are *deferred*.
+> - **Z3 (`z3.prove`) shipped in `0.13.x`.** Lean and all physics-specific tools remain deferred.
 
-## Shipped in production (`0.9.x`–`0.10.5`)
+## Shipped in production (`0.9.x`–`0.13.x`)
 
 These instruments are registered, conformance-tested, membership-gated on the run route,
 and have workspace drive/show surfaces (KaTeX where `*_latex` companions exist):
@@ -42,15 +42,17 @@ and have workspace drive/show surfaces (KaTeX where `*_latex` companions exist):
 | `geometry.coordinate_measure` | Geometry | `0.9.3` | Flagship corner measure — exact, never float |
 | `oeis.search` | Falsify & discover | `0.9.4` | Tier 1 retrieval; embeds `source.pin` on match |
 | `counterexample.search` | Falsify & discover | `0.10.1` | Integer grid falsifier; weak-support honesty in UI |
+| `z3.prove` | Verify | `0.13.1` | Machine-checked validity — `proof` / counter-model / undecided |
 
 **Cross-cutting (shipped):** blame tuple on `Checkpoint.tool_invocations`, assumptions on
 Evidence/Artifact (`0.9.1` migration `0012_toolbench_provenance`), AST-gated SymPy parser
 (`0.9.7`), additive `*_latex` render hints with hash exclusion (`0.10.4`), KaTeX in
-`formula.tsx` (`0.10.5`).
+`formula.tsx` (`0.10.5`), execution sandbox (`0.11.x`), Z3 soft-timeout under wall-clock
+(`0.13.0`).
 
 **Not shipped as standalone instruments:** `expr.parse`, `formula.render` (UI need met by
 `*_latex` + KaTeX), `sample.grid`, `pattern.find_relation`, `table.*`, `plot.*`,
-`interval.eval`, Z3, Lean.
+`interval.eval`, `z3.satisfy`, Lean.
 
 ## The picture
 
@@ -271,9 +273,10 @@ through the *same* API.
 
 ## What this list deliberately excludes (the agreed boundary)
 
-- **Verifier layer (Z3, Lean)** — *deferred.* `counterexample.search` covers cheap local
-  falsification without it. Z3 is a near-free future add (pure-Python wheel, no sandbox);
-  **Lean** forces the execution substrate (`agent-research-tools.md` §6) and stays far out.
+- **Verifier layer** — **Z3 (`z3.prove`) shipped in `0.13.x`** (proof / counter-model /
+  undecided; vacuous-hypotheses guard). Follow-ons: `z3.satisfy`, bool connectives,
+  quantifiers. **Lean** still deferred — forces a heavier execution substrate
+  (`agent-research-tools.md` §6) for agent-written proofs.
 - **Physics tools** — units & dimensional analysis, constants, statistics, tensors/GR, QM
   → *deferred* (math-first). Units + constants are the cheapest physics re-entry point.
 - **Heavy compute** (DFT / MD / PDE / FEM) → *deferred*, a separate GPU/HPC job service.
@@ -287,8 +290,8 @@ through the *same* API.
 - **Completeness** — resolved for v1 scope: interval arithmetic stays **in** the agreed
   list but **unshipped**; grades & stamped result-kind stay **out** (derived from the
   recorded instrument).
-- **Next instrument candidates** — see `docs/plans/roadmap-next-steps.md`: `interval.eval`
-  (optional), Tier 1 literature pins, Z3, then Bench 6 tables/plots.
+- **Next instrument candidates** — see `docs/plans/roadmap-next-steps.md`: Tier 1 literature
+  pins, `interval.eval` (optional), `z3.satisfy` / bools, Bench 6 tables/plots, then Lean.
 
 ## Build infrastructure (done — `0.9.x`)
 

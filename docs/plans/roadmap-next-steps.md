@@ -1,27 +1,29 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-07-06 · **Current release line:** `0.12.4` (Thin agent loop shipped).
-> For the per-phase ledger see `docs/changelog.md`; for the completed `0.12.x` plan see
-> `docs/executing/thin-agent-loop-0.12-implementation-plan.md` (proposal:
-> `docs/executing/thin-agent-loop-0.12.md`).
+> **Last updated:** 2026-07-22 · **Current release line:** `0.13.x` (`z3.prove` shipped;
+> Phase 2 write-path tests deferred). For the per-phase ledger see `docs/changelog.md`;
+> for the Z3 plan see `docs/executing/z3-instrument-0.13.md` and
+> `docs/completions/z3-instrument-0.13.*`.
 
 ## Where we are
 
-OpenTheory is a **live research ledger** with a deterministic toolbench and a **thin agent loop**.
-The foundation through `0.4.x` (ledger writes, validation, branching), identity and
-collaboration through `0.8.x`, auth and funding through `0.6.x`–`0.7.x`, the
-toolbench spine plus flagship math instruments through `0.9.x`–`0.10.x`, the execution
-sandbox through `0.11.x`, and the thin agent loop through `0.12.x`, are all shipped and deployed.
+OpenTheory is a **live research ledger** with a deterministic toolbench, a **machine-checked
+verifier** (`z3.prove`), and a **thin agent loop**. The foundation through `0.4.x` (ledger
+writes, validation, branching), identity and collaboration through `0.8.x`, auth and funding
+through `0.6.x`–`0.7.x`, the toolbench spine plus flagship math instruments through
+`0.9.x`–`0.10.x`, the execution sandbox through `0.11.x`, the thin agent loop through
+`0.12.x`, and `z3.prove` through `0.13.x`, are all shipped and deployed.
 
 A signed-in member can today:
 
 1. Own or collaborate on a project; invite others; assign Research crew models (UI only).
 2. Decompose work into threads; add claims; attach evidence; record checkpoints.
 3. Fork and close branches; record validations; read contradiction signals.
-4. Run five production instruments from the workspace — with KaTeX-readable math and bounded
+4. Run **six** production instruments from the workspace — with KaTeX-readable math and bounded
    execution (subprocess isolation, wall-clock/memory caps, concurrency limit):
    `calc.eval`, `expr.compare`, `geometry.coordinate_measure`, `oeis.search`,
-   `counterexample.search` — each landing an attributed checkpoint through the chokepoint.
+   `counterexample.search`, **`z3.prove`** — each landing an attributed checkpoint through the
+   chokepoint.
 
 The flagship *measuring across a corner* thread (claims 1–4) is walkthrough-ready with
 shipped instruments. Claim 5 (Lean proof → Grade A) remains explicitly out of scope until
@@ -70,11 +72,24 @@ After sandbox or in parallel if capacity allows:
 - Crossref / arXiv / OpenAlex pin instruments (reuse `source.pin` pattern from `oeis.search`).
 - See `docs/plans/toolbench-catalog.md` Tier 1 table.
 
-### Verifier wave — Z3 before Lean
+### `0.13.x` — Z3 (`z3.prove`) ✅ **shipped** (`0.13.0`–`0.13.3`; docs `0.13.4`)
 
-- **Z3** (`z3-solver`): Tier 0, in-process, near-free — counterexamples and unsat certificates.
-- **Lean**: Tier 2 — forces execution substrate; Claim 5 / Grade A. Do not start until sandbox
-  + agent loop are stable.
+Delivered: `z3-solver` + soft-timeout config; closed-allow-list SymPy→Z3 translator; two-stage
+validity check (vacuous-hypotheses guard → `H ∧ ¬goal`); catalog registration; drive form +
+proof / counter-model / undecided cards. A supporting `result` is now a **proof** (`artifact_kind=
+"proof"`), not weak support. Soft timeout stays under the subprocess wall-clock so hard problems
+record as honest `undecided`.
+
+**Deferred in this line:** Phase 2 tests-only slice (DB write-path / API / execution-safety
+round-trips). Production path is the existing `run_instrument` chokepoint; unit + conformance
+tests cover the instrument. Pick up Phase 2 when hardening for prod confidence.
+
+**Natural follow-ons (verifier wave remainder):**
+
+- `z3.satisfy` — model-finding as the primary output.
+- Boolean connectives / `bool` sort (needs a parser beyond `split_relation`).
+- Quantifiers; full replayable proof terms (out of scope for v1).
+- **Lean** (Tier 2) — Claim 5 / Grade A; still gated on a heavier execution substrate.
 
 ### Deferred / deprioritized
 
@@ -91,14 +106,15 @@ After sandbox or in parallel if capacity allows:
 
 1. ~~**Execution sandbox** (`0.11.x`)~~ ✅ shipped.
 2. ~~**Thin agent loop** (`0.12.x`)~~ ✅ shipped — Research crew is now a bounded operator.
-3. **Tier 1 retrieval** — literature pin instruments (Crossref / arXiv / OpenAlex) on the proven
+3. ~~**Z3 instrument** (`0.13.x`)~~ ✅ shipped — first machine-checked proof path (`z3.prove`).
+4. **Tier 1 retrieval** — literature pin instruments (Crossref / arXiv / OpenAlex) on the proven
    `source.pin` shape. Directly widens what an agent pass can *do*.
-4. **Z3 instrument** — machine-checked falsification / unsat without Lean infra; a strong new
-   instrument for the agent loop to reach for.
-5. **`0.12.5` project-budget metering** — debit the project's compute budget per pass (stretch; the
+5. **`0.13.2` write-path tests** (optional hardening) — DB-gated prove/refute/undecided through
+   `run_instrument` + soft-timeout-under-wall-clock assertion.
+6. **`0.12.5` project-budget metering** — debit the project's compute budget per pass (stretch; the
    per-pass safety caps already bound a single pass).
-6. **Bench 6 surfaces** — tables and Vega-Lite plots when a thread needs them.
-7. **Lean + full substrate** — Claim 5; only after the above.
+7. **Bench 6 surfaces** — tables and Vega-Lite plots when a thread needs them.
+8. **Lean + full substrate** — Claim 5; only after the above.
 
 ## Shipped milestones (reference)
 
@@ -112,6 +128,7 @@ After sandbox or in parallel if capacity allows:
 | `0.10.x` | `counterexample.search`, LaTeX companions, KaTeX — flagship claims 1–4 ready |
 | `0.11.x` | Execution sandbox — killable subprocess, wall-clock/memory caps, concurrency limit |
 | `0.12.x` | Thin agent loop — planner, bounded orchestrator, `202`+background API, workspace UI |
+| `0.13.x` | `z3.prove` — machine-checked validity (proof / counter-model / undecided) |
 
 ## Success criteria for the next milestone
 

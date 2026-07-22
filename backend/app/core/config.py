@@ -53,6 +53,11 @@ class Settings(BaseSettings):
     toolbench_acquire_timeout_s: float = 5.0
     # When False, sync instruments run in-thread (fast unit tests only); production keeps True.
     toolbench_subprocess_sandbox_enabled: bool = True
+    # Soft timeout for Z3's *internal* solver clock (ms). Must stay strictly below
+    # toolbench_wall_timeout_s so a hard problem returns unknown→undecided (recorded) rather
+    # than being killed by the subprocess wall-clock (mints nothing). The wall-clock/RLIMIT_AS
+    # remain the hard backstop if a pathological case ignores the soft timeout.
+    toolbench_z3_timeout_ms: int = 10_000
 
     # --- Thin agent loop (0.12.x) -----------------------------------------------------
     # The agent loop turns the config-only Research crew into an operator: one bounded planning

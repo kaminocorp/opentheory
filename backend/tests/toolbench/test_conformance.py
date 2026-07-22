@@ -114,6 +114,7 @@ def test_production_registry_holds_the_tier0_instruments() -> None:
         "expr.compare",
         "geometry.coordinate_measure",
         "oeis.search",
+        "z3.prove",
     } <= names
     catalog = build_catalog()
     assert len(catalog) == len(registry)

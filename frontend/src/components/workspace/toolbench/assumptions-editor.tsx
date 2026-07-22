@@ -65,9 +65,9 @@ export function demoAssumptionRows(instrumentName: string): AssumptionRow[] {
   return [];
 }
 
-/** Grid-search instruments reject non-empty assumptions server-side (0.10.1). */
+/** Instruments that reject non-empty assumptions server-side (grid search, z3.prove v1). */
 export function instrumentAcceptsAssumptions(instrumentName: string): boolean {
-  return instrumentName !== "counterexample.search";
+  return instrumentName !== "counterexample.search" && instrumentName !== "z3.prove";
 }
 
 /**

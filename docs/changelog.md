@@ -2,6 +2,11 @@
 
 ## Index
 
+- `0.13.5` — **Post-review hardening on the `z3.prove` line (`0.13.0`–`0.13.4`).** No CRITICAL/HIGH; core held (honesty contract, eval-safety, sandbox dispatch). Adds the deferred Phase 2 write-path + subprocess round-trip tests; removes a dead symbol-check + test-only alias. Tests + dead-code removal.
+- `0.13.4` — **Docs + line close for `z3.prove` (`0.13.0`–`0.13.3`).** Changelog, roadmap, catalog open threads, maths-toolbox §Shipped; notes Phase 2 (DB write-path tests) as deferred. Docs only.
+- `0.13.3` — **`z3.prove` frontend.** Drive form (variables + sorts, hypotheses, goal), proof / counter-model / undecided cards, assumptions gated off. Frontend-only.
+- `0.13.1` — **`z3.prove` instrument + closed-allow-list SymPy→Z3 translator.** Two-stage solve (vacuous-hypotheses guard), unsat-core on proofs, exact-string models; unit tests for every honest outcome. Backend-only — no schema, no migration. *(Phase 2 write-path tests deferred.)*
+- `0.13.0` — **Z3 dependency + soft-timeout config.** `z3-solver` wheel; `toolbench_z3_timeout_ms` under the wall-clock so hard problems → honest `undecided`. Backend-only — no schema, no migration.
 - `0.12.8` — **Open-source readiness: the front door and the docs taxonomy.** Rewrites a `README.md` two release lines stale, adds a root `CONTRIBUTION-GUIDELINES.md`, and splits `docs/` into `blueprints/` (what *is*) vs `vision/` (what's *meant*) vs `operations/`. Docs/comments only.
 - `0.12.7` — **The design language is renamed, and the design system is scoped to this product.** `Kamino Console` → **`OpenTheory Console`** across code and docs; `design-system.md` rewritten as a product-local guideline; two UI strings become `internal` (the role *value* is unchanged). Naming/comments only.
 - `0.12.6` — **Post-review pass on the completed thin agent loop (`0.12.0`–`0.12.4`).** No CRITICAL/HIGH; corrects a misleading `agent_pass_max_tokens` "enforced" comment (recorded-only until `0.12.5`) and records the concurrent-first-pass branch race as a known limitation. Docs/comments only.
@@ -73,6 +78,148 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.13.5
+
+**Post-review hardening on the `z3.prove` line (`0.13.0`–`0.13.4`).** The dedicated review pass the
+Phase 4 notes deferred ("a formal code-review pass was **not** run… schedule `/review` or
+`review_completions` before treating the line as prod-hardened"). The core held up: `proven` is
+reachable only through a Z3 `unsat` *after* the vacuous-hypotheses guard (and Z3's `unsat` is sound
+even on the undecidable nonlinear-integer fragment), so **no false-proof path exists**; the translator
+inherits the `0.9.7` pre-`parse_expr` AST allow-list (no eval-escape) and never round-trips a string
+into Z3; and `run` being sync routes it to the killable subprocess. **No CRITICAL/HIGH defect.** What
+remained was a thinner safety net than the other six instruments and a few polish items.
+**Tests + dead-code removal — no behaviour, schema, or migration; the three honest outcomes are
+byte-for-byte unchanged.**
+
+- **Closed the deferred Phase 2 write-path coverage.** `test_instruments_write_path.py` gains two
+  DB-gated tests proving `z3.prove` composes through the `run_instrument` chokepoint like every other
+  instrument: a machine-checked proof lands a **`proof`** artifact and pins the **Z3** engine +
+  version (not SymPy) in the blame tuple, and a counter-model lands a **`counterexample`** that
+  weakens its linked claim. DB-gated (skip without `TEST_DATABASE_URL`), consistent with the suite's
+  existing skips.
+- **Added a real killable-subprocess round-trip test** (`test_z3_prove.py`). The in-process unit
+  tests never exercised the production path; the new test spawns the child, where Z3 is imported
+  fresh and only a JSON envelope crosses back (no Z3 object is ever pickled), and asserts
+  proof / refutation / input-error (`ValueError` → 422, mints nothing) all round-trip.
+- **Made the honesty-reason mapping deterministic.** The `unknown → {timeout, incomplete}`
+  classifier (`_reason_unknown`) is now unit-tested directly with a stub, so the honesty-critical
+  distinction — a soft-timeout is a *citable* undecided, an incomplete answer is *escalate* — is
+  covered regardless of Z3's nondeterminism (the behavioural tests could only assert it *when* Z3
+  happened to return unknown).
+- **Removed dead code and test-only cruft from the production modules.** The
+  `_assert_no_extra_symbols` guard in `z3_prove.py` ran *after* translation, so `to_z3`'s
+  per-symbol `undeclared variable` raise always preempted it — it never fired and re-parsed each
+  relation side a second time; deleted (its `parse` import with it). Dropped the `AnyZ3 = Any`
+  alias ("for tests that need to poke at internals") and its now-unused `Any` import from
+  `_z3_support.py`.
+- **Strengthened a vacuous test.** `test_to_z3_translates_linear_sum` asserted `… or True` (always
+  passed); it now asserts the real `RealSort()`, and a sibling test covers Int→Real promotion on a
+  mixed-sort sum.
+- **Public-catalog coverage.** The DB-free `test_instruments_catalog_is_public` now asserts
+  `z3.prove` is in the public `GET /instruments` set (it previously subset-checked only the first
+  five, so the verifier's exposure was untested in the default suite).
+
+**Known limitations recorded (accepted, not defects).** A *nonlinear real* refutation can yield an
+algebraic model value, rendered as an exact Z3 s-expression string in a witness chip (honest, if
+occasionally opaque). `used_hypotheses` rides in the content hash: reproducible within the pinned
+`engine_version`, but a Z3 upgrade could shift the minimal unsat-core — the same
+`engine_version`-pinning caveat the whole toolbench already lives under, not a new one.
+
+```bash
+cd backend && uv run ruff check .                       # clean
+cd backend && uv run pytest tests/toolbench -q           # 140 passed, 24 skipped (DB-gated)
+```
+
+---
+
+## 0.13.4
+
+**Docs + line close for `z3.prove` (`0.13.0`–`0.13.3`).** The first machine-checked verifier
+is in the catalog and the workspace; this release records what shipped, resolves the catalog's
+Z3 open threads, and updates the roadmap. **Docs only — no behaviour, schema, or migration.**
+
+- **`docs/changelog.md`** — this index + full sections for `0.13.0` / `0.13.1` / `0.13.3` / `0.13.4`.
+- **`docs/plans/roadmap-next-steps.md`** — Z3 moved to shipped; follow-ons are `z3.satisfy`,
+  boolean connectives, quantifiers; Lean still gated on substrate. Phase 2 (DB write-path /
+  API integration tests) noted as deferred hardening.
+- **`docs/plans/toolbench-catalog.md`** — shape = single `z3.prove`; certificate = marker +
+  optional unsat-core (no full proof terms); starter-kit block updated.
+- **`docs/plans/maths-toolbox.md`** — `z3.prove` in §Shipped; verifier layer no longer
+  wholly deferred (Z3 in, Lean still out).
+- **Completion notes** — `docs/completions/z3-instrument-0.13.{0,1,3,4}-phase-*.md`.
+
+**Deferred (not a bug in this line):** Phase 2 tests-only slice
+(`test_z3_prove_write_path`, catalog/API membership tests, soft-timeout-under-wall-clock
+execution-safety test). The production write path is the existing `run_instrument` chokepoint;
+the instrument is registered and unit-tested. Run the DB-gated suite when adding Phase 2.
+
+---
+
+## 0.13.3
+
+**`z3.prove` frontend — drive form + honest result cards.** Members pick `z3.prove` in the
+toolbench, declare variables with int/real sorts, edit hypotheses, set a goal, and read a
+result that is visually honest: a **proof** card (machine-checked, ok edge), a **counter-model**
+card (reuses the definitive counterexample chrome), and an **undecided** card that never
+reads as a pass. **Frontend-only — no backend, schema, or migration.**
+
+- **`Z3ProveForm`** in `drive-forms.tsx` — variable rows + sort selector, hypotheses list,
+  goal field; pre-filled with `x>0, y>0 ⊢ x+y>0`. Assumptions editor hidden
+  (`instrumentAcceptsAssumptions("z3.prove") === false`).
+- **`Z3ProveBody`** in `result-view.tsx` — proof / refuted / undecided cards; KaTeX via
+  `*_latex` companions; `resolveOutcomeMeta` labels **Proven** / **Refuted** / **Undecided**.
+- **`Z3ProveOutput`** type in `types/toolbench.ts`.
+
+```bash
+cd frontend && npm run typecheck && npm run lint   # clean
+```
+
+---
+
+## 0.13.1
+
+**`z3.prove` — the instrument + the safe translator.** The first toolbench instrument that can
+**prove** (not merely fail to falsify). Closed-allow-list SymPy→Z3 translation, two-stage
+solver (vacuous-hypotheses guard, then `H ∧ ¬goal`), unsat-core on proofs, exact-string
+models. Registered into the production catalog; unit tests for every honest outcome.
+**Backend-only — no schema, no migration.** Phase 2 (DB write-path / API tests) deferred.
+
+- **`_z3_support.py`** — `to_z3` allow-list (`Integer`/`Rational`/`Symbol`/`Add`/`Mul`/`Pow`),
+  `relation_to_z3` via hardened `parse`, `solve` with soft timeout, `render_model` as `p/q`.
+- **`z3_prove.py`** — `Z3Prove` / `Z3_PROVE`; maps proven→`result`/`proof`,
+  refuted→`refuted`/`counterexample`, undecided→`undecided`/`derivation`. Sync `run` →
+  subprocess sandbox. Rejects non-empty assumptions in v1.
+- **Registration** in `instruments/__init__.py`; conformance expected-names includes
+  `z3.prove`.
+- **`tests/toolbench/test_z3_prove.py`** — proof, refutation, vacuous guard, translator
+  safety, exact models, conformance.
+
+```bash
+cd backend && uv run ruff check .
+cd backend && uv run pytest tests/toolbench -q   # 137 passed, 22 skipped (DB-gated)
+```
+
+---
+
+## 0.13.0
+
+**Z3 dependency + soft-timeout config.** Prerequisites for `z3.prove` without shipping the
+instrument yet. **Backend-only — no schema, no migration.**
+
+- **`z3-solver==5.0.0.0`** (`uv add z3-solver`) — native MIT wheel; in-process
+  `z3.get_version_string()` → `5.0.0`.
+- **`toolbench_z3_timeout_ms: int = 10_000`** in `core/config.py` — Z3's *internal* soft
+  timeout, kept strictly below `toolbench_wall_timeout_s` (30 s) so a hard problem returns
+  `unknown`→honest `undecided` (recorded) rather than a subprocess kill (mints nothing).
+- **`.env.example`** — `TOOLBENCH_Z3_TIMEOUT_MS=10000`.
+
+```bash
+cd backend && uv add z3-solver
+uv run python -c "import z3; print(z3.get_version_string())"   # 5.0.0
+```
 
 ---
 

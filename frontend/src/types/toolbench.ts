@@ -57,3 +57,19 @@ export type ToolRunResult = {
   status: ResultStatus;
   content_hash: string;
 };
+
+// Output shape of `z3.prove` (0.13.x) — free-form on the wire, typed here so drive/result cards
+// stay honest about the three outcomes (proof / counter-model / undecided).
+export type Z3ProveOutput = {
+  goal: string;
+  variables: Record<string, "int" | "real" | string>;
+  constraints: string[];
+  proven: boolean;
+  refuted: boolean;
+  status_reason?: string | null;
+  witness?: Record<string, string> | null;
+  certificate?: string | null;
+  used_hypotheses?: string[] | null;
+  goal_latex?: string | null;
+  constraints_latex?: string[] | null;
+};

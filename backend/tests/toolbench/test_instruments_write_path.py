@@ -24,8 +24,14 @@ from app.models.enums import ResultStatus
 from app.models.evidence import Evidence
 from app.models.links import ClaimEvidenceLink
 from app.services.tool_runs import run_instrument
-from app.toolbench.instruments import CALC_EVAL, COORDINATE_MEASURE, COUNTEREXAMPLE_SEARCH
+from app.toolbench.instruments import (
+    CALC_EVAL,
+    COORDINATE_MEASURE,
+    COUNTEREXAMPLE_SEARCH,
+    Z3_PROVE,
+)
 from app.toolbench.instruments._sympy_support import ENGINE_VERSION
+from app.toolbench.instruments._z3_support import ENGINE_VERSION as Z3_ENGINE_VERSION
 from app.toolbench.instruments.oeis_search import OeisSearch
 from app.toolbench.retrieval import Retrieval
 
@@ -326,3 +332,86 @@ async def test_oeis_search_lands_a_pinned_external_evidence(
     assert pin["identifier"] == "A000045"
     assert pin["url"] == "https://oeis.org/A000045"
     assert pin["retrieved_at"] and pin["raw_response_hash"]
+
+
+# --- Phase 0.13.5: z3.prove (the first machine-checked verifier through the chokepoint) -----------
+
+
+async def test_z3_prove_lands_a_proof_with_the_z3_engine_pinned(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """The deferred Phase 2 write path: a machine-checked proof composes through the same chokepoint
+    the compute instruments use, landing a ``proof`` artifact and pinning the *Z3* engine (not
+    SymPy) + version in the blame tuple — the reproduce-exactly contract for a verifier result.
+    """
+    actor_id = await _actor(client)
+    project_id = await _project(client, "instr-z3-proof")
+    pid = UUID(project_id)
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        run = await run_instrument(
+            session, pid, Z3_PROVE, actor,
+            inputs={
+                "variables": {"x": "real", "y": "real"},
+                "constraints": ["x > 0", "y > 0"],
+                "goal": "x + y > 0",
+            },
+        )
+
+    assert run.status is ResultStatus.RESULT
+
+    async with session_factory() as session:
+        artifact = await session.get(Artifact, run.artifact_id)
+        # A proof is its own artifact kind — never styled as weak support.
+        assert artifact.kind == "proof"
+
+    entry = run.checkpoint.tool_invocations[0]
+    assert entry["instrument"] == "z3.prove"
+    assert entry["engine"] == "z3"
+    assert entry["engine_version"] == Z3_ENGINE_VERSION
+    assert entry["status"] == "result"
+    assert entry["output"]["proven"] is True
+    assert entry["output"]["certificate"] == "unsat"
+    # The unsat-core names the hypotheses the proof actually used (index + original text).
+    assert any("x > 0" in used for used in entry["output"]["used_hypotheses"])
+
+
+async def test_z3_prove_refutation_weakens_the_claim_as_a_counterexample(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """A counter-model refutes the goal → a ``counterexample`` artifact weakening the linked claim,
+    exactly like the other falsifiers (outcome-derived ``weaken`` relation)."""
+    actor_id = await _actor(client)
+    project_id = await _project(client, "instr-z3-refute")
+    thread_id = await _thread(client, project_id, actor_id)
+    claim_id = await _claim(client, thread_id, actor_id, "x*x is never equal to x.")
+    pid = UUID(project_id)
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        run = await run_instrument(
+            session, pid, Z3_PROVE, actor,
+            inputs={"variables": {"x": "int"}, "constraints": [], "goal": "x*x != x"},
+            claim_id=UUID(claim_id),
+        )
+
+    assert run.status is ResultStatus.REFUTED
+    assert run.evidence_id is not None
+
+    async with session_factory() as session:
+        artifact = await session.get(Artifact, run.artifact_id)
+        assert artifact.kind == "counterexample"
+        link = (
+            await session.execute(
+                select(ClaimEvidenceLink).where(ClaimEvidenceLink.evidence_id == run.evidence_id)
+            )
+        ).scalar_one()
+        assert link.relation_kind == "weaken"
+
+    entry = run.checkpoint.tool_invocations[0]
+    assert entry["instrument"] == "z3.prove"
+    assert entry["engine_version"] == Z3_ENGINE_VERSION
+    assert entry["output"]["refuted"] is True
+    # Exact integer witness — x=0 or x=1 both break x*x != x. Never a float.
+    assert entry["output"]["witness"]["x"] in {"0", "1"}

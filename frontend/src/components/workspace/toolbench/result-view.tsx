@@ -76,6 +76,40 @@ function CounterexampleCard({ caption, children }: { caption: string; children: 
   );
 }
 
+/**
+ * Proof card for `z3.prove`: a machine-checked entailment — strong positive edge, never
+ * styled like weak support (the whole point of the verifier wave).
+ */
+function ProofCard({ caption, children }: { caption: string; children: ReactNode }) {
+  return (
+    <div className="relative rounded-built bg-panel p-3 pl-4" style={{ border: "0.5px solid var(--hairline)" }}>
+      <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-state-ok" />
+      <p className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-state-ok">
+        Proof · machine-checked
+      </p>
+      <div className="mt-1.5">{children}</div>
+      <p className="mt-1.5 text-[12px] leading-[1.5] text-text-mute">{caption}</p>
+    </div>
+  );
+}
+
+/** Honest undecided card — warn edge, never a pass. */
+function UndecidedCard({ caption, children }: { caption: string; children: ReactNode }) {
+  return (
+    <div
+      className="relative hatch rounded-built bg-panel p-3 pl-4"
+      style={{ border: "0.5px solid var(--hairline)" }}
+    >
+      <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-state-warn" />
+      <p className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-state-warn">
+        Undecided · not a pass
+      </p>
+      <div className="mt-1.5">{children}</div>
+      <p className="mt-1.5 text-[12px] leading-[1.5] text-text-mute">{caption}</p>
+    </div>
+  );
+}
+
 // --- calc.eval --------------------------------------------------------------
 
 function CalcEvalBody({ output, status }: { output: Record<string, unknown>; status: string }) {
@@ -317,6 +351,126 @@ function CounterexampleSearchBody({
   );
 }
 
+// --- z3.prove ---------------------------------------------------------------
+
+const Z3_REASON_GLOSS: Record<string, string> = {
+  contradictory_hypotheses:
+    "The hypotheses contradict each other — a vacuous proof would be dishonest, so this is undecided, never proven.",
+  hypotheses_undecided:
+    "Z3 could not decide whether the hypotheses are satisfiable — escalate, never a pass.",
+  timeout: "Solver soft-timeout — recorded as undecided so a hard problem is citable, not killed.",
+  incomplete: "Z3 returned unknown on this fragment — honest undecided, never a pass.",
+};
+
+function Z3ProveBody({
+  output,
+  status,
+}: {
+  output: Record<string, unknown>;
+  status: string;
+}) {
+  const goal = asString(output.goal);
+  const goalLatex = asLatex(output.goal_latex);
+  const constraints = Array.isArray(output.constraints)
+    ? (output.constraints as unknown[]).map(asString)
+    : [];
+  const constraintsLatex = Array.isArray(output.constraints_latex)
+    ? (output.constraints_latex as unknown[]).map((v) => asLatex(v) ?? asString(v))
+    : [];
+  const witness = (output.witness ?? {}) as Record<string, unknown>;
+  const used = Array.isArray(output.used_hypotheses)
+    ? (output.used_hypotheses as unknown[]).map(asString)
+    : [];
+  const reason = asString(output.status_reason);
+  const certificate = asString(output.certificate);
+
+  const hypothesesBlock =
+    constraints.length > 0 ? (
+      <KeyValue k="Hypotheses">
+        <ul className="grid gap-1">
+          {constraints.map((c, i) => (
+            <li key={`${c}-${i}`}>
+              <Formula expr={c} latex={constraintsLatex[i]} className="text-[13px]" />
+            </li>
+          ))}
+        </ul>
+      </KeyValue>
+    ) : (
+      <KeyValue k="Hypotheses">
+        <span className="text-[12px] text-text-faint">none (unconditional)</span>
+      </KeyValue>
+    );
+
+  if (status === "result" && output.proven === true) {
+    return (
+      <div className="grid gap-2">
+        {hypothesesBlock}
+        <KeyValue k="Goal">
+          <Formula expr={goal} latex={goalLatex} className="text-[15px]" />
+        </KeyValue>
+        <ProofCard caption="Proven for all assignments of the declared variables under the hypotheses — unsat of hypotheses ∧ ¬goal.">
+          <div className="grid gap-1.5">
+            {certificate ? (
+              <KeyValue k="Certificate">
+                <span className="font-mono text-[13px] text-text">{certificate}</span>
+              </KeyValue>
+            ) : null}
+            {used.length > 0 ? (
+              <KeyValue k="Used">
+                <span className="flex flex-wrap gap-1.5">
+                  {used.map((name) => (
+                    <Chip key={name}>{name}</Chip>
+                  ))}
+                </span>
+              </KeyValue>
+            ) : null}
+          </div>
+        </ProofCard>
+      </div>
+    );
+  }
+
+  if (status === "refuted" && output.refuted === true) {
+    return (
+      <div className="grid gap-2">
+        {hypothesesBlock}
+        <KeyValue k="Goal">
+          <Formula expr={goal} latex={goalLatex} className="text-[15px]" />
+        </KeyValue>
+        <CounterexampleCard caption="A concrete assignment satisfies the hypotheses but breaks the goal — definitive refutation.">
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {Object.entries(witness).map(([name, value]) => (
+              <Chip key={name}>
+                {name}={asString(value)}
+              </Chip>
+            ))}
+          </div>
+        </CounterexampleCard>
+      </div>
+    );
+  }
+
+  // undecided (or unexpected) — never styled as a pass
+  const reasonGloss =
+    (reason && Z3_REASON_GLOSS[reason]) ||
+    "Z3 could not decide — escalate to a stronger verifier, never a pass.";
+  return (
+    <div className="grid gap-2">
+      {hypothesesBlock}
+      <KeyValue k="Goal">
+        <Formula expr={goal} latex={goalLatex} className="text-[15px]" />
+      </KeyValue>
+      <UndecidedCard caption={reasonGloss}>
+        {reason ? (
+          <KeyValue k="Reason">
+            <span className="font-mono text-[13px] text-text">{reason}</span>
+          </KeyValue>
+        ) : null}
+      </UndecidedCard>
+    </div>
+  );
+}
+
 // --- oeis.search (the citation card) ----------------------------------------
 
 function OeisBody({ output }: { output: Record<string, unknown> }) {
@@ -387,7 +541,7 @@ function OeisBody({ output }: { output: Record<string, unknown> }) {
   );
 }
 
-/** Honest outcome chrome — weak-support search results must not read as a pass. */
+/** Honest outcome chrome — weak-support / undecided must not read as a pass; proofs are strong. */
 function resolveOutcomeMeta(
   instrumentName: string,
   status: string,
@@ -403,6 +557,29 @@ function resolveOutcomeMeta(
       label: "No witness",
       gloss: "Weak support only — absence in this search space is not proof.",
     };
+  }
+  if (instrumentName === "z3.prove") {
+    if (status === "result" && output.proven === true) {
+      return {
+        tone: "ok",
+        label: "Proven",
+        gloss: "Machine-checked: the goal holds for all assignments under the hypotheses.",
+      };
+    }
+    if (status === "refuted" && output.refuted === true) {
+      return {
+        tone: "fail",
+        label: "Refuted",
+        gloss: "Counter-model — a concrete assignment breaks the goal.",
+      };
+    }
+    if (status === "undecided") {
+      return {
+        tone: "warn",
+        label: "Undecided",
+        gloss: "Z3 could not decide — recorded, never a pass.",
+      };
+    }
   }
   return outcomeMeta(status);
 }
@@ -431,6 +608,8 @@ function ResultBody({
       return <OeisBody output={output} />;
     case "counterexample.search":
       return <CounterexampleSearchBody output={output} status={status} />;
+    case "z3.prove":
+      return <Z3ProveBody output={output} status={status} />;
     default:
       return (
         <pre className="overflow-x-auto rounded-built bg-panel p-3 font-mono text-[12px] text-text-soft">

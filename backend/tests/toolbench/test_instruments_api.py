@@ -37,6 +37,7 @@ def test_instruments_catalog_is_public(dbfree_client: TestClient) -> None:
         "expr.compare",
         "geometry.coordinate_measure",
         "oeis.search",
+        "z3.prove",
     } <= names
     # every descriptor carries the universal three-outcome contract
     contract = {o["status"] for o in resp.json()[0]["result_contract"]}

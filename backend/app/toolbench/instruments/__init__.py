@@ -13,6 +13,7 @@ from app.toolbench.instruments.counterexample_search import COUNTEREXAMPLE_SEARC
 from app.toolbench.instruments.expr_compare import EXPR_COMPARE
 from app.toolbench.instruments.geometry_measure import COORDINATE_MEASURE
 from app.toolbench.instruments.oeis_search import OEIS_SEARCH
+from app.toolbench.instruments.z3_prove import Z3_PROVE
 from app.toolbench.registry import registry
 
 # The production instrument set, in the order they are registered (registry sorts by name on read).
@@ -22,6 +23,7 @@ INSTRUMENTS = (
     EXPR_COMPARE,
     COORDINATE_MEASURE,
     OEIS_SEARCH,
+    Z3_PROVE,
 )
 
 for _instrument in INSTRUMENTS:
@@ -33,5 +35,6 @@ __all__ = [
     "COORDINATE_MEASURE",
     "EXPR_COMPARE",
     "OEIS_SEARCH",
+    "Z3_PROVE",
     "INSTRUMENTS",
 ]
