@@ -21,18 +21,18 @@ function Chip({ children }: { children: ReactNode }) {
   return (
     <span
       className="rounded-full px-2 py-[2px] font-mono text-[11px] text-text-soft"
-      style={{ border: "0.5px solid var(--hairline)" }}
+      style={{ border: "1px solid var(--hairline)" }}
     >
       {children}
     </span>
   );
 }
 
-// A labelled value row: a mono readout label, then its rendered value.
+// A labelled value row: a small muted label, then its rendered value.
 function KeyValue({ k, children }: { k: string; children: ReactNode }) {
   return (
     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-mute">{k}</span>
+      <span className="text-[12px] font-medium text-text-mute">{k}</span>
       {children}
     </div>
   );
@@ -44,19 +44,17 @@ function KeyValue({ k, children }: { k: string; children: ReactNode }) {
  * tick (the claim is false), never softened or hidden.
  */
 /**
- * Weak-support card for a completed search that found no witness — hatched, neutral edge, never
+ * Weak-support card for a completed search that found no witness — neutral edge, never
  * read as "proven" or "validated" (plan Phase 3 / maths-toolbox Bench 4).
  */
 function WeakSupportCard({ caption, children }: { caption: string; children: ReactNode }) {
   return (
     <div
-      className="relative hatch rounded-built bg-panel p-3 pl-4"
-      style={{ border: "0.5px solid var(--hairline)" }}
+      className="relative rounded-built bg-panel p-3 pl-4"
+      style={{ border: "1px solid var(--hairline)" }}
     >
       <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-text-faint" />
-      <p className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-text-mute">
-        No counterexample found
-      </p>
+      <p className="text-[12px] font-medium text-text-mute">No counterexample found</p>
       <div className="mt-1.5">{children}</div>
       <p className="mt-1.5 text-[12px] leading-[1.5] text-text-mute">{caption}</p>
     </div>
@@ -65,11 +63,9 @@ function WeakSupportCard({ caption, children }: { caption: string; children: Rea
 
 function CounterexampleCard({ caption, children }: { caption: string; children: ReactNode }) {
   return (
-    <div className="relative rounded-built bg-panel p-3 pl-4" style={{ border: "0.5px solid var(--hairline)" }}>
+    <div className="relative rounded-built bg-panel p-3 pl-4" style={{ border: "1px solid var(--hairline)" }}>
       <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-state-fail" />
-      <p className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-state-fail">
-        Counterexample · definitive
-      </p>
+      <p className="text-[12px] font-medium text-state-fail">Counterexample · definitive</p>
       <div className="mt-1.5">{children}</div>
       <p className="mt-1.5 text-[12px] leading-[1.5] text-text-mute">{caption}</p>
     </div>
@@ -82,11 +78,9 @@ function CounterexampleCard({ caption, children }: { caption: string; children: 
  */
 function ProofCard({ caption, children }: { caption: string; children: ReactNode }) {
   return (
-    <div className="relative rounded-built bg-panel p-3 pl-4" style={{ border: "0.5px solid var(--hairline)" }}>
+    <div className="relative rounded-built bg-panel p-3 pl-4" style={{ border: "1px solid var(--hairline)" }}>
       <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-state-ok" />
-      <p className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-state-ok">
-        Proof · machine-checked
-      </p>
+      <p className="text-[12px] font-medium text-state-ok">Proof · machine-checked</p>
       <div className="mt-1.5">{children}</div>
       <p className="mt-1.5 text-[12px] leading-[1.5] text-text-mute">{caption}</p>
     </div>
@@ -97,13 +91,11 @@ function ProofCard({ caption, children }: { caption: string; children: ReactNode
 function UndecidedCard({ caption, children }: { caption: string; children: ReactNode }) {
   return (
     <div
-      className="relative hatch rounded-built bg-panel p-3 pl-4"
-      style={{ border: "0.5px solid var(--hairline)" }}
+      className="relative rounded-built bg-panel p-3 pl-4"
+      style={{ border: "1px solid var(--hairline)" }}
     >
       <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-state-warn" />
-      <p className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-state-warn">
-        Undecided · not a pass
-      </p>
+      <p className="text-[12px] font-medium text-state-warn">Undecided · not a pass</p>
       <div className="mt-1.5">{children}</div>
       <p className="mt-1.5 text-[12px] leading-[1.5] text-text-mute">{caption}</p>
     </div>
@@ -183,9 +175,7 @@ function ExprCompareBody({
       {status === "refuted" ? (
         <CounterexampleCard caption="The difference reduces to a non-zero constant — the expressions are not equivalent.">
           <span className="flex flex-wrap items-baseline gap-2">
-            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-mute">
-              difference
-            </span>
+            <span className="text-[12px] font-medium text-text-mute">Difference</span>
             <Formula expr={difference} latex={differenceLatex} className="text-[15px]" />
           </span>
         </CounterexampleCard>
@@ -221,9 +211,7 @@ function GeometryBody({ output }: { output: Record<string, unknown> }) {
     <dl className="grid gap-2">
       {Object.entries(distances).map(([key, value]) => (
         <div key={key} className="flex flex-wrap items-baseline gap-x-2">
-          <dt className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-mute">
-            dist {label(key)}
-          </dt>
+          <dt className="text-[12px] font-medium text-text-mute">dist {label(key)}</dt>
           <dd>
             <Formula
               expr={asString(value)}
@@ -235,9 +223,7 @@ function GeometryBody({ output }: { output: Record<string, unknown> }) {
       ))}
       {Object.entries(angles).map(([key, measure]) => (
         <div key={key} className="flex flex-wrap items-baseline gap-x-2">
-          <dt className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-mute">
-            angle {label(key)}
-          </dt>
+          <dt className="text-[12px] font-medium text-text-mute">angle {label(key)}</dt>
           <dd className="flex flex-wrap items-baseline gap-2">
             <span className="inline-flex items-baseline gap-0">
               <Formula
@@ -483,7 +469,7 @@ function OeisBody({ output }: { output: Record<string, unknown> }) {
   const hash = asString(pin.raw_response_hash);
 
   return (
-    <div className="grid gap-2 rounded-built bg-panel p-3" style={{ border: "0.5px solid var(--hairline)" }}>
+    <div className="grid gap-2 rounded-built bg-panel p-3" style={{ border: "1px solid var(--hairline)" }}>
       {found ? (
         <KeyValue k="Sequence">
           <Formula expr={identifier} className="text-[15px] text-text" />
@@ -669,10 +655,10 @@ export function ResultView({
   return (
     <div
       className="grid gap-3 rounded-built bg-panel-2 p-4"
-      style={{ border: "0.5px solid var(--hairline)" }}
+      style={{ border: "1px solid var(--hairline)" }}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <StatusPill tone={meta.tone} label={meta.label.toUpperCase()} />
+        <StatusPill tone={meta.tone} label={meta.label} />
         {meta.gloss ? <span className="text-[12px] leading-[1.5] text-text-soft">{meta.gloss}</span> : null}
       </div>
 
@@ -680,7 +666,7 @@ export function ResultView({
 
       {assumptionChips.length > 0 ? (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-faint">under</span>
+          <span className="text-[11px] font-medium text-text-faint">under</span>
           {assumptionChips.map((chip) => (
             <Chip key={chip}>{chip}</Chip>
           ))}

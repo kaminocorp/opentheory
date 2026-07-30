@@ -136,7 +136,7 @@ export function AuthMenu() {
           type="button"
           onClick={() => setOpen((v) => !v)}
           className="flex h-9 items-center gap-2 rounded-full px-3 text-[13px] font-medium text-text transition-colors hover:border-text"
-          style={{ border: "0.5px solid var(--hairline-strong)" }}
+          style={{ border: "1px solid var(--hairline-strong)" }}
           title="Account"
         >
           <Icon icon={UserCircle} size={16} className="text-text-mute" />
@@ -274,7 +274,7 @@ export function AuthMenu() {
                 onClick={handleEmailSignIn}
                 disabled={!email.trim()}
                 className="mb-2 flex w-full items-center justify-center gap-2 rounded-full px-3 py-2 text-[13px] font-medium text-text transition-colors hover:border-text disabled:cursor-not-allowed disabled:opacity-50"
-                style={{ border: "0.5px solid var(--hairline-strong)" }}
+                style={{ border: "1px solid var(--hairline-strong)" }}
               >
                 <Icon icon={Mail} size={16} />
                 Email me a magic link
@@ -283,7 +283,7 @@ export function AuthMenu() {
                 type="button"
                 onClick={() => signInWithGoogle()}
                 className="flex w-full items-center justify-center gap-2 rounded-full px-3 py-2 text-[13px] font-medium text-text transition-colors hover:border-text"
-                style={{ border: "0.5px solid var(--hairline-strong)" }}
+                style={{ border: "1px solid var(--hairline-strong)" }}
               >
                 Continue with Google
               </button>

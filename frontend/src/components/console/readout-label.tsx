@@ -13,16 +13,16 @@ interface ReadoutLabelProps {
 }
 
 /**
- * The readout label (§3.2): the one sanctioned all-caps in the whole system.
- * Mono, 11px / 500, 0.14em tracking, UPPERCASE — a machine-stamped tag, never
- * used for prose, headings, or buttons.
+ * A quiet section / field label: sans, 13px medium, sentence case. Used for
+ * form labels, metric labels, and secondary section headings. No all-caps, no
+ * letterspacing — hierarchy comes from weight and colour, not treatment.
  */
 export function ReadoutLabel({ children, tone = "mute", as: Tag = "span", className }: ReadoutLabelProps) {
   return (
     <Tag
       className={cn(
-        "font-mono text-[11px] font-medium uppercase tracking-[0.14em]",
-        tone === "signal" ? "text-signal" : "text-text-mute",
+        "text-[13px] font-medium",
+        tone === "signal" ? "text-signal" : "text-text-soft",
         className,
       )}
     >

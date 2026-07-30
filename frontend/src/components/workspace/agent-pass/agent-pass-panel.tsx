@@ -118,23 +118,21 @@ export function AgentPassPanel({
 
       {open ? (
         !selectedThreadId ? (
-          <AwaitingState variant="empty" label="select a thread to commission an agent pass" />
+          <AwaitingState variant="empty" label="Select a thread to commission an agent pass" />
         ) : runsQuery.isLoading ? (
-          <AwaitingState variant="loading" label="loading agent passes" />
+          <AwaitingState variant="loading" label="Loading agent passes" />
         ) : featureDisabled ? (
           <p className="text-[12px] leading-[1.5] text-text-mute">
             Agent passes are not enabled for this deployment yet.
           </p>
         ) : runsQuery.isError ? (
-          <AwaitingState variant="error" label="agent passes unavailable" />
+          <AwaitingState variant="error" label="Agent passes unavailable" />
         ) : (
           <div className="grid gap-4">
             {/* Trigger: pick a role (its model shown inline), then commission the pass. */}
             <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
               <label className="grid gap-1.5">
-                <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-mute">
-                  Role
-                </span>
+                <span className="text-[13px] font-medium text-text-soft">Role</span>
                 <Select
                   value={role}
                   onChange={(event) => setRole(event.target.value as AgentRole)}
@@ -179,28 +177,26 @@ export function AgentPassPanel({
             ) : (
               <div
                 className="grid min-h-24 place-items-center rounded-built bg-panel-2"
-                style={{ border: "0.5px solid var(--hairline)" }}
+                style={{ border: "1px solid var(--hairline)" }}
               >
-                <AwaitingState variant="empty" label="no passes yet — run one to see its trace" />
+                <AwaitingState variant="empty" label="No passes yet — run one to see its trace" />
               </div>
             )}
 
             {/* Earlier passes on this thread — click to inspect one. */}
             {history.length > 0 ? (
               <div className="grid gap-1.5">
-                <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-mute">
-                  Earlier passes
-                </span>
+                <span className="text-[13px] font-medium text-text-soft">Earlier passes</span>
                 {history.map((r) => (
                   <button
                     key={r.id}
                     type="button"
                     onClick={() => setActiveRunId(r.id)}
                     className="flex flex-wrap items-center gap-2 rounded-built bg-panel-2 px-3 py-2 text-left transition-colors hover:bg-panel"
-                    style={{ border: "0.5px solid var(--hairline)" }}
+                    style={{ border: "1px solid var(--hairline)" }}
                   >
                     <AgentRunStatusPill status={r.status} />
-                    <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-mute">
+                    <span className="text-[12px] capitalize text-text-mute">
                       {r.role.replaceAll("_", " ")}
                     </span>
                     <span className="font-mono text-[11px] tabular-nums text-text-faint">

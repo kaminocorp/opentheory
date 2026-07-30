@@ -8,11 +8,9 @@ import { CommandRail } from "@/components/shell/command-rail";
 import { InvitationInbox } from "@/components/shell/invitation-inbox";
 
 /**
- * The OpenTheory app shell (§4.1) — the structural signature. A fixed 6u header and a
- * fixed 7u left command rail frame a full-bleed `<main>` that lays bays on the
- * measured field (the field shows through `<main>`, which paints nothing of its
- * own; the opaque header + rail cover it). Replaces the old centered, header-only
- * page so the console "uses its glass" instead of letterboxing to a column.
+ * The OpenTheory app shell: a fixed 48px header and a fixed left nav rail frame
+ * a full-bleed `<main>`. Flat surfaces separated by hairline borders — no
+ * texture, no ornament.
  */
 export function AppShell({ children }: { children: ReactNode }) {
   return (
@@ -20,7 +18,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <ShellHeader />
       <div className="flex">
         <CommandRail />
-        {/* Gutter steps with the field (§4.3): mobile 16px → 24px from sm up. */}
+        {/* Gutter steps with the viewport: mobile 16px → 24px from sm up. */}
         <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-6">{children}</main>
       </div>
     </div>
@@ -30,25 +28,22 @@ export function AppShell({ children }: { children: ReactNode }) {
 function ShellHeader() {
   return (
     <header className="sticky top-0 z-30 flex h-12 items-center gap-4 px-4">
-      {/* The chamfered, bordered panel lives on its own background layer: the
-          clip-path must shape ONLY the surface, never clip the account / sign-in
-          dropdowns that overflow below the header. */}
+      {/* The header surface lives on its own background layer so dropdowns that
+          overflow below the header are never clipped. */}
       <div
         aria-hidden
-        className="bay-chamfer absolute inset-0 -z-10 bg-panel"
-        style={{ borderBottom: "0.5px solid var(--hairline)" }}
+        className="absolute inset-0 -z-10 border-b border-[color:var(--hairline)] bg-ground/90 backdrop-blur"
       />
 
-      {/* Brand lockup (§8): mark + wordmark, Sans 15/500. The constant identity,
-          plus the §5.9 click "jingle" easter egg (the mark re-assembles on click). */}
+      {/* Brand lockup: mark + wordmark — the constant identity, plus the click
+          "jingle" easter egg (the mark re-assembles on click). */}
       <BrandLockup />
 
-      {/* Inert search (out of scope): restyled to a square hairline field, not wired. */}
+      {/* Inert search (out of scope): a quiet pill, not wired. */}
       <div className="hidden min-w-0 flex-1 justify-center md:flex">
         <div
           aria-hidden
-          className="flex h-8 w-full max-w-md items-center gap-2 rounded-built bg-ground px-3 text-text-mute"
-          style={{ border: "0.5px solid var(--hairline)" }}
+          className="flex h-8 w-full max-w-md items-center gap-2 rounded-full border border-[color:var(--hairline)] bg-white/[0.03] px-3.5 text-text-mute"
         >
           <Icon icon={Search} size={16} className="text-text-mute" />
           <span className="truncate text-[13px]">Search projects, claims, evidence</span>

@@ -32,11 +32,9 @@ type ProjectTabsProps = {
 /**
  * The project section tablist (0.14.0) — the one nav surface inside a project.
  *
- * Console register (docs/blueprints/design-system.md §3.2/§9.2): mono uppercase
- * readout labels, and the active tab marked by a 2px `--signal` edge tick plus
- * text weight — never a filled pill. The rail's tick is `w-0.5` on a vertical
- * edge; transposed here to `h-0.5` on the strip's bottom edge. Because the marker
- * is structural, the active tab still reads in grayscale.
+ * Quiet underline tabs: sans labels, the active tab marked by a 2px `--signal`
+ * bottom edge plus text colour — never a filled pill. Because the marker is
+ * structural, the active tab still reads in grayscale.
  *
  * Tabs are buttons, not links: the ARIA tab pattern owns the interaction and the
  * URL update is a side effect of `onSelect` (the CommandRail uses `<Link>` to the
@@ -72,7 +70,7 @@ export function ProjectTabs({ active, onSelect, badges, className }: ProjectTabs
       // Scrolls horizontally rather than wrapping or collapsing to a menu — five
       // short labels fit every viewport worth supporting.
       className={cn("flex items-stretch gap-1 overflow-x-auto", className)}
-      style={{ borderBottom: "0.5px solid var(--hairline)" }}
+      style={{ borderBottom: "1px solid var(--hairline)" }}
     >
       {PROJECT_TAB_IDS.map((tab) => {
         const isActive = tab === active;
@@ -92,7 +90,7 @@ export function ProjectTabs({ active, onSelect, badges, className }: ProjectTabs
             tabIndex={isActive ? 0 : -1}
             onClick={() => onSelect(tab)}
             className={cn(
-              "relative shrink-0 whitespace-nowrap px-3 py-2.5 font-mono text-[11px] font-medium uppercase tracking-[0.14em] transition-colors",
+              "relative shrink-0 whitespace-nowrap px-3 py-2.5 text-[13px] font-medium transition-colors",
               isActive ? "text-text" : "text-text-mute hover:text-text",
             )}
           >

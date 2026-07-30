@@ -67,7 +67,7 @@ export function ProjectHeader({
         Projects
       </Link>
 
-      <Bay as="header" bracketed chamfer density="narrative" className="grid gap-3">
+      <Bay as="header" density="narrative" className="grid gap-3">
         <div className="flex items-start justify-between gap-3">
           <StatusPill tone={projectStatusTone[project.status]} label={project.status} />
           {/* Owner/admin only (the backend still authorizes the PATCH). */}
@@ -102,7 +102,7 @@ export function ProjectHeader({
             <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-state-fail" />
             <span className="flex items-center gap-1.5">
               <Icon icon={AlertTriangle} size={14} className="text-state-fail" />
-              <span className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-state-fail">
+              <span className="text-[13px] font-medium text-state-fail">
                 {contradictions.length} contested claim{contradictions.length === 1 ? "" : "s"}
               </span>
             </span>
@@ -122,7 +122,7 @@ export function ProjectHeader({
         {/* Compact scale readout — replaces the six-tile grid that used to push the
             workspace below the fold. Loading and error fall back exactly as the
             MetricReadout tiles did (shimmer, then "—"). */}
-        <dl className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 font-mono text-[11px] tabular-nums">
+        <dl className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-[12px] tabular-nums">
           {COMPACT_COUNTS.map(({ key, label }, index) => (
             <div key={key} className="flex items-center gap-1.5">
               {index > 0 ? (
@@ -130,8 +130,8 @@ export function ProjectHeader({
                   ·
                 </span>
               ) : null}
-              <dt className="font-medium uppercase tracking-[0.14em] text-text-mute">{label}</dt>
-              <dd className={cn("font-medium", counts ? "text-text" : "text-text-mute")}>
+              <dt className="text-text-mute">{label}</dt>
+              <dd className={cn("font-mono font-medium", counts ? "text-text" : "text-text-mute")}>
                 {counts ? (
                   counts[key]
                 ) : countsError ? (

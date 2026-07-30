@@ -19,7 +19,7 @@ export function ProjectList() {
   if (projectsQuery.isLoading) {
     return (
       <Bay className={FRAME}>
-        <AwaitingState variant="loading" label="loading projects" />
+        <AwaitingState variant="loading" label="Loading projects" />
       </Bay>
     );
   }
@@ -29,7 +29,7 @@ export function ProjectList() {
     // weight — "stopped", not a softened or hidden failure.
     return (
       <Bay className={FRAME}>
-        <AwaitingState variant="error" label="project index unavailable" />
+        <AwaitingState variant="error" label="Project index unavailable" />
       </Bay>
     );
   }
@@ -39,7 +39,7 @@ export function ProjectList() {
   if (projects.length === 0) {
     return (
       <Bay className={FRAME}>
-        <AwaitingState variant="empty" label="no projects yet" />
+        <AwaitingState variant="empty" label="No projects yet" />
       </Bay>
     );
   }

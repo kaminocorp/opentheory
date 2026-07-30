@@ -126,7 +126,7 @@ function InstrumentRunner({
         {/* Scope + optional evidence target. A run always records on the ledger; a claim target also
             mints Evidence linked to that claim. */}
         <div className="grid gap-2">
-          <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-mute">
+          <span className="text-[12px] text-text-mute">
             {branchId
               ? lineSealed
                 ? "Records on a sealed branch — reopen to run"
@@ -180,9 +180,9 @@ function InstrumentRunner({
         ) : (
           <div
             className="grid min-h-40 place-items-center rounded-built bg-panel-2"
-            style={{ border: "0.5px solid var(--hairline)" }}
+            style={{ border: "1px solid var(--hairline)" }}
           >
-            <AwaitingState variant="empty" label="run to see a result" />
+            <AwaitingState variant="empty" label="Run to see a result" />
           </div>
         )}
       </div>
@@ -241,12 +241,12 @@ export function ToolbenchPanel({
 
       {open ? (
         catalogQuery.isLoading ? (
-          <AwaitingState variant="loading" label="loading instruments" />
+          <AwaitingState variant="loading" label="Loading instruments" />
         ) : catalogQuery.isError ? (
-          <AwaitingState variant="error" label="instruments unavailable" />
+          <AwaitingState variant="error" label="Instruments unavailable" />
         ) : !selected ? (
           // A successful fetch with an empty registry is a neutral empty state, not an error.
-          <AwaitingState variant="empty" label="no instruments registered" />
+          <AwaitingState variant="empty" label="No instruments registered" />
         ) : (
           <div className="grid gap-4">
             {/* Instrument picker — a segmented control over the code registry. */}
@@ -264,7 +264,7 @@ export function ToolbenchPanel({
                       active ? "bg-panel-2 text-text" : "text-text-mute hover:text-text",
                     )}
                     style={{
-                      border: `0.5px solid var(--hairline${active ? "-strong" : ""})`,
+                      border: `1px solid var(--hairline${active ? "-strong" : ""})`,
                     }}
                   >
                     {active ? <span aria-hidden className="size-1.5 rounded-full bg-signal" /> : null}
@@ -288,7 +288,7 @@ export function ToolbenchPanel({
                   const meta = outcomeMeta(outcome.status);
                   return (
                     <span key={outcome.status} title={outcome.meaning}>
-                      <StatusPill tone={meta.tone} label={outcome.status.toUpperCase()} />
+                      <StatusPill tone={meta.tone} label={outcome.status} />
                     </span>
                   );
                 })}

@@ -19,10 +19,10 @@ export const OUTCOME_META: Record<
   { label: string; tone: StateTone; glyph?: string }
 > = {
   passed: { label: "passed", tone: "ok" }, // ✓
-  failed: { label: "failed", tone: "fail" }, // ■
-  inconclusive: { label: "inconclusive", tone: "mute" }, // ▣
+  failed: { label: "failed", tone: "fail" }, // ✕
+  inconclusive: { label: "inconclusive", tone: "mute" }, // ○
   needs_reproduction: { label: "needs repro", tone: "warn" }, // ▲ amber
-  // Fail colour, but a triangle to read distinctly from `failed`'s ■ (echoes the
+  // Fail colour, but a triangle to read distinctly from `failed`'s ✕ (echoes the
   // overview contradiction marker); label disambiguates from `needs repro`.
   contradicts: { label: "contradicts", tone: "fail", glyph: "▲" },
   retract: { label: "retract", tone: "faint" }, // ·
@@ -85,7 +85,7 @@ export function RecordValidationForm({
     // Nested form tray on --panel-2 so its --panel fields read as recessed wells.
     <form
       className={`mt-2 grid rounded-built bg-panel-2 p-2.5 ${compact ? "gap-1.5" : "gap-2"}`}
-      style={{ border: "0.5px solid var(--hairline)" }}
+      style={{ border: "1px solid var(--hairline)" }}
       onSubmit={(event) => {
         event.preventDefault();
         if (canSubmit && !mutation.isPending) mutation.mutate();

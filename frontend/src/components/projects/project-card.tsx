@@ -24,7 +24,7 @@ type ProjectCardProps = {
 
 export function ProjectCard({ project }: ProjectCardProps) {
   return (
-    <Bay as="article" bracketed density="narrative" className="grid content-start gap-4">
+    <Bay as="article" density="narrative" className="grid content-start gap-4">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <StatusPill tone={statusTone[project.status]} label={statusLabels[project.status]} />
@@ -36,7 +36,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
         <a
           href={`/projects/${project.id}`}
           className="grid size-9 shrink-0 place-items-center rounded-full text-text-mute transition-colors hover:text-text"
-          style={{ border: "0.5px solid var(--hairline-strong)" }}
+          style={{ border: "1px solid var(--hairline-strong)" }}
           aria-label={`Open ${project.title}`}
           title={`Open ${project.title}`}
         >
@@ -52,7 +52,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
 
       <div
         className="grid grid-cols-3 gap-2 pt-4"
-        style={{ borderTop: "0.5px solid var(--hairline)" }}
+        style={{ borderTop: "1px solid var(--hairline)" }}
       >
         <span className="flex items-center gap-1.5 text-text-mute">
           <Icon icon={GitBranch} size={14} />

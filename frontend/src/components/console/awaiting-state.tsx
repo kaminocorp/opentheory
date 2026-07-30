@@ -5,26 +5,25 @@ import { BrandMark } from "./brand-mark";
 export type AwaitingVariant = "loading" | "empty" | "error";
 
 interface AwaitingStateProps {
-  /** One-line mono readout, e.g. "awaiting telemetry", "no threads yet". */
+  /** One-line status, e.g. "Loading projects", "No threads yet". */
   label: string;
   variant?: AwaitingVariant;
   className?: string;
 }
 
 /**
- * The awaiting / empty / error state (§5.9) — "the mark holds the frame".
+ * The awaiting / empty / error state — "the mark holds the frame".
  *
- * Loading: the mark's four nodes light in a diagonal cascade (a signal climbing
- * the staircase). Empty/error: it holds steady (reads "stopped", not "loading") —
- * never a bare spinner, never a broken glyph, no crimson halo. On error the label
- * takes the `--state-fail` colour at full weight so failure is as loud as
- * success (§1).
+ * Loading: the mark's four nodes light in a diagonal cascade. Empty/error: it
+ * holds steady (reads "stopped", not "loading") — never a bare spinner, never a
+ * broken glyph. On error the label takes the `--state-fail` colour at full
+ * weight so failure is as loud as success.
  */
 export function AwaitingState({ label, variant = "loading", className }: AwaitingStateProps) {
   const loading = variant === "loading";
   // Announce state transitions to assistive tech: an error is assertive (`alert`), a load is
   // polite (`status`); a steady empty state needs no live region. `role` implies the matching
-  // `aria-live`, so failures are heard as well as seen (the §1 honesty surface, for SR users).
+  // `aria-live`, so failures are heard as well as seen (the honesty surface, for SR users).
   const role = variant === "error" ? "alert" : variant === "loading" ? "status" : undefined;
   return (
     <div
@@ -38,8 +37,8 @@ export function AwaitingState({ label, variant = "loading", className }: Awaitin
       />
       <span
         className={cn(
-          "font-mono text-[11px] font-medium uppercase tracking-[0.14em]",
-          variant === "error" ? "text-state-fail" : "text-text-mute",
+          "text-[13px]",
+          variant === "error" ? "font-medium text-state-fail" : "text-text-mute",
         )}
       >
         {label}

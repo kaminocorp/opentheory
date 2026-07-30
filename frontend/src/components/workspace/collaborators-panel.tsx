@@ -208,7 +208,7 @@ export function Collaborators({ projectId }: { projectId: string }) {
       {error ? <p className="text-[12px] text-state-fail">{error.message}</p> : null}
 
       {canManage ? (
-        <div className="grid gap-2 pt-3" style={{ borderTop: "0.5px solid var(--hairline)" }}>
+        <div className="grid gap-2 pt-3" style={{ borderTop: "1px solid var(--hairline)" }}>
           <form
             className="grid gap-2"
             onSubmit={(event) => {

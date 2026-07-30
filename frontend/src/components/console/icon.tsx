@@ -13,13 +13,13 @@ interface IconProps {
 
 /**
  * The single icon wrapper (Decision 2). Keeps `lucide-react` but constrains every
- * glyph to the drawing language (§7): `currentColor` stroke (set the colour with a
- * `text-*` class on the wrapper), no fills, mono-tone, and a hairline-matched
- * stroke weight — 1.25, bumped to 1.5 at ≤16px so small glyphs stay legible on the
+ * glyph to the drawing language: `currentColor` stroke (set the colour with a
+ * `text-*` class on the wrapper), no fills, mono-tone, and a consistent stroke
+ * weight — 1.5, bumped to 1.75 at ≤16px so small glyphs stay legible on the
  * dark ground. Isolating icons here makes a future swap to in-repo SVGs one file.
  */
 export function Icon({ icon: LucideGlyph, size = 18, className, ...rest }: IconProps) {
-  const strokeWidth = size <= 16 ? 1.5 : 1.25;
+  const strokeWidth = size <= 16 ? 1.75 : 1.5;
   return (
     <LucideGlyph
       size={size}

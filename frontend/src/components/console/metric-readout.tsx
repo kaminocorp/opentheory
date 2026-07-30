@@ -2,10 +2,8 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
 
-import { ReadoutLabel } from "./readout-label";
-
 interface MetricReadoutProps {
-  /** The mono readout label (category). */
+  /** The metric label (sans, muted). */
   label: ReactNode;
   /** The measured value — mono, tabular. May be a number, a "—", or a shimmer node. */
   value: ReactNode;
@@ -18,21 +16,22 @@ interface MetricReadoutProps {
 }
 
 /**
- * A metric readout (§5.5): a square nested tile carrying a mono readout label and
- * a mono tabular value. The atomic unit of the header count grid and the budget
- * grid. Nested inside a bay, so it sits on `--panel-2`.
+ * A metric readout: a quiet nested tile carrying a small muted label and a
+ * tabular value. The atomic unit of the header count grid and the budget grid.
  */
 export function MetricReadout({ label, value, title, valueClassName, className }: MetricReadoutProps) {
   return (
     <div
-      className={cn("rounded-built bg-panel-2 px-3 py-2", className)}
-      style={{ border: "0.5px solid var(--hairline)" }}
+      className={cn(
+        "rounded-control border border-[color:var(--hairline)] bg-white/[0.02] px-3 py-2",
+        className,
+      )}
       title={title}
     >
-      <ReadoutLabel as="p">{label}</ReadoutLabel>
+      <p className="text-[12px] font-medium text-text-mute">{label}</p>
       <p
         className={cn(
-          "mt-1 font-mono text-[19px] font-medium leading-tight tabular-nums",
+          "mt-1 font-mono text-[18px] font-medium leading-tight tabular-nums",
           valueClassName ?? "text-text",
         )}
       >

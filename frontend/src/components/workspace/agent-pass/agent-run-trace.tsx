@@ -30,7 +30,7 @@ const STATUS_TONE: Record<AgentRunStatus, StateTone> = {
 export function AgentRunStatusPill({ status, live = false }: { status: AgentRunStatus; live?: boolean }) {
   return (
     <span className="inline-flex items-center gap-1.5">
-      <StatusPill tone={STATUS_TONE[status] ?? "mute"} label={status.toUpperCase()} />
+      <StatusPill tone={STATUS_TONE[status] ?? "mute"} label={status} />
       {live && status === "running" ? <LiveDot /> : null}
     </span>
   );
@@ -41,7 +41,7 @@ function Chip({ children, title }: { children: React.ReactNode; title?: string }
   return (
     <span
       className="rounded-full px-2 py-[2px] font-mono text-[11px] text-text-faint"
-      style={{ border: "0.5px solid var(--hairline)" }}
+      style={{ border: "1px solid var(--hairline)" }}
       title={title}
     >
       {children}
@@ -57,7 +57,7 @@ function Chip({ children, title }: { children: React.ReactNode; title?: string }
 function LandedStep({ step }: { step: AgentRunStep }) {
   const meta = outcomeMeta(step.outcome ?? undefined);
   return (
-    <div className="grid gap-1.5 rounded-built bg-panel-2 p-3" style={{ border: "0.5px solid var(--hairline)" }}>
+    <div className="grid gap-1.5 rounded-built bg-panel-2 p-3" style={{ border: "1px solid var(--hairline)" }}>
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono text-[12px] text-text">{step.instrument}</span>
         <StatusPill tone={meta.tone} label={meta.label.toUpperCase()} />
@@ -89,28 +89,28 @@ function FailedStep({ step }: { step: AgentRunStep }) {
   return (
     <div
       className="relative grid gap-1 rounded-built bg-panel-2 p-3 pl-4"
-      style={{ border: "0.5px solid var(--hairline)" }}
+      style={{ border: "1px solid var(--hairline)" }}
     >
       <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-state-fail" />
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono text-[12px] text-text">{step.instrument}</span>
-        <StatusPill tone="fail" label="FAILED" />
+        <StatusPill tone="fail" label="failed" />
       </div>
       {step.error ? <p className="text-[12px] leading-[1.5] text-text-mute">{step.error}</p> : null}
     </div>
   );
 }
 
-// A dropped (planner-rejected, never ran) or budget-skipped step — a faint, hatched note. It is not
+// A dropped (planner-rejected, never ran) or budget-skipped step — a faint, dashed note. It is not
 // an error and not a mint; the reason (e.g. `max_runs`, `unknown_instrument`) is shown as-is.
 function InertStep({ step, label }: { step: AgentRunStep; label: string }) {
   return (
     <div
-      className="hatch flex flex-wrap items-center gap-2 rounded-built bg-panel p-2.5"
-      style={{ border: "0.5px dashed var(--hairline)" }}
+      className="flex flex-wrap items-center gap-2 rounded-built bg-panel p-2.5"
+      style={{ border: "1px dashed var(--hairline)" }}
     >
       <span className="font-mono text-[12px] text-text-mute">{step.instrument}</span>
-      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-faint">
+      <span className="text-[11px] text-text-faint">
         {label}
         {step.reason ? ` · ${step.reason}` : ""}
       </span>
@@ -183,11 +183,11 @@ export function AgentRunTrace({
   const landedOnBranch = run.status === "completed" && run.branch_id !== null;
 
   return (
-    <div className="grid gap-3 rounded-built bg-panel p-4" style={{ border: "0.5px solid var(--hairline)" }}>
+    <div className="grid gap-3 rounded-built bg-panel p-4" style={{ border: "1px solid var(--hairline)" }}>
       {/* Status line: the pass verdict + role/model, with a live pulse while running. */}
       <div className="flex flex-wrap items-center gap-2">
         <AgentRunStatusPill status={run.status} live />
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-mute">
+        <span className="text-[12px] capitalize text-text-mute">
           {run.role.replaceAll("_", " ")}
         </span>
         {run.model ? <span className="font-mono text-[11px] text-text-faint">{run.model}</span> : null}

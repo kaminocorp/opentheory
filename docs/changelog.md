@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.15.0` — **Frontend design overhaul: the quiet minimalist re-skin.** The ornamental Console language (field grid, grain, brackets, chamfers, hatch, mono kickers) retires for a neutral near-black system: flat 12px cards, 1px hairlines, sentence-case sans, mono for data only, crimson the lone accent.
 - `0.14.0` — **Project deepdive becomes a persistent header + five tabs.** Nine peer bays stacked config *above* the ledger; now Research is the default surface and Crew / Funding / Overview are one click away. `?tab=` is the single source of truth; Research + Instruments stay mounted so an in-flight agent trace survives a tab switch.
 - `0.13.5` — **Post-review hardening on the `z3.prove` line (`0.13.0`–`0.13.4`).** No CRITICAL/HIGH; core held (honesty contract, eval-safety, sandbox dispatch). Adds the deferred Phase 2 write-path + subprocess round-trip tests; removes a dead symbol-check + test-only alias. Tests + dead-code removal.
 - `0.13.4` — **Docs + line close for `z3.prove` (`0.13.0`–`0.13.3`).** Changelog, roadmap, catalog open threads, maths-toolbox §Shipped; notes Phase 2 (DB write-path tests) as deferred. Docs only.
@@ -79,6 +80,51 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.15.0
+
+**Frontend design overhaul: the quiet minimalist re-skin.** A comprehensive presentation-only
+pass over the entire frontend, guided by "what would OpenTheory look like if OpenAI had designed
+it": cleaner, simpler, easier to read and navigate, still dark, still the same stack. The
+`0.6.4` "OpenTheory Console" ornament — the measured-field grid + grain + vignette, recessed
+bays, registration brackets, chamfers, the tick-fret band, hatched fills, and the all-caps
+letterspaced mono kickers — is retired. What carried *meaning* stays: the state vocabulary and
+its glyphs, the honesty rules (failure at full weight; undecided never reads as a pass), the
+sparing crimson `--signal`, mono-for-data, the reduced-motion contract, and every aria pattern.
+**Frontend + docs only — no backend, schema, API, or migration; every page, panel, and write
+flow is functionally unchanged.**
+
+- **Tokens** (`globals.css`, rewritten): neutral near-black ramp
+  (`#101010/#181818/#202020`), lighter muted text tiers for contrast, 1px
+  `rgba(255,255,255,0.08)` borders (was 0.5px warm-grey), radius scale `card 12 / control 8 /
+  pill` (`--r-built` kept as an 8px legacy alias so every `rounded-built` call site rounded
+  automatically). All texture layers deleted.
+- **Primitives**: `Bay` → flat card (brackets/chamfer props removed; `band` → `divider`);
+  `ReadoutLabel` → sans 13px/500 sentence case (the all-caps mono kicker is gone product-wide);
+  `StatusPill` → sans capitalize; `Action` inert state drops the hatch; `state.ts` glyphs
+  soften (■→✕, ▣→○); `registration.tsx` deleted; inputs focus by border-brighten, not edge
+  tick; icons stroke 1.25→1.5.
+- **Shell**: header loses the chamfer layer (blurred ground + hairline); the rail's active zone
+  becomes a filled rounded tile (no edge tick, no pulsing dot); tabs go sans and keep the 2px
+  signal underline.
+- **Sweep**: all ~20 feature components de-ornamented (mono-caps labels → sans; enum labels via
+  `capitalize`; awaiting labels sentence-cased; hatched cards → plain/dashed); toolbench honesty
+  cards keep their state-coloured edges and glosses. Formulas, hashes, ids, and money stay mono.
+- **Styleguide** rewritten for the new system; **`docs/blueprints/design-system.md`** rewritten
+  to match the build (the two retained laws — grayscale survival, honesty over comfort — are
+  now §0).
+
+```bash
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
+```
+
+Runtime spot-check against a dev server on the live backend: `/`, `/styleguide`,
+`/projects/[id]` all 200; served CSS carries the new tokens and zero occurrences of
+field-image/grain/vignette/chamfer/hatch. **Unverified:** no pixel-level browser walk (no
+connected browser — same limitation as `0.14.0`); see
+`docs/completions/design-overhaul-0.15.0.md` for the recommended eyeball pass.
 
 ---
 

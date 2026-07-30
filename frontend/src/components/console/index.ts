@@ -1,12 +1,11 @@
 /**
- * The OpenTheory Console primitive library — one source of truth for the shape
- * grammar (docs/blueprints/design-system.md §2/§3/§5). Built in D1; consumed by D2–D5.
- * Import everything from "@/components/console".
+ * The OpenTheory primitive library — one source of truth for the surface
+ * grammar (docs/blueprints/design-system.md). Import everything from
+ * "@/components/console".
  */
 export { Bay, BayHeader } from "./bay";
 export { MetricReadout } from "./metric-readout";
 export { ReadoutLabel, type ReadoutTone } from "./readout-label";
-export { RegistrationBrackets, RegistrationBand } from "./registration";
 export { StatusPill } from "./status-pill";
 export { LiveDot } from "./live-dot";
 export { Action, ActionGhost, ActionText, ActionDestructive, type ActionVariant } from "./action";

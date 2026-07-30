@@ -90,7 +90,7 @@ export function CheckpointTimelinePanel({
           </span>
         }
         count={checkpointsQuery.data ? checkpoints.length : undefined}
-        band
+        divider
         // Write affordance: shown only to a signed-in actor, and never on a sealed line.
         actions={
           !lineSealed && canWrite ? (
@@ -98,7 +98,7 @@ export function CheckpointTimelinePanel({
               type="button"
               onClick={() => setAdding((v) => !v)}
               className="grid size-7 place-items-center rounded-full text-text-mute transition-colors hover:text-text"
-              style={{ border: "0.5px solid var(--hairline-strong)" }}
+              style={{ border: "1px solid var(--hairline-strong)" }}
               aria-label={adding ? "Cancel new checkpoint" : "New checkpoint"}
               title={adding ? "Cancel" : "New checkpoint"}
             >
@@ -108,12 +108,12 @@ export function CheckpointTimelinePanel({
         }
       />
 
-      <div className="flex flex-col gap-3 px-4 pb-4">
+      <div className="flex flex-col gap-3 px-4 pb-4 pt-3">
         {lineSealed ? (
           // Honest note (§1): a warn-marked, dashed-hairline notice — not hidden, not dimmed.
           <div
             className="flex items-start gap-2 rounded-built bg-panel-2 p-2.5 text-[12px] leading-5 text-text-soft"
-            style={{ border: "0.5px dashed var(--hairline)" }}
+            style={{ border: "1px dashed var(--hairline)" }}
           >
             <Icon icon={AlertTriangle} size={14} className="mt-0.5 shrink-0 text-state-warn" />
             <span>
@@ -126,7 +126,7 @@ export function CheckpointTimelinePanel({
         {adding && !lineSealed ? (
           <form
             className="grid gap-2 rounded-built bg-panel-2 p-3"
-            style={{ border: "0.5px solid var(--hairline)" }}
+            style={{ border: "1px solid var(--hairline)" }}
             onSubmit={(event) => {
               event.preventDefault();
               if (canSubmit && !createMutation.isPending) createMutation.mutate();
@@ -174,12 +174,12 @@ export function CheckpointTimelinePanel({
         ) : (
           <ol className="grid gap-2">
             {checkpoints.map((checkpoint) => (
-              // Square log entry on --panel-2; a neutral left rule marks the stream
+              // Log entry on --panel-2; a neutral left rule marks the stream
               // (signal is seldom — none of these is "the live one").
               <li
                 key={checkpoint.id}
                 className="relative rounded-built bg-panel-2 p-3 pl-4"
-                style={{ border: "0.5px solid var(--hairline)" }}
+                style={{ border: "1px solid var(--hairline)" }}
               >
                 <span
                   aria-hidden
@@ -197,9 +197,7 @@ export function CheckpointTimelinePanel({
                   <ul className="mt-2 grid gap-1">
                     {checkpoint.refs.map((ref) => (
                       <li key={ref.id} className="flex items-baseline gap-1.5 text-[12px] leading-5">
-                        <span className="shrink-0 font-mono uppercase tracking-[0.08em] text-text-mute">
-                          {ref.role}
-                        </span>
+                        <span className="shrink-0 capitalize text-text-mute">{ref.role}</span>
                         {ref.label ? (
                           <span className="min-w-0 truncate text-text-soft">{ref.label}</span>
                         ) : (
@@ -215,8 +213,8 @@ export function CheckpointTimelinePanel({
                 {checkpoint.contribution_kind ? (
                   <p className="mt-2 flex items-center gap-1.5 text-[11px] text-text-mute">
                     <span
-                      className="rounded-inset bg-panel px-1.5 py-0.5 font-mono uppercase tracking-[0.08em] text-text-mute"
-                      style={{ border: "0.5px solid var(--hairline)" }}
+                      className="rounded-full bg-panel px-2 py-0.5 capitalize text-text-mute"
+                      style={{ border: "1px solid var(--hairline)" }}
                     >
                       {checkpoint.contribution_kind.replace(/_/g, " ")}
                     </span>
@@ -231,13 +229,13 @@ export function CheckpointTimelinePanel({
                   ) : null}
                   {checkpoint.stage ? (
                     <span
-                      className="rounded-inset bg-panel px-1.5 py-0.5 font-mono uppercase tracking-[0.08em]"
-                      style={{ border: "0.5px solid var(--hairline)" }}
+                      className="rounded-full bg-panel px-2 py-0.5 capitalize"
+                      style={{ border: "1px solid var(--hairline)" }}
                     >
                       {checkpoint.stage}
                     </span>
                   ) : null}
-                  {checkpoint.thread_id ? <span className="font-mono">· thread-scoped</span> : null}
+                  {checkpoint.thread_id ? <span>· thread-scoped</span> : null}
                   {checkpoint.parent_ids.length > 0 ? (
                     <span className="font-mono tabular-nums">
                       · {checkpoint.parent_ids.length} parent{checkpoint.parent_ids.length === 1 ? "" : "s"}

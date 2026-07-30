@@ -4,7 +4,7 @@ import { Bot, CircleDollarSign, LayoutGrid, Microscope, type LucideIcon } from "
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { Icon, LiveDot } from "@/components/console";
+import { Icon } from "@/components/console";
 import { cn } from "@/lib/cn";
 
 interface RailZone {
@@ -17,17 +17,16 @@ interface RailZone {
   active: boolean;
   /** Contextual zone that needs a project context which isn't present here. */
   disabled?: boolean;
-  /** Not built yet (Agents → 0.7.0): honest hatched "coming soon" treatment. */
+  /** Not built yet (Agents): honest "coming soon" treatment. */
   inert?: boolean;
 }
 
 /**
- * The left command rail (§4.1, Decision 1). Adapted to OpenTheory's real zones —
- * Projects (index), Workspace + Funding (contextual, live inside a project), and a
- * hatched, inert Agents zone honest about what doesn't exist yet (0.7.0).
+ * The left nav rail. Zones: Projects (index), Workspace + Funding (contextual,
+ * live inside a project), and an inert Agents zone honest about what doesn't
+ * exist yet.
  *
- * The active zone is marked by a 2px `--signal` edge tick + a round live dot —
- * never a filled block (§4.1/§9.2). Collapses to icon-only width ≤1024 (§4.3).
+ * The active zone is a filled rounded tile — quiet, no pulse, no edge tick.
  */
 export function CommandRail() {
   const pathname = usePathname() ?? "/";
@@ -58,8 +57,7 @@ export function CommandRail() {
   return (
     <nav
       aria-label="Primary"
-      className="sticky top-12 z-20 flex h-[calc(100dvh-3rem)] w-12 shrink-0 flex-col items-stretch gap-1 self-start bg-panel py-3 lg:w-14"
-      style={{ borderRight: "0.5px solid var(--hairline)" }}
+      className="sticky top-12 z-20 flex h-[calc(100dvh-3rem)] w-12 shrink-0 flex-col items-stretch gap-1 self-start border-r border-[color:var(--hairline)] py-3 lg:w-14"
     >
       {zones.map((zone) => (
         <RailItem key={zone.key} zone={zone} />
@@ -70,10 +68,10 @@ export function CommandRail() {
 
 function RailItem({ zone }: { zone: RailZone }) {
   const tone = zone.active
-    ? "text-text"
+    ? "bg-white/[0.07] text-text"
     : zone.disabled || zone.inert
       ? "text-text-faint"
-      : "text-text-mute hover:text-text";
+      : "text-text-mute hover:bg-white/[0.04] hover:text-text";
 
   // The accessible name lives on the focusable wrapper (Link, or the inert span made
   // focusable below), not the decorative icon — so a screen-reader user reaches it
@@ -88,19 +86,16 @@ function RailItem({ zone }: { zone: RailZone }) {
   const glyph = (
     <span
       className={cn(
-        "relative mx-auto flex h-11 w-11 items-center justify-center rounded-built transition-colors",
-        zone.inert && "hatch",
+        "relative mx-auto flex h-10 w-10 items-center justify-center rounded-control transition-colors",
         tone,
       )}
     >
       <Icon icon={zone.icon} size={18} />
-      {/* The "alive" marker: a pulsing signal dot on the active zone. */}
-      {zone.active && <LiveDot tone="signal" pulse size={6} className="absolute right-1.5 top-1.5" />}
     </span>
   );
 
   return (
-    <div className="relative px-0.5" title={zone.inert ? `${zone.label} — coming soon` : zone.label}>
+    <div className="relative px-1" title={zone.inert ? `${zone.label} — coming soon` : zone.label}>
       {zone.href ? (
         <Link
           href={zone.href}
@@ -123,10 +118,6 @@ function RailItem({ zone }: { zone: RailZone }) {
         >
           {glyph}
         </span>
-      )}
-      {/* 2px signal edge tick on the rail edge — the active marker, never a fill. */}
-      {zone.active && (
-        <span aria-hidden className="absolute inset-y-2 right-0 w-0.5 bg-signal" />
       )}
     </div>
   );

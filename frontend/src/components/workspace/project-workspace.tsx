@@ -113,7 +113,7 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
   if (projectQuery.isLoading) {
     return (
       <Bay className="grid min-h-80 place-items-center">
-        <AwaitingState variant="loading" label="loading project" />
+        <AwaitingState variant="loading" label="Loading project" />
       </Bay>
     );
   }
@@ -121,7 +121,7 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
   if (projectQuery.isError || !projectQuery.data) {
     return (
       <Bay className="grid min-h-80 place-items-center">
-        <AwaitingState variant="error" label="project unavailable" />
+        <AwaitingState variant="error" label="Project unavailable" />
       </Bay>
     );
   }
@@ -331,21 +331,19 @@ function InstrumentContext({
 }) {
   return (
     <div
-      className="sticky top-12 z-10 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-built bg-panel-2 px-3 py-2 font-mono text-[11px]"
-      style={{ border: "0.5px solid var(--hairline)" }}
+      className="sticky top-12 z-10 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-control bg-panel-2 px-3 py-2 text-[12px]"
+      style={{ border: "1px solid var(--hairline)" }}
     >
-      <span className="font-medium uppercase tracking-[0.14em] text-text-mute">Thread</span>
+      <span className="font-medium text-text-mute">Thread</span>
       <span className={cn("truncate", threadTitle ? "text-text" : "text-text-faint")}>
         {threadTitle ?? "none selected — pick one on Research"}
       </span>
       <span aria-hidden className="text-text-faint">
         ·
       </span>
-      <span className="font-medium uppercase tracking-[0.14em] text-text-mute">Line</span>
+      <span className="font-medium text-text-mute">Line</span>
       <span className="truncate text-text">{branchName}</span>
-      {lineSealed ? (
-        <span className="font-medium uppercase tracking-[0.14em] text-state-warn">· sealed</span>
-      ) : null}
+      {lineSealed ? <span className="font-medium text-state-warn">· sealed</span> : null}
     </div>
   );
 }

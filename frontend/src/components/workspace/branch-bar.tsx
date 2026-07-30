@@ -105,7 +105,7 @@ export function BranchBar({ projectId, selectedBranchId, onSelectBranch }: Branc
                 <span className="font-mono text-[10px] tabular-nums text-text-faint">
                   {branch.checkpoint_count}
                 </span>
-                <span className={cn("font-mono text-[10px] uppercase tracking-[0.06em]", STATE_META[tone].text)}>
+                <span className={cn("text-[11px] capitalize", STATE_META[tone].text)}>
                   {STATE_META[tone].glyph} {branchStatusLabel[branch.status]}
                 </span>
               </LinePill>
@@ -136,7 +136,7 @@ export function BranchBar({ projectId, selectedBranchId, onSelectBranch }: Branc
                   setForking(false);
                 }}
                 className="inline-flex h-7 items-center rounded-full px-3 text-[12px] font-medium text-text-mute transition-colors hover:text-state-fail"
-                style={{ border: "0.5px solid var(--hairline)" }}
+                style={{ border: "1px solid var(--hairline)" }}
               >
                 {closing ? "Cancel" : "Close branch"}
               </button>
@@ -264,7 +264,7 @@ function ForkBranchForm({
     return (
       <p
         className="rounded-built bg-panel-2 p-2.5 text-[12px] text-text-mute"
-        style={{ border: "0.5px dashed var(--hairline)" }}
+        style={{ border: "1px dashed var(--hairline)" }}
       >
         Record a checkpoint first — a branch forks from an existing checkpoint.
       </p>
@@ -274,7 +274,7 @@ function ForkBranchForm({
   return (
     <form
       className="grid gap-2 rounded-built bg-panel-2 p-3 sm:grid-cols-2"
-      style={{ border: "0.5px solid var(--hairline)" }}
+      style={{ border: "1px solid var(--hairline)" }}
       onSubmit={(event) => {
         event.preventDefault();
         if (canSubmit && !mutation.isPending) mutation.mutate();

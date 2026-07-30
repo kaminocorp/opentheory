@@ -4,11 +4,10 @@ import type { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes 
 import { cn } from "@/lib/cn";
 
 /**
- * Console field controls (§5.8): square, `--panel` fill, hairline ring; focus
- * adds a 2px `--signal` edge tick on the active side (the `.field-input` class in
- * globals.css), never a flooded glow.
+ * Field controls: quiet fill, low-alpha border, 8px radius; focus brightens the
+ * border (the `.field-input` class in globals.css) — no glow, no flooded ring.
  *
- * `mono` selects the family per the data/prose split (§3.1): mono for value entry
+ * `mono` selects the family per the data/prose split: mono for value entry
  * that is data (amounts, IDs, queries, paths), sans for prose entry (titles, notes).
  *
  * Accessibility: the console UI is deliberately label-less (a terse instrument
@@ -18,7 +17,7 @@ import { cn } from "@/lib/cn";
  * name by assistive tech and disappears on input. `Select` has no placeholder, so it
  * **requires** a caller-supplied `aria-label`/`aria-labelledby`.
  */
-const FIELD = "field-input w-full px-2.5 py-1.5 text-[13px]";
+const FIELD = "field-input w-full px-3 py-1.5 text-[13px]";
 
 /** Caller name wins; else fall back to placeholder (only when not `aria-labelledby`). */
 const fieldName = (

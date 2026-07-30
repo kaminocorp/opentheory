@@ -63,7 +63,7 @@ export function ThreadListPanel({
           </span>
         }
         count={threadsQuery.data ? threads.length : undefined}
-        band
+        divider
         // Write affordance: shown only to a signed-in actor (read-only otherwise).
         actions={
           canWrite ? (
@@ -71,7 +71,7 @@ export function ThreadListPanel({
               type="button"
               onClick={() => setAdding((v) => !v)}
               className="grid size-7 place-items-center rounded-full text-text-mute transition-colors hover:text-text"
-              style={{ border: "0.5px solid var(--hairline-strong)" }}
+              style={{ border: "1px solid var(--hairline-strong)" }}
               aria-label={adding ? "Cancel new thread" : "New thread"}
               title={adding ? "Cancel" : "New thread"}
             >
@@ -81,11 +81,11 @@ export function ThreadListPanel({
         }
       />
 
-      <div className="flex flex-col gap-3 px-4 pb-4">
+      <div className="flex flex-col gap-3 px-4 pb-4 pt-3">
         {adding ? (
           <form
             className="grid gap-2 rounded-built bg-panel-2 p-3"
-            style={{ border: "0.5px solid var(--hairline)" }}
+            style={{ border: "1px solid var(--hairline)" }}
             onSubmit={(event) => {
               event.preventDefault();
               if (canSubmit && !createMutation.isPending) createMutation.mutate();
@@ -131,8 +131,8 @@ export function ThreadListPanel({
               const active = thread.id === selectedThreadId;
               return (
                 <li key={thread.id}>
-                  {/* Square selectable row (built); active = a signal left edge tick
-                      + --panel-2, never a flooded fill (§9.2). */}
+                  {/* Selectable row; active = a signal left edge tick + --panel-2,
+                      never a flooded fill. */}
                   <button
                     type="button"
                     onClick={() => onSelectThread(thread.id)}
@@ -140,7 +140,7 @@ export function ThreadListPanel({
                       "relative w-full rounded-built p-3 pl-4 text-left transition-colors",
                       active ? "bg-panel-2" : "hover:bg-panel-2/50",
                     )}
-                    style={{ border: "0.5px solid var(--hairline)" }}
+                    style={{ border: "1px solid var(--hairline)" }}
                   >
                     {active ? (
                       <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-signal" />
@@ -157,7 +157,7 @@ export function ThreadListPanel({
                     <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-text-soft">
                       {thread.question}
                     </p>
-                    <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.1em] text-text-mute">
+                    <p className="mt-2 text-[12px] capitalize text-text-mute">
                       {thread.stage} · {thread.status.replace("_", " ")}
                     </p>
                   </button>

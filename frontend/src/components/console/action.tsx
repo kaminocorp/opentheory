@@ -11,14 +11,14 @@ interface ActionProps extends ButtonHTMLAttributes<HTMLButtonElement> {
    * `className` padding/text override (`cn` has no tailwind-merge, so an override
    * would double-emit `px-*`/`text-*` and resolve by CSS source order). */
   size?: ActionSize;
-  /** In-flight state: renders the inert hatched fill (like `disabled`). */
+  /** In-flight state: renders the inert skin (like `disabled`). */
   pending?: boolean;
   children: ReactNode;
 }
 
-// Round, always (§5.7) — round is the alive / actionable affordance. Buttons
-// never move, scale, or cast shadows; only opacity/colour transitions. Text size is
-// a per-size token (kept out of BASE so `sm` overrides cleanly, never doubly-emits).
+// Pill-shaped, always. Buttons never move, scale, or cast shadows; only
+// opacity/colour transitions. Text size is a per-size token (kept out of BASE so
+// `sm` overrides cleanly, never doubly-emits).
 const BASE =
   "inline-flex items-center justify-center gap-1.5 rounded-full font-sans font-medium transition-colors disabled:cursor-not-allowed";
 
@@ -50,14 +50,14 @@ const VARIANT_SHAPE: Record<ActionSize, Record<ActionVariant, string>> = {
 const VARIANT_SKIN: Record<ActionVariant, string> = {
   // The only routinely-coloured surface — so there is rarely more than one per zone.
   primary: "bg-signal text-ground hover:bg-signal-strong",
-  ghost: "border-[color:var(--hairline-strong)] text-text hover:border-text",
-  text: "text-text hover:text-signal",
-  destructive: "border-state-fail text-state-fail hover:bg-state-fail/10",
+  ghost: "border-[color:var(--hairline-strong)] text-text hover:border-[color:rgba(255,255,255,0.28)] hover:bg-white/5",
+  text: "text-text-soft hover:text-text",
+  destructive: "border-state-fail/70 text-state-fail hover:bg-state-fail/10",
 };
 
 // The inert (disabled / pending) skin — *replaces* the variant SKIN, never layers over it.
 const INERT_SKIN =
-  "hatch border-[color:var(--hairline)] bg-transparent text-text-faint hover:bg-transparent";
+  "border-[color:var(--hairline)] bg-white/[0.04] text-text-faint hover:bg-white/[0.04]";
 
 export function Action({
   variant = "primary",
@@ -82,7 +82,6 @@ export function Action({
       )}
     >
       {children}
-      {variant === "text" && <span aria-hidden>→</span>}
     </button>
   );
 }

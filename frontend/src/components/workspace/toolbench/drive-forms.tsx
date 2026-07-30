@@ -32,9 +32,7 @@ function Field({
 }) {
   return (
     <div className="grid gap-1.5">
-      <span className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-text-mute">
-        {label}
-      </span>
+      <span className="text-[13px] font-medium text-text-soft">{label}</span>
       {children}
       {hint ? <span className="text-[12px] leading-[1.5] text-text-faint">{hint}</span> : null}
     </div>
@@ -48,7 +46,7 @@ function AddRow({ label, onClick, disabled }: { label: string; onClick: () => vo
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="flex w-fit items-center gap-1 font-mono text-[11px] uppercase tracking-[0.1em] text-text-mute transition-colors hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
+      className="flex w-fit items-center gap-1 text-[12px] font-medium text-text-mute transition-colors hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
     >
       <Icon icon={Plus} size={12} />
       {label}

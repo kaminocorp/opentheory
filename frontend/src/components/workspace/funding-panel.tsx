@@ -133,7 +133,7 @@ export function FundingPanel({ projectId }: { projectId: string }) {
       {funding && isInternal ? (
         <form
           className="grid gap-2 rounded-built bg-panel-2 p-3 sm:grid-cols-[1fr_auto_auto_auto]"
-          style={{ border: "0.5px solid var(--hairline)" }}
+          style={{ border: "1px solid var(--hairline)" }}
           onSubmit={(event) => {
             event.preventDefault();
             if (canFund && !fundMutation.isPending) fundMutation.mutate();
@@ -180,7 +180,7 @@ export function FundingPanel({ projectId }: { projectId: string }) {
       ) : null}
 
       {/* Funding history. */}
-      <div className="pt-3" style={{ borderTop: "0.5px solid var(--hairline)" }}>
+      <div className="pt-3" style={{ borderTop: "1px solid var(--hairline)" }}>
         <ReadoutLabel as="p" className="mb-2">
           History
         </ReadoutLabel>
@@ -200,7 +200,7 @@ export function FundingPanel({ projectId }: { projectId: string }) {
                   <span className="font-mono font-medium tabular-nums text-text">
                     {formatMoney(item.amount, item.currency)}
                   </span>
-                  <span className="ml-1.5 font-mono text-text-mute">
+                  <span className="ml-1.5 text-text-mute">
                     {SOURCE_LABEL[item.source]} · {item.kind.replace("_", " ")}
                   </span>
                   {item.account ? <span className="ml-1.5 text-text-mute">{item.account.display_name}</span> : null}

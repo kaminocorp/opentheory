@@ -13,8 +13,8 @@ import {
   Icon,
   Input,
   LiveDot,
+  MetricReadout,
   ReadoutLabel,
-  RegistrationBand,
   Select,
   STATE_META,
   StatusPill,
@@ -23,9 +23,9 @@ import {
 } from "@/components/console";
 
 /**
- * Internal D1 verification surface — every primitive in every state on the
- * measured field, for eyeballing the system and running the §0 grayscale test
- * cheaply (devtools → Rendering → emulate `grayscale`).
+ * Internal verification surface — every primitive in every state, for eyeballing
+ * the system and running the grayscale test cheaply (devtools → Rendering →
+ * emulate `grayscale`).
  *
  * Gated to non-production builds so it never ships in production. NOTE: this is
  * a normal `styleguide/` route (NOT `_styleguide/`) on purpose — App Router treats
@@ -44,23 +44,23 @@ export default function StyleguidePage() {
       <header className="mb-10 flex items-center gap-3">
         <BrandMark size={28} className="text-text" />
         <div>
-          <ReadoutLabel>OpenTheory Console · D1</ReadoutLabel>
+          <ReadoutLabel>OpenTheory design system</ReadoutLabel>
           <h1 className="mt-1 text-2xl font-medium tracking-[-0.01em] text-text">Primitive styleguide</h1>
         </div>
       </header>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {/* Opacity-modifier probe (Decision 4) — proves the channel-triplet wiring:
-            bg-panel, text-text/70, the hairline border, and both radii all resolve. */}
-        <Bay bracketed density="narrative">
+            bg-panel, text-text/70, the hairline border, and the radii all resolve. */}
+        <Bay density="narrative">
           <ReadoutLabel>Probe · opacity modifiers</ReadoutLabel>
           <div className="mt-4 space-y-3">
             <div className="bg-panel-2 p-3 text-text/70" style={{ borderColor: "var(--hairline)" }}>
               <span className="border-b">bg-panel-2 · text-text/70</span>
             </div>
             <div className="flex gap-3">
-              <span className="bg-signal/10 px-3 py-1 font-mono text-[12px] text-signal rounded-built">
-                bg-signal/10 · rounded-built
+              <span className="bg-signal/10 px-3 py-1 font-mono text-[12px] text-signal rounded-control">
+                bg-signal/10 · rounded-control
               </span>
               <span className="bg-state-ok/15 px-3 py-1 font-mono text-[12px] text-state-ok rounded-alive">
                 rounded-alive
@@ -69,33 +69,39 @@ export default function StyleguidePage() {
           </div>
         </Bay>
 
-        {/* Bay variants */}
+        {/* Card variants */}
         <Bay density="none">
           <BayHeader
-            label="Bay header"
+            label="Card header"
             count={42}
-            band
+            divider
             actions={<Action variant="text">Action</Action>}
           />
-          <div className="px-4 pb-4 text-[14px] text-text-soft">
-            A bracketed bay below; a chamfered identity header to the right. The field shows through the
-            gutters.
+          <div className="px-4 pb-4 pt-3 text-[14px] text-text-soft">
+            The card surface: one step above the ground, a low-alpha border, a soft radius. Surfaces
+            separate by lightness — no texture, no ornament.
           </div>
         </Bay>
 
-        <Bay bracketed density="narrative">
-          <ReadoutLabel>Bracketed bay</ReadoutLabel>
+        <Bay density="narrative">
+          <ReadoutLabel>Nested surface</ReadoutLabel>
           <p className="mt-3 text-[14px] leading-[1.55] text-text-soft">
-            Recessed surface, hairline edges, four corner registration brackets — lit by structure, not
-            glow.
+            Hierarchy comes from one step of lightness per level: ground, panel, panel-2. Never more
+            than two nested surfaces.
           </p>
+          <div className="mt-3 rounded-control bg-panel-2 p-3 text-[13px] text-text-soft">
+            A nested tile on panel-2.
+          </div>
         </Bay>
 
-        <Bay chamfer density="narrative" className="bg-panel-2">
-          <ReadoutLabel tone="signal">Chamfered header</ReadoutLabel>
-          <p className="mt-3 text-[14px] leading-[1.55] text-text-soft">
-            The single top-right 10px clip — the milled-panel nod, identity headers only.
-          </p>
+        {/* Metric readouts */}
+        <Bay density="narrative">
+          <ReadoutLabel>Metric readouts</ReadoutLabel>
+          <dl className="mt-4 grid grid-cols-3 gap-3">
+            <MetricReadout label="Threads" value={12} />
+            <MetricReadout label="Claims" value={48} />
+            <MetricReadout label="Spent" value="$1,204" valueClassName="text-text-mute" />
+          </dl>
         </Bay>
 
         {/* Status pills — all tones (the grayscale test lives here) */}
@@ -128,7 +134,7 @@ export default function StyleguidePage() {
 
         {/* Buttons */}
         <Bay density="narrative">
-          <ReadoutLabel>Actions · round means alive</ReadoutLabel>
+          <ReadoutLabel>Actions · quiet pills</ReadoutLabel>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <Action>Primary</Action>
             <ActionGhost>Ghost</ActionGhost>
@@ -153,7 +159,7 @@ export default function StyleguidePage() {
 
         {/* Inputs */}
         <Bay density="narrative">
-          <ReadoutLabel>Console fields · focus tick</ReadoutLabel>
+          <ReadoutLabel>Fields · focus brightens the border</ReadoutLabel>
           <div className="mt-4 space-y-3">
             <Input placeholder="Prose entry (sans)" />
             <Input mono placeholder="100.00 USD (mono)" />
@@ -167,21 +173,20 @@ export default function StyleguidePage() {
 
         {/* Awaiting states */}
         <Bay density="none">
-          <BayHeader label="Awaiting states" />
+          <BayHeader label="Awaiting states" divider />
           <div className="grid grid-cols-3 divide-x" style={{ borderColor: "var(--hairline)" }}>
-            <AwaitingState variant="loading" label="loading" />
-            <AwaitingState variant="empty" label="no runs yet" />
-            <AwaitingState variant="error" label="stopped" />
+            <AwaitingState variant="loading" label="Loading" />
+            <AwaitingState variant="empty" label="No runs yet" />
+            <AwaitingState variant="error" label="Stopped" />
           </div>
         </Bay>
 
-        {/* Registration band + readout tones */}
+        {/* Label tones */}
         <Bay density="narrative">
-          <ReadoutLabel>Registration band · readout tones</ReadoutLabel>
-          <RegistrationBand className="my-4" />
-          <div className="flex gap-6">
-            <ReadoutLabel>mute label</ReadoutLabel>
-            <ReadoutLabel tone="signal">signal label</ReadoutLabel>
+          <ReadoutLabel>Labels · weight does hierarchy</ReadoutLabel>
+          <div className="mt-4 flex gap-6">
+            <ReadoutLabel>Muted label</ReadoutLabel>
+            <ReadoutLabel tone="signal">Signal label</ReadoutLabel>
           </div>
         </Bay>
       </div>

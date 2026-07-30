@@ -96,7 +96,7 @@ function ClaimListPanelInner({ projectId, threadId }: { projectId: string; threa
           </span>
         }
         count={claimsQuery.data ? claims.length : undefined}
-        band
+        divider
         // Write affordance: shown only to a signed-in actor (read-only otherwise).
         actions={
           canWrite ? (
@@ -104,7 +104,7 @@ function ClaimListPanelInner({ projectId, threadId }: { projectId: string; threa
               type="button"
               onClick={() => setAdding((v) => !v)}
               className="grid size-7 place-items-center rounded-full text-text-mute transition-colors hover:text-text"
-              style={{ border: "0.5px solid var(--hairline-strong)" }}
+              style={{ border: "1px solid var(--hairline-strong)" }}
               aria-label={adding ? "Cancel new claim" : "New claim"}
               title={adding ? "Cancel" : "New claim"}
             >
@@ -114,11 +114,11 @@ function ClaimListPanelInner({ projectId, threadId }: { projectId: string; threa
         }
       />
 
-      <div className="flex flex-col gap-3 px-4 pb-4">
+      <div className="flex flex-col gap-3 px-4 pb-4 pt-3">
         {adding ? (
           <form
             className="grid gap-2 rounded-built bg-panel-2 p-3"
-            style={{ border: "0.5px solid var(--hairline)" }}
+            style={{ border: "1px solid var(--hairline)" }}
             onSubmit={(event) => {
               event.preventDefault();
               if (canSubmit && !createMutation.isPending) createMutation.mutate();
@@ -168,24 +168,24 @@ function ClaimListPanelInner({ projectId, threadId }: { projectId: string; threa
         ) : (
           <ul className="grid gap-3">
             {claims.map((claim) => (
-              // Square claim sub-bay on --panel-2 (raised out of the panel column).
+              // Claim sub-card on --panel-2 (raised out of the panel column).
               <li
                 key={claim.id}
                 className="rounded-built bg-panel-2 p-3"
-                style={{ border: "0.5px solid var(--hairline)" }}
+                style={{ border: "1px solid var(--hairline)" }}
               >
                 <div className="flex items-start justify-between gap-3">
                   <p className="text-[14px] leading-6 text-text">{claim.statement}</p>
                   {claim.confidence != null ? (
                     <span
                       className="shrink-0 rounded-inset bg-panel px-2 py-0.5 font-mono text-[12px] tabular-nums text-text-soft"
-                      style={{ border: "0.5px solid var(--hairline)" }}
+                      style={{ border: "1px solid var(--hairline)" }}
                     >
                       {Math.round(claim.confidence * 100)}%
                     </span>
                   ) : null}
                 </div>
-                <p className="mt-1.5 font-mono text-[11px] uppercase tracking-[0.1em] text-text-mute">
+                <p className="mt-1.5 text-[12px] capitalize text-text-mute">
                   {claim.kind} · {claim.status}
                 </p>
                 <ClaimEvidence projectId={projectId} claimId={claim.id} />
@@ -234,7 +234,7 @@ function ClaimEvidence({ projectId, claimId }: { projectId: string; claimId: str
   const evidence = evidenceQuery.data ?? [];
 
   return (
-    <div className="mt-3 pt-3" style={{ borderTop: "0.5px solid var(--hairline)" }}>
+    <div className="mt-3 pt-3" style={{ borderTop: "1px solid var(--hairline)" }}>
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-text-mute">
           <Icon icon={Paperclip} size={14} />
@@ -284,7 +284,7 @@ function ClaimEvidence({ projectId, claimId }: { projectId: string; claimId: str
       {adding ? (
         <form
           className="mt-2 grid gap-2 rounded-built bg-panel-2 p-2.5"
-          style={{ border: "0.5px solid var(--hairline)" }}
+          style={{ border: "1px solid var(--hairline)" }}
           onSubmit={(event) => {
             event.preventDefault();
             if (canSubmit && !attachMutation.isPending) attachMutation.mutate();
@@ -360,7 +360,7 @@ function ClaimValidations({
   const contested = claim.signal === "contested";
 
   return (
-    <div className="mt-3 pt-3" style={{ borderTop: "0.5px solid var(--hairline)" }}>
+    <div className="mt-3 pt-3" style={{ borderTop: "1px solid var(--hairline)" }}>
       <div className="flex items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-1.5 text-text-mute">
           <Icon icon={ShieldCheck} size={14} />

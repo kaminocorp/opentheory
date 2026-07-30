@@ -7,14 +7,13 @@ import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 
 import { Icon } from "./icon";
-import { ReadoutLabel } from "./readout-label";
 
 interface ModalProps {
   open: boolean;
   onClose: () => void;
-  /** Mono readout title in the modal header; also the dialog's accessible name. */
+  /** Title in the modal header; also the dialog's accessible name. */
   title: string;
-  /** Optional mono count beside the title (matches BayHeader's rhythm). */
+  /** Optional muted count beside the title (matches BayHeader's rhythm). */
   count?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
@@ -87,9 +86,9 @@ export function Modal({ open, onClose, title, count, children, className }: Moda
           className="flex items-center justify-between gap-3 px-5 pt-4"
         >
           <span id={titleId} className="flex items-baseline gap-2">
-            <ReadoutLabel>{title}</ReadoutLabel>
+            <span className="text-[14px] font-medium text-text">{title}</span>
             {count != null ? (
-              <span className="font-mono text-[11px] tabular-nums text-text-mute">{count}</span>
+              <span className="font-mono text-[12px] tabular-nums text-text-mute">{count}</span>
             ) : null}
           </span>
           <button

@@ -100,15 +100,13 @@ export function AssumptionsEditor({
   return (
     <div className="grid gap-2">
       <div className="flex items-center justify-between">
-        <span className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-text-mute">
-          Assumptions
-        </span>
+        <span className="text-[13px] font-medium text-text-soft">Assumptions</span>
         <button
           type="button"
           onClick={addRow}
           disabled={disabled}
           className="grid size-6 place-items-center rounded-full text-text-mute transition-colors hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
-          style={{ border: "0.5px solid var(--hairline-strong)" }}
+          style={{ border: "1px solid var(--hairline-strong)" }}
           aria-label="Add an assumption"
           title="Add an assumption"
         >

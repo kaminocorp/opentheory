@@ -68,7 +68,7 @@ export function InvitationInbox() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="relative flex h-9 w-9 items-center justify-center rounded-full text-text-mute transition-colors hover:text-text"
-        style={{ border: "0.5px solid var(--hairline-strong)" }}
+        style={{ border: "1px solid var(--hairline-strong)" }}
         aria-label={count > 0 ? `Invitations (${count} pending)` : "Invitations"}
         title="Invitations"
       >

@@ -22,7 +22,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
       <Suspense
         fallback={
           <Bay className="grid min-h-80 place-items-center">
-            <AwaitingState variant="loading" label="loading project" />
+            <AwaitingState variant="loading" label="Loading project" />
           </Bay>
         }
       >
