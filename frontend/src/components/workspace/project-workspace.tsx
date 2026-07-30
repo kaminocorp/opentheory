@@ -1,24 +1,21 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, Pencil, X } from "lucide-react";
-import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 
+import { AwaitingState, Bay, MetricReadout, ReadoutLabel } from "@/components/console";
 import {
-  ActionGhost,
-  AwaitingState,
-  Bay,
-  Icon,
-  MetricReadout,
-  ReadoutLabel,
-  StatusPill,
-  type StateTone,
-} from "@/components/console";
-import { getProject, getProjectOverview, listBranches, listProjectMembers } from "@/lib/api";
+  getProject,
+  getProjectOverview,
+  listBranches,
+  listProjectMembers,
+  listThreads,
+} from "@/lib/api";
+import { cn } from "@/lib/cn";
 import { queryKeys } from "@/lib/query-keys";
 import { useActingIdentity } from "@/lib/use-identity";
-import type { Project } from "@/types/project";
+import { useProjectTab, type ProjectTabId } from "@/lib/use-project-tab";
+import type { ProjectCounts } from "@/types/research";
 
 import { AgentPassPanel } from "./agent-pass/agent-pass-panel";
 import { BranchBar } from "./branch-bar";
@@ -28,6 +25,8 @@ import { Collaborators } from "./collaborators-panel";
 import { FundingPanel } from "./funding-panel";
 import { Markdown } from "./markdown";
 import { ProjectEditForm } from "./project-edit-form";
+import { ProjectHeader } from "./project-header";
+import { ProjectTabs, projectPanelDomId, projectTabDomId } from "./project-tabs";
 import { ResearchCrewPanel } from "./research-crew-panel";
 import { ThreadListPanel } from "./thread-list-panel";
 import { ToolbenchPanel } from "./toolbench/toolbench-panel";
@@ -36,10 +35,7 @@ type ProjectWorkspaceProps = {
   projectId: string;
 };
 
-const COUNT_LABELS: {
-  key: "threads" | "claims" | "evidence" | "checkpoints" | "validations" | "branches";
-  label: string;
-}[] = [
+const COUNT_LABELS: { key: keyof ProjectCounts; label: string }[] = [
   { key: "threads", label: "Threads" },
   { key: "claims", label: "Claims" },
   { key: "evidence", label: "Evidence" },
@@ -48,23 +44,26 @@ const COUNT_LABELS: {
   { key: "branches", label: "Branches" },
 ];
 
-// Project status → a state tone (glyph + colour survive grayscale).
-const projectStatusTone: Record<Project["status"], StateTone> = {
-  draft: "mute",
-  active: "run",
-  paused: "warn",
-  archived: "faint",
-};
-
+/**
+ * The project deepdive (0.14.0): a persistent header + five tabs, with **Research**
+ * as the default surface.
+ *
+ * Before this release the page was a flat vertical stack of nine peer bays — crew,
+ * collaborators, budget, and the whole toolbench sat *above* the ledger, so the work
+ * the page exists for started below the fold. Nothing was rewritten to fix that: the
+ * panels are unchanged and simply regrouped, and this component stays what it already
+ * was — the owner of the shared queries and the thread/branch selection everything
+ * else reads.
+ */
 export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   // null = the project main line; a branch id scopes the checkpoint timeline + new
   // checkpoints to that line (0.4.2/0.4.3).
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
-  // Project stewardship (0.8.1): the metadata edit form + the background collapsible.
+  // Project stewardship (0.8.1): the metadata edit form, which renders on Overview.
   const [editing, setEditing] = useState(false);
-  const [backgroundOpen, setBackgroundOpen] = useState(true);
 
+  const { tab, setTab } = useProjectTab();
   const { isAuthed, me } = useActingIdentity();
 
   const projectQuery = useQuery({
@@ -95,6 +94,22 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
   const selectedBranch = branchesQuery.data?.find((b) => b.id === selectedBranchId) ?? null;
   const lineSealed = selectedBranch !== null && selectedBranch.status !== "open";
 
+  // Same query key as ThreadListPanel, so TanStack serves both from one cache entry
+  // and one request — this exists only to name the selected thread in the Instruments
+  // context readout (a tab away from the list that made the selection).
+  const threadsQuery = useQuery({
+    queryKey: queryKeys.threads(projectId),
+    queryFn: () => listThreads(projectId),
+  });
+  const selectedThread = threadsQuery.data?.find((t) => t.id === selectedThreadId) ?? null;
+
+  // Cold tabs mount on first activation and then stay mounted. Research and
+  // Instruments start mounted because they are the hot path and share selection
+  // state — and because AgentPassPanel polls a live run from local state, so
+  // unmounting Instruments would silently kill an in-flight trace (§5.2).
+  const visitedTabs = useRef(new Set<ProjectTabId>(["research", "instruments"]));
+  visitedTabs.current.add(tab);
+
   if (projectQuery.isLoading) {
     return (
       <Bay className="grid min-h-80 place-items-center">
@@ -113,162 +128,224 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
 
   const project = projectQuery.data;
   const contradictions = overviewQuery.data?.contradictions ?? [];
+  const counts = overviewQuery.data?.counts ?? null;
+
+  // The toggle lives in the header (visible on every tab) but the form renders on
+  // Overview — so opening it has to bring Overview with it.
+  function handleToggleEdit() {
+    const next = !editing;
+    setEditing(next);
+    if (next) setTab("overview");
+  }
 
   return (
     <div className="grid gap-5">
-      {/* Back link — the ActionText register (text → signal on hover), with a ←. */}
-      <Link
-        href="/"
-        className="inline-flex w-fit items-center gap-1.5 text-[13px] font-medium text-text-mute transition-colors hover:text-signal"
-      >
-        <Icon icon={ArrowLeft} size={14} />
-        Projects
-      </Link>
+      <ProjectHeader
+        project={project}
+        canManage={canManageProject}
+        editing={editing}
+        onToggleEdit={handleToggleEdit}
+        counts={counts}
+        countsError={overviewQuery.isError}
+        contradictions={contradictions}
+        onShowContested={() => setTab("research")}
+      />
 
-      <Bay as="header" bracketed chamfer density="narrative" className="grid gap-3">
-        <div className="flex items-start justify-between gap-3">
-          <StatusPill tone={projectStatusTone[project.status]} label={project.status} />
-          {/* The Edit write affordance is owner/admin only (the backend still authorizes the PATCH).
-              Collaborators moved out of this header into their own box beside Research crew (0.8.11). */}
-          {canManageProject ? (
-            <ActionGhost size="sm" onClick={() => setEditing((v) => !v)}>
-              <Icon icon={editing ? X : Pencil} size={14} />
-              {editing ? "Cancel" : "Edit"}
-            </ActionGhost>
-          ) : null}
+      <ProjectTabs
+        active={tab}
+        onSelect={setTab}
+        badges={{
+          research: contradictions.length ? { count: contradictions.length, tone: "fail" } : null,
+          crew: membersQuery.data ? { count: membersQuery.data.length } : null,
+        }}
+      />
+
+      {/* --- research (default, keep-alive) ------------------------------------ */}
+      <TabPanel tab="research" active={tab} mounted>
+        <BranchBar
+          projectId={projectId}
+          selectedBranchId={selectedBranchId}
+          onSelectBranch={setSelectedBranchId}
+        />
+        <div className="enter-stagger grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)_340px]">
+          <ThreadListPanel
+            projectId={projectId}
+            selectedThreadId={selectedThreadId}
+            onSelectThread={setSelectedThreadId}
+          />
+          <ClaimListPanel projectId={projectId} threadId={selectedThreadId} />
+          <CheckpointTimelinePanel
+            projectId={projectId}
+            selectedThreadId={selectedThreadId}
+            selectedBranchId={selectedBranchId}
+            lineSealed={lineSealed}
+          />
         </div>
-        <h1 className="text-balance text-2xl font-medium leading-snug text-text">{project.title}</h1>
-        <p className="max-w-3xl text-[14px] leading-[1.55] text-text-soft">{project.question}</p>
-        {project.description ? (
-          <p className="max-w-3xl text-[14px] leading-[1.5] text-text-mute">{project.description}</p>
-        ) : null}
+      </TabPanel>
 
-        {/* Honesty surface (§1): contested claims float above the counts at equal
-            weight, marked by a state-fail edge tick + glyph + label — never softened. */}
-        {contradictions.length > 0 ? (
-          <div className="relative rounded-built bg-panel-2 p-3 pl-4">
-            <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-state-fail" />
-            <p className="flex items-center gap-1.5">
-              <Icon icon={AlertTriangle} size={14} className="text-state-fail" />
-              <span className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-state-fail">
-                {contradictions.length} contested claim{contradictions.length === 1 ? "" : "s"}
-              </span>
-            </p>
-            <ul className="mt-2 grid gap-1">
-              {contradictions.map((item) => (
-                <li key={item.claim_id} className="truncate text-[13px] leading-[1.5] text-text-soft">
-                  {item.statement}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-
-        <dl
-          className="grid grid-cols-2 gap-3 pt-1 sm:grid-cols-3 lg:grid-cols-6"
-        >
-          {COUNT_LABELS.map(({ key, label }) => (
-            <MetricReadout
-              key={key}
-              label={label}
-              value={
-                overviewQuery.data ? (
-                  overviewQuery.data.counts[key]
-                ) : overviewQuery.isError ? (
-                  "—"
-                ) : (
-                  <span
-                    aria-hidden
-                    className="inline-block h-5 w-6 animate-pulse rounded-inset bg-text-faint/25 align-middle"
-                  />
-                )
-              }
-            />
-          ))}
-        </dl>
-      </Bay>
-
-      {/* Metadata edit form (0.8.1) — owner/admin only, toggled from the header. */}
-      {editing && canManageProject ? (
-        <ProjectEditForm project={project} onDone={() => setEditing(false)} />
-      ) : null}
-
-      {/* Research crew + Collaborators side by side (0.8.11): two people/config surfaces — which
-          model powers each research role, and who can steward the project. High in the page,
-          read-only for visitors and managed by owner/admin. They stack on narrow viewports. */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <ResearchCrewPanel
-          projectId={projectId}
-          agentModels={project.agent_models}
-          canManage={canManageProject}
+      {/* --- instruments (keep-alive: an agent trace may be polling) ------------ */}
+      <TabPanel tab="instruments" active={tab} mounted>
+        <InstrumentContext
+          threadTitle={selectedThread?.title ?? null}
+          branchName={selectedBranch?.name ?? "main line"}
+          lineSealed={lineSealed}
         />
-        <Collaborators projectId={projectId} />
-      </div>
-
-      {/* Background / Context (0.8.1): a collapsible Bay rendering the stored Markdown. Only shown
-          when present; the editor lives in the edit form, the read path uses the light renderer. */}
-      {project.background ? (
-        <Bay density="narrative" className="grid gap-3">
-          <button
-            type="button"
-            aria-expanded={backgroundOpen}
-            onClick={() => setBackgroundOpen((v) => !v)}
-            className="flex items-center gap-2 text-text-mute transition-colors hover:text-text"
-          >
-            <Icon icon={backgroundOpen ? ChevronDown : ChevronRight} size={14} />
-            <ReadoutLabel>Background / Context</ReadoutLabel>
-          </button>
-          {backgroundOpen ? <Markdown>{project.background}</Markdown> : null}
-        </Bay>
-      ) : null}
-
-      <FundingPanel projectId={projectId} />
-
-      <BranchBar
-        projectId={projectId}
-        selectedBranchId={selectedBranchId}
-        onSelectBranch={setSelectedBranchId}
-      />
-
-      {/* Toolbench (Phase 7): run a deterministic maths instrument and land the result in the
-          ledger. Scoped to the selected thread and branch (so a run made while viewing a branch
-          lands on that line); the run is membership-gated (canManageProject), the catalog is
-          public. Produced checkpoints appear in the timeline below. */}
-      <ToolbenchPanel
-        projectId={projectId}
-        selectedThreadId={selectedThreadId}
-        selectedBranchId={selectedBranchId}
-        lineSealed={lineSealed}
-        canRun={canManageProject}
-      />
-
-      {/* Agent pass (0.12.4): commission the Research crew to plan + run a bounded sequence of
-          instruments on the selected thread, landing attributed checkpoints on a durable agent
-          branch — the same ledger the toolbench above lands on, driven by an agent. The trace polls
-          until it settles; the backend selects the agent branch, so no branch prop is threaded in.
-          Member-gated; dark-launch-aware (hides the trigger when the loop is off). */}
-      <AgentPassPanel
-        projectId={projectId}
-        selectedThreadId={selectedThreadId}
-        canRun={canManageProject}
-        agentModels={project.agent_models}
-        onSelectBranch={setSelectedBranchId}
-      />
-
-      <div className="enter-stagger grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)_340px]">
-        <ThreadListPanel
-          projectId={projectId}
-          selectedThreadId={selectedThreadId}
-          onSelectThread={setSelectedThreadId}
-        />
-        <ClaimListPanel projectId={projectId} threadId={selectedThreadId} />
-        <CheckpointTimelinePanel
+        {/* Toolbench (0.9.x): run a deterministic maths instrument and land the result in
+            the ledger, scoped to the thread + branch selected on Research. Runs are
+            membership-gated; the catalog is public. Produced checkpoints appear on the
+            Research timeline. */}
+        <ToolbenchPanel
           projectId={projectId}
           selectedThreadId={selectedThreadId}
           selectedBranchId={selectedBranchId}
           lineSealed={lineSealed}
+          canRun={canManageProject}
         />
-      </div>
+        {/* Agent pass (0.12.4): the Research crew plans + runs a bounded sequence of the
+            same instruments on the selected thread, landing attributed checkpoints on a
+            durable agent branch. The backend picks that branch, so no branch prop is
+            threaded in. Member-gated; dark-launch-aware. */}
+        <AgentPassPanel
+          projectId={projectId}
+          selectedThreadId={selectedThreadId}
+          canRun={canManageProject}
+          agentModels={project.agent_models}
+          onSelectBranch={(branchId) => {
+            setSelectedBranchId(branchId);
+            setTab("research");
+          }}
+        />
+      </TabPanel>
+
+      {/* --- crew (lazy) -------------------------------------------------------- */}
+      <TabPanel tab="crew" active={tab} mounted={visitedTabs.current.has("crew")}>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <ResearchCrewPanel
+            projectId={projectId}
+            agentModels={project.agent_models}
+            canManage={canManageProject}
+          />
+          <Collaborators projectId={projectId} />
+        </div>
+      </TabPanel>
+
+      {/* --- funding (lazy) ----------------------------------------------------- */}
+      <TabPanel tab="funding" active={tab} mounted={visitedTabs.current.has("funding")}>
+        <FundingPanel projectId={projectId} />
+      </TabPanel>
+
+      {/* --- overview (lazy): the reference surface ----------------------------- */}
+      <TabPanel tab="overview" active={tab} mounted={visitedTabs.current.has("overview")}>
+        {editing && canManageProject ? (
+          <ProjectEditForm project={project} onDone={() => setEditing(false)} />
+        ) : null}
+
+        {project.description || project.background ? (
+          <Bay density="narrative" className="grid gap-3">
+            <ReadoutLabel as="h2">Background / Context</ReadoutLabel>
+            {project.description ? (
+              <p className="max-w-3xl text-[14px] leading-[1.55] text-text-soft">
+                {project.description}
+              </p>
+            ) : null}
+            {project.background ? <Markdown>{project.background}</Markdown> : null}
+          </Bay>
+        ) : null}
+
+        <Bay density="narrative" className="grid gap-3">
+          <ReadoutLabel as="h2">Ledger totals</ReadoutLabel>
+          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            {COUNT_LABELS.map(({ key, label }) => (
+              <MetricReadout
+                key={key}
+                label={label}
+                value={
+                  counts ? (
+                    counts[key]
+                  ) : overviewQuery.isError ? (
+                    "—"
+                  ) : (
+                    <span
+                      aria-hidden
+                      className="inline-block h-5 w-6 animate-pulse rounded-inset bg-text-faint/25 align-middle"
+                    />
+                  )
+                }
+              />
+            ))}
+          </dl>
+        </Bay>
+      </TabPanel>
+    </div>
+  );
+}
+
+type TabPanelProps = {
+  tab: ProjectTabId;
+  active: ProjectTabId;
+  /** False until the tab is first activated — cold surfaces don't fetch on load. */
+  mounted: boolean;
+  children: ReactNode;
+};
+
+/**
+ * One tabpanel. The element always renders (so each tab's `aria-controls` resolves
+ * even before its contents mount); only the contents are gated on `mounted`.
+ *
+ * Visibility is toggled on the *outer* element, which carries no other display
+ * class — `cn` is a plain joiner with no tailwind-merge, so pairing `hidden` with
+ * `grid` on one element would leave the outcome to CSS source order (the layering
+ * footgun fixed in 0.6.6). Layout classes therefore live on the inner wrapper.
+ */
+function TabPanel({ tab, active, mounted, children }: TabPanelProps) {
+  const isHidden = tab !== active;
+
+  return (
+    <div
+      id={projectPanelDomId(tab)}
+      role="tabpanel"
+      aria-labelledby={projectTabDomId(tab)}
+      tabIndex={isHidden ? -1 : 0}
+      hidden={isHidden}
+      className={cn(isHidden && "hidden")}
+    >
+      {mounted ? <div className="grid gap-4">{children}</div> : null}
+    </div>
+  );
+}
+
+/**
+ * The Instruments context readout: which thread and line a run will land on. The
+ * selection is made on Research, a tab away, so the toolbench has to restate it —
+ * otherwise a member can run an instrument without seeing what it attaches to.
+ * Read-only by design; BranchBar stays the single branch *selector*.
+ */
+function InstrumentContext({
+  threadTitle,
+  branchName,
+  lineSealed,
+}: {
+  threadTitle: string | null;
+  branchName: string;
+  lineSealed: boolean;
+}) {
+  return (
+    <div
+      className="sticky top-12 z-10 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-built bg-panel-2 px-3 py-2 font-mono text-[11px]"
+      style={{ border: "0.5px solid var(--hairline)" }}
+    >
+      <span className="font-medium uppercase tracking-[0.14em] text-text-mute">Thread</span>
+      <span className={cn("truncate", threadTitle ? "text-text" : "text-text-faint")}>
+        {threadTitle ?? "none selected — pick one on Research"}
+      </span>
+      <span aria-hidden className="text-text-faint">
+        ·
+      </span>
+      <span className="font-medium uppercase tracking-[0.14em] text-text-mute">Line</span>
+      <span className="truncate text-text">{branchName}</span>
+      {lineSealed ? (
+        <span className="font-medium uppercase tracking-[0.14em] text-state-warn">· sealed</span>
+      ) : null}
     </div>
   );
 }

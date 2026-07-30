@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.14.0` — **Project deepdive becomes a persistent header + five tabs.** Nine peer bays stacked config *above* the ledger; now Research is the default surface and Crew / Funding / Overview are one click away. `?tab=` is the single source of truth; Research + Instruments stay mounted so an in-flight agent trace survives a tab switch.
 - `0.13.5` — **Post-review hardening on the `z3.prove` line (`0.13.0`–`0.13.4`).** No CRITICAL/HIGH; core held (honesty contract, eval-safety, sandbox dispatch). Adds the deferred Phase 2 write-path + subprocess round-trip tests; removes a dead symbol-check + test-only alias. Tests + dead-code removal.
 - `0.13.4` — **Docs + line close for `z3.prove` (`0.13.0`–`0.13.3`).** Changelog, roadmap, catalog open threads, maths-toolbox §Shipped; notes Phase 2 (DB write-path tests) as deferred. Docs only.
 - `0.13.3` — **`z3.prove` frontend.** Drive form (variables + sorts, hypotheses, goal), proof / counter-model / undecided cards, assumptions gated off. Frontend-only.
@@ -78,6 +79,53 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.14.0
+
+**The project deepdive becomes a persistent header + five tabs.** The page had grown into a flat
+vertical stack of nine peer bays in which Research crew, Collaborators, Budget, the whole
+toolbench, and the agent-pass panel all sat *above* the Threads / Claims / Checkpoints grid — so
+the ledger the page exists to operate started roughly 1900px down, and every bay carried the same
+visual weight. This release reorders and regroups; **it rewrites nothing**. Every panel already
+self-fetched from `projectId` + selection props, so no panel's props or internals changed.
+**Frontend-only — no backend, schema, API, or migration.**
+
+- **Five tabs, Research first** — `research` · `instruments` · `crew` · `funding` · `overview`.
+  Research carries `BranchBar` + the three-column grid; Instruments carries the toolbench and the
+  agent pass; the cold config surfaces move off the main path.
+- **`?tab=` is the single source of truth** (`lib/use-project-tab.ts`) — deep-linkable, validated
+  against a frozen five-id union, set with `router.replace(…, {scroll:false})` so tab flips don't
+  fill the back stack. Legacy `#funding` normalizes to `?tab=funding` for one release.
+- **Research + Instruments render keep-alive; Crew / Funding / Overview mount on first visit.**
+  Load-bearing, not a perf tweak: `AgentPassPanel` polls a live run from local state, so
+  unmounting Instruments would silently kill an in-flight agent trace.
+- **Persistent header** — status, title, question, a one-line description, the contested-claims
+  strip (now a button that routes to Research), and a compact
+  `threads · claims · checkpoints` readout. The six-metric grid moves to Overview, which is
+  where the full description and the Background essay now live too.
+- **Instruments restates its run context** — a sticky `Thread … · Line … [· sealed]` readout,
+  because the selection is now made a tab away. It shares `queryKeys.threads(projectId)` with
+  `ThreadListPanel`, so it costs no extra request.
+- **Console-aligned tablist** — mono uppercase labels, a 2px `--signal` bottom edge tick (the
+  rail's `w-0.5` marker transposed to `h-0.5`), full WAI-ARIA tabs pattern with roving tabindex
+  and ←/→/Home/End. Active state survives grayscale.
+- **`<Suspense>` boundary** added in `page.tsx` — mandatory once `useSearchParams` is in the tree.
+
+Notes: `TabPanel` keeps its visibility class on an element carrying no other `display` class,
+because `lib/cn.ts` has no `tailwind-merge` and source order would otherwise decide (the `0.6.6`
+footgun). Contested/member count badges landed early (plan Phase C) since both derive from
+queries the orchestrator already holds. **Phases B–D are not in this release:** the CommandRail
+still emits `#funding` and its Agents zone is still inert.
+
+```bash
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
+```
+
+**Unverified:** no browser walk of the `§8` acceptance list was possible in this pass (no
+connected browser; live backend DB endpoints timing out). See
+`docs/completions/project-deepdive-tabs-0.14.0-phase-a.md`.
 
 ---
 
