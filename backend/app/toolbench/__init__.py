@@ -14,6 +14,7 @@ from app.toolbench import instruments
 from app.toolbench.adapter import Instrument, InstrumentResult
 from app.toolbench.catalog import RESULT_CONTRACT, build_catalog, describe
 from app.toolbench.conformance import check_conformance
+from app.toolbench.grading import grade_for, grading_problems, strongest
 from app.toolbench.registry import InstrumentRegistry, registry
 
 __all__ = [
@@ -24,6 +25,9 @@ __all__ = [
     "build_catalog",
     "check_conformance",
     "describe",
+    "grade_for",
+    "grading_problems",
     "instruments",
     "registry",
+    "strongest",
 ]

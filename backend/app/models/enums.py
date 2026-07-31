@@ -134,6 +134,37 @@ class AgentRunStatus(StrEnum):
     FAILED = "failed"
 
 
+class EvidenceGrade(StrEnum):
+    """How rigorously a piece of evidence backs a claim — the grade ladder (0.16.0).
+
+    **Derived, never stamped.** No caller may set a grade; it is a pure function of *what actually
+    ran* — ``(instrument, status)`` — resolved by ``app/toolbench/grading.py``. A stamped grade
+    would be an unverifiable assertion about rigor; a derived one is a consequence of the recorded
+    run, the same philosophy as the append-only guard (``schemas/tool_invocation.py``: the grade is
+    *"derivable from the recorded instrument, never stamped"*).
+
+    - ``A`` — machine-checked (a Z3 proof or counter-model).
+    - ``B`` — exact symbolic/arithmetic computation (equivalence, an exact measurement, an exact
+      counterexample).
+    - ``C`` — finite sampling; real support, but it settles nothing.
+    - ``D`` — human-asserted or LLM-only: no instrument in the chain. **The absence of a tool, not a
+      failure** — it is the baseline the bench exists to climb out of and must never render as an
+      error.
+
+    Retrieval (``oeis.search``) is deliberately **off-ladder**: a pin is graded by source authority,
+    not by computation, so it reads ``cited`` rather than a letter (plan D7).
+
+    Like ``ResultStatus``, this is a plain ``StrEnum`` and **not** a named Postgres type: grounding
+    is a read-model derivation over existing rows (plan D2 — no column, no table, no migration), so
+    promotion is deferred until (and only if) it ever becomes a column.
+    """
+
+    A = "A"
+    B = "B"
+    C = "C"
+    D = "D"
+
+
 class ResultStatus(StrEnum):
     """The three honest outcomes of a deterministic toolbench instrument run (0.9.1).
 

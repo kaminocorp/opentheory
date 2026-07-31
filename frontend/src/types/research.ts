@@ -179,6 +179,38 @@ export type ClaimStatus =
 // Derived display signal (0.4.4): computed from validation history, server-side.
 export type ClaimSignal = "none" | "contested" | "validated";
 
+// The evidence grade ladder (0.16.0), mirroring `models/enums.py::EvidenceGrade`.
+//   A — machine-checked (a Z3 proof or counter-model)
+//   B — exact symbolic/arithmetic computation
+//   C — finite sampling; real support, but it settles nothing
+//   D — human-asserted: no instrument in the chain. The ABSENCE of a tool, not a failure.
+export type EvidenceGrade = "A" | "B" | "C" | "D";
+
+// The headline rung a claim reads as. A server-side **discriminant**, not copy: the backend owns
+// the precedence rules (one tested place) and this client owns every user-facing string.
+export type GroundingHeadline =
+  | "proven"
+  | "refuted"
+  | "B"
+  | "C"
+  | "D"
+  | "cited"
+  | "ungrounded";
+
+// The evidence axis of a claim (0.16.0) — how strongly it is backed by *what actually ran*.
+// Deliberately kept separate from `ClaimSignal` (the validation axis): the two are shown as
+// distinct, differently-shaped elements and are never combined arithmetically, because a single
+// merged number would be exactly the "naked score" the domain model forbids.
+export type ClaimGrounding = {
+  /** Strongest supporting rung, or null when nothing supports it. */
+  support: EvidenceGrade | null;
+  /** Strongest countering rung. At A/B this dominates any support. */
+  counter: EvidenceGrade | null;
+  /** A retrieval instrument landed a real external pin (off-ladder — never a letter). */
+  cited: boolean;
+  headline: GroundingHeadline;
+};
+
 export type Claim = {
   id: string;
   project_id: string;
@@ -194,6 +226,8 @@ export type Claim = {
   // Embedded validation history (oldest first) and derived signal (0.4.4).
   validations: Validation[];
   signal: ClaimSignal;
+  // The second, independent axis (0.16.0): evidence-derived grounding.
+  grounding: ClaimGrounding;
 };
 
 export type RelationKind = "support" | "weaken" | "context";

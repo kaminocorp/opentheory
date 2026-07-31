@@ -20,6 +20,7 @@ import { queryKeys } from "@/lib/query-keys";
 import { useActingIdentity } from "@/lib/use-identity";
 import type { Claim, ClaimKind, RelationKind } from "@/types/research";
 
+import { GroundingChip, groundingRaiseLine } from "./grounding-chip";
 import { PanelEmpty, PanelError, PanelLoading } from "./panel-state";
 import { OutcomeBadge, RecordValidationForm } from "./validation-controls";
 
@@ -185,8 +186,17 @@ function ClaimListPanelInner({ projectId, threadId }: { projectId: string; threa
                     </span>
                   ) : null}
                 </div>
-                <p className="mt-1.5 text-[12px] capitalize text-text-mute">
-                  {claim.kind} · {claim.status}
+                {/* Evidence axis, inline on the row so the ladder is scannable down a thread
+                    (plan §8 Q1). The validation axis lives further down in its own section —
+                    adjacent, but a different shape, so the two never read as one score. */}
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                  <span className="text-[12px] capitalize text-text-mute">
+                    {claim.kind} · {claim.status}
+                  </span>
+                  <GroundingChip grounding={claim.grounding} />
+                </div>
+                <p className="mt-1.5 text-[12px] text-text-faint">
+                  {groundingRaiseLine(claim.grounding)}
                 </p>
                 <ClaimEvidence projectId={projectId} claimId={claim.id} />
                 <ClaimValidations projectId={projectId} threadId={threadId} claim={claim} />

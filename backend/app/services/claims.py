@@ -8,9 +8,10 @@ from app.models.actor import Actor
 from app.models.claim import Claim
 from app.models.enums import ValidationOutcome
 from app.models.thread import Thread
-from app.schemas.claim import ClaimCreate, ClaimRead, ClaimSignal
+from app.schemas.claim import ClaimCreate, ClaimGrounding, ClaimRead, ClaimSignal
 from app.schemas.validation import ValidationRead
 from app.services import contributions
+from app.services import grounding as grounding_service
 from app.services import validations as validation_service
 
 _CONTRADICTION_OUTCOMES = {ValidationOutcome.CONTRADICTS, ValidationOutcome.FAILED}
@@ -42,7 +43,17 @@ def compute_signal(validations: list[ValidationRead]) -> ClaimSignal:
     return "none"
 
 
-def _to_read(claim: Claim, validations: list[ValidationRead]) -> ClaimRead:
+def _to_read(
+    claim: Claim,
+    validations: list[ValidationRead],
+    grounding: ClaimGrounding | None = None,
+) -> ClaimRead:
+    """Assemble the claim read model from its two independent, never-combined axes.
+
+    ``signal`` is validation-derived, ``grounding`` is evidence-derived (0.16.0). Both are *display*
+    derivations: neither touches the stored ``Claim.status`` or ``Claim.confidence``. ``grounding``
+    defaults to an empty (``ungrounded``) value, matching the ``[]`` default for validations.
+    """
     return ClaimRead(
         id=claim.id,
         project_id=claim.project_id,
@@ -57,6 +68,7 @@ def _to_read(claim: Claim, validations: list[ValidationRead]) -> ClaimRead:
         updated_at=claim.updated_at,
         validations=validations,
         signal=compute_signal(validations),
+        grounding=grounding if grounding is not None else ClaimGrounding(),
     )
 
 
@@ -88,7 +100,9 @@ async def create_claim(
     )
     await db.commit()
     await db.refresh(claim)
-    return _to_read(claim, [])  # a fresh claim has no validations yet
+    # A fresh claim has neither validations nor evidence links, so both axes are at their empty
+    # value — no query needed for either.
+    return _to_read(claim, [])
 
 
 async def list_claims(db: AsyncSession, thread_id: UUID) -> list[ClaimRead]:
@@ -98,8 +112,14 @@ async def list_claims(db: AsyncSession, thread_id: UUID) -> list[ClaimRead]:
         .order_by(Claim.created_at.desc())
     )
     claims = list(result.scalars())
-    by_claim = await validation_service.validations_by_claim(db, [c.id for c in claims])
-    return [_to_read(claim, by_claim.get(claim.id, [])) for claim in claims]
+    claim_ids = [c.id for c in claims]
+    # Two batch loaders, two queries total, regardless of how many claims come back (no N+1).
+    by_claim = await validation_service.validations_by_claim(db, claim_ids)
+    grounded = await grounding_service.grounding_by_claim(db, claim_ids)
+    return [
+        _to_read(claim, by_claim.get(claim.id, []), grounded.get(claim.id))
+        for claim in claims
+    ]
 
 
 async def get_claim(db: AsyncSession, claim_id: UUID) -> ClaimRead:
@@ -110,4 +130,5 @@ async def get_claim(db: AsyncSession, claim_id: UUID) -> ClaimRead:
             detail="Claim not found",
         )
     by_claim = await validation_service.validations_by_claim(db, [claim.id])
-    return _to_read(claim, by_claim.get(claim.id, []))
+    grounded = await grounding_service.grounding_by_claim(db, [claim.id])
+    return _to_read(claim, by_claim.get(claim.id, []), grounded.get(claim.id))

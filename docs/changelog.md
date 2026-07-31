@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.16.0` — **Claim grounding — the evidence grade ladder.** A claim's confidence now has a second, evidence-derived axis beside the validation signal: a machine-checked `z3.prove` proof reads **proven** with zero validations, an exact counterexample reads **refuted** over any amount of support.
 - `0.15.0` — **Frontend design overhaul: the quiet minimalist re-skin.** The ornamental Console language (field grid, grain, brackets, chamfers, hatch, mono kickers) retires for a neutral near-black system: flat 12px cards, 1px hairlines, sentence-case sans, mono for data only, crimson the lone accent.
 - `0.14.0` — **Project deepdive becomes a persistent header + five tabs.** Nine peer bays stacked config *above* the ledger; now Research is the default surface and Crew / Funding / Overview are one click away. `?tab=` is the single source of truth; Research + Instruments stay mounted so an in-flight agent trace survives a tab switch.
 - `0.13.5` — **Post-review hardening on the `z3.prove` line (`0.13.0`–`0.13.4`).** No CRITICAL/HIGH; core held (honesty contract, eval-safety, sandbox dispatch). Adds the deferred Phase 2 write-path + subprocess round-trip tests; removes a dead symbol-check + test-only alias. Tests + dead-code removal.
@@ -80,6 +81,63 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.16.0
+
+**Claim grounding — the evidence grade ladder.** `compute_signal` derived a claim's display signal
+from its **validations only**, so in production a claim carrying a `z3.prove` machine-checked proof
+and a claim carrying nothing but an LLM's opinion both read `signal: "none"` until a human clicked
+*validate*. Six instruments were manufacturing graded results and nothing consumed the grade. This
+release adds the **evidence** axis: grounding is derived from *what actually ran* and shown beside —
+never merged into — the validation signal. **Backend read model + frontend surface only: no
+migration, no table, no column, no new endpoint; `compute_signal` is untouched.**
+
+- **The matrix is keyed on `(instrument, status)`, not instrument** (`app/toolbench/grading.py`).
+  That is what keeps it honest: `counterexample.search` returning `refuted` produced an *exact
+  witness* and settles a universal negatively (**B**), while the same instrument returning `result`
+  is finite sampling that settles nothing (**C**). `z3.prove` → **A** both ways; `expr.compare` /
+  `calc.eval` / `geometry.coordinate_measure` → **B**; `oeis.search` is **off-ladder** (`cited`, not
+  a letter); no instrument in the chain → **D**.
+- **Three honesty rules, each a named test.** `undecided` never earns a grade (it is the escalation
+  seam, not a weak pass); **D is the absence of a tool, not a failure** and renders muted, never as
+  an error; and a comment on the matrix warns the next author that a tolerance-only result must
+  never acquire a "float → B" rule when SciPy lands.
+- **Derived, never stamped.** No caller can set a grade — it is a consequence of the recorded run,
+  the same philosophy as the append-only guard. It is display-derived like `signal`: `Claim.status`
+  and `Claim.confidence` are never mutated.
+- **Adding an instrument now *forces* a grading decision.** The matrix lives beside the registry, and
+  the conformance harness's production auto-coverage test runs with `require_grading=True`, so a
+  registered instrument with no matrix row fails immediately instead of silently reading Grade D.
+  Every instrument declares all three statuses; `None` is always an explicit cell, never an omission.
+- **Two sides, and a counter dominates.** `support` and `counter` are aggregated separately; an A/B
+  counter reads `refuted` regardless of how much support exists (mirroring `contested` precedence).
+  A C/D counter does *not* — sampling and assertion contest a claim, they do not settle it.
+- **One query, not N+1.** `services/grounding.py::grounding_by_claim` batch-loads exactly like
+  `validations_by_claim`; `create_claim` issues no query at all (a fresh claim is empty on both axes).
+- **The surface** (`GroundingChip`) is deliberately a different shape from the validation
+  `StatusPill` beside it — a mono letter in a tile vs. a glyph in a pill — so the two axes can never
+  read as one score. Crimson `--signal` is reserved for `refuted` (a refutation is a *successful*
+  research outcome, not an error, so it does not get the deeper `--state-fail` red). Each rung
+  carries a *"what would raise this"* line, which is what makes the ladder actionable rather than
+  decorative.
+- **Cache invalidation closed a gap this release opened**: a tool run now changes the claim read, so
+  `ToolbenchPanel` and `AgentRunTrace` invalidate `queryKeys.claims(threadId)` — without it the chip
+  would sit stale after a run.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 282 passed, 126 skipped (DB-gated)
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
+```
+
+**Unverified:** the 8 new DB-gated round-trips in `test_read_models.py` were not run (no local
+Postgres — the fixtures `DROP SCHEMA`, so they must never point at the live DB); the aggregation and
+precedence *rules* they cover are pinned DB-free in the new `tests/test_grounding.py`. No
+pixel-level browser walk was possible (extension not connected — the third release running); the
+styleguide was checked served-HTML-side for nine rendered states with distinct mark+label pairs.
+See `docs/completions/claim-grounding-0.16.0.md`.
 
 ---
 
@@ -171,7 +229,7 @@ cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
 
 **Unverified:** no browser walk of the `§8` acceptance list was possible in this pass (no
 connected browser; live backend DB endpoints timing out). See
-`docs/completions/project-deepdive-tabs-0.14.0-phase-a.md`.
+`docs/archive/project-deepdive-tabs-0.14.0-phase-a.md`.
 
 ---
 

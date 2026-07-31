@@ -186,6 +186,11 @@ def test_catalog_serializes_instrument_to_json_schema() -> None:
 # Parametrized over the *production* registry so every real instrument is structurally
 # conformance-checked the moment it is registered. Empty in Phase 2 (a single designed skip); from
 # Phase 4 on it runs once per registered instrument (calc.eval / expr.compare / geometry.*).
+#
+# ``require_grading`` (0.16.0 D4) is on **here and only here**: this is the parametrization over the
+# *production* registry, so registering an instrument without a row in the evidence grade matrix
+# fails immediately rather than silently reading Grade D. The toy fixtures above deliberately have
+# no matrix row and use the default.
 @pytest.mark.parametrize("instrument", registry.all(), ids=lambda i: i.name)
 def test_registered_instruments_are_structurally_conformant(instrument: Instrument) -> None:
-    assert check_conformance(instrument) == []
+    assert check_conformance(instrument, require_grading=True) == []

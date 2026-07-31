@@ -5,13 +5,21 @@ from a test (``assert check_conformance(...) == []``) *and* from any non-test ca
 pytest dependency. It lives in production code (not the test tree) so Phase 4's per-instrument tests
 import it directly; each new instrument is "one conformance test against Phase 2".
 
-Two layers of check:
+Three layers of check:
 
 - **structural** (always) — the metadata attributes, the Pydantic models, and JSON-schema-ability;
 - **behavioural** (only when ``example_inputs`` is supplied) — that ``run`` executes on validated
   inputs, returns an :class:`InstrumentResult`, and that its ``output`` actually validates against
   the instrument's declared ``OutputModel`` (which Pydantic does *not* enforce on its own, since
-  ``InstrumentResult.output`` is a free-form dict).
+  ``InstrumentResult.output`` is a free-form dict);
+- **grading coverage** (opt-in via ``require_grading``, 0.16.0 D4) — that the instrument declares a
+  rung on the evidence grade ladder for all three outcomes.
+
+``require_grading`` is opt-in rather than always-on because this harness is also run against
+throwaway fixtures (``demo.echo``) that have no business in the production grade matrix. The
+production auto-coverage test — parametrized over ``registry.all()`` — turns it on, so a
+*registered*
+instrument with no matrix entry fails the moment it is registered, which is what D4 asks for.
 """
 
 from inspect import isawaitable
@@ -20,6 +28,7 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 
 from app.toolbench.adapter import Instrument, InstrumentResult
+from app.toolbench.grading import grading_problems
 
 _REQUIRED_STR_ATTRS = ("name", "namespace", "version", "engine", "engine_version", "description")
 
@@ -33,8 +42,13 @@ def check_conformance(
     *,
     example_inputs: dict[str, Any] | None = None,
     assumptions: dict[str, Any] | None = None,
+    require_grading: bool = False,
 ) -> list[str]:
-    """Return the ways ``instrument`` violates the adapter contract (empty list ⇒ conforms)."""
+    """Return the ways ``instrument`` violates the adapter contract (empty list ⇒ conforms).
+
+    Set ``require_grading`` for a *production* instrument: it additionally demands an entry in the
+    evidence grade matrix (0.16.0 D4). Left off for throwaway fixtures.
+    """
     problems: list[str] = []
 
     for attr in _REQUIRED_STR_ATTRS:
@@ -50,6 +64,11 @@ def check_conformance(
             problems.append(
                 f"name {name!r} must be '{namespace}.<verb>' for namespace {namespace!r}"
             )
+
+    # Grading coverage (D4). Checked here — before any of the early returns below — so a missing
+    # grade decision is reported whether or not the rest of the instrument is exercisable.
+    if require_grading and isinstance(name, str) and name:
+        problems.extend(grading_problems(name))
 
     input_model = getattr(instrument, "InputModel", None)
     output_model = getattr(instrument, "OutputModel", None)

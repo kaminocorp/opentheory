@@ -3,9 +3,29 @@
 Covers the project overview aggregate counts, the per-thread claim count on the thread
 list, and the enriched checkpoint read (creating actor, contribution kind, and
 referenced claim/evidence labels). Skip when no database is configured (see conftest.py).
+
+0.16.0 adds the claim **grounding** round-trips: each instrument run through the real
+``run_instrument`` chokepoint, asserted through the HTTP claim read. The aggregation *rules* are
+pinned DB-free in ``tests/test_grounding.py``; what these prove is the part only a database can —
+that the chain ``ClaimEvidenceLink → Evidence.evidence_metadata`` the read model traverses is
+actually what the write path lays down.
 """
 
+from uuid import UUID
+
 from httpx import AsyncClient
+from sqlalchemy import event
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
+
+from app.models.actor import Actor
+from app.services.tool_runs import run_instrument
+from app.toolbench.instruments import (
+    CALC_EVAL,
+    COORDINATE_MEASURE,
+    COUNTEREXAMPLE_SEARCH,
+    EXPR_COMPARE,
+    Z3_PROVE,
+)
 
 
 async def _actor(client: AsyncClient, name: str = "Ada") -> str:
@@ -257,3 +277,271 @@ async def test_branch_list_includes_checkpoint_count(client: AsyncClient) -> Non
     rows = {b["id"]: b for b in listed.json()}
     assert rows[branch_id]["checkpoint_count"] == 2
     assert rows[branch_id]["status"] == "open"
+
+
+# --- 0.16.0: claim grounding through the chokepoint -----------------------------------------------
+
+
+async def _grounding(client: AsyncClient, claim_id: str) -> dict:
+    """The claim's derived grounding, read back over HTTP (the shape the frontend consumes)."""
+    detail = await client.get(f"/api/v1/claims/{claim_id}")
+    assert detail.status_code == 200, detail.text
+    return detail.json()["grounding"]
+
+
+async def _run(
+    session_factory: async_sessionmaker,
+    project_id: str,
+    actor_id: str,
+    instrument,
+    inputs: dict,
+    claim_id: str | None = None,
+    **kwargs,
+):
+    """Drive a real instrument through ``run_instrument`` (the same chokepoint humans use)."""
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        return await run_instrument(
+            session,
+            UUID(project_id),
+            instrument,
+            actor,
+            inputs=inputs,
+            claim_id=UUID(claim_id) if claim_id else None,
+            **kwargs,
+        )
+
+
+async def test_z3_proof_grounds_a_claim_as_proven_without_any_validation(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """Acceptance 1 — the gap this release closes.
+
+    Before 0.16.0 a claim carrying a machine-checked proof read ``signal: "none"``, exactly like a
+    claim carrying nothing but an opinion, until a human clicked *validate*. The proof is now
+    visible
+    on its own axis with **zero** validations recorded.
+    """
+    actor_id = await _actor(client)
+    project_id = await _project(client, "ground-proven")
+    thread_id = await _thread(client, project_id, actor_id)
+    claim_id = await _claim(client, thread_id, actor_id, "x + y > 0 for positive x, y.")
+
+    await _run(
+        session_factory,
+        project_id,
+        actor_id,
+        Z3_PROVE,
+        {
+            "variables": {"x": "real", "y": "real"},
+            "constraints": ["x > 0", "y > 0"],
+            "goal": "x + y > 0",
+        },
+        claim_id,
+    )
+
+    detail = (await client.get(f"/api/v1/claims/{claim_id}")).json()
+    assert detail["grounding"] == {
+        "support": "A",
+        "counter": None,
+        "cited": False,
+        "headline": "proven",
+    }
+    # The two axes stay independent: no validation was recorded, so the validation signal is silent.
+    assert detail["validations"] == []
+    assert detail["signal"] == "none"
+
+
+async def test_exact_counterexample_refutes_despite_supporting_runs(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """Acceptance 2 (D8) — a counter at A/B dominates any amount of support, end to end."""
+    actor_id = await _actor(client)
+    project_id = await _project(client, "ground-refuted")
+    thread_id = await _thread(client, project_id, actor_id)
+    claim_id = await _claim(client, thread_id, actor_id, "x*x is never equal to x.")
+
+    # Three supporting runs first…
+    for expression in ("2**2 != 2", "3**2 != 3", "4**2 != 4"):
+        await _run(
+            session_factory, project_id, actor_id, CALC_EVAL, {"expression": expression}, claim_id
+        )
+    grounding = await _grounding(client, claim_id)
+    assert grounding["headline"] == "B"
+
+    # …then one machine-checked counter-model (x = 0), which settles it negatively.
+    await _run(
+        session_factory,
+        project_id,
+        actor_id,
+        Z3_PROVE,
+        {"variables": {"x": "int"}, "constraints": [], "goal": "x*x != x"},
+        claim_id,
+    )
+
+    grounding = await _grounding(client, claim_id)
+    assert grounding["counter"] == "A"
+    assert grounding["support"] == "B"  # the support is reported, not erased
+    assert grounding["headline"] == "refuted"
+
+
+async def test_undecided_run_leaves_grounding_untouched(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """Acceptance 3 (honesty rule 1) — an honest "could not decide" is not a weak pass.
+
+    ``expr.compare`` on ``sqrt(x**2)`` vs ``x`` is the *deterministic* undecided: equivalent only
+    under ``x > 0``, so without that assumption SymPy's ``is_zero`` is ``None`` and 0.9.6 makes it
+    escalate rather than guess. (A Z3 ``unknown`` would be the other route, but Z3's nondeterminism
+    makes it an unreliable fixture — the same reason 0.13.5 unit-tested that mapping directly.)
+    """
+    actor_id = await _actor(client)
+    project_id = await _project(client, "ground-undecided")
+    thread_id = await _thread(client, project_id, actor_id)
+    claim_id = await _claim(client, thread_id, actor_id, "sqrt(x^2) = x")
+
+    run = await _run(
+        session_factory,
+        project_id,
+        actor_id,
+        EXPR_COMPARE,
+        {"left": "sqrt(x**2)", "right": "x"},
+        claim_id,
+    )
+    assert run.status.value == "undecided"
+    assert run.evidence_id is not None  # the run *was* recorded — it is a citable outcome
+
+    grounding = await _grounding(client, claim_id)
+    assert grounding == {
+        "support": None,
+        "counter": None,
+        "cited": False,
+        "headline": "ungrounded",
+    }
+
+    # The same comparison *under* the assumption that settles it climbs to B, proving the claim was
+    # ungrounded because the outcome was undecided — not because the plumbing was inert.
+    await _run(
+        session_factory,
+        project_id,
+        actor_id,
+        EXPR_COMPARE,
+        {"left": "sqrt(x**2)", "right": "x"},
+        claim_id,
+        assumptions={"x": {"positive": True}},
+    )
+    assert (await _grounding(client, claim_id))["headline"] == "B"
+
+
+async def test_hand_attached_evidence_grades_d(client: AsyncClient) -> None:
+    """Acceptance 4 (honesty rule 2) — D is the absence of a tool, and it is a legitimate rung."""
+    actor_id = await _actor(client)
+    project_id = await _project(client, "ground-human")
+    thread_id = await _thread(client, project_id, actor_id)
+    claim_id = await _claim(client, thread_id, actor_id, "asserted, not computed")
+
+    await _evidence(client, claim_id, actor_id, "A paper someone read")
+
+    grounding = await _grounding(client, claim_id)
+    assert grounding == {"support": "D", "counter": None, "cited": False, "headline": "D"}
+
+
+async def test_finite_grid_support_grades_c_not_b(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """The asymmetric row, proven through the real write path: sampling settles nothing."""
+    actor_id = await _actor(client)
+    project_id = await _project(client, "ground-sampled")
+    thread_id = await _thread(client, project_id, actor_id)
+    claim_id = await _claim(client, thread_id, actor_id, "a + b == b + a for small integers")
+
+    await _run(
+        session_factory,
+        project_id,
+        actor_id,
+        COUNTEREXAMPLE_SEARCH,
+        {
+            "relation": "a + b == b + a",
+            "variables": {"a": {"min": 1, "max": 3}, "b": {"min": 1, "max": 3}},
+        },
+        claim_id,
+    )
+
+    grounding = await _grounding(client, claim_id)
+    assert grounding["support"] == "C"
+    assert grounding["headline"] == "C"
+
+
+async def test_grounding_does_not_mutate_claim_status_or_confidence(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """Acceptance 6 (D6) — grounding is display-derived, exactly like ``signal``.
+
+    A machine-checked proof must not silently promote ``status`` to ``validated`` or invent a
+    ``confidence``: confidence stays explainable through history, never a value the system sets.
+    """
+    actor_id = await _actor(client)
+    project_id = await _project(client, "ground-nomutate")
+    thread_id = await _thread(client, project_id, actor_id)
+    claim_id = await _claim(client, thread_id, actor_id, "status must not move")
+
+    before = (await client.get(f"/api/v1/claims/{claim_id}")).json()
+
+    await _run(
+        session_factory,
+        project_id,
+        actor_id,
+        COORDINATE_MEASURE,
+        {
+            "points": {"A": [0, 0], "B": [3, 0], "C": [3, 4]},
+            "distances": [["A", "C"]],
+            "angles": [["A", "B", "C"]],
+        },
+        claim_id,
+    )
+
+    after = (await client.get(f"/api/v1/claims/{claim_id}")).json()
+    assert after["grounding"]["headline"] == "B"  # the derivation did happen…
+    assert after["status"] == before["status"]  # …and changed nothing stored
+    assert after["confidence"] == before["confidence"]
+    assert before["status"] == "proposed"
+
+
+async def test_claim_list_grounding_is_batch_loaded(
+    client: AsyncClient, db_engine: AsyncEngine, session_factory: async_sessionmaker
+) -> None:
+    """Acceptance 7 — listing N claims costs a fixed number of queries, not one per claim.
+
+    Asserted by counting SQL statements on the engine rather than by timing: the loader must stay a
+    single ``IN``-query no matter how many claims are in the thread, mirroring the 0.4.4 constraint
+    on ``validations_by_claim``.
+    """
+    actor_id = await _actor(client)
+    project_id = await _project(client, "ground-batch")
+    thread_id = await _thread(client, project_id, actor_id)
+    claim_ids = [await _claim(client, thread_id, actor_id, f"claim {n}") for n in range(6)]
+    # Ground half of them so the loader has real rows to aggregate, not just an empty result.
+    for claim_id in claim_ids[:3]:
+        await _run(
+            session_factory, project_id, actor_id, CALC_EVAL, {"expression": "1 == 1"}, claim_id
+        )
+
+    statements: list[str] = []
+
+    def _record(conn, cursor, statement, parameters, context, executemany):  # noqa: ANN001
+        statements.append(statement)
+
+    event.listen(db_engine.sync_engine, "before_cursor_execute", _record)
+    try:
+        listed = await client.get(f"/api/v1/threads/{thread_id}/claims")
+    finally:
+        event.remove(db_engine.sync_engine, "before_cursor_execute", _record)
+
+    assert listed.status_code == 200
+    body = listed.json()
+    assert len(body) == 6
+    assert sum(1 for c in body if c["grounding"]["headline"] == "B") == 3
+
+    # One SELECT against claim_evidence_links for the whole page — never one per claim.
+    link_queries = [s for s in statements if "claim_evidence_links" in s]
+    assert len(link_queries) == 1, statements

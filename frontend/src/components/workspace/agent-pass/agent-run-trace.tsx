@@ -165,15 +165,21 @@ export function AgentRunTrace({
   // On the running → terminal transition, refresh what the pass changed: the timeline (landed
   // checkpoints), the overview counts, and the branch bar (a freshly forked agent line).
   const prevStatus = useRef<AgentRunStatus | undefined>(undefined);
+  const runThreadId = run?.thread_id;
   useEffect(() => {
     const status = run?.status;
     if (status && prevStatus.current === "running" && status !== "running") {
       queryClient.invalidateQueries({ queryKey: queryKeys.checkpoints(projectId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.overview(projectId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.branches(projectId) });
+      // A pass runs instruments against the thread's claims, so it moves their *grounding*
+      // (0.16.0) — the claim read is stale in a way it was not before this release.
+      if (runThreadId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.claims(runThreadId) });
+      }
     }
     prevStatus.current = status;
-  }, [run?.status, projectId, queryClient]);
+  }, [run?.status, runThreadId, projectId, queryClient]);
 
   if (!run) {
     return <p className="text-[12px] text-text-mute">Loading trace…</p>;

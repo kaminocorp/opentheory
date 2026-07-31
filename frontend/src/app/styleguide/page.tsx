@@ -21,6 +21,37 @@ import {
   Textarea,
   type StateTone,
 } from "@/components/console";
+import {
+  GroundingChip,
+  groundingRaiseLine,
+} from "@/components/workspace/grounding-chip";
+import type { ClaimGrounding } from "@/types/research";
+
+// Every state a claim's grounding can read as (0.16.0), including the two that are easy to get
+// wrong: a B/C counter that does NOT refute, and a citation riding alongside a computed rung.
+const GROUNDING_STATES: { label: string; grounding: ClaimGrounding }[] = [
+  { label: "proven", grounding: { support: "A", counter: null, cited: false, headline: "proven" } },
+  {
+    label: "refuted (machine-checked counter-model)",
+    grounding: { support: null, counter: "A", cited: false, headline: "refuted" },
+  },
+  {
+    label: "refuted (exact counterexample, over support)",
+    grounding: { support: "B", counter: "B", cited: false, headline: "refuted" },
+  },
+  { label: "exact", grounding: { support: "B", counter: null, cited: false, headline: "B" } },
+  { label: "sampled", grounding: { support: "C", counter: null, cited: false, headline: "C" } },
+  { label: "asserted", grounding: { support: "D", counter: null, cited: false, headline: "D" } },
+  { label: "cited", grounding: { support: null, counter: null, cited: true, headline: "cited" } },
+  {
+    label: "exact + cited",
+    grounding: { support: "B", counter: null, cited: true, headline: "B" },
+  },
+  {
+    label: "ungrounded",
+    grounding: { support: null, counter: null, cited: false, headline: "ungrounded" },
+  },
+];
 
 /**
  * Internal verification surface — every primitive in every state, for eyeballing
@@ -113,6 +144,27 @@ export default function StyleguidePage() {
             ))}
             <StatusPill tone="fail" label="contradicts" glyph="▲" />
           </div>
+        </Bay>
+
+        {/* Grounding chips — the evidence grade ladder (0.16.0), every state it can read as.
+            Grayscale check: the mono letter + label must still separate the rungs with colour
+            removed, and D / ungrounded must stay calm — D is the ABSENCE of a tool, not a failure. */}
+        <Bay density="narrative" className="md:col-span-2">
+          <ReadoutLabel>Grounding · the evidence grade ladder</ReadoutLabel>
+          <p className="mt-2 text-[13px] leading-[1.55] text-text-soft">
+            The evidence axis of a claim — derived from what actually ran, never stamped. Shown
+            beside, and never merged with, the validation signal above.
+          </p>
+          <ul className="mt-4 grid gap-2.5">
+            {GROUNDING_STATES.map(({ label, grounding }) => (
+              <li key={label} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <GroundingChip grounding={grounding} />
+                <span className="text-[12px] text-text-faint">
+                  {groundingRaiseLine(grounding)}
+                </span>
+              </li>
+            ))}
+          </ul>
         </Bay>
 
         {/* Live dots */}

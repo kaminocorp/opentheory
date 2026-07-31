@@ -96,7 +96,12 @@ function InstrumentRunner({
       // The run landed a checkpoint (+ maybe evidence) in the ledger — refresh what shows it.
       queryClient.invalidateQueries({ queryKey: queryKeys.checkpoints(projectId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.overview(projectId) });
-      if (claimId) queryClient.invalidateQueries({ queryKey: queryKeys.evidence(claimId) });
+      if (claimId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.evidence(claimId) });
+        // A run against a claim moves its *grounding* (0.16.0), which rides on the claim read —
+        // so the claims list is now stale in a way it never was before this release.
+        if (threadId) queryClient.invalidateQueries({ queryKey: queryKeys.claims(threadId) });
+      }
     },
   });
 
