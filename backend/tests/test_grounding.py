@@ -12,9 +12,11 @@ See ``docs/executing/claim-grounding-0.16.md`` §3.1 and Phase 2.
 """
 
 from typing import Any
+from uuid import uuid4
 
 from app.models.enums import EvidenceGrade
-from app.services.grounding import compute_grounding
+from app.schemas.claim import ClaimGrounding
+from app.services.grounding import compute_grounding, compute_yield
 
 # --- link builders (relation_kind, source_type, evidence_metadata) --------------------------------
 
@@ -258,3 +260,113 @@ def test_flagship_measuring_across_a_corner_reads_b_with_the_last_rung_open() ->
     ]
     assert [g.headline for g in claims_1_to_4] == ["B", "B", "B", "B"]
     assert compute_grounding([]).headline == "ungrounded"  # claim 5
+
+
+# --- 0.16.1: the yield measure (pure diff of two snapshots) ---------------------------------------
+
+
+def _at(*links: tuple[str, str, dict[str, Any]]) -> ClaimGrounding:
+    """A claim's grounding built from the same link builders used above."""
+    return compute_grounding(list(links))
+
+
+def test_a_pass_that_mints_but_raises_nothing_reads_moved_zero() -> None:
+    """Acceptance 4 — the headline case of the whole release.
+
+    Three claims measured, three checkpoints could have landed, and the ladder did not move. This
+    must be recorded as *nothing bought*, not hidden behind a non-zero ``ran_count``.
+    """
+    ids = [uuid4() for _ in range(3)]
+    # Every run came back ``undecided``, which earns no grade (honesty rule 1) — so the snapshots
+    # are identical even though the instruments genuinely ran.
+    before = {i: _at(tool_link("support", "calc.eval", "result")) for i in ids}
+    after = dict(before)
+
+    result = compute_yield(ids, before, after)
+
+    assert result.measured == 3
+    assert result.moved == 0
+    assert result.changed == []
+
+
+def test_ungrounded_to_proven_is_settled() -> None:
+    """Acceptance 5 — a claim that had nothing and now carries a machine-checked proof."""
+    claim_id = uuid4()
+    result = compute_yield(
+        [claim_id], {}, {claim_id: _at(tool_link("support", "z3.prove", "result"))}
+    )
+
+    assert result.moved == 1
+    entry = result.changed[0]
+    assert (entry.before, entry.after, entry.movement) == ("ungrounded", "proven", "settled")
+
+
+def test_b_to_refuted_is_settled_never_a_regression() -> None:
+    """Acceptance 6 — a refutation is a *successful* research outcome, not a downgrade.
+
+    Comparing headline strings (or support rungs) would call this a loss. It is the pass's best
+    possible result: the claim is now decided.
+    """
+    claim_id = uuid4()
+    before = {claim_id: _at(tool_link("support", "calc.eval", "result"))}
+    after = {
+        claim_id: _at(
+            tool_link("support", "calc.eval", "result"),
+            tool_link("weaken", "counterexample.search", "refuted"),
+        )
+    }
+    result = compute_yield([claim_id], before, after)
+
+    entry = result.changed[0]
+    assert (entry.before, entry.after, entry.movement) == ("B", "refuted", "settled")
+    assert result.moved == 1
+
+
+def test_c_to_b_is_a_raise() -> None:
+    """Sampling hardened into an exact result — the ladder's ordinary rung climb."""
+    claim_id = uuid4()
+    result = compute_yield(
+        [claim_id],
+        {claim_id: _at(tool_link("support", "counterexample.search", "result"))},
+        {claim_id: _at(tool_link("support", "expr.compare", "result"))},
+    )
+
+    entry = result.changed[0]
+    assert (entry.before, entry.after, entry.movement) == ("C", "B", "raised")
+    assert result.moved == 1
+
+
+def test_a_claim_with_no_evidence_on_either_side_is_still_measured() -> None:
+    """The ids drive the diff, not the maps' keys — an untouched empty claim still counts.
+
+    If the maps drove it, the claim a pass most wants to move (one with nothing recorded) would be
+    invisible on both sides, and ``measured`` would understate what the pass had to work with.
+    """
+    ids = [uuid4(), uuid4()]
+    result = compute_yield(ids, {}, {})
+    assert result.measured == 2
+    assert result.moved == 0
+
+
+def test_a_new_pin_is_recorded_but_does_not_count_as_moved() -> None:
+    """Off-ladder stays off-ladder: a citation is a real change, but it climbs no rung."""
+    claim_id = uuid4()
+    result = compute_yield([claim_id], {}, {claim_id: _at(pin_link("support"))})
+
+    assert result.moved == 0  # ``cited`` is not a rung
+    entry = result.changed[0]
+    assert (entry.before, entry.after, entry.movement) == ("ungrounded", "cited", "unchanged")
+
+
+def test_an_already_proven_claim_cannot_move_again() -> None:
+    """A settled claim stays settled — the second proof buys nothing, and says so."""
+    claim_id = uuid4()
+    proven = _at(tool_link("support", "z3.prove", "result"))
+    result = compute_yield([claim_id], {claim_id: proven}, {claim_id: proven})
+    assert result.moved == 0
+
+
+def test_nothing_measured_is_a_valid_empty_measure() -> None:
+    """A thread with no open claims: the pass had nothing to move, and the record says so."""
+    result = compute_yield([], {}, {})
+    assert (result.measured, result.moved, result.changed) == (0, 0, [])

@@ -12,6 +12,8 @@ import pytest
 
 from app.agent.llm import AgentLlmError
 from app.agent.planner import plan
+from app.models.enums import EvidenceGrade
+from app.schemas.claim import ClaimGrounding
 from app.toolbench.catalog import build_catalog
 from tests.agent.stubs import StubLlm, make_claim, make_thread
 
@@ -155,3 +157,48 @@ async def test_markdown_fence_is_tolerated() -> None:
     fenced = f"```json\n{_content([])}\n```"
     result = await plan(make_thread(), [], CATALOG, "m", llm=StubLlm(fenced), max_runs=5)
     assert result.runnable == []
+
+
+# --- 0.16.1: the grounding context reaches the model ----------------------------------------------
+
+
+async def test_grounding_context_reaches_the_planning_call() -> None:
+    """The wiring test: a rung passed to ``plan`` shows up in the message the LLM actually sees."""
+    claim = make_claim()
+    llm = StubLlm(_content([]))
+    await plan(
+        make_thread(),
+        [claim],
+        CATALOG,
+        "m",
+        llm=llm,
+        max_runs=5,
+        grounding={claim.id: ClaimGrounding(support=EvidenceGrade.B, headline="B")},
+    )
+    user_message = llm.calls[0]["messages"][1]["content"]
+    assert "grounding: B" in user_message
+    assert "to raise: run one of [z3.prove]" in user_message
+
+
+async def test_grounding_is_optional_and_omitting_it_changes_no_validation() -> None:
+    """Read-only context: without it every claim reads ``ungrounded``, but the plan is unaffected.
+
+    Keeps the 0.12.1 guarantee intact — nothing the model returns can set a grade, and the two-stage
+    validation is identical with or without the new argument.
+    """
+    claim = make_claim()
+    runs = [{"instrument": "calc.eval", "inputs": {"expression": "1 + 1 == 2"}}]
+    without = await plan(
+        make_thread(), [claim], CATALOG, "m", llm=StubLlm(_content(runs)), max_runs=5
+    )
+    with_grounding = await plan(
+        make_thread(),
+        [claim],
+        CATALOG,
+        "m",
+        llm=StubLlm(_content(runs)),
+        max_runs=5,
+        grounding={claim.id: ClaimGrounding(support=EvidenceGrade.A, headline="proven")},
+    )
+    assert len(without.runnable) == len(with_grounding.runnable) == 1
+    assert without.dropped == with_grounding.dropped == []

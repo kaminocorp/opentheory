@@ -11,13 +11,51 @@ planner in ``app/agent/planner.py`` (0.12.1), not here.
 """
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.enums import AgentRunStatus
+from app.schemas.claim import GroundingHeadline
 from app.schemas.project import AGENT_ROLE_FIELDS
+
+# What a pass did to one claim's evidence axis (0.16.1). Three-way rather than up/down, because
+# comparing headline strings would call ``B → refuted`` a regression — and it is not one. A
+# refutation is a *successful* research outcome (0.16.0), so it counts as progress, but calling it
+# "raised" would be equally wrong. Naming the decisive case separately keeps both honest.
+#   settled    — reached ``proven`` or ``refuted`` from neither; decided, either direction
+#   raised     — the supporting rung strictly strengthened (rank up, or nothing → a grade)
+#   unchanged  — neither
+ClaimMovement = Literal["settled", "raised", "unchanged"]
+
+
+class ClaimYield(BaseModel):
+    """One claim's before/after rung across a pass — recorded only when it actually changed."""
+
+    claim_id: UUID
+    before: GroundingHeadline
+    after: GroundingHeadline
+    movement: ClaimMovement
+
+
+class PassYield(BaseModel):
+    """What a pass *bought*, as opposed to what it spent (0.16.1).
+
+    The counterweight to ``ran_count`` / ``tokens_used``: those measure activity, this measures
+    result. ``measured`` is every open claim the pass could have moved, ``moved`` is how many it
+    did; ``changed`` lists only those, so the record stays bounded on a thread with many claims.
+
+    A pass with ``ran_count > 0`` and ``moved == 0`` is the case this whole release exists to make
+    legible — five checkpoints minted, nothing climbed.
+
+    Point-in-time by construction (plan D3): both snapshots are taken *inside* the pass, so a human
+    who raises a rung an hour later is never silently credited to the agent.
+    """
+
+    measured: int = 0
+    moved: int = 0
+    changed: list[ClaimYield] = Field(default_factory=list)
 
 
 class AgentRunTrigger(BaseModel):
@@ -57,6 +95,10 @@ class AgentRunSummary(BaseModel):
     planned_count: int
     ran_count: int
     tokens_used: int
+    # The yield measure (0.16.1). Small and bounded (two counts + only the claims that changed), so
+    # it belongs on the *summary* despite this schema's "no heavy JSON" rule — a history row that
+    # shows spend without result is exactly the reading the release is trying to prevent.
+    grounding_yield: PassYield = Field(default_factory=PassYield)
     error: str | None
     created_at: datetime
     updated_at: datetime

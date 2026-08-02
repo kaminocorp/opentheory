@@ -296,10 +296,15 @@ What this proposal asks of the schema (all additive to `docs/blueprints/primitiv
    to a validated shape: `{ tool, version, inputs_hash, outputs_hash, grade,
    resource_used, env_fingerprint }`. Optionally a first-class `ToolInvocation`
    model so a single checkpoint can carry many.
-2. **Add the evidence grade (A/B/C/D)** to `Claim` / `Evidence` / `Artifact`, plus a
-   secondary mechanical-reproducibility marker (`bit-verifiable` / `env-pinned` /
-   `tolerance-only`) on *computed* results. This is the §2.1 ladder made durable — the
-   cheapest, highest-leverage change, and the spine of explainable claim confidence.
+2. ~~**Add the evidence grade (A/B/C/D)** to `Claim` / `Evidence` / `Artifact`~~ — **superseded
+   (`0.16.0`). The grade is derived, never stored.** This item asked for a stamped column; the
+   build went the other way, and deliberately: a stored grade can drift from the run that justified
+   it, whereas a grade computed from `(instrument, status)` on read cannot. `maths-toolbox.md`
+   argued this at the time (*"No grades, no stamped result-kind… derivable on demand from the blame
+   tuple, never stamped"*) and won. See `app/toolbench/grading.py` (the matrix) and
+   `app/services/grounding.py` (the aggregation); `0.16.1` reads the same matrix *backwards* to
+   tell an agent what would raise a rung. The secondary mechanical-reproducibility marker
+   (`bit-verifiable` / `env-pinned` / `tolerance-only`) remains unbuilt and becomes real with SciPy.
 3. **Content-address `Artifact`s.** `research-git.md` flags this as *target, not
    current* (commit IDs are UUIDs today). Tool outputs are the forcing function:
    store the sha256 and dedupe on it.

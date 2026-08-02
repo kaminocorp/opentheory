@@ -11,7 +11,13 @@ import pytest
 
 from app.models.enums import EvidenceGrade, ResultStatus
 from app.toolbench.conformance import check_conformance
-from app.toolbench.grading import grade_for, grading_problems, strongest
+from app.toolbench.grading import (
+    grade_for,
+    grading_problems,
+    instruments_reaching,
+    raise_path,
+    strongest,
+)
 from app.toolbench.registry import registry
 
 # The six production instruments, for the exhaustive sweeps below.
@@ -158,6 +164,69 @@ def test_conformance_flags_a_partially_graded_instrument(monkeypatch: pytest.Mon
     problems = grading_problems("partial.instrument")
     assert problems
     assert "refuted" in problems[0] and "undecided" in problems[0]
+
+
+# --- 0.16.1: reading the matrix backwards (the raise path) ----------------------------------------
+
+
+def test_only_z3_can_reach_grade_a_today() -> None:
+    """Acceptance 1 — the A-path names the one machine-checked instrument, and nothing else.
+
+    This is the assertion that goes red the day Lean lands, which is the point: the prompt's advice
+    is derived from the matrix, so widening the matrix widens the advice with no prompt edit.
+    """
+    assert instruments_reaching(EvidenceGrade.A) == ["z3.prove"]
+
+
+def test_capability_is_read_across_all_statuses_not_just_result() -> None:
+    """``counterexample.search`` is B-capable via ``refuted`` even though its ``result`` cell is C.
+
+    Planning asks what a run *might* produce, not what it usually does — the run might refute.
+    """
+    assert grade_for("counterexample.search", ResultStatus.RESULT) is EvidenceGrade.C
+    assert "counterexample.search" in instruments_reaching(EvidenceGrade.B)
+
+
+def test_retrieval_is_never_a_way_to_raise_a_rung() -> None:
+    """Off-ladder in the matrix ⇒ off-ladder in the advice. A pin is a citation, not a rung."""
+    for grade in EvidenceGrade:
+        assert "oeis.search" not in instruments_reaching(grade)
+    assert "oeis.search" not in raise_path(None)
+
+
+def test_raise_path_from_b_is_the_a_capable_set() -> None:
+    """A claim already at exact-symbolic B has exactly one way up: machine-check it."""
+    assert raise_path(EvidenceGrade.B) == ["z3.prove"]
+
+
+def test_nothing_beats_a_machine_checked_proof() -> None:
+    """Acceptance 2's engine — an empty raise path is how the planner learns to stop spending."""
+    assert raise_path(EvidenceGrade.A) == []
+
+
+def test_raise_path_from_nothing_offers_every_graded_instrument() -> None:
+    """An ungrounded claim can be improved by any instrument that grades at all."""
+    path = raise_path(None)
+    assert set(path) == {
+        "z3.prove",
+        "expr.compare",
+        "calc.eval",
+        "geometry.coordinate_measure",
+        "counterexample.search",
+    }
+
+
+def test_raise_path_is_strictly_stronger_than_the_current_rung() -> None:
+    """``raise_path`` excludes the current rung; ``instruments_reaching`` includes it.
+
+    The distinction matters: an instrument that can only match what a claim already has is not a
+    way *up*, and offering it would be the activity-without-yield this release exists to prevent.
+    """
+    assert "counterexample.search" in instruments_reaching(EvidenceGrade.C)
+    assert "counterexample.search" in raise_path(EvidenceGrade.C)  # can still reach B
+    # geometry tops out at B, so it is a way up from C but not from B.
+    assert "geometry.coordinate_measure" in raise_path(EvidenceGrade.C)
+    assert "geometry.coordinate_measure" not in raise_path(EvidenceGrade.B)
 
 
 def test_check_conformance_grading_is_opt_in() -> None:

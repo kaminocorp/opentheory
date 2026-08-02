@@ -48,6 +48,7 @@ from app.schemas.branch import BranchCreate
 from app.services import branches as branch_service
 from app.services import checkpoints as checkpoint_service
 from app.services.agent_actors import get_or_create_project_agent_actor
+from app.services.grounding import compute_yield, grounding_by_claim
 from app.services.tool_runs import run_instrument
 from app.toolbench.catalog import build_catalog
 from app.toolbench.registry import registry
@@ -68,6 +69,11 @@ class BudgetPolicy(Protocol):
     v1 passes ``None`` here — the per-pass safety caps (``agent_pass_max_runs``) already bound blast
     radius, and real budget is a **project-level** concern (0.12.5). A future orchestrator agent
     supplies a project-budget-derived policy through this seam; **no per-thread limits ever**.
+
+    Deliberately unchanged in 0.16.1: the signature has no implementer yet, so widening it now would
+    be speculative. What that release *does* supply is the missing half of metering — the recorded
+    ``AgentRun.grounding_yield``, which is what lets a budget ask "what did the last pass buy?"
+    instead of only "how much did it spend?".
     """
 
     def check(self, *, tokens_used: int, ran_count: int) -> bool: ...
@@ -235,7 +241,14 @@ async def _execute(
 
     # 3. The ONE planning call — BEFORE any branch fork, so a planner failure (down provider /
     #    unparseable plan) is a recorded failed trace that mints nothing at all.
+    #
+    #    The grounding snapshot (0.16.1) is loaded once, here, and serves *both* consumers: it is
+    #    the planner's context (plan to raise a rung) and the ``before`` half of the yield measure.
+    #    One batched query, not two — and taking it before the plan means the state the model
+    #    reasoned about is exactly the state the yield is measured against.
     open_claims = await _open_claims(db, agent_run.thread_id)
+    claim_ids = [claim.id for claim in open_claims]
+    grounding_before = await grounding_by_claim(db, claim_ids)
     the_llm: LlmClient = llm if llm is not None else OpenRouterClient()
     try:
         plan_result = await planner(
@@ -245,6 +258,7 @@ async def _execute(
             model,
             llm=the_llm,
             max_runs=settings.agent_pass_max_runs,
+            grounding=grounding_before,
         )
     except AgentLlmError as exc:
         agent_run.tokens_used = getattr(exc, "tokens_used", 0)
@@ -334,6 +348,23 @@ async def _execute(
 
     agent_run.ran_count = ran_count
     agent_run.steps = list(steps)
+
+    # 6. Measure the yield (0.16.1): re-read grounding for the same claims and diff it against the
+    #    pre-plan snapshot. Every landed step has already committed, so this reads the pass's own
+    #    durable effect. It is deliberately measured for *every* completed pass, including one that
+    #    ran nothing — "measured 4, moved 0" is the honest record of a pass that bought nothing, and
+    #    it is the number 0.12.5's metering will read (see BudgetPolicy).
+    grounding_after = await grounding_by_claim(db, claim_ids)
+    agent_run.grounding_yield = compute_yield(
+        claim_ids, grounding_before, grounding_after
+    ).model_dump(mode="json")
+    logger.info(
+        "agent_pass_yield agent_run_id=%s ran=%s measured=%s moved=%s",
+        agent_run.id,
+        ran_count,
+        agent_run.grounding_yield.get("measured"),
+        agent_run.grounding_yield.get("moved"),
+    )
     return await _finalize(db, agent_run, status=AgentRunStatus.COMPLETED)
 
 

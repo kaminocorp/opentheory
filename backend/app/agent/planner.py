@@ -30,6 +30,7 @@ from app.agent.llm import AgentLlmError, LlmClient
 from app.agent.prompts import build_messages
 from app.models.claim import Claim
 from app.models.thread import Thread
+from app.schemas.claim import ClaimGrounding
 from app.schemas.instrument import InstrumentDescriptor
 from app.services.evidence import RELATION_KINDS
 from app.toolbench.registry import InstrumentRegistry
@@ -131,6 +132,7 @@ async def plan(
     *,
     llm: LlmClient,
     max_runs: int,
+    grounding: dict[UUID, ClaimGrounding] | None = None,
     registry: InstrumentRegistry | None = None,
     timeout: float | None = None,
 ) -> PlanResult:
@@ -139,13 +141,18 @@ async def plan(
     ``catalog`` feeds the prompt (the tool menu); ``registry`` (defaults to the production one)
     resolves each proposed instrument for validation — pass a matching pair in tests. ``max_runs``
     is the per-pass safety cap the runnable list is truncated to.
+
+    ``grounding`` (0.16.1) is each open claim's evidence rung, so the model plans to *raise* one
+    rather than to look busy. It is **optional and read-only context**: omitting it degrades the
+    plan's quality (every claim reads ``ungrounded``) but changes no validation rule, and nothing
+    the model returns can set a grade — grounding remains derived from what actually runs.
     """
     reg = registry if registry is not None else _production_registry
     open_claim_ids = {claim.id for claim in open_claims}
 
     response = await llm.complete(
         model=model,
-        messages=build_messages(thread, open_claims, catalog),
+        messages=build_messages(thread, open_claims, catalog, grounding),
         response_format=_JSON_RESPONSE_FORMAT,
         timeout=timeout,
         max_tokens=PLAN_COMPLETION_MAX_TOKENS,

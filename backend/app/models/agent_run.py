@@ -100,6 +100,11 @@ class AgentRun(IdMixin, TimestampMixin, Base):
     ran_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     # Planning-call token usage (future: cumulative across an iterative loop).
     tokens_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # 0.16.1 — what the pass *bought*: the before/after grounding rung of every open claim it could
+    # have moved (see app/schemas/agent_run.py::PassYield for the shape). Measured point-in-time at
+    # both ends of the pass rather than derived on read, so a human raising a rung later is never
+    # credited to the agent. Empty ``{}`` on a pass that failed before executing anything.
+    grounding_yield: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     # Pass-level failure reason (unassigned role, planner error, unexpected exception) — null on
     # the success path.
     error: Mapped[str | None] = mapped_column(Text, nullable=True)

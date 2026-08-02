@@ -6,7 +6,7 @@
 // `running` → `completed` | `failed`; the checkpoints/evidence it lands ARE the append-only ledger.
 
 import type { AgentRole } from "./project";
-import type { ResultStatus } from "./research";
+import type { GroundingHeadline, ResultStatus } from "./research";
 
 // The pass lifecycle. `running` is the only non-terminal state (the client polls until it settles).
 export type AgentRunStatus = "running" | "completed" | "failed";
@@ -35,6 +35,32 @@ export type AgentRunStep = {
   reason: string | null;
 };
 
+// What a pass did to one claim's evidence axis (0.16.1). Three-way rather than up/down, because
+// `B → refuted` is NOT a regression — a refutation is a successful research outcome — but calling it
+// "raised" would be equally wrong. `settled` names the decisive case so both stay honest.
+//   settled   — reached proven or refuted from neither; decided, in either direction
+//   raised    — the supporting rung strictly strengthened
+//   unchanged — neither (a new citation lands here: real, but off-ladder)
+export type ClaimMovement = "settled" | "raised" | "unchanged";
+
+// One claim's before/after rung across a pass. Recorded only when the headline actually changed.
+export type ClaimYield = {
+  claim_id: string;
+  before: GroundingHeadline;
+  after: GroundingHeadline;
+  movement: ClaimMovement;
+};
+
+// What a pass *bought*, beside what it spent (0.16.1). `ran_count`/`tokens_used` measure activity;
+// this measures result. `measured` is every open claim the pass could have moved, `moved` is how
+// many it did. A pass with `ran_count > 0` and `moved === 0` minted checkpoints and climbed nothing
+// — the reading this release exists to make impossible to miss.
+export type PassYield = {
+  measured: number;
+  moved: number;
+  changed: ClaimYield[];
+};
+
 // The list-view row (no heavy JSON). Mirrors the backend AgentRunSummary.
 export type AgentRunSummary = {
   id: string;
@@ -51,6 +77,9 @@ export type AgentRunSummary = {
   planned_count: number;
   ran_count: number;
   tokens_used: number;
+  // The yield measure. Small and bounded, so it rides on the summary too — a history row showing
+  // spend without result is exactly the reading 0.16.1 is trying to prevent.
+  grounding_yield: PassYield;
   error: string | null;
   created_at: string;
   updated_at: string;

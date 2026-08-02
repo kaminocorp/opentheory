@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.16.1` — **Grounding into the planner + the yield measure.** The ladder stops being decorative: the planner now sees each open claim's rung plus a matrix-derived *"to raise, run one of…"* line (and a *settled* stop line it must not spend against), and every completed pass records what it actually moved. `Claims moved` sits beside `Runs`/`Tokens`, and a pass that minted checkpoints and climbed nothing says so in words. Migration `0014_agent_run_grounding_yield` (additive).
 - `0.16.0` — **Claim grounding — the evidence grade ladder.** A claim's confidence now has a second, evidence-derived axis beside the validation signal: a machine-checked `z3.prove` proof reads **proven** with zero validations, an exact counterexample reads **refuted** over any amount of support.
 - `0.15.0` — **Frontend design overhaul: the quiet minimalist re-skin.** The ornamental Console language (field grid, grain, brackets, chamfers, hatch, mono kickers) retires for a neutral near-black system: flat 12px cards, 1px hairlines, sentence-case sans, mono for data only, crimson the lone accent.
 - `0.14.0` — **Project deepdive becomes a persistent header + five tabs.** Nine peer bays stacked config *above* the ledger; now Research is the default surface and Crew / Funding / Overview are one click away. `?tab=` is the single source of truth; Research + Instruments stay mounted so an in-flight agent trace survives a tab switch.
@@ -81,6 +82,67 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.16.1
+
+**Grounding into the planner + the yield measure.** `0.16.0` built the object the autonomy spine
+needs — a state to plan against, a progress measure, a stopping criterion — and then nothing
+consumed it. The `0.12.1` planner still received *thread + open claims + catalog*: it could see
+**that** a claim was open, never **how well grounded** it was, so it planned for plausibility and
+the trace reported effort with no notion of what the effort bought. This release closes both ends.
+**Planner context + orchestrator measurement + one additive column; `compute_signal`,
+`compute_grounding`, and every grade-matrix cell are untouched.**
+
+- **The matrix is now read backwards** (`app/toolbench/grading.py`). `0.16.0` asks *"X returned S —
+  how rigorous?"*; planning needs *"this claim is at R — what beats it?"*. `outranks` /
+  `instruments_reaching` / `raise_path` answer it from the **same table**, so the advice can never
+  drift from the grade. Capability is read across all three status cells — which is why
+  `counterexample.search` counts as B-capable despite a C `result` cell: the run might refute.
+  Grading uses the actual status, planning the possible one.
+- **`raise_path(A) == []` is the load-bearing case.** An empty list is how the planner learns a
+  claim is *done* — the loop's first real stopping signal. And because the advice is derived, a
+  newly registered instrument widens the raise path with **no prompt edit**; the A-path test is
+  written to go red the day Lean lands.
+- **The prompt gains a rung and a stop line, never both.** Each claim shows its `grounding`, its
+  counter rung when present, and either `to raise: run one of […]` or `settled: yes — do not plan
+  runs against it`. Two new system rules make the loop prefer a raise and skip a settled claim.
+  A ladder legend states each rung's *limit* (C "never proves", D "no tool in the loop") so the
+  model reasons rather than pattern-matches.
+- **The anti-injection posture is unchanged, and now tested as such.** Every new line is
+  server-derived, so no fresh byte of claim-authored text reaches the prompt — asserted by rendering
+  a benign and a hostile claim at identical grounding and requiring byte-identical blocks.
+- **Yield is measured point-in-time inside the pass**, never derived at read: one snapshot before
+  planning (which doubles as the planner's context, so the state the model reasoned about *is* the
+  state it is scored against) and one at pass end. Deriving `after` lazily would credit the agent
+  for a rung a human raised an hour later.
+- **Movement is three-way, and `settled` is tested first.** Comparing headlines would call
+  `B → refuted` a regression — it is not — and a refutation usually arrives with the *support* rung
+  untouched, so a rank test alone would score the pass's best possible outcome as `unchanged`.
+  `compute_yield` also takes claim ids explicitly rather than the snapshots' keys: a claim with no
+  evidence is absent from both maps, and it is exactly the one a pass most wants to move.
+- **The surface states the uncomfortable case in words.** `Claims moved` sits in the same readout
+  row as `Runs`/`Tokens` — spend and yield read together or the pass is judged on activity — and
+  when nothing climbed the trace says *"3 runs landed, but no claim's grounding moved."* An
+  unmeasured pass renders `—`, never `0/0`.
+- **Caught in passing:** the new kwarg broke four DB-gated stub planners, which a green local run
+  could not see. Fixed by mirroring the real signature explicitly rather than `**kwargs` — the
+  planner is an injected seam, and a permissive stub would hide exactly this drift.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 309 passed, 128 skipped (DB-gated)
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
+```
+
+**Unverified:** migration `0014` has not been applied anywhere (no local Postgres by policy — it is
+a deploy step; additive with a `'{}'` server default, so existing rows read as an empty measure);
+the two new DB-gated orchestrator round-trips join `0.16.0`'s 8 still-unrun, with the rules they
+cover pinned DB-free in `tests/test_grounding.py`; no browser walk (the fourth release running); and
+no live agent pass was run, so the planner's *behavioural* response to the grounding block is
+unobserved — the loop is still dark in production. See
+`docs/completions/grounding-yield-0.16.1.md`.
 
 ---
 

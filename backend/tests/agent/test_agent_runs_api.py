@@ -110,15 +110,19 @@ async def _assign_model(
         await session.commit()
 
 
+# Signatures mirror ``agent.planner.plan`` exactly (0.16.1 added ``grounding``) — see the note in
+# tests/agent/test_orchestrator.py for why these are explicit rather than ``**kwargs``.
+
+
 def _stub_planner(plan_result: PlanResult):
-    async def _planner(thread, open_claims, catalog, model, *, llm, max_runs):
+    async def _planner(thread, open_claims, catalog, model, *, llm, max_runs, grounding=None):
         return plan_result
 
     return _planner
 
 
 def _raising_planner(exc: Exception):
-    async def _planner(thread, open_claims, catalog, model, *, llm, max_runs):
+    async def _planner(thread, open_claims, catalog, model, *, llm, max_runs, grounding=None):
         raise exc
 
     return _planner

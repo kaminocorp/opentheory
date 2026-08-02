@@ -12,8 +12,16 @@ import {
 } from "@/components/console";
 import { getAgentRun } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
-import type { AgentRunRead, AgentRunStatus, AgentRunStep, AgentRunSummary } from "@/types/agent-run";
+import type {
+  AgentRunRead,
+  AgentRunStatus,
+  AgentRunStep,
+  AgentRunSummary,
+  ClaimYield,
+  PassYield,
+} from "@/types/agent-run";
 
+import { groundingHeadlineLabel } from "../grounding-chip";
 import { outcomeMeta } from "../toolbench/outcome";
 
 const short = (id: string | null | undefined, n = 8): string => (id ? id.slice(0, n) : "—");
@@ -118,6 +126,66 @@ function InertStep({ step, label }: { step: AgentRunStep; label: string }) {
   );
 }
 
+/**
+ * One claim's rung movement across the pass (0.16.1) — `Ungrounded → Refuted`, with what that
+ * counted as. Rung names come from the claim row's own vocabulary (`groundingHeadlineLabel`), so
+ * the two surfaces can never drift into two words for one ladder.
+ *
+ * `settled` is tinted the same as `raised`: reaching a decisive rung is progress **in either
+ * direction** — a refutation is a successful research outcome, not a downgrade. What the tint never
+ * says is that the claim is *true*; the `before → after` labels carry the direction themselves.
+ */
+function ClaimYieldRow({ entry }: { entry: ClaimYield }) {
+  const moved = entry.movement !== "unchanged";
+  return (
+    <li className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
+      <span className="font-mono text-[11px] text-text-faint" title={entry.claim_id}>
+        {short(entry.claim_id)}
+      </span>
+      <span className="text-text-mute">{groundingHeadlineLabel(entry.before)}</span>
+      <span aria-hidden className="text-text-faint">
+        →
+      </span>
+      <span className="text-text">{groundingHeadlineLabel(entry.after)}</span>
+      <span className={moved ? "text-[11px] text-state-ok" : "text-[11px] text-text-faint"}>
+        {entry.movement}
+      </span>
+    </li>
+  );
+}
+
+/**
+ * What the pass *bought*, beside what it spent.
+ *
+ * The load-bearing branch is the last one: a pass that reached an instrument and moved no rung says
+ * so in words. Leaving that case blank would let a run of five checkpoints read as five results —
+ * the exact activity-for-yield confusion this release exists to close. Shown only once the pass has
+ * settled, since the measure is taken at the end of it.
+ */
+function PassYieldReadout({ measure, ranCount }: { measure: PassYield; ranCount: number }) {
+  if (measure.measured === 0) {
+    return <p className="text-[11px] text-text-faint">No open claims on this thread to move.</p>;
+  }
+  if (measure.moved > 0) {
+    return (
+      <div className="grid gap-1.5">
+        <ul className="grid gap-1">
+          {measure.changed.map((entry) => (
+            <ClaimYieldRow key={entry.claim_id} entry={entry} />
+          ))}
+        </ul>
+      </div>
+    );
+  }
+  return (
+    <p className="text-[12px] leading-[1.5] text-text-mute">
+      {ranCount > 0
+        ? `${ranCount} run${ranCount === 1 ? "" : "s"} landed, but no claim's grounding moved.`
+        : "Nothing ran, so no claim's grounding moved."}
+    </p>
+  );
+}
+
 function StepRow({ step }: { step: AgentRunStep }) {
   switch (step.status) {
     case "landed":
@@ -187,6 +255,11 @@ export function AgentRunTrace({
 
   const steps = run.steps ?? [];
   const landedOnBranch = run.status === "completed" && run.branch_id !== null;
+  // Defaulted rather than assumed present: a pass recorded before 0.16.1 (or one that failed before
+  // it could measure) carries no yield, and must render as "not measured" — never as "moved 0",
+  // which would assert something the row does not actually say.
+  const measure = run.grounding_yield;
+  const measured = run.status === "completed" && measure !== undefined;
 
   return (
     <div className="grid gap-3 rounded-built bg-panel p-4" style={{ border: "1px solid var(--hairline)" }}>
@@ -199,12 +272,26 @@ export function AgentRunTrace({
         {run.model ? <span className="font-mono text-[11px] text-text-faint">{run.model}</span> : null}
       </div>
 
-      {/* Effort readouts: what actually ran vs. what was planned, and the planning-call token spend. */}
-      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      {/* Effort readouts — and, since 0.16.1, the one that is not effort. "Claims moved" sits in the
+          same row as Runs/Tokens on purpose: spend and yield are read together or the pass gets
+          judged on activity alone. */}
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <MetricReadout label="Runs" value={`${run.ran_count}/${run.planned_count}`} />
         <MetricReadout label="Tokens" value={run.tokens_used.toLocaleString()} />
         <MetricReadout label="Steps" value={steps.length} />
+        <MetricReadout
+          label="Claims moved"
+          value={measured ? `${measure.moved}/${measure.measured}` : "—"}
+        />
       </dl>
+
+      {/* The yield, spelled out: which rungs climbed, or an explicit statement that none did. */}
+      {measured ? (
+        <div className="grid gap-1.5 border-t pt-2.5" style={{ borderColor: "var(--hairline)" }}>
+          <p className="text-[13px] font-medium text-text">Grounding yield</p>
+          <PassYieldReadout measure={measure} ranCount={run.ran_count} />
+        </div>
+      ) : null}
 
       {/* Pass-level failure (unassigned role, planner error, unexpected) — honest, never softened. */}
       {run.status === "failed" && run.error ? (

@@ -36,8 +36,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.enums import EvidenceGrade, ResultStatus
 from app.models.evidence import Evidence
 from app.models.links import ClaimEvidenceLink
+from app.schemas.agent_run import ClaimMovement, ClaimYield, PassYield
 from app.schemas.claim import ClaimGrounding, GroundingHeadline
-from app.toolbench.grading import grade_for, strongest
+from app.toolbench.grading import grade_for, outranks, strongest
 
 # The ``Evidence.source_type`` a *compute* instrument's evidence carries (``tool_runs.py``:
 # ``source_type = result.source_type or "tool"``). A retrieval instrument overrides it with its
@@ -161,6 +162,66 @@ def compute_grounding(
         cited=cited,
         headline=_headline(support, counter, cited),
     )
+
+
+# --- 0.16.1: the yield measure --------------------------------------------------------------------
+
+# Headlines whose evidence axis is *decided* — a machine-checked proof, or an exact counter that
+# dominates any support (D8). Kept beside the precedence table it derives from; ``prompts.py`` holds
+# the same frozenset for the planner's stop rule, both reading one ``GroundingHeadline`` union.
+_SETTLED_HEADLINES = frozenset({"proven", "refuted"})
+
+
+def _movement(before: ClaimGrounding, after: ClaimGrounding) -> ClaimMovement:
+    """How one claim's evidence axis moved across a pass.
+
+    Order matters. ``settled`` is tested first because reaching a decisive headline is the strongest
+    thing that can happen and must not be mis-reported as a mere raise — and because ``refuted``
+    often arrives *without* the support rung moving at all, so the rank test would miss it entirely.
+    """
+    if after.headline in _SETTLED_HEADLINES and before.headline not in _SETTLED_HEADLINES:
+        return "settled"
+    if outranks(after.support, before.support):
+        return "raised"
+    return "unchanged"
+
+
+def compute_yield(
+    claim_ids: list[UUID],
+    before: dict[UUID, ClaimGrounding],
+    after: dict[UUID, ClaimGrounding],
+) -> PassYield:
+    """Diff two grounding snapshots into the pass's yield (pure — the orchestrator does the I/O).
+
+    ``claim_ids`` is passed explicitly rather than inferred from the maps' keys: a claim with no
+    evidence links at all is *absent* from both, and it is precisely the claim a pass most wants to
+    move. Reading the ids as the source of truth means a run that takes a claim from nothing to a
+    proof is measured, instead of being invisible on both sides of the diff.
+    """
+    empty = ClaimGrounding()
+    changed: list[ClaimYield] = []
+    moved = 0
+
+    for claim_id in claim_ids:
+        was = before.get(claim_id) or empty
+        now = after.get(claim_id) or empty
+        movement = _movement(was, now)
+        if movement != "unchanged":
+            moved += 1
+        # A headline can change without the claim "moving" (e.g. ungrounded → cited: a real pin, but
+        # off-ladder). Record those too — the trace should show what happened, and ``moved`` is the
+        # number that stays honest about rungs.
+        if movement != "unchanged" or was.headline != now.headline:
+            changed.append(
+                ClaimYield(
+                    claim_id=claim_id,
+                    before=was.headline,
+                    after=now.headline,
+                    movement=movement,
+                )
+            )
+
+    return PassYield(measured=len(claim_ids), moved=moved, changed=changed)
 
 
 async def grounding_by_claim(

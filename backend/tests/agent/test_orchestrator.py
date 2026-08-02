@@ -121,15 +121,23 @@ async def _make_run(
         return agent_run.id
 
 
-def _stub_planner(plan_result: PlanResult):
-    async def _planner(thread, open_claims, catalog, model, *, llm, max_runs):
+# The stub planners mirror ``agent.planner.plan``'s signature *explicitly* — including 0.16.1's
+# ``grounding`` — rather than swallowing extras with ``**kwargs``. That is deliberate: the planner
+# is an injected seam, so a stub that quietly accepts anything would let the orchestrator start
+# passing an argument the real planner never receives, and no test would notice.
+
+
+def _stub_planner(plan_result: PlanResult, *, seen: dict | None = None):
+    async def _planner(thread, open_claims, catalog, model, *, llm, max_runs, grounding=None):
+        if seen is not None:
+            seen["grounding"] = grounding
         return plan_result
 
     return _planner
 
 
 def _raising_planner(exc: Exception):
-    async def _planner(thread, open_claims, catalog, model, *, llm, max_runs):
+    async def _planner(thread, open_claims, catalog, model, *, llm, max_runs, grounding=None):
         raise exc
 
     return _planner
@@ -196,6 +204,99 @@ async def test_pass_lands_attributed_checkpoint_and_evidence_on_the_agent_branch
             )
         ).scalar_one()
         assert contrib.action == "tool_run"
+
+
+# --- 0.16.1: the yield measure, end to end --------------------------------------------------------
+
+
+async def test_pass_records_the_rung_it_moved(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """Acceptance 5/6 through the real chokepoint: an exact witness settles the claim.
+
+    Also pins the *input* half — the pre-plan grounding snapshot is what the planner actually
+    receives, so the state the model reasons about is the state the yield is measured against.
+    """
+    actor_id = await _actor(client)
+    project_id = await _project(client, "agent-yield")
+    thread_id = await _thread(client, project_id, actor_id)
+    claim_id = await _claim(client, thread_id, actor_id, "Return distance equals the sum of legs.")
+    await _thread_checkpoint(client, project_id, thread_id, actor_id)
+    await _assign_model(session_factory, project_id)
+    run_id = await _make_run(session_factory, project_id, thread_id, actor_id)
+
+    seen: dict = {}
+    plan_result = PlanResult(
+        runnable=[
+            PlannedRun(
+                instrument="counterexample.search",
+                inputs=_GEOMETRY_STORY_SEARCH,
+                claim_id=UUID(claim_id),
+                relation_kind="weaken",
+                rationale="hunt for a counterexample",
+            )
+        ],
+        tokens_used=1,
+        proposed_count=1,
+    )
+
+    async with session_factory() as session:
+        result = await run_agent_pass(
+            session, run_id, planner=_stub_planner(plan_result, seen=seen)
+        )
+
+    # The planner saw the claim's *pre-pass* rung: nothing recorded yet.
+    assert seen["grounding"] == {} or seen["grounding"][UUID(claim_id)].headline == "ungrounded"
+
+    measure = result.grounding_yield
+    assert measure["measured"] == 1
+    assert measure["moved"] == 1
+    moved = measure["changed"][0]
+    assert moved["claim_id"] == claim_id
+    assert (moved["before"], moved["after"], moved["movement"]) == (
+        "ungrounded",
+        "refuted",
+        "settled",
+    )
+
+
+async def test_a_pass_that_mints_a_checkpoint_but_moves_no_rung_says_so(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """Acceptance 4 + 7 — the case the release exists for.
+
+    The run lands a real, attributed checkpoint but targets no claim, so no evidence links to the
+    ladder and nothing climbs. Activity without yield must be visible as exactly that: a non-zero
+    ``ran_count`` beside ``moved: 0``.
+    """
+    actor_id = await _actor(client)
+    project_id = await _project(client, "agent-noyield")
+    thread_id = await _thread(client, project_id, actor_id)
+    await _claim(client, thread_id, actor_id, "Some untouched open claim.")
+    await _thread_checkpoint(client, project_id, thread_id, actor_id)
+    await _assign_model(session_factory, project_id)
+    run_id = await _make_run(session_factory, project_id, thread_id, actor_id)
+
+    plan_result = PlanResult(
+        runnable=[
+            PlannedRun(
+                instrument="calc.eval",
+                inputs={"expression": "1 + 1"},
+                rationale="compute something unrelated",
+            )
+        ],
+        tokens_used=1,
+        proposed_count=1,
+    )
+
+    async with session_factory() as session:
+        result = await run_agent_pass(session, run_id, planner=_stub_planner(plan_result))
+
+    assert result.status is AgentRunStatus.COMPLETED
+    assert result.ran_count == 1  # it did mint a checkpoint
+    assert result.grounding_yield["measured"] == 1
+    assert result.grounding_yield["moved"] == 0  # …and bought nothing
+    assert result.grounding_yield["changed"] == []
 
 
 async def test_failure_split_one_bad_step_does_not_abort_the_pass(

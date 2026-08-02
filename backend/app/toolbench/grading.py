@@ -132,6 +132,64 @@ def strongest(grades: list[EvidenceGrade]) -> EvidenceGrade | None:
     return max(grades, key=lambda grade: _RANK[grade])
 
 
+# --- 0.16.1: reading the matrix *backwards* -------------------------------------------------------
+#
+# 0.16.0 asks the matrix "instrument X returned S — how rigorous is that?". The agent loop needs
+# the inverse: "this claim sits at rung R — what could beat it?". Deriving the answer from the same
+# table (rather than writing the advice out by hand) is what keeps the two from drifting, and means
+# a newly registered instrument widens the raise path automatically — no prompt edit when Lean
+# lands.
+
+
+def _instruments_above(floor: int) -> list[str]:
+    """Instruments with at least one cell ranked strictly above ``floor`` (sorted, stable)."""
+    return sorted(
+        name
+        for name, row in _MATRIX.items()
+        if any(cell is not None and _RANK[cell] > floor for cell in row.values())
+    )
+
+
+def outranks(candidate: EvidenceGrade | None, incumbent: EvidenceGrade | None) -> bool:
+    """True when ``candidate`` sits **strictly** higher on the ladder than ``incumbent``.
+
+    The ladder's ordering lives in ``_RANK`` and stays private; this is the comparison the yield
+    measure (``services/grounding.py``) needs, exposed as a primitive so no caller re-derives the
+    ordering and gets the StrEnum's lexicographic trap (see ``strongest``).
+
+    ``None`` is *below* every grade, not equal to D: gaining a first graded result is a real
+    improvement, and D is a positive assertion ("a human said so"), not an empty slot.
+    """
+    if candidate is None:
+        return False
+    if incumbent is None:
+        return True
+    return _RANK[candidate] > _RANK[incumbent]
+
+
+def instruments_reaching(grade: EvidenceGrade) -> list[str]:
+    """Instruments that can produce a grade **at least as strong as** ``grade``.
+
+    Asks what an instrument is *capable* of, not what it typically returns — so
+    ``counterexample.search`` counts as B-capable via its ``refuted`` cell even though its
+    ``result`` cell is only C. That is the honest reading for planning: the run might refute.
+    """
+    return _instruments_above(_RANK[grade] - 1)
+
+
+def raise_path(current: EvidenceGrade | None) -> list[str]:
+    """Instruments that could produce a grade **strictly stronger** than ``current``.
+
+    ``None`` (nothing recorded yet) means anything graded is an improvement; Grade A returns the
+    empty list, because nothing beats a machine-checked proof — which is the signal the planner
+    needs to stop spending on an already-settled claim.
+
+    Off-ladder retrieval (``oeis.search``, all cells ``None``) never appears here. That is correct
+    and load-bearing: a pin is a citation, not a rung, so it can never be *the* way to raise one.
+    """
+    return _instruments_above(_RANK[current] if current is not None else 0)
+
+
 def grading_problems(instrument_name: str) -> list[str]:
     """Ways ``instrument_name`` violates the grading contract (empty list ⇒ graded).
 

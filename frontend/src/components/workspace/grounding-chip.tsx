@@ -96,6 +96,17 @@ export function groundingRaiseLine(grounding: ClaimGrounding): string {
   return HEADLINE_STYLE[grounding.headline].raise;
 }
 
+/**
+ * The human label for a rung, without the chip around it (0.16.1).
+ *
+ * Exported so the agent-pass yield readout names rungs with the *same* words the claim row uses —
+ * "Ungrounded → Refuted" has to mean the identical thing in both places, or the two surfaces would
+ * quietly drift into two vocabularies for one ladder.
+ */
+export function groundingHeadlineLabel(headline: GroundingHeadline): string {
+  return HEADLINE_STYLE[headline].label;
+}
+
 export function GroundingChip({
   grounding,
   className,

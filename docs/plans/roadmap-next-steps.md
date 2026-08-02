@@ -1,8 +1,9 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-07-31 · **Current release line:** `0.16.x` (claim grounding — the evidence
-> grade ladder). For the per-phase ledger see `docs/changelog.md`; for the two most recent lines see
-> `docs/completions/claim-grounding-0.16.0.md` and `docs/completions/design-overhaul-0.15.0.md`.
+> **Last updated:** 2026-08-01 · **Current release line:** `0.16.x` (claim grounding — the evidence
+> grade ladder, now consumed by the agent loop). For the per-phase ledger see `docs/changelog.md`;
+> for the two most recent lines see `docs/completions/grounding-yield-0.16.1.md` and
+> `docs/completions/claim-grounding-0.16.0.md`.
 > The `0.14.x` plan (phases B–D still open) now lives at
 > `docs/archive/project-deepdive-tabs-0.14.md`.
 
@@ -78,10 +79,11 @@ migration, table, column, or endpoint; `compute_signal` untouched.
 
 **The open follow-ons are the payoff the ladder exists for:**
 
-- **`0.16.1` — grounding into the planner + budget.** Feed grounding into the `0.12.1` planner
-  context so an agent plans to *raise* a claim's rung, and give `0.12.5` budget metering a **yield**
-  measure. This is the single highest-leverage item on the list now: it converts the agent loop from
-  "mint checkpoints" to "improve the ledger", and it is the missing stopping criterion.
+- ~~**`0.16.1` — grounding into the planner + budget**~~ ✅ **shipped**. The planner now receives
+  each open claim's rung plus a matrix-derived raise path (and a *settled* stop line), and every
+  completed pass records what it moved (`AgentRun.grounding_yield`, migration `0014`). The loop is
+  judged on yield, not activity. **`BudgetPolicy` was deliberately left unchanged** — no implementer
+  until `0.12.5` — but the recorded measure is what metering will read.
 - **`0.16.2` — thread-level rollup** (`"3 claims at B, 1 ungrounded"`). Cheap now that the
   aggregation exists, but it touches the project-overview read model.
 
@@ -187,8 +189,9 @@ demo requirement.
    last *three* frontend releases missed.
 7. ~~**Claim grounding** (`0.16.0`)~~ ✅ shipped — the evidence axis. Its 8 DB-gated round-trips
    are written but unrun (no local Postgres); run them next time a test database is available.
-8. **`0.16.1` grounding → planner + budget** — plan to *raise* a rung; give metering a yield
-   measure. The payoff the ladder was built for, and the agent loop's missing stopping criterion.
+8. ~~**`0.16.1` grounding → planner + budget**~~ ✅ shipped — the loop plans to *raise* a rung and
+   reports what it moved. Migration `0014` is **written but unapplied**; apply it on the next
+   backend deploy, and run the two new DB-gated orchestrator round-trips when a test DB is available.
 9. **Tier 1 retrieval** — literature pin instruments (Crossref / arXiv / OpenAlex) on the proven
    `source.pin` shape. Directly widens what an agent pass can *do*. (Each new instrument now also
    needs a grade-matrix row — the harness will insist.)
@@ -216,7 +219,7 @@ demo requirement.
 | `0.13.x` | `z3.prove` — machine-checked validity (proof / counter-model / undecided) + hardening |
 | `0.14.x` | Project deepdive — persistent header + five `?tab=` tabs, keep-alive agent trace |
 | `0.15.x` | Quiet-minimalist re-skin — neutral near-black system, ornament retired |
-| `0.16.x` | Claim grounding — the evidence grade ladder, derived beside the validation signal |
+| `0.16.x` | Claim grounding — the evidence grade ladder, derived beside the validation signal, and consumed by the planner as a yield measure |
 
 ## Success criteria for the next milestone
 
