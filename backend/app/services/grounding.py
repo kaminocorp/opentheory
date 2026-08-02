@@ -37,7 +37,7 @@ from app.models.enums import EvidenceGrade, ResultStatus
 from app.models.evidence import Evidence
 from app.models.links import ClaimEvidenceLink
 from app.schemas.agent_run import ClaimMovement, ClaimYield, PassYield
-from app.schemas.claim import ClaimGrounding, GroundingHeadline
+from app.schemas.claim import SETTLED_HEADLINES, ClaimGrounding, GroundingHeadline
 from app.toolbench.grading import grade_for, outranks, strongest
 
 # The ``Evidence.source_type`` a *compute* instrument's evidence carries (``tool_runs.py``:
@@ -166,11 +166,6 @@ def compute_grounding(
 
 # --- 0.16.1: the yield measure --------------------------------------------------------------------
 
-# Headlines whose evidence axis is *decided* — a machine-checked proof, or an exact counter that
-# dominates any support (D8). Kept beside the precedence table it derives from; ``prompts.py`` holds
-# the same frozenset for the planner's stop rule, both reading one ``GroundingHeadline`` union.
-_SETTLED_HEADLINES = frozenset({"proven", "refuted"})
-
 
 def _movement(before: ClaimGrounding, after: ClaimGrounding) -> ClaimMovement:
     """How one claim's evidence axis moved across a pass.
@@ -178,8 +173,17 @@ def _movement(before: ClaimGrounding, after: ClaimGrounding) -> ClaimMovement:
     Order matters. ``settled`` is tested first because reaching a decisive headline is the strongest
     thing that can happen and must not be mis-reported as a mere raise — and because ``refuted``
     often arrives *without* the support rung moving at all, so the rank test would miss it entirely.
+
+    The settled test is ``before.headline != after.headline``, **not** "before was unsettled"
+    (0.16.2). The stricter form swallowed the single most consequential event the ledger can record:
+    a claim that already carried a machine-checked proof and then acquired an exact counterexample
+    goes ``proven → refuted`` with its *support* rung untouched, so it failed both branches and
+    scored ``unchanged`` — and the trace then stated in words that nothing moved. A contradiction
+    between a proof and a witness is decisive movement in the plainest sense, in either direction.
+    Re-proving an already-proven claim still reads ``unchanged``, which is the case the original
+    guard was actually protecting.
     """
-    if after.headline in _SETTLED_HEADLINES and before.headline not in _SETTLED_HEADLINES:
+    if after.headline in SETTLED_HEADLINES and before.headline != after.headline:
         return "settled"
     if outranks(after.support, before.support):
         return "raised"

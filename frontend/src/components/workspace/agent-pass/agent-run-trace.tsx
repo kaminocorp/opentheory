@@ -161,12 +161,17 @@ function ClaimYieldRow({ entry }: { entry: ClaimYield }) {
  * so in words. Leaving that case blank would let a run of five checkpoints read as five results —
  * the exact activity-for-yield confusion this release exists to close. Shown only once the pass has
  * settled, since the measure is taken at the end of it.
+ *
+ * The changed list renders whenever anything changed — not only when a rung *moved* (0.16.2).
+ * `compute_yield` deliberately records off-ladder changes (`ungrounded → cited`: a real pin, but no
+ * rung), and gating the list on `moved > 0` threw exactly those away, leaving a pass that landed
+ * three citations claiming nothing happened. The sentence below stays for the genuinely empty case.
  */
 function PassYieldReadout({ measure, ranCount }: { measure: PassYield; ranCount: number }) {
   if (measure.measured === 0) {
     return <p className="text-[11px] text-text-faint">No open claims on this thread to move.</p>;
   }
-  if (measure.moved > 0) {
+  if (measure.changed.length > 0) {
     return (
       <div className="grid gap-1.5">
         <ul className="grid gap-1">
@@ -174,6 +179,11 @@ function PassYieldReadout({ measure, ranCount }: { measure: PassYield; ranCount:
             <ClaimYieldRow key={entry.claim_id} entry={entry} />
           ))}
         </ul>
+        {measure.moved === 0 ? (
+          <p className="text-[11px] leading-[1.5] text-text-faint">
+            Recorded, but no claim climbed a rung.
+          </p>
+        ) : null}
       </div>
     );
   }
@@ -255,11 +265,11 @@ export function AgentRunTrace({
 
   const steps = run.steps ?? [];
   const landedOnBranch = run.status === "completed" && run.branch_id !== null;
-  // Defaulted rather than assumed present: a pass recorded before 0.16.1 (or one that failed before
-  // it could measure) carries no yield, and must render as "not measured" — never as "moved 0",
-  // which would assert something the row does not actually say.
+  // A pass recorded before 0.16.1 — or one that failed before it could measure — carries no yield,
+  // and must render as "not measured" rather than "moved 0", which would assert something the row
+  // does not say. The backend sends `null` for exactly that case (0.16.2), so this is a real test:
+  // it was previously written against a non-optional field, where it could never be false.
   const measure = run.grounding_yield;
-  const measured = run.status === "completed" && measure !== undefined;
 
   return (
     <div className="grid gap-3 rounded-built bg-panel p-4" style={{ border: "1px solid var(--hairline)" }}>
@@ -281,12 +291,12 @@ export function AgentRunTrace({
         <MetricReadout label="Steps" value={steps.length} />
         <MetricReadout
           label="Claims moved"
-          value={measured ? `${measure.moved}/${measure.measured}` : "—"}
+          value={measure ? `${measure.moved}/${measure.measured}` : "—"}
         />
       </dl>
 
       {/* The yield, spelled out: which rungs climbed, or an explicit statement that none did. */}
-      {measured ? (
+      {measure ? (
         <div className="grid gap-1.5 border-t pt-2.5" style={{ borderColor: "var(--hairline)" }}>
           <p className="text-[13px] font-medium text-text">Grounding yield</p>
           <PassYieldReadout measure={measure} ranCount={run.ran_count} />

@@ -245,8 +245,11 @@ async def test_pass_records_the_rung_it_moved(
             session, run_id, planner=_stub_planner(plan_result, seen=seen)
         )
 
-    # The planner saw the claim's *pre-pass* rung: nothing recorded yet.
-    assert seen["grounding"] == {} or seen["grounding"][UUID(claim_id)].headline == "ungrounded"
+    # The planner saw the claim's *pre-pass* state: no evidence links at all, so the claim is
+    # absent from the batch-loaded map — which the prompt renders as ``ungrounded``. Asserted as an
+    # equality rather than a disjunction: an ``or`` here would pass on either reading and so could
+    # not tell a correct empty snapshot from a snapshot that was never taken.
+    assert seen["grounding"] == {}
 
     measure = result.grounding_yield
     assert measure["measured"] == 1

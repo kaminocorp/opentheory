@@ -19,16 +19,10 @@ from uuid import UUID
 
 from app.models.claim import Claim
 from app.models.thread import Thread
-from app.schemas.claim import ClaimGrounding
+from app.schemas.claim import SETTLED_HEADLINES, ClaimGrounding
 from app.schemas.instrument import InstrumentDescriptor
 from app.services.evidence import RELATION_KINDS
 from app.toolbench.grading import raise_path
-
-# Headlines whose evidence axis is *decided* — a machine-checked proof, or an exact refutation that
-# dominates any amount of support (0.16.0 D8). More runs against these cannot move the rung, so the
-# planner is told to leave them alone: spending budget on a settled claim is the purest form of the
-# activity-without-yield this release exists to make visible.
-_SETTLED_HEADLINES = frozenset({"proven", "refuted"})
 
 # A compact legend so the model can reason about the ladder rather than pattern-match the letters.
 # Deliberately states the epistemic limit of each rung (C "never proves", D "no tool in the loop") —
@@ -93,7 +87,7 @@ def _render_grounding(grounding: ClaimGrounding) -> list[str]:
     lines = [f"  grounding: {grounding.headline}"]
     if grounding.counter is not None:
         lines.append(f"  counter-evidence at rung: {grounding.counter.value}")
-    if grounding.headline in _SETTLED_HEADLINES:
+    if grounding.headline in SETTLED_HEADLINES:
         lines.append("  settled: yes — the evidence axis is decided; do not plan runs against it")
         return lines
     path = raise_path(grounding.support)

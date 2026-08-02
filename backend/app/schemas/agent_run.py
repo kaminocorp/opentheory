@@ -98,10 +98,25 @@ class AgentRunSummary(BaseModel):
     # The yield measure (0.16.1). Small and bounded (two counts + only the claims that changed), so
     # it belongs on the *summary* despite this schema's "no heavy JSON" rule — a history row that
     # shows spend without result is exactly the reading the release is trying to prevent.
-    grounding_yield: PassYield = Field(default_factory=PassYield)
+    #
+    # ``None`` means **never measured**, and is a genuinely different statement from a measure of
+    # zero (0.16.2). A pass that failed before it could measure, or one recorded before 0.16.1, is
+    # not the same as a pass that looked at four claims and moved none — rendering both as "0/0"
+    # would assert something the row does not say. The column's ``'{}'`` server default is the
+    # marker: ``compute_yield`` always writes all three keys, so an empty object can only mean the
+    # measure was never taken.
+    grounding_yield: PassYield | None = None
     error: str | None
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("grounding_yield", mode="before")
+    @classmethod
+    def _empty_measure_is_no_measure(cls, value: Any) -> Any:
+        """Map the column's ``{}`` default to ``None`` — an unmeasured pass, not a zero measure."""
+        if isinstance(value, dict) and not value:
+            return None
+        return value
 
 
 class AgentRunRead(AgentRunSummary):

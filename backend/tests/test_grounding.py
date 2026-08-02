@@ -277,10 +277,18 @@ def test_a_pass_that_mints_but_raises_nothing_reads_moved_zero() -> None:
     must be recorded as *nothing bought*, not hidden behind a non-zero ``ran_count``.
     """
     ids = [uuid4() for _ in range(3)]
-    # Every run came back ``undecided``, which earns no grade (honesty rule 1) — so the snapshots
-    # are identical even though the instruments genuinely ran.
     before = {i: _at(tool_link("support", "calc.eval", "result")) for i in ids}
-    after = dict(before)
+    # Each claim genuinely acquired a *new* evidence row this pass — the instruments ran and the
+    # checkpoints landed. But every one came back ``undecided``, which earns no grade (honesty
+    # rule 1), so the ladder is exactly where it was. Modelling the new row rather than reusing the
+    # ``before`` map is the point: this must fail if ``undecided`` ever starts contributing a rung.
+    after = {
+        i: _at(
+            tool_link("support", "calc.eval", "result"),
+            tool_link("support", "z3.prove", "undecided"),
+        )
+        for i in ids
+    }
 
     result = compute_yield(ids, before, after)
 
@@ -364,6 +372,44 @@ def test_an_already_proven_claim_cannot_move_again() -> None:
     proven = _at(tool_link("support", "z3.prove", "result"))
     result = compute_yield([claim_id], {claim_id: proven}, {claim_id: proven})
     assert result.moved == 0
+
+
+def test_a_proof_overturned_by_a_counterexample_is_decisive_movement() -> None:
+    """0.16.2 regression — the most consequential event the ledger can record must not read as nil.
+
+    A claim carrying a machine-checked proof acquires an exact counterexample: the headline goes
+    ``proven → refuted`` while the *support* rung never moves (the proof is still linked). Under the
+    original ``before.headline not in SETTLED`` guard this failed the settled branch, failed the
+    rank branch, and scored ``unchanged`` — so a pass that overturned a proof reported ``moved: 0``
+    and the trace stated in words that no claim's grounding moved.
+
+    A contradiction between a proof and a witness is decisive movement in either direction; only a
+    transition to the *same* headline is not.
+    """
+    claim_id = uuid4()
+    proof = tool_link("support", "z3.prove", "result")
+    result = compute_yield(
+        [claim_id],
+        {claim_id: _at(proof)},
+        {claim_id: _at(proof, tool_link("weaken", "counterexample.search", "refuted"))},
+    )
+
+    assert result.moved == 1
+    entry = result.changed[0]
+    assert (entry.before, entry.after, entry.movement) == ("proven", "refuted", "settled")
+
+
+def test_a_refutation_later_proved_is_also_decisive() -> None:
+    """The mirror direction, so the fix is not read as a one-way special case."""
+    claim_id = uuid4()
+    result = compute_yield(
+        [claim_id],
+        {claim_id: _at(tool_link("weaken", "counterexample.search", "refuted"))},
+        {claim_id: _at(tool_link("support", "z3.prove", "result"))},
+    )
+
+    entry = result.changed[0]
+    assert (entry.before, entry.after, entry.movement) == ("refuted", "proven", "settled")
 
 
 def test_nothing_measured_is_a_valid_empty_measure() -> None:

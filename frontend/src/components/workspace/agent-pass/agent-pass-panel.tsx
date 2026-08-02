@@ -202,6 +202,19 @@ export function AgentPassPanel({
                     <span className="font-mono text-[11px] tabular-nums text-text-faint">
                       {r.ran_count}/{r.planned_count} runs
                     </span>
+                    {/* Spend and yield read together, or the history is a list of effort with no
+                        notion of what any of it bought — the reading 0.16.1 exists to close, which
+                        this row still had until 0.16.2. A never-measured pass shows nothing rather
+                        than "0 moved", which would claim a measurement that was never taken. */}
+                    {r.grounding_yield ? (
+                      <span
+                        className={`font-mono text-[11px] tabular-nums ${
+                          r.grounding_yield.moved > 0 ? "text-state-ok" : "text-text-faint"
+                        }`}
+                      >
+                        {r.grounding_yield.moved}/{r.grounding_yield.measured} moved
+                      </span>
+                    ) : null}
                   </button>
                 ))}
               </div>

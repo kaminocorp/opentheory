@@ -23,6 +23,17 @@ ClaimSignal = Literal["none", "contested", "validated"]
 #   ungrounded  — nothing decisive on either side
 GroundingHeadline = Literal["proven", "refuted", "B", "C", "D", "cited", "ungrounded"]
 
+# The headlines whose **evidence axis is decided** — a machine-checked proof, or an exact counter
+# that dominates any amount of support (0.16.0 D8). More runs against one of these cannot move the
+# rung.
+#
+# It lives *here*, beside the union it is a subset of, because two unrelated layers need it and
+# neither may import the other: ``services/grounding.py`` uses it to decide what counts as movement,
+# and ``agent/prompts.py`` uses it to tell the planner which claims to leave alone. A second copy in
+# either place would be a rule that can drift from the ladder it describes — the exact failure the
+# derived raise path exists to prevent (0.16.2).
+SETTLED_HEADLINES: frozenset[str] = frozenset({"proven", "refuted"})
+
 
 class ClaimGrounding(BaseModel):
     """How strongly a claim is backed by *what actually ran* — the evidence axis (0.16.0).

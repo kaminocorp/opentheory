@@ -354,17 +354,39 @@ async def _execute(
     #    durable effect. It is deliberately measured for *every* completed pass, including one that
     #    ran nothing — "measured 4, moved 0" is the honest record of a pass that bought nothing, and
     #    it is the number 0.12.5's metering will read (see BudgetPolicy).
-    grounding_after = await grounding_by_claim(db, claim_ids)
-    agent_run.grounding_yield = compute_yield(
-        claim_ids, grounding_before, grounding_after
-    ).model_dump(mode="json")
-    logger.info(
-        "agent_pass_yield agent_run_id=%s ran=%s measured=%s moved=%s",
-        agent_run.id,
-        ran_count,
-        agent_run.grounding_yield.get("measured"),
-        agent_run.grounding_yield.get("moved"),
-    )
+    #
+    #    Guarded (0.16.2): the yield is *narrative*, like ``steps``, while the checkpoints this pass
+    #    landed are already durable and committed. Letting a failed measurement reach the caller's
+    #    catch-all would roll back the tail and mark a pass ``failed`` that in fact landed all it
+    #    planned — inverting this file's own "one bad step never aborts the pass" invariant on the
+    #    least important step of all. An unmeasurable pass records no measure and says so.
+    agent_run_id = agent_run.id  # captured before a rollback can expire the instance
+    try:
+        grounding_after = await grounding_by_claim(db, claim_ids)
+        agent_run.grounding_yield = compute_yield(
+            claim_ids, grounding_before, grounding_after
+        ).model_dump(mode="json")
+        logger.info(
+            "agent_pass_yield agent_run_id=%s ran=%s measured=%s moved=%s",
+            agent_run_id,
+            ran_count,
+            agent_run.grounding_yield.get("measured"),
+            agent_run.grounding_yield.get("moved"),
+        )
+    except Exception as exc:  # measurement is narrative — never let it fail a landed pass
+        logger.warning(
+            "agent_pass_yield_failed agent_run_id=%s error=%s", agent_run_id, exc, exc_info=True
+        )
+        # A DB failure leaves the session needing a rollback before anything else can run. That
+        # discards only *pending* state: ``ran_count`` and ``steps`` were already committed by the
+        # per-step loop, so the re-fetched row carries the full trace — just no measure. Re-fetched
+        # by id (never by attribute access) because rollback expires the instance, and an expired
+        # attribute read outside the greenlet would raise instead of reloading.
+        await db.rollback()
+        reloaded = await db.get(AgentRun, agent_run_id)
+        if reloaded is None:  # pragma: no cover - the row was committed long before this point
+            raise
+        agent_run = reloaded
     return await _finalize(db, agent_run, status=AgentRunStatus.COMPLETED)
 
 

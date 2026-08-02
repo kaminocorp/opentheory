@@ -1,9 +1,9 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-08-01 · **Current release line:** `0.16.x` (claim grounding — the evidence
-> grade ladder, now consumed by the agent loop). For the per-phase ledger see `docs/changelog.md`;
-> for the two most recent lines see `docs/completions/grounding-yield-0.16.1.md` and
-> `docs/completions/claim-grounding-0.16.0.md`.
+> **Last updated:** 2026-08-02 · **Current release line:** `0.16.x` (claim grounding — the evidence
+> grade ladder, now consumed by the agent loop, and post-review hardened). For the per-phase ledger
+> see `docs/changelog.md`; for the two most recent lines see
+> `docs/completions/grounding-yield-0.16.2.md` and `docs/completions/grounding-yield-0.16.1.md`.
 > The `0.14.x` plan (phases B–D still open) now lives at
 > `docs/archive/project-deepdive-tabs-0.14.md`.
 
@@ -70,7 +70,7 @@ bypassing the checkpoint chokepoint or conflating funder / contributor / validat
 
 ## Recommended next releases
 
-### `0.16.x` — Claim grounding ✅ **shipped** (`0.16.0`); `0.16.1`–`0.16.2` open
+### `0.16.x` — Claim grounding ✅ **shipped and hardened** (`0.16.0`–`0.16.2`); `0.16.3` open
 
 Delivered: the `(instrument, status)` grade matrix beside the registry (with the conformance harness
 now *forcing* a grading decision on every registered instrument), the batch-loaded `ClaimGrounding`
@@ -84,8 +84,15 @@ migration, table, column, or endpoint; `compute_signal` untouched.
   completed pass records what it moved (`AgentRun.grounding_yield`, migration `0014`). The loop is
   judged on yield, not activity. **`BudgetPolicy` was deliberately left unchanged** — no implementer
   until `0.12.5` — but the recorded measure is what metering will read.
-- **`0.16.2` — thread-level rollup** (`"3 claims at B, 1 ungrounded"`). Cheap now that the
-  aggregation exists, but it touches the project-overview read model.
+- ~~**`0.16.2` — post-review hardening**~~ ✅ **shipped**. The review pass over `0.16.0`–`0.16.1`.
+  No CRITICAL/HIGH; closes one MEDIUM (a `proven → refuted` transition — a proof overturned by an
+  exact counterexample — scored `unchanged`, so the trace reported no movement on the most
+  consequential event the ledger can record), builds the history-row yield the summary schema already
+  claimed, and separates *never measured* from *measured zero*. No schema, no migration. See
+  `docs/completions/grounding-yield-0.16.2.md`.
+- **`0.16.3` — thread-level rollup** (`"3 claims at B, 1 ungrounded"`). Cheap now that the
+  aggregation exists, but it touches the project-overview read model. *(Was numbered `0.16.2`;
+  shifted by the hardening pass, per the repo convention that a review pass takes the next patch.)*
 
 ### `0.15.x` — Design overhaul ✅ **shipped** (`0.15.0`, `edfbe18`) · browser pass owed
 
@@ -189,9 +196,11 @@ demo requirement.
    last *three* frontend releases missed.
 7. ~~**Claim grounding** (`0.16.0`)~~ ✅ shipped — the evidence axis. Its 8 DB-gated round-trips
    are written but unrun (no local Postgres); run them next time a test database is available.
-8. ~~**`0.16.1` grounding → planner + budget**~~ ✅ shipped — the loop plans to *raise* a rung and
-   reports what it moved. Migration `0014` is **written but unapplied**; apply it on the next
-   backend deploy, and run the two new DB-gated orchestrator round-trips when a test DB is available.
+8. ~~**`0.16.1` grounding → planner + budget**~~ ✅ shipped, ~~**`0.16.2` post-review hardening**~~ ✅
+   shipped — the loop plans to *raise* a rung, reports what it moved, and the review pass closed the
+   case where a `proven → refuted` contradiction read as no movement at all. Migration `0014` is
+   **still written but unapplied**; apply it on the next backend deploy, and run the two DB-gated
+   orchestrator round-trips when a test DB is available.
 9. **Tier 1 retrieval** — literature pin instruments (Crossref / arXiv / OpenAlex) on the proven
    `source.pin` shape. Directly widens what an agent pass can *do*. (Each new instrument now also
    needs a grade-matrix row — the harness will insist.)
@@ -200,7 +209,7 @@ demo requirement.
 11. **`0.12.5` project-budget metering** — debit the project's compute budget per pass (stretch; the
     per-pass safety caps already bound a single pass).
 12. **`0.14.2` Phase C** — tab badges, contested click-through, context-readout polish.
-13. **`0.16.2` thread-level grounding rollup** — cheap, but touches the overview read model.
+13. **`0.16.3` thread-level grounding rollup** — cheap, but touches the overview read model.
 14. **Bench 6 surfaces** — tables and Vega-Lite plots when a thread needs them.
 15. **Lean + full substrate** — Claim 5; only after the above.
 
@@ -219,7 +228,7 @@ demo requirement.
 | `0.13.x` | `z3.prove` — machine-checked validity (proof / counter-model / undecided) + hardening |
 | `0.14.x` | Project deepdive — persistent header + five `?tab=` tabs, keep-alive agent trace |
 | `0.15.x` | Quiet-minimalist re-skin — neutral near-black system, ornament retired |
-| `0.16.x` | Claim grounding — the evidence grade ladder, derived beside the validation signal, and consumed by the planner as a yield measure |
+| `0.16.x` | Claim grounding — the evidence grade ladder, derived beside the validation signal, consumed by the planner as a yield measure, and post-review hardened |
 
 ## Success criteria for the next milestone
 

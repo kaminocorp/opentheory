@@ -79,7 +79,11 @@ export type AgentRunSummary = {
   tokens_used: number;
   // The yield measure. Small and bounded, so it rides on the summary too — a history row showing
   // spend without result is exactly the reading 0.16.1 is trying to prevent.
-  grounding_yield: PassYield;
+  //
+  // `null` means **never measured** — a pass that failed before it could measure, or one recorded
+  // before 0.16.1. That is a different statement from a measure of zero, and the surfaces must not
+  // collapse the two: "—" for unmeasured, "0/4" for looked-and-found-nothing.
+  grounding_yield: PassYield | null;
   error: string | null;
   created_at: string;
   updated_at: string;

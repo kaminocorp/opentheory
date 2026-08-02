@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.16.2` — **Post-review hardening on the grounding line (`0.16.0`–`0.16.1`).** No CRITICAL/HIGH; the matrix, the backward read, and the anti-injection posture all held. Closes one MEDIUM: a claim going `proven → refuted` — a proof overturned by an exact counterexample — scored `unchanged`, so the trace said *"no claim's grounding moved"* about the most consequential event the ledger can record. Also builds the history-row yield the summary schema already claimed, makes *never measured* distinguishable from *measured zero*, and stops a failed measurement from failing a pass that landed everything. No schema, no migration.
 - `0.16.1` — **Grounding into the planner + the yield measure.** The ladder stops being decorative: the planner now sees each open claim's rung plus a matrix-derived *"to raise, run one of…"* line (and a *settled* stop line it must not spend against), and every completed pass records what it actually moved. `Claims moved` sits beside `Runs`/`Tokens`, and a pass that minted checkpoints and climbed nothing says so in words. Migration `0014_agent_run_grounding_yield` (additive).
 - `0.16.0` — **Claim grounding — the evidence grade ladder.** A claim's confidence now has a second, evidence-derived axis beside the validation signal: a machine-checked `z3.prove` proof reads **proven** with zero validations, an exact counterexample reads **refuted** over any amount of support.
 - `0.15.0` — **Frontend design overhaul: the quiet minimalist re-skin.** The ornamental Console language (field grid, grain, brackets, chamfers, hatch, mono kickers) retires for a neutral near-black system: flat 12px cards, 1px hairlines, sentence-case sans, mono for data only, crimson the lone accent.
@@ -82,6 +83,76 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.16.2
+
+**Post-review hardening on the grounding line (`0.16.0`–`0.16.1`).** The review pass over the
+completed evidence ladder and the yield measure. Most of the surface held: the `(instrument, status)`
+matrix and its backward read, the anti-injection posture (genuinely unwidened — every `0.16.1` line
+is server-derived), the single-snapshot-for-two-consumers decision, and `compute_yield` taking claim
+ids explicitly. No CRITICAL, no HIGH, no security finding. **One MEDIUM correctness defect, one
+unimplemented promise the code itself asserted, five quality gaps. No schema, no migration, no
+endpoint; `compute_signal`, `compute_grounding`, and every matrix cell untouched.**
+
+- **A proof overturned by a counterexample scored as nothing (the MEDIUM).** `_movement` tested
+  `before.headline not in SETTLED_HEADLINES` to stop a second proof re-counting as progress — and
+  the same guard swallowed transitions *between* two settled headlines. A `proven` claim acquiring
+  an exact counterexample goes `proven → refuted` with its **support rung untouched** (the proof is
+  still linked), so it failed the settled branch, failed `outranks(A, A)`, and read `unchanged`. The
+  surface then stated in words *"1 run landed, but no claim's grounding moved."* — the release's own
+  failure mode, inverted onto itself. Reachable, not theoretical: *"do not plan runs against a
+  settled claim"* is a **prompt instruction**, not a structural drop in `planner.py`. Fixed by one
+  predicate — `before.headline != after.headline` — which keeps `proven → proven` as `unchanged`
+  (the case the guard was actually protecting) while making a contradiction decisive in **either**
+  direction. Both directions are now named tests.
+- **The summary schema promised a history row that did not exist.** `grounding_yield` deliberately
+  broke the schema's "no heavy JSON on the summary" rule, justified in a comment as *"a history row
+  that shows spend without result is exactly the reading the release is trying to prevent"* — and the
+  history row still rendered only `{ran_count}/{planned_count} runs`. The field shipped on every
+  response and was read by nobody. It now carries `N/M moved` beside the run count.
+- **"Never measured" and "measured zero" were one value.** The client guard `measure !== undefined`
+  ran against a **non-optional** field, so it could never be false, and the documented *"unmeasured
+  renders `—`, never `0/0`"* held only for `failed`/`running` passes. The column cannot express the
+  difference — its `'{}'` default and a real zero measure are both dicts — so the **read schema**
+  separates them: `PassYield | None`, with `{}` → `None`. `compute_yield` always writes all three
+  keys, which is what makes the empty object unambiguous; that invariant is now its own test.
+- **Recorded changes were discarded by the UI whenever `moved === 0`.** `compute_yield` deliberately
+  records off-ladder changes (`ungrounded → cited`) so the trace can show what happened; the readout
+  gated the list on `moved > 0` and threw them away. It now renders whenever anything changed, with
+  *"Recorded, but no claim climbed a rung"* underneath — the honest headline, without deleting the
+  evidence for it.
+- **`SETTLED_HEADLINES` was the one place a second copy was made**, in a release whose thesis is
+  *derive, never copy*. The two layers cannot import each other, so it now lives once in
+  `schemas/claim.py` beside the `GroundingHeadline` union it is a subset of.
+- **A failed measurement could fail a pass that had already landed everything.** The closing
+  `grounding_by_claim` sat outside any `try`, so a DB blip sent an otherwise-complete pass through
+  the catch-all to `failed` — inverting *"one bad step never aborts the pass"* on the least important
+  step of all. Now guarded, re-fetching **by id** (rollback expires the instance, and an expired read
+  outside the greenlet raises rather than reloading).
+- **Three tests could not fail for the reason they named.** The headline acceptance test used
+  `after = dict(before)` while its docstring described `undecided` runs that were nowhere in the
+  fixture; an orchestrator assertion used an `or` whose first branch always held; and the
+  anti-injection byte-identity filter matched two of the four lines the renderer can emit. All three
+  now test what they claim, and the byte-identity check asserts it is non-vacuous.
+- **Added:** DB-free structural checks for migration `0014` (`0013` had them, `0014` — the one that
+  is written but **unapplied** — had none): revision linkage, single-head, and model/migration column
+  agreement.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 319 passed, 128 skipped (DB-gated)  [was 309]
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
+```
+
+**Unverified** (unchanged from `0.16.1` — none of it moved in this pass): migration `0014` is still
+unapplied anywhere and remains a deploy step; the DB-gated round-trips (2 from `0.16.1`, 8 from
+`0.16.0`) are still unrun, with every rule this pass changed pinned DB-free; no browser walk for the
+two changed surfaces (the fifth release running); no live agent pass, so the planner's behavioural
+response to the grounding block is still unobserved. Finding 6's rollback path has no test — forcing
+a DB failure at exactly the measurement needs a fault-injection seam that does not exist today. See
+`docs/completions/grounding-yield-0.16.2.md`.
 
 ---
 
