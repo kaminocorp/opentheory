@@ -199,8 +199,9 @@ demo requirement.
 8. ~~**`0.16.1` grounding → planner + budget**~~ ✅ shipped, ~~**`0.16.2` post-review hardening**~~ ✅
    shipped — the loop plans to *raise* a rung, reports what it moved, and the review pass closed the
    case where a `proven → refuted` contradiction read as no movement at all. Migration `0014` is
-   **still written but unapplied**; apply it on the next backend deploy, and run the two DB-gated
-   orchestrator round-trips when a test DB is available.
+   ✅ **applied to the live database** (2026-08-02); the **backend code deploy is outstanding** — the
+   column exists and nothing reads it yet. Run the two DB-gated orchestrator round-trips when a test
+   DB is available.
 9. **Tier 1 retrieval** — literature pin instruments (Crossref / arXiv / OpenAlex) on the proven
    `source.pin` shape. Directly widens what an agent pass can *do*. (Each new instrument now also
    needs a grade-matrix row — the harness will insist.)

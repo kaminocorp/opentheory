@@ -140,7 +140,8 @@ because the per-step loop committed it.
 ### Also added
 
 - **`tests/agent/test_migration_0014.py`** — `0013` had DB-free structural checks and `0014` had
-  none, despite being the one that is **written but unapplied**. Pins the revision linkage, that it
+  none, despite being — at the time of this pass — the one still **written but unapplied** (it has
+  since landed; see Unverified). Pins the revision linkage, that it
   is the only head (a second head makes `alembic upgrade head` ambiguous mid-deploy), and that the
   model and migration agree on the column. Reads other migrations by regex rather than executing
   them, so a structural check does not depend on every historical migration staying importable.
@@ -167,8 +168,13 @@ cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
 
 Unchanged from `0.16.1`, and none of it moved in this pass:
 
-- **Migration `0014` is still unapplied anywhere.** No local Postgres by policy; it runs against the
-  live database as a deploy step. This release adds no migration of its own.
+- ~~**Migration `0014` is still unapplied anywhere.**~~ **Applied to the live database on
+  2026-08-02**, after this pass and before the code deploy — the correct order, since the column is
+  additive and the currently-deployed backend never selects it. Verified in `information_schema`
+  (`json`, `NOT NULL`, default `'{}'::json`) against **0 existing `agent_runs` rows**, which also
+  confirms this pass's finding-4 legacy-row case was theoretical. This release adds no migration of
+  its own. **The backend code deploy is still outstanding** — until it lands, the column exists and
+  nothing reads it.
 - **The DB-gated tests were still not run** — the two `0.16.1` orchestrator round-trips and the 8
   from `0.16.0`. Every rule this pass changed is pinned DB-free in `tests/test_grounding.py`,
   `tests/agent/test_agent_run_schema.py`, and `tests/agent/test_prompts.py`.

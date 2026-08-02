@@ -137,7 +137,7 @@ endpoint; `compute_signal`, `compute_grounding`, and every matrix cell untouched
   anti-injection byte-identity filter matched two of the four lines the renderer can emit. All three
   now test what they claim, and the byte-identity check asserts it is non-vacuous.
 - **Added:** DB-free structural checks for migration `0014` (`0013` had them, `0014` — the one that
-  is written but **unapplied** — had none): revision linkage, single-head, and model/migration column
+  was then still **unapplied** — had none): revision linkage, single-head, and model/migration column
   agreement.
 
 ```bash
@@ -146,8 +146,13 @@ cd backend && uv run pytest -q      # 319 passed, 128 skipped (DB-gated)  [was 3
 cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
 ```
 
-**Unverified** (unchanged from `0.16.1` — none of it moved in this pass): migration `0014` is still
-unapplied anywhere and remains a deploy step; the DB-gated round-trips (2 from `0.16.1`, 8 from
+**Applied:** migration `0014` landed on the **live database** on 2026-08-02, after this pass and
+before the code deploy — the correct order, since the column is additive and the deployed backend
+never selects it. Verified in `information_schema` (`json`, `NOT NULL`, default `'{}'::json`) against
+**0 existing `agent_runs` rows**, which also confirms finding 4's legacy-row case was theoretical.
+The backend **code** deploy is still outstanding: the column exists and nothing reads it yet.
+
+**Unverified** (otherwise unchanged from `0.16.1`): the DB-gated round-trips (2 from `0.16.1`, 8 from
 `0.16.0`) are still unrun, with every rule this pass changed pinned DB-free; no browser walk for the
 two changed surfaces (the fifth release running); no live agent pass, so the planner's behavioural
 response to the grounding block is still unobserved. Finding 6's rollback path has no test — forcing
@@ -207,8 +212,7 @@ cd backend && uv run pytest -q      # 309 passed, 128 skipped (DB-gated)
 cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
 ```
 
-**Unverified:** migration `0014` has not been applied anywhere (no local Postgres by policy — it is
-a deploy step; additive with a `'{}'` server default, so existing rows read as an empty measure);
+**Unverified:** *(migration `0014` was applied to the live database on 2026-08-02 — see `0.16.2`)*;
 the two new DB-gated orchestrator round-trips join `0.16.0`'s 8 still-unrun, with the rules they
 cover pinned DB-free in `tests/test_grounding.py`; no browser walk (the fourth release running); and
 no live agent pass was run, so the planner's *behavioural* response to the grounding block is

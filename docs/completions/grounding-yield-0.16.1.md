@@ -109,9 +109,12 @@ never receives with no test noticing.
 
 ## Unverified
 
-- **Migration `0014` has not been applied anywhere.** No local Postgres by policy; it must be run
-  against the live database as a deploy step. It is additive (`NOT NULL` + `'{}'` server default),
-  so existing `agent_runs` rows read as an empty measure with no backfill.
+- ~~**Migration `0014` has not been applied anywhere.**~~ **Applied to the live database on
+  2026-08-02** (`0013_agent_runs` → `0014_agent_run_grounding_yield`, direct connection on `:5432`
+  per the runbook). Verified in `information_schema`: `json`, `NOT NULL`, default `'{}'::json`;
+  `agent_runs` held **0 rows**, so no backfill was exercised — the loop has never been enabled in
+  production. Additive and backward-compatible with the deployed backend, which does not select the
+  column.
 - **The DB-gated tests were not run** — the two new orchestrator round-trips
   (`test_pass_records_the_rung_it_moved`, `test_a_pass_that_mints_a_checkpoint_but_moves_no_rung_says_so`)
   join the 8 still-unrun from `0.16.0`. The *rules* they cover are pinned DB-free in
