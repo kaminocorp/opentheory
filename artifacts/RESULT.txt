@@ -1,0 +1,14 @@
+OUTCOME: SUCCESS
+portalLoaded: true
+portalHttp: {"status":200,"url":"https://www.handelsregister.de/rp_web/welcome.xhtml","bytes":50194}
+portalTitle: Registerportal | Startseite
+lastError: 
+downloads: [
+  {
+    "path": "/workspace/artifacts/HE-Offenbach_am_Main_HRB_40210+Gesellschaftsvertrag_-_Satzung_-_Statut_v-20260910154156.zip",
+    "name": "HE-Offenbach_am_Main_HRB_40210+Gesellschaftsvertrag_-_Satzung_-_Statut_v-20260910154156.zip",
+    "bytes": 230557,
+    "kind": "Gesellschaftsvertrag / Satzung / Statut vom 01.09.2008",
+    "format": "zip"
+  }
+]

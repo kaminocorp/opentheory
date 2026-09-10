@@ -1,0 +1,495 @@
+<!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" lang="de"><head id="mainHead">
+			<meta http-equiv="X-UA-Compatible" content="IE=edge">
+			<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+			<meta name="viewport" content="width=device-width, initial-scale=1.0">
+			<meta name="apple-mobile-web-app-capable" content="yes"><link type="text/css" rel="stylesheet" href="/rp_web/javax.faces.resource/theme.css?ln=primefaces-avalon-blue"><link type="text/css" rel="stylesheet" href="/rp_web/javax.faces.resource/fa/font-awesome.css?ln=primefaces&amp;v=8.0"><link type="text/css" rel="stylesheet" href="/rp_web/javax.faces.resource/primeicons/primeicons.css;jsessionid=198E5919A2E9718984E19635C4586615.tc04n02?ln=primefaces&amp;v=8.0"><link type="text/css" rel="stylesheet" href="/rp_web/javax.faces.resource/components.css;jsessionid=198E5919A2E9718984E19635C4586615.tc04n02?ln=primefaces&amp;v=8.0"><script type="text/javascript" src="/rp_web/javax.faces.resource/jquery/jquery.js;jsessionid=198E5919A2E9718984E19635C4586615.tc04n02?ln=primefaces&amp;v=8.0"></script><script type="text/javascript" src="/rp_web/javax.faces.resource/jquery/jquery-plugins.js;jsessionid=198E5919A2E9718984E19635C4586615.tc04n02?ln=primefaces&amp;v=8.0"></script><script type="text/javascript" src="/rp_web/javax.faces.resource/core.js;jsessionid=198E5919A2E9718984E19635C4586615.tc04n02?ln=primefaces&amp;v=8.0"></script><script type="text/javascript" src="/rp_web/javax.faces.resource/components.js;jsessionid=198E5919A2E9718984E19635C4586615.tc04n02?ln=primefaces&amp;v=8.0"></script><script type="text/javascript" src="/rp_web/javax.faces.resource/touch/touchswipe.js;jsessionid=198E5919A2E9718984E19635C4586615.tc04n02?ln=primefaces&amp;v=8.0"></script><style type="text/css">
+        /* ====== Basis: Dialog ohne Header wie gehabt ====== */
+        .wait-noheader .ui-dialog-titlebar{ display:none !important; }
+        .wait-noheader.ui-dialog{
+        border-radius:12px;
+        box-shadow:0 10px 10px -5px rgba(50, 50, 50, 1) !important;
+        background:linear-gradient(145deg,#ffffff,#f2f4f7);
+        transform:translateZ(0);
+        }
+
+        /* ====== Responsiv: passtsich an jede Viewport-Breite an ====== */
+        .wait-responsive.ui-dialog{
+        /* Breite: nimmt bis zu 92% der Bildschirmbreite, deckelt nach oben */
+        width: min(92vw, 560px) !important;
+        max-width: 96vw !important;
+        min-width: min(92vw, 360px) !important;
+        }
+
+        /* Innenabstand adaptiv */
+        .wait-noheader .ui-dialog-content{
+        border-radius:12px;
+        /* clamp(Min, Fluid, Max) -> skaliert sanft zwischen Handy und Desktop */
+        padding: clamp(12px, 3.5vw, 20px);
+        /* Falls Inhalte mal höher werden als der Viewport */
+        max-height: calc(100vh - 24px);
+        overflow-y: auto;
+        }
+
+        /* Icon und Text skalieren mit dem Viewport */
+        .wait-icon{
+        font-size: clamp(18px, 4.5vw, 24px) !important;
+        }
+
+        .wait-text{
+        font-size: clamp(14px, 2.6vw, 16px) !important;
+        line-height: 1.35;
+        }
+
+        /* Progressbar – Höhe skaliert, volle Breite */
+        .strong-bar.ui-progressbar{
+        background:#e6e9ee !important;
+        border:0 !important;
+        height: clamp(14px, 3.8vw, 20px) !important;
+        width: 100%;
+        overflow:hidden;
+        position:relative;
+        border-radius:6px;
+        }
+        .strong-bar .ui-progressbar-value{
+        display:block !important;
+        height:100% !important;
+        background-color:#476274 !important;
+        background-image:none !important;
+        border:0 !important;
+        transition: width 0s !important;
+        border-radius:6px;
+        }
+
+        /* Label der Progressbar ausblenden */
+        .no-label .ui-progressbar-label{ display:none !important; }
+
+        /* ---------- Breakpoints für Feintuning ---------- */
+        @media (min-width: 768px){ /* Tablet quer / kleines Desktop */
+        .wait-responsive.ui-dialog{
+        width: min(70vw, 560px) !important;
+        }
+        }
+
+        @media (max-width: 480px){ /* Handy schmal */
+        .wait-responsive.ui-dialog{
+        width: 94vw !important;
+        min-width: 94vw !important;
+        }
+        }
+
+        /* Nutzer, die Bewegungen reduziert haben möchten */
+        @media (prefers-reduced-motion: reduce){
+        .strong-bar .ui-progressbar-value{ transition: none !important; }
+        }
+
+
+        .error-content {
+        text-align: center;
+        }
+
+        .error-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 10px;
+        }
+
+        .error-icon-container {
+        margin-right: 10px;
+        }
+
+        .error-icon {
+        width: 50px;
+        height: 50px;
+        }
+
+        .error-message-text {
+        font-weight: bold;
+        font-size: 16px;
+        }
+
+        .error-details-text {
+        font-size: 14px;
+        }
+
+        .error-button {
+        margin-top: 15px;
+        }
+
+    </style><script type="text/javascript">if(window.PrimeFaces){PrimeFaces.settings.locale='de';}</script>
+		
+		
+		
+		
+		
+		<meta name="X-XSS-Protection" content="0">
+		<meta name="Content-Type-Options" content="nosniff">
+		<meta name="referrer" content="origin">
+			<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' *.nrw.de ">
+			<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval'">
+			<meta http-equiv="Content-Security-Policy" content="style-src 'self' 'unsafe-inline' *.handelsregisterbekanntmachungen.de">
+			<meta http-equiv="Content-Security-Policy" content="connect-src 'self' 'unsafe-inline'">
+			<meta http-equiv="Content-Security-Policy" content="form-action 'self' 'unsafe-inline'">
+			<meta http-equiv="Content-Security-Policy" content="frame-src 'self' 'unsafe-inline' *.nrw.de">
+			<meta http-equiv="Content-Security-Policy" content="media-src 'none'">
+			<meta http-equiv="Content-Security-Policy" content="object-src 'self'">
+
+		<link rel="shortcut icon" href="/rp_web/javax.faces.resource/images/favicon.ico;jsessionid=198E5919A2E9718984E19635C4586615.tc04n02" type="image/x-icon">
+		<link rel="icon" href="/rp_web/javax.faces.resource/images/favicon.ico;jsessionid=198E5919A2E9718984E19635C4586615.tc04n02" type="image/x-icon">
+
+		<title>Registerportal | Startseite
+		</title>
+		<script type="text/javascript" src="/rp_web/combine/combined.js?v=2.12.10"></script>
+		<link rel="stylesheet" type="text/css" href="/rp_web/combine/combined.css?v=2.12.10"></head><body id="mainBody" style="background: linear-gradient(to bottom, rgba(239,239,239,1) 11%,rgba(222,230,238,1) 21%);">
+
+<form id="cookieForm" name="cookieForm" method="post" action="/rp_web/welcome.xhtml" enctype="application/x-www-form-urlencoded">
+<input type="hidden" name="cookieForm" value="cookieForm" style="">
+
+
+<input type="hidden" name="javax.faces.ViewState" value="-7194077329401861311:-6747801439337733933" autocomplete="off" style=""></form><div id="page-wrapper" class="ui-fluid"><div id="mainPanelGrid" class="ui-panelgrid ui-widget ui-panelgrid-blank ui-fluid"><div class="ui-panelgrid-header ui-widget-header"><div id="header">
+<form id="headerForm" name="headerForm" method="post" action="/rp_web/welcome.xhtml;jsessionid=198E5919A2E9718984E19635C4586615.tc04n02" enctype="application/x-www-form-urlencoded">
+<input type="hidden" name="headerForm" value="headerForm" style="">
+<input type="hidden" name="javax.faces.ViewState" id="j_id1:javax.faces.ViewState:1" value="-7194077329401861311:-6747801439337733933" autocomplete="off" style="">
+<header id="startPageHeader" class="clearfix"><div id="headerDiv" class="shadow rounded-bottom bg-white"><div id="headerPanelGrid" class="ui-panelgrid ui-widget ui-panelgrid-blank ui-fluid"><div id="headerPanelGrid_content" class="ui-panelgrid-content ui-widget-content ui-grid ui-grid-responsive"><div class="ui-g"><div class="ui-panelgrid-cell ui-g-12 ui-lg-10"><div id="kopf" class="row"><div id="tm" class="mitRand"><h1 id="headerH1">
+                                    <a jsf:id="goToTop" href="/rp_web/welcome.xhtml" tabindex="0" onclick="location.href='welcome.xhtml'" title="Link zur Startseite" class="brand"><img id="jdLogo" src="/rp_web/javax.faces.resource/justitia.gif;jsessionid=198E5919A2E9718984E19635C4586615.tc04n02?ln=images" alt="Gemeinsames Registerportal"><span id="seitentitel" class="d-inline-block"><span id="zeile1" class="d-block name px-2">Gemeinsames Registerportal</span><span id="zeile2" class="d-block px-2">der Länder</span></span>
+                                    </a></h1></div></div></div><div class="ui-panelgrid-cell ui-g-12 ui-lg-2"><div id="menuBarMain" class="ui-menu ui-menubar ui-widget ui-widget-content ui-corner-all ui-helper-clearfix menuBarHeader layout-menu animated" style="border:none !important"><div tabindex="0" class="ui-helper-hidden-accessible"></div><ul class="ui-menu-list ui-helper-reset" role="menubar"><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="-1" id="topbar-menu-button" title="menu button" class="ui-menuitem-link ui-corner-all" href="#" onclick="PF('sidebar1').show();PrimeFaces.ab({s:&quot;topbar-menu-button&quot;,f:&quot;headerForm&quot;});return false;"><span class="ui-menuitem-icon ui-icon fa fa-bars" aria-hidden="true"></span><span class="ui-menuitem-text">
+                                <span class="sr-only">topbar menu button</span></span></a></li><li id="localSubMenu" class="ui-widget ui-menuitem ui-corner-all ui-menu-parent headerNavItem" role="menuitem" aria-haspopup="true"><a href="#" tabindex="-1" class="ui-menuitem-link ui-submenu-link ui-corner-all"><span class="ui-menuitem-icon ui-icon flag-icon flag-icon-de flag-icon-squared" aria-hidden="true"></span><span class="ui-menuitem-text">DE</span><span class="ui-icon ui-icon-triangle-1-s"></span></a><ul class="ui-widget-content ui-menu-list ui-corner-all ui-helper-clearfix ui-menu-child ui-shadow" role="menu"><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="-1" id="de" title="Bitte wählen Sie diese Sprache aus" class="ui-menuitem-link ui-corner-all" style="color: black; text-align: left" href="#" onclick="PrimeFaces.ab({s:&quot;de&quot;,f:&quot;headerForm&quot;,u:&quot;@all&quot;,pa:[{name:&quot;language&quot;,value:&quot;DE&quot;},{name:&quot;target&quot;,value:&quot;langLink&quot;}]});return false;"><span class="ui-menuitem-icon ui-icon flag-icon flag-icon-de flag-icon-squared" aria-hidden="true"></span><span class="ui-menuitem-text">DE</span></a></li><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="-1" id="en" title="Select your language" class="ui-menuitem-link ui-corner-all" style="color: black; text-align: left" href="#" onclick="PrimeFaces.ab({s:&quot;en&quot;,f:&quot;headerForm&quot;,u:&quot;@all&quot;,pa:[{name:&quot;language&quot;,value:&quot;EN&quot;},{name:&quot;target&quot;,value:&quot;langLink&quot;}]});return false;"><span class="ui-menuitem-icon ui-icon flag-icon flag-icon-gb flag-icon-squared" aria-hidden="true"></span><span class="ui-menuitem-text">EN</span></a></li><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="-1" id="es" title="Seleccione su lengua" class="ui-menuitem-link ui-corner-all" style="color: black; text-align: left" href="#" onclick="PrimeFaces.ab({s:&quot;es&quot;,f:&quot;headerForm&quot;,u:&quot;@all&quot;,pa:[{name:&quot;language&quot;,value:&quot;ES&quot;},{name:&quot;target&quot;,value:&quot;langLink&quot;}]});return false;"><span class="ui-menuitem-icon ui-icon flag-icon flag-icon-es flag-icon-squared" aria-hidden="true"></span><span class="ui-menuitem-text">ES</span></a></li><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="-1" id="fr" title="Choisissez votre langue" class="ui-menuitem-link ui-corner-all" style="color: black; text-align: left" href="#" onclick="PrimeFaces.ab({s:&quot;fr&quot;,f:&quot;headerForm&quot;,u:&quot;@all&quot;,pa:[{name:&quot;language&quot;,value:&quot;FR&quot;},{name:&quot;target&quot;,value:&quot;langLink&quot;}]});return false;"><span class="ui-menuitem-icon ui-icon flag-icon flag-icon-fr flag-icon-squared" aria-hidden="true"></span><span class="ui-menuitem-text">FR</span></a></li><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="-1" id="it" title="Selezioni la vostra lingua" class="ui-menuitem-link ui-corner-all" style="color: black; text-align: left" href="#" onclick="PrimeFaces.ab({s:&quot;it&quot;,f:&quot;headerForm&quot;,u:&quot;@all&quot;,pa:[{name:&quot;language&quot;,value:&quot;IT&quot;},{name:&quot;target&quot;,value:&quot;langLink&quot;}]});return false;"><span class="ui-menuitem-icon ui-icon flag-icon flag-icon-it flag-icon-squared" aria-hidden="true"></span><span class="ui-menuitem-text">IT</span></a></li></ul></li></ul></div><div id="addTabIndex"><div id="sidebarMobile" class="ui-sidebar ui-widget ui-widget-content ui-shadow ui-sidebar-left" style="padding:0px;border-bottom-right-radius: 0.25em;border-top-right-radius: 0.25em; overflow: scroll;" role="dialog" aria-hidden="true"><a href="#" class="ui-sidebar-close ui-corner-all" role="button"><span class="ui-icon ui-icon-closethick"></span></a><div id="rpNavMainMenuID" class="ui-menu ui-widget ui-widget-content ui-corner-all ui-helper-clearfix rpNavMainMenu " style="margin-top:18px;" role="menu"><div tabindex="-1" class="ui-helper-hidden-accessible"></div><ul class="ui-menu-list ui-helper-reset"><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="-1" title="Startseite" class="ui-menuitem-link ui-corner-all menuActive rpNavMainMenuItem" href="#" onclick="PF('sidebar1').hide();PrimeFaces.addSubmitParam('headerForm',{'j_idt43':'j_idt43','target':'welcomeLinkAdmin'}).submit('headerForm');return false;"><span class="ui-menuitem-icon ui-icon  fa fa-fw fa-home" aria-hidden="true"></span><span class="ui-menuitem-text">Startseite</span></a></li><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="-1" title="Normale Suche" class="ui-menuitem-link ui-corner-all  rpNavMainMenuItem" href="#" onclick="PF('sidebar1').hide();PrimeFaces.addSubmitParam('headerForm',{'j_idt45':'j_idt45','target':'normaleSucheLink'}).submit('headerForm');return false;"><span class="ui-menuitem-icon ui-icon fa fa-search" aria-hidden="true"></span><span class="ui-menuitem-text">Normale Suche</span></a></li><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="-1" title="Erweiterte Suche" class="ui-menuitem-link ui-corner-all  rpNavMainMenuItem" href="#" onclick="PF('sidebar1').hide();PrimeFaces.addSubmitParam('headerForm',{'j_idt47':'j_idt47','target':'erweiterteSucheLink'}).submit('headerForm');return false;"><span class="ui-menuitem-icon ui-icon fa fa-search-plus" aria-hidden="true"></span><span class="ui-menuitem-text">Erweiterte Suche</span></a></li><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="-1" title="Registerbekanntmachungen" class="ui-menuitem-link ui-corner-all  rpNavMainMenuItem" href="#" onclick="PF('sidebar1').hide();PrimeFaces.addSubmitParam('headerForm',{'j_idt49':'j_idt49','target':'bekanntmachungenLink'}).submit('headerForm');return false;"><span class="ui-menuitem-icon ui-icon fa fa-search-plus" aria-hidden="true"></span><span class="ui-menuitem-text">Registerbekanntmachungen</span></a></li><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="-1" title="Länderinformationen" class="ui-menuitem-link ui-corner-all  rpNavMainMenuItem" href="#" onclick="PF('sidebar1').hide();PrimeFaces.addSubmitParam('headerForm',{'j_idt51':'j_idt51','target':'laenderInfoLink'}).submit('headerForm');return false;"><span class="ui-menuitem-icon ui-icon fa fa-info-circle" aria-hidden="true"></span><span class="ui-menuitem-text">Länderinformationen</span></a></li><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="-1" title="Informationen " class="ui-menuitem-link ui-corner-all  rpNavMainMenuItem" href="#" onclick="PF('sidebar1').hide();PrimeFaces.addSubmitParam('headerForm',{'j_idt53':'j_idt53','target':'informationLink'}).submit('headerForm');return false;"><span class="ui-menuitem-icon ui-icon fa fa-question-circle" aria-hidden="true"></span><span class="ui-menuitem-text">Informationen </span></a></li><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="-1" title="Hilfe" class="ui-menuitem-link ui-corner-all  rpNavMainMenuItem" href="#" onclick="PF('sidebar1').hide();PrimeFaces.addSubmitParam('headerForm',{'j_idt55':'j_idt55','target':'hilfeLink'}).submit('headerForm');return false;"><span class="ui-menuitem-icon ui-icon fa fa-life-ring" aria-hidden="true"></span><span class="ui-menuitem-text">Hilfe</span></a></li><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="-1" title="Datenschutzhinweise" class="ui-menuitem-link ui-corner-all  rpNavMainMenuItem" href="#" onclick="PF('sidebar1').hide();PrimeFaces.addSubmitParam('headerForm',{'j_idt57':'j_idt57','target':'datenschutzhinweiseLink'}).submit('headerForm');return false;"><span class="ui-menuitem-icon ui-icon fa fa-shield" aria-hidden="true"></span><span class="ui-menuitem-text">Datenschutzhinweise</span></a></li><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="-1" title="Impressum" class="ui-menuitem-link ui-corner-all  rpNavMainMenuItem" href="#" onclick="PF('sidebar1').hide();PrimeFaces.addSubmitParam('headerForm',{'j_idt59':'j_idt59','target':'impressumLink'}).submit('headerForm');return false;"><span class="ui-menuitem-icon ui-icon fa fa-info" aria-hidden="true"></span><span class="ui-menuitem-text">Impressum</span></a></li><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="-1" title="Kontakt" class="ui-menuitem-link ui-corner-all  rpNavMainMenuItem" href="#" onclick="PF('sidebar1').hide();PrimeFaces.addSubmitParam('headerForm',{'j_idt61':'j_idt61','target':'kontaktLink'}).submit('headerForm');return false;"><span class="ui-menuitem-icon ui-icon fa fa-phone" aria-hidden="true"></span><span class="ui-menuitem-text">Kontakt</span></a></li><li class="ui-separator ui-state-default"></li><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="-1" title="Extern Link BundesLaender" class="ui-menuitem-link ui-corner-all rpNavMainMenuItem " href="https://justiz.de/laender-bund-europa/bund_laender/index.php?target=bundLaenderLink" onclick="PF('sidebar1').hide()"><span class="ui-menuitem-text">Bund / Länder</span></a></li><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="-1" title="Extern Link Onlinedienste" class="ui-menuitem-link ui-corner-all rpNavMainMenuItem" href="https://justiz.de/onlinedienste/index.php?target=onlineDiensteLink" onclick="PF('sidebar1').hide()"><span class="ui-menuitem-text">Onlinedienste</span></a></li></ul></div></div></div></div></div></div></div></div></header>
+</form>
+    <script>
+        $(document).ready(
+            function () {
+
+                document.getElementById("menuBarMain").removeAttribute(
+                    "role");
+                document.querySelector("#menuBarMain > ul").setAttribute(
+                    "role", "menubar");
+
+            }
+        );
+    </script></div><div id="skip-navi">
+
+							<a class="sr-only sr-only-focusable" href="#contentID">
+								Direkt zum Inhalt</a>
+							<a href="#navi" class="sr-only sr-only-focusable">Direkt zur Hauptnavigation</a>
+							<a href="#kontaktShortcut" class="sr-only sr-only-focusable">Direkt zur Kontaktseite</a>
+							<a href="#footer" class="sr-only sr-only-focusable">Direkt zum Footer</a></div>
+<form id="breadcrumbForm" name="breadcrumbForm" method="post" action="/rp_web/welcome.xhtml;jsessionid=198E5919A2E9718984E19635C4586615.tc04n02" enctype="application/x-www-form-urlencoded">
+<input type="hidden" name="breadcrumbForm" value="breadcrumbForm" style="">
+<input type="hidden" name="javax.faces.ViewState" id="j_id1:javax.faces.ViewState:2" value="-7194077329401861311:-6747801439337733933" autocomplete="off" style="">
+<div id="breadcrumbForm:breadcrumb" class="ui-breadcrumb ui-module ui-widget ui-widget-header ui-helper-clearfix ui-corner-all breadcrumb" role="menu"><ul><li role="menuitem"><a tabindex="0" title="Startseite" class="ui-menuitem-link ui-corner-all ui-icon ui-icon-home" href="#" onclick="PrimeFaces.ab({s:&quot;breadcrumbForm:j_idt90&quot;,f:&quot;breadcrumbForm&quot;});return false;"><span class="ui-menuitem-text">
+					<span class="sr-only">Startseite</span></span></a></li><li class="ui-breadcrumb-chevron ui-icon ui-icon-triangle-1-e"></li><li role="menuitem"><span class="ui-menuitem-link ui-corner-all ui-state-disabled"><span class="ui-menuitem-text"></span></span></li></ul></div>
+</form></div><div id="mainPanelGrid_content" class="ui-panelgrid-content ui-widget-content ui-grid ui-grid-responsive"><div class="ui-g"><div class="ui-panelgrid-cell ui-g-12 ui-lg-2"><div id="navi">
+	<div id="rpNavMainDiv">
+<form id="naviForm" name="naviForm" method="post" action="/rp_web/welcome.xhtml;jsessionid=198E5919A2E9718984E19635C4586615.tc04n02" enctype="application/x-www-form-urlencoded">
+<input type="hidden" name="naviForm" value="naviForm" style="">
+<input type="hidden" name="javax.faces.ViewState" id="j_id1:javax.faces.ViewState:3" value="-7194077329401861311:-6747801439337733933" autocomplete="off" style="">
+<div id="naviForm:rpNavMainMenuID" class="ui-menu ui-widget ui-widget-content ui-corner-all ui-helper-clearfix rpNavMainMenu shadow noprint"><div tabindex="-1" class="ui-helper-hidden-accessible"></div><ul class="ui-menu-list ui-helper-reset" role="menu"><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="0" id="naviForm:welcomeLinkAdmin" title="Startseite" class="ui-menuitem-link ui-corner-all menuActive rpNavMainMenuItem" href="#" onclick="pfWait.start();PrimeFaces.addSubmitParam('naviForm',{'naviForm:welcomeLinkAdmin':'naviForm:welcomeLinkAdmin','target':'welcomeLinkAdmin'}).submit('naviForm');return false;"><span class="ui-menuitem-text">
+					<span>Startseite</span></span></a></li><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="0" id="naviForm:normaleSucheLink" title="Normale Suche" class="ui-menuitem-link ui-corner-all  rpNavMainMenuItem" href="#" onclick="pfWait.start();PrimeFaces.addSubmitParam('naviForm',{'naviForm:normaleSucheLink':'naviForm:normaleSucheLink','target':'normaleSucheLink'}).submit('naviForm');return false;"><span class="ui-menuitem-text">
+					<span>Normale Suche</span></span></a></li><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="0" id="naviForm:erweiterteSucheLink" title="Erweiterte Suche" class="ui-menuitem-link ui-corner-all  rpNavMainMenuItem" href="#" onclick="pfWait.start();PrimeFaces.addSubmitParam('naviForm',{'naviForm:erweiterteSucheLink':'naviForm:erweiterteSucheLink','target':'erweiterteSucheLink'}).submit('naviForm');return false;"><span class="ui-menuitem-text">
+					<span>Erweiterte Suche</span></span></a></li><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="0" id="naviForm:bekanntmachungenLink" title="Registerbekanntmachungen" class="ui-menuitem-link ui-corner-all  rpNavMainMenuItem" href="#" onclick="pfWait.start();PrimeFaces.addSubmitParam('naviForm',{'naviForm:bekanntmachungenLink':'naviForm:bekanntmachungenLink','target':'bekanntmachungenLink'}).submit('naviForm');return false;"><span class="ui-menuitem-text">
+					<span>Registerbekanntmachungen</span></span></a></li><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="0" id="naviForm:laenderInfoLink" title="Länderinformationen" class="ui-menuitem-link ui-corner-all  rpNavMainMenuItem" href="#" onclick="pfWait.start();PrimeFaces.addSubmitParam('naviForm',{'naviForm:laenderInfoLink':'naviForm:laenderInfoLink','target':'laenderInfoLink'}).submit('naviForm');return false;"><span class="ui-menuitem-text">
+					<span>Länderinformationen</span></span></a></li><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="0" id="naviForm:informationLink" title="Informationen " class="ui-menuitem-link ui-corner-all  rpNavMainMenuItem" href="#" onclick="pfWait.start();PrimeFaces.addSubmitParam('naviForm',{'naviForm:informationLink':'naviForm:informationLink','target':'informationLink'}).submit('naviForm');return false;"><span class="ui-menuitem-text">
+					<span>Informationen </span></span></a></li><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="0" id="naviForm:hilfeLink" title="Hilfe" class="ui-menuitem-link ui-corner-all  rpNavMainMenuItem" href="#" onclick="pfWait.start();PrimeFaces.addSubmitParam('naviForm',{'naviForm:hilfeLink':'naviForm:hilfeLink','target':'hilfeLink'}).submit('naviForm');return false;"><span class="ui-menuitem-text">
+					<span>Hilfe</span></span></a></li><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="0" id="naviForm:kontaktLink" title="Kontakt" class="ui-menuitem-link ui-corner-all  rpNavMainMenuItem" href="#" onclick="pfWait.start();PrimeFaces.addSubmitParam('naviForm',{'naviForm:kontaktLink':'naviForm:kontaktLink','target':'kontaktLink'}).submit('naviForm');return false;"><span class="ui-menuitem-text">
+					<span>Kontakt</span></span></a></li></ul></div><div id="naviForm:rpNavSubMenuID" class="ui-menu ui-widget ui-widget-content ui-corner-all ui-helper-clearfix rpNavMainMenu shadow noprint" style="margin-top:1.5em"><div tabindex="-1" class="ui-helper-hidden-accessible"></div><ul class="ui-menu-list ui-helper-reset" role="menu"><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="0" title="Bund / Länder" class="ui-menuitem-link ui-corner-all rpNavMainMenuItem " rel="noopener noreferrer" href="https://justiz.de/laender-bund-europa/bund_laender/index.php" target="_blank"><span class="ui-menuitem-text">
+					<span>Bund / Länder</span></span></a></li><li class="ui-menuitem ui-widget ui-corner-all" role="menuitem"><a tabindex="0" title="Onlinedienste" class="ui-menuitem-link ui-corner-all rpNavMainMenuItem " rel="noopener noreferrer" href="https://justiz.de/onlinedienste/index.php" target="_blank"><span class="ui-menuitem-text">
+					<span>Onlinedienste</span></span></a></li></ul></div>
+
+
+
+
+			<div id="kontaktShortcut" class="card shadow mt-3 mx-0 noprint">
+
+				<div class="card-header">
+					<h2 class="card-title">Kontakt</h2>
+				</div><a id="naviForm:j_idt141" href="#" class="ui-commandlink ui-widget" aria-label="zur Kontaktseite" onclick="PrimeFaces.addSubmitParam('naviForm',{'naviForm:j_idt141':'naviForm:j_idt141'}).submit('naviForm');return false;" title="zur Kontaktseite"><img id="naviForm:j_idt142" src="/rp_web/javax.faces.resource/contact-us-2993000_600-200.jpg;jsessionid=198E5919A2E9718984E19635C4586615.tc04n02?ln=images" class="card-img-top" alt="kontakt"></a>
+
+
+				<div class="card-footer border-0 rounded-0 bg-transparent">
+					<p><a id="naviForm:j_idt144" href="#" class="ui-commandlink ui-widget" aria-label="zur Kontaktseite" onclick="PrimeFaces.addSubmitParam('naviForm',{'naviForm:j_idt144':'naviForm:j_idt144'}).submit('naviForm');return false;" title="zur Kontaktseite">Weiter
+							<span class="sr-only">zur Kontaktseite</span></a>
+					</p>
+				</div>
+			</div>
+</form>
+	</div></div></div><div class="ui-panelgrid-cell ui-g-12 ui-lg-10"><div id="contentID">
+<form id="formID" name="formID" method="post" action="/rp_web/welcome.xhtml;jsessionid=198E5919A2E9718984E19635C4586615.tc04n02" enctype="application/x-www-form-urlencoded">
+<input type="hidden" name="formID" value="formID" style="">
+<input type="hidden" name="javax.faces.ViewState" id="j_id1:javax.faces.ViewState:4" value="-7194077329401861311:-6747801439337733933" autocomplete="off" style="">
+
+			<div class="dashboard">
+				<div class="ui-g">
+					<div class="ui-g-12 ui-lg-12 global-sales">
+						<div class="card shadow mt-3 mx-0">
+							<div class="card-header">
+								<h2 class="card-title">Herzlich willkommen bei dem gemeinsamen Registerportal der Länder</h2>
+							</div>
+
+							<div class="card-body p-0">
+								<div class="card-text" id="infoCard1">
+									<span class="sr-only">Bitte beachten Sie die</span>
+
+									Bitte beachten Sie die
+									<a href="https://justiz.de/onlinedienste/index.php#hinweis" class="ui-link ui-widget" target="_blank" title="Warnhinweise der Landesjustizverwaltungen und des Bundesministeriums der Justiz">Warnhinweise der Landesjustizverwaltungen und des Bundesministeriums der Justiz</a>
+
+									<span class="sr-only">zu Zahlungsaufforderungen im Zusammenhang mit der Nutzung von Onlinediensten.</span>
+
+									zu Zahlungsaufforderungen im Zusammenhang mit der Nutzung von Onlinediensten.
+
+								</div>
+							</div>
+
+
+						</div>
+
+					</div>
+				</div>
+
+
+				<div class="ui-g">
+					<div class="ui-g-12 ui-lg-6 global-sales">
+						<div class="card shadow mt-3 mx-0" id="compareElement">
+							<div class="card-header">
+								<h2 class="card-title">Was ist das Registerportal?</h2>
+							</div>
+							<table>
+
+								<tbody class="alignTextLeft">
+									<tr>
+										<td><p>Auf dieser Seite finden Sie die Handels-, Genossenschafts- , Partnerschafts-, Gesellschaftsregister sowie die Vereinsregister aller Bundesländer und darüber hinaus die Registerbekanntmachungen (Veröffentlichungen).</p></td>
+									</tr>
+									<tr>
+										<td><p>Soweit in den Ländern strukturierte Informationen zum Abruf zur Verfügung gestellt werden, handelt es sich um einen unverbindlichen Service. Der Inhalt kann in speziellen Fällen vom Inhalt des aktuellen Abdrucks abweichen und diesen ggf. nicht vollständig wiedergeben.</p></td>
+									</tr>
+									<tr>
+										<td><p>
+												Bitte beachten Sie die
+												<a id="formID:j_idt153" href="#" class="ui-commandlink ui-widget" onclick="PrimeFaces.ab({s:&quot;formID:j_idt153&quot;,f:&quot;formID&quot;});return false;">aktuellen Statushinweise</a>
+												.
+											</p></td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+					</div>
+					<div class="ui-g-12 ui-lg-6 global-sales">
+						<div class="card shadow mt-3 mx-0" id="myElement">
+							<div class="card-header ">
+								<h2 class="card-title">Aktuelle Statushinweise</h2>
+							</div><img src="/rp_web/javax.faces.resource/the-climate-reality-project-349094-unsplash_600-200.jpg;jsessionid=198E5919A2E9718984E19635C4586615.tc04n02?ln=images" alt="Kunden, die sich Registrieren" title="Static Hinweise" class="card-img-top width100">
+
+							<div class="card-body p-0">
+								<div class="card-text" id="infoCard2">
+									<ul class="m-0">
+
+										<li><span class="fontWeightBold">Bitte beachten Sie folgende Hinweise:</span> <br><ul>
+<li>
+Aufgrund von Wartungsarbeiten in Rheinland-Pfalz, sind ab Freitag den 11.09.2026 ab 15 Uhr bis Samstag den 12.09.2026 ca. 11 Uhr, keine Abrufe aus Rheinland-Pfalz möglich.
+</li>
+<br>
+<li>
+A...</li>
+									</ul>
+								</li></ul></div>
+							</div>
+							<div class="card-footer border-0 rounded-0 bg-transparent"><a id="formID:j_idt162" href="#" class="ui-commandlink ui-widget" aria-label="zur aktuellen Statushinweiseseite" onclick="PrimeFaces.ab({s:&quot;formID:j_idt162&quot;,f:&quot;formID&quot;});return false;" title="zur aktuellen Statushinweiseseite">Weiter</a>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="ui-g">
+					<div class="ui-g-12 ui-lg-12 "><div id="formID:rpCarouselHinweis" class="ui-carousel ui-widget ui-widget-content ui-corner-all ui-hidden-container shadow card-title marginTop10px"><div class="ui-carousel-header ui-widget-header ui-corner-all"><div class="ui-carousel-header-title">Bitte beachten Sie folgende Hinweise:</div><span class="ui-carousel-button ui-carousel-next-button ui-icon ui-icon-circle-triangle-e"></span><span class="ui-carousel-button ui-carousel-prev-button ui-icon ui-icon-circle-triangle-w"></span><select name="formID:rpCarouselHinweis_dropdown" class="ui-carousel-dropdown ui-widget ui-state-default ui-corner-left"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select><select name="formID:rpCarouselHinweis_responsivedropdown" class="ui-carousel-dropdown-responsive ui-widget ui-state-default ui-corner-left" style="display: none;"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></div><div class="ui-carousel-viewport"><ul class="ui-carousel-items" style="left: 0px;"><li class="ui-carousel-item ui-widget-content ui-corner-all" style="width: 1167.62px;"><table id="formID:rpCarouselHinweis:0:info" class="ui-panelgrid-blank" title="info">
+<tbody>
+<tr>
+<td><b>Aktuell kommt es durch hohe Abrufzahlen im Registerportal wiederholt zu Überlastungen einzelner Bundesländer und als Folge davon zur temporären Nichtverfügbarkeit bei Abrufen von Daten aus diesen Ländern.</b></td>
+</tr>
+</tbody>
+</table>
+</li><li class="ui-carousel-item ui-widget-content ui-corner-all" style="width: 1167.62px;"><table id="formID:rpCarouselHinweis:1:info" class="ui-panelgrid-blank" title="info">
+<tbody>
+<tr>
+<td>Bei der Darstellung von Veröffentlichungen in Verbindung mit Altgerichten kommt es im Registerportal aktuell zu falschen Anzeigen. So werden Veröffentlichungen von Firmen mit Altgerichtskennzeichen auch unter dem Aktenzeichen ohne Altgerichtskennzeichen angezeigt. Die Inhalte der Veröffentlichungen sind korrekt, diese werden allerdings bei der Listenanzeige nicht korrekt zugeordnet.</td>
+</tr>
+</tbody>
+</table>
+</li><li class="ui-carousel-item ui-widget-content ui-corner-all" style="width: 1167.62px;"><table id="formID:rpCarouselHinweis:2:info" class="ui-panelgrid-blank" title="info">
+<tbody>
+<tr>
+<td>Fragen rund um das Transparenzregister können durch die hiesige Servicestelle leider nicht beantwortet werden. Wenden Sie sich daher bei Rückfragen bitte an die vorgesehenen Servicenummern des Transparenzregisters, welche Sie der Startseite<a href="http://www.transparenzregister.de"> www.transparenzregister.de </a> entnehmen können.</td>
+</tr>
+</tbody>
+</table>
+</li><li class="ui-carousel-item ui-widget-content ui-corner-all" style="width: 1167.62px;"><table id="formID:rpCarouselHinweis:3:info" class="ui-panelgrid-blank" title="info">
+<tbody>
+<tr>
+<td>Aufgrund einer Konsolidierung von Rechtsformen kann es zwischenzeitlich zu Mehrfachnennungen selbiger bei der erweiterten Suche kommen. Beispielsweise könnten "Partnerschaft" und "Partnergesellschaft" oder "Einzelkauffrau", "Einzelkaufmann" und "Einzelkaufmann / Einzelkauffrau" parallel zur Suche angeboten werden. Sobald die Umstellungen abgeschlossen sind, werden die dann veralteten Bezeichnungen aus der Auswahlliste der erweiterten Suche entfallen.</td>
+</tr>
+</tbody>
+</table>
+</li></ul></div><input id="formID:rpCarouselHinweis_page" name="formID:rpCarouselHinweis_page" type="hidden" autocomplete="off" value="0" style=""></div>
+					</div>
+				</div>
+			</div>
+</form></div></div></div></div><div class="ui-panelgrid-footer ui-widget-header"><div id="footer">
+<form id="footerForm" name="footerForm" method="post" action="/rp_web/welcome.xhtml;jsessionid=198E5919A2E9718984E19635C4586615.tc04n02" enctype="application/x-www-form-urlencoded">
+<input type="hidden" name="footerForm" value="footerForm" style="">
+<input type="hidden" name="javax.faces.ViewState" id="j_id1:javax.faces.ViewState:5" value="-7194077329401861311:-6747801439337733933" autocomplete="off" style="">
+<div id="footerKopf" class="sitemap rounded-top"><div id="sitemap" class="container"><h2 id="footerH2" class="sr-only">Übersicht</h2>
+                <ul class="nav navbar-nav fold"></ul></div></div><div id="footerNaviContainer" class="container"><div id="footerNaviRow" class=" navbar-row"><div id="footerNavi" class="col-12 navbar-container balken  bg-white rounded-bottom shadow"><div id="footerNavbarMd" class=" navbar-expand-md"><div id="footerNavbarCollapse" class="footerNavbar navbar-collapse"><ul id="footerUl" class="footer-info"><li id="footerLi1"><a id="j_idt170" href="#" class="ui-commandlink ui-widget footerText" onclick="PrimeFaces.ab({s:&quot;j_idt170&quot;,f:&quot;footerForm&quot;,pa:[{name:&quot;target&quot;,value:&quot;getImpressumPublicLink&quot;}]});return false;">
+                                        <i class="fa fa-info"></i> Impressum
+                                        </a></li><li id="footerLi2"><a id="j_idt173" href="#" class="ui-commandlink ui-widget footerText" onclick="PrimeFaces.ab({s:&quot;j_idt173&quot;,f:&quot;footerForm&quot;,pa:[{name:&quot;target&quot;,value:&quot;getDatenschutzPublicLink&quot;}]});return false;">
+                                        <i class="fa fa-shield"></i> Datenschutzhinweise
+                                        </a></li><li id="footerLi3"><a jsf:id="footerTextLink" href="javascript:window.print();" class="footerText"><i class="fa fa-print"></i> Seite drucken</a></li></ul></div></div><div id="footerNavbarTop" class="footerNavbar navbar-collapse border-top"><ul id="footerInfoUl" class="footer-info"><li id="footerInfoLi1"><a href="https://justiz.de/service/barrierefreiheit/index.php" class="ui-link ui-widget footerText" rel="noopener noreferrer" target="_blank"><i id="footerInfoI1" class="fa fa-leanpub"></i>
+                                    Erklärung der Barrierefreiheit
+                                </a></li><li id="footerInfoLi2"><a id="j_idt179" href="#" class="ui-commandlink ui-widget footerText" onclick="PrimeFaces.ab({s:&quot;j_idt179&quot;,f:&quot;footerForm&quot;,pa:[{name:&quot;target&quot;,value:&quot;getKontaktformularBarrierefreiheitPublicLink&quot;}]});return false;"><i id="footerInfoI2" class="fa fa-paper-plane"></i>
+                                    Kontaktformular zur Barrierefreiheit
+                                    </a></li></ul></div></div></div><div id="footerNavi2Row" class=" navbar-row"><div id="footerNavi2" class="col-12 navbar-container"><div id="footerNavbarMd2" class="navbar navbar-expand-md"></div></div></div></div><div id="footerNaviContainer3" class="container"><div id="footerNavbarRow3" class="row navbar-row"><div id="footerCol3" class="col-12"><p id="footerCopyRightP" style="color: black;" class="text-xs-center footer-text">Copyright
+                        © 2026 Ministerium der Justiz Nordrhein-Westfalen</p><p id="footerVersionP" style="color: black;" class="text-xs-center footer-text-nopadding">Version: 2.12.10&nbsp;Stand:
+                        2026-06-10 06:54</p><!--
+                    Git Hash: ac716adc9f74322be767dee73c4ca209c175830f
+                    --><!--
+                    Knoten ID: tc04n02
+                    --></div></div></div>
+</form></div></div></div><div id="exceptionDialog" class="ui-dialog ui-widget ui-widget-content ui-corner-all ui-shadow ui-hidden-container ui-resizable" role="dialog" aria-describedby="exceptionDialog_content" aria-hidden="true" aria-modal="true" aria-labelledby="exceptionDialog_title" style="width: 600px; height: auto;"><div class="ui-dialog-titlebar ui-widget-header ui-helper-clearfix ui-corner-top"><span id="exceptionDialog_title" class="ui-dialog-title">Abgelaufene Session</span></div><div class="ui-dialog-content ui-widget-content" id="exceptionDialog_content" style="height: 170px;">
+        <div class="exception-body">
+            <div class="exception-panel-content">
+                <div class="information-text">
+                    <span><strong>Ihre Session ist abgelaufen. Aus Sicherheitsgründen wurde ihre Arbeit wegen zu langer Inaktivität beendet. Die Logininformationen, Suchanfragen und Suchergebnisse wurden verworfen.</strong></span>
+                </div>
+                <br> <br><button id="j_idt191" name="j_idt191" type="button" class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-only" onclick="window.open('\/rp_web\/welcome.xhtml;jsessionid=198E5919A2E9718984E19635C4586615.tc04n02','_self')" role="button" aria-disabled="false"><span class="ui-button-text ui-c">Startseite</span></button>
+            </div>
+        </div></div><div class="ui-resizable-handle ui-resizable-n" style="z-index: 90; display: block;"></div><div class="ui-resizable-handle ui-resizable-s" style="z-index: 90; display: block;"></div><div class="ui-resizable-handle ui-resizable-e" style="z-index: 90; display: block;"></div><div class="ui-resizable-handle ui-resizable-w" style="z-index: 90; display: block;"></div><div class="ui-resizable-handle ui-resizable-ne" style="z-index: 90; display: block;"></div><div class="ui-resizable-handle ui-resizable-nw" style="z-index: 90; display: block;"></div><div class="ui-resizable-handle ui-resizable-se ui-icon ui-icon-gripsmall-diagonal-se" style="z-index: 90; display: block;"></div><div class="ui-resizable-handle ui-resizable-sw" style="z-index: 90; display: block;"></div></div><div id="j_idt193" class="ui-dialog ui-widget ui-widget-content ui-corner-all ui-shadow ui-hidden-container" role="dialog" aria-describedby="j_idt193_content" aria-hidden="true" aria-modal="true" aria-labelledby="j_idt193_title" style="width: 600px; height: auto;"><div class="ui-dialog-titlebar ui-widget-header ui-helper-clearfix ui-corner-top"><span id="j_idt193_title" class="ui-dialog-title">Fehler bei der Verarbeitung Ihrer Anfrage</span></div><div class="ui-dialog-content ui-widget-content" id="j_idt193_content" style="height: auto;">
+        <div class="error-content">
+            <div class="error-row">
+                <div class="error-icon-container"><img id="j_idt195" src="/rp_web/javax.faces.resource/images/icon-error.png;jsessionid=198E5919A2E9718984E19635C4586615.tc04n02" class="error-icon" alt="Error Icon">
+                </div>
+                <div class="error-message"><span class="error-message-text">Es ist ein Fehler aufgetreten!</span>
+                </div>
+            </div>
+            <div class="error-row">
+                <div class="error-details">
+                    <div class="ui-g-12" style="font-family: Arial, Helvetica, sans-serif; font-size: 16.0016px">
+                        <p>In der Anwendung ist ein Fehler aufgetreten. Bitte helfen Sie uns den Fehler dauerhaft zu beseitigen. Wenn Sie Informationen geben können, wie der Fehler entstanden ist, so melden sie diese mit Nennung der folgenden Fehler ID an die Servicestelle des Registerportals.</p>
+                        <p>Fehler ID:</p>
+
+                    </div>
+                </div>
+            </div>
+            <div class="error-row"><button id="j_idt199" name="j_idt199" type="button" class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-only error-button" onclick="PF('errorDialog').hide();;window.open('\/rp_web\/welcome.xhtml;jsessionid=198E5919A2E9718984E19635C4586615.tc04n02','_self')" role="button" aria-disabled="false"><span class="ui-button-text ui-c">Startseite</span></button>
+            </div>
+        </div></div></div><div id="globalStatus"></div></div><div id="topLink" class="topLink">
+
+			
+			<a href="#page-wrapper"><i class="fa fa-chevron-circle-up"></i>
+				nach oben</a></div><script type="text/javascript">
+      window.pfWait = (function () {
+    var DELAY_MS = 800;      // für AJAX okay (gegen Flackern)
+    var MIN_VISIBLE = 600;
+    var STEP_MS = 250;
+    var MAX_MS  = 10000;
+
+    var showTimer = null, stepTimer = null;
+    var visible = false, shownAt = 0, inFlight = 0;
+
+    function showNow() {
+        if (visible) return;
+
+        visible = true;
+        shownAt = Date.now();
+        try { PF('waitDialog').show(); } catch (e) {}
+
+        var pb = PF('pbClientDlg');
+        if (pb) {
+            pb.setValue(1);
+            if (stepTimer) { clearInterval(stepTimer); stepTimer = null; }
+
+            var steps = Math.max(1, Math.round(MAX_MS / STEP_MS));
+            var stepVal = Math.max(1, Math.round(100 / steps));
+
+            stepTimer = setInterval(function () {
+                var next = Math.min(100, (pb.getValue() || 0) + stepVal);
+                pb.setValue(next);
+                if (next >= 100) { clearInterval(stepTimer); stepTimer = null; }
+            }, STEP_MS);
+        }
+    }
+
+    function start(force) {
+        //console.log('[waitDialog] start() called, force=' + !!force);
+
+        inFlight++;
+
+        // force = für Full-Page Navigation: sofort anzeigen (ohne Delay)
+        if (force === true) {
+            if (showTimer) { clearTimeout(showTimer); showTimer = null; }
+            showNow();
+            return;
+        }
+
+        // Standard (AJAX): erst nach Delay anzeigen
+        if (!showTimer && !visible) {
+            showTimer = setTimeout(function () {
+                showTimer = null;
+                if (inFlight > 0 && !visible) {
+                    showNow();
+                }
+            }, DELAY_MS);
+        }
+    }
+
+    function stop() {
+       // console.log('[waitDialog] stop() called');
+
+        if (inFlight > 0) inFlight--;
+        if (inFlight > 0) return;
+
+        if (showTimer) {
+            clearTimeout(showTimer);
+            showTimer = null;
+            return;
+        }
+        if (!visible) return;
+
+        var remaining = Math.max(0, MIN_VISIBLE - (Date.now() - shownAt));
+        setTimeout(function () {
+            try { PF('waitDialog').hide(); } catch (e) {}
+            if (stepTimer) { clearInterval(stepTimer); stepTimer = null; }
+            var pb = PF('pbClientDlg'); if (pb) pb.setValue(0);
+            visible = false;
+        }, remaining);
+    }
+
+    function hardStop(reason) {
+      //  console.log('[waitDialog] hardStop() called, reason=' + (reason || 'navigation'));
+
+        try { PF('waitDialog').hide(); } catch (e) {}
+        if (stepTimer) { clearInterval(stepTimer); stepTimer = null; }
+        if (showTimer) { clearTimeout(showTimer); showTimer = null; }
+
+        var pb = PF('pbClientDlg'); if (pb) pb.setValue(0);
+
+        visible = false;
+        inFlight = 0;
+        shownAt = 0;
+    }
+
+    // WICHTIG: nur pagehide (beforeunload feuert oft zu früh und verhindert das Anzeigen)
+    window.addEventListener('pagehide', function () { hardStop('pagehide'); });
+
+    // Optional: wenn User per Zurück-Button aus bfcache kommt, sicher aufräumen
+    window.addEventListener('pageshow', function () { hardStop('pageshow'); });
+
+    return { start: start, stop: stop, hardStop: hardStop };
+})();
+
+    </script>
+<div id="textarea_simulator" style="position: absolute; top: 0px; left: 0px; visibility: hidden;"></div><div class="ui-dialog-docking-zone"></div><div id="j_idt201" class="ui-dialog ui-widget ui-widget-content ui-corner-all ui-shadow ui-hidden-container wait-noheader wait-responsive" role="dialog" aria-describedby="j_idt201_content" aria-hidden="true" aria-modal="true" style="width: auto; height: auto;"><div class="ui-dialog-content ui-widget-content" id="j_idt201_content" style="height: auto;">
+<form id="waitForm" name="waitForm" method="post" action="/rp_web/welcome.xhtml;jsessionid=198E5919A2E9718984E19635C4586615.tc04n02" enctype="application/x-www-form-urlencoded">
+<input type="hidden" name="waitForm" value="waitForm" style="">
+<input type="hidden" name="javax.faces.ViewState" id="j_id1:javax.faces.ViewState:6" value="-7194077329401861311:-6747801439337733933" autocomplete="off" style="">
+<div style="display:flex; flex-direction:column; gap:12px; align-items:center; padding:12px;"><div style="display:flex; flex-direction:column; gap:8px; width:100%;"><div style="display:flex; align-items:center; gap:8px;">
+                        <i class="pi pi-clock wait-icon" aria-hidden="true" style="font-size:1.2rem; color:#476274;"></i>
+                        <span class="wait-text" style="text-align:left; font-size:1rem; font-weight:400;">
+                        Bitte warten Sie – Ihre Anfrage wird bearbeitet.
+                    </span></div><div id="waitForm:pbClientDlg" class="ui-progressbar ui-widget ui-widget-content ui-corner-all no-label strong-bar ui-progressbar-determinate" style="width:100%; height:20px" role="progressbar" aria-valuemin="0" aria-valuenow="0" aria-valuemax="100"><div class="ui-progressbar-value ui-widget-header ui-corner-all" style="display: none; width: 0%;"></div><div class="ui-progressbar-label" style="display: none;"></div></div></div></div>
+</form></div></div></body></html>

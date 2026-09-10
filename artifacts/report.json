@@ -1,0 +1,401 @@
+{
+  "startedAt": "2026-09-10T13:40:51.379Z",
+  "outcome": "SUCCESS",
+  "portal": "https://www.handelsregister.de/rp_web/welcome.xhtml",
+  "portalHttp": {
+    "status": 200,
+    "url": "https://www.handelsregister.de/rp_web/welcome.xhtml",
+    "bytes": 50194
+  },
+  "portalTitle": "Registerportal | Startseite",
+  "portalLoaded": true,
+  "steps": [
+    {
+      "t": "2026-09-10T13-40-56-156Z",
+      "shot": "/workspace/artifacts/01-welcome.png"
+    },
+    {
+      "t": "2026-09-10T13-40-56-160Z",
+      "name": "01-welcome",
+      "url": "https://www.handelsregister.de/rp_web/welcome.xhtml",
+      "title": "Registerportal | Startseite"
+    },
+    {
+      "t": "2026-09-10T13-40-56-205Z",
+      "consentClicked": true
+    },
+    {
+      "t": "2026-09-10T13-40-57-110Z",
+      "shot": "/workspace/artifacts/02-after-consent.png"
+    },
+    {
+      "t": "2026-09-10T13-40-57-114Z",
+      "name": "02-after-consent",
+      "url": "https://www.handelsregister.de/rp_web/welcome.xhtml",
+      "title": "Registerportal | Startseite"
+    },
+    {
+      "t": "2026-09-10T13-40-59-525Z",
+      "shot": "/workspace/artifacts/03-normale-suche.png"
+    },
+    {
+      "t": "2026-09-10T13-40-59-532Z",
+      "name": "03-normale-suche",
+      "url": "https://www.handelsregister.de/rp_web/normalesuche/welcome.xhtml",
+      "title": "Registerportal | Normale Suche"
+    },
+    {
+      "t": "2026-09-10T13-40-59-571Z",
+      "registerArtOptions": [
+        "alle",
+        "HRA",
+        "HRB",
+        "GnR",
+        "PR",
+        "VR",
+        "GsR"
+      ],
+      "selector": "#form\\:registerArt"
+    },
+    {
+      "t": "2026-09-10T13-40-59-579Z",
+      "registerArtOptions": [
+        "alle",
+        "HRA",
+        "HRB",
+        "GnR",
+        "PR",
+        "VR",
+        "GsR"
+      ],
+      "selector": "select[id*='registerArt']"
+    },
+    {
+      "t": "2026-09-10T13-41-14-585Z",
+      "registerArtOptions": [
+        "alle",
+        "HRA",
+        "HRB",
+        "GnR",
+        "PR",
+        "VR",
+        "GsR"
+      ],
+      "selector": "select[name*='registerArt']"
+    },
+    {
+      "t": "2026-09-10T13-41-29-592Z",
+      "registerArtOptions": [
+        "alle",
+        "HRA",
+        "HRB",
+        "GnR",
+        "PR",
+        "VR",
+        "GsR"
+      ],
+      "selector": "select[id*='register']"
+    },
+    {
+      "t": "2026-09-10T13-41-44-686Z",
+      "hrbSelected": true
+    },
+    {
+      "t": "2026-09-10T13-41-44-784Z",
+      "shot": "/workspace/artifacts/03b-form-filled.png"
+    },
+    {
+      "t": "2026-09-10T13-41-44-790Z",
+      "name": "03b-form-filled",
+      "url": "https://www.handelsregister.de/rp_web/normalesuche/welcome.xhtml",
+      "title": "Registerportal | Normale Suche"
+    },
+    {
+      "t": "2026-09-10T13-41-46-431Z",
+      "shot": "/workspace/artifacts/04-search-results.png"
+    },
+    {
+      "t": "2026-09-10T13-41-46-436Z",
+      "name": "04-search-results",
+      "url": "https://www.handelsregister.de/rp_web/sucheErgebnisse/welcome.xhtml?cid=1",
+      "title": "Registerportal | Suchergebnis"
+    },
+    {
+      "t": "2026-09-10T13-41-46-533Z",
+      "shot": "/workspace/artifacts/04-target-row.png"
+    },
+    {
+      "t": "2026-09-10T13-41-48-119Z",
+      "dkHow": "row-dk"
+    },
+    {
+      "t": "2026-09-10T13-41-49-054Z",
+      "shot": "/workspace/artifacts/05-dokumentenansicht.png"
+    },
+    {
+      "t": "2026-09-10T13-41-49-058Z",
+      "name": "05-dokumentenansicht",
+      "url": "https://www.handelsregister.de/rp_web/documents/welcome.xhtml?cid=1",
+      "title": "Registerportal | Suchergebnis - Freigegebene Dokumente"
+    },
+    {
+      "t": "2026-09-10T13-41-49-503Z",
+      "expandPass": 0,
+      "collapsedHint": 5,
+      "triangleCount": 1,
+      "clicked": 1
+    },
+    {
+      "t": "2026-09-10T13-41-50-769Z",
+      "expandPass": 1,
+      "collapsedHint": 7,
+      "triangleCount": 4,
+      "clicked": 3
+    },
+    {
+      "t": "2026-09-10T13-41-52-017Z",
+      "expandPass": 2,
+      "collapsedHint": 9,
+      "triangleCount": 3,
+      "clicked": 3
+    },
+    {
+      "t": "2026-09-10T13-41-52-434Z",
+      "expandPass": 3,
+      "collapsedHint": 9,
+      "triangleCount": 2,
+      "clicked": 1
+    },
+    {
+      "t": "2026-09-10T13-41-52-866Z",
+      "expandPass": 4,
+      "collapsedHint": 9,
+      "triangleCount": 1,
+      "clicked": 1
+    },
+    {
+      "t": "2026-09-10T13-41-52-874Z",
+      "treeNodes": [
+        {
+          "id": "dk_form:dktree:0",
+          "leaf": false,
+          "selected": false,
+          "expanded": "true",
+          "label": "Dokumente zum Rechtsträger"
+        },
+        {
+          "id": "dk_form:dktree:0_0",
+          "leaf": false,
+          "selected": false,
+          "expanded": "false",
+          "label": "Dokumente zur Registernummer"
+        },
+        {
+          "id": "dk_form:dktree:0_0_0",
+          "leaf": false,
+          "selected": false,
+          "expanded": "false",
+          "label": "Gesellschaftsvertrag / Satzung / Statut"
+        },
+        {
+          "id": "dk_form:dktree:0_0_0_0",
+          "leaf": true,
+          "selected": false,
+          "expanded": "false",
+          "label": "Gesellschaftsvertrag / Satzung / Statut vom 01.09.2008"
+        },
+        {
+          "id": "dk_form:dktree:0_0_1",
+          "leaf": false,
+          "selected": false,
+          "expanded": "false",
+          "label": "Weitere Urkunden / Unterlagen"
+        },
+        {
+          "id": "dk_form:dktree:0_0_1_0",
+          "leaf": false,
+          "selected": false,
+          "expanded": "false",
+          "label": "Anmeldung"
+        },
+        {
+          "id": "dk_form:dktree:0_0_1_0_0",
+          "leaf": true,
+          "selected": false,
+          "expanded": "false",
+          "label": "Anmeldung vom 01.09.2008"
+        },
+        {
+          "id": "dk_form:dktree:0_0_1_1",
+          "leaf": false,
+          "selected": false,
+          "expanded": "false",
+          "label": "Protokoll / Beschluss / Niederschrift"
+        },
+        {
+          "id": "dk_form:dktree:0_0_1_1_0",
+          "leaf": true,
+          "selected": false,
+          "expanded": "false",
+          "label": "Protokoll / Beschluss / Niederschrift vom 01.09.2008"
+        },
+        {
+          "id": "dk_form:dktree:0_0_2",
+          "leaf": false,
+          "selected": false,
+          "expanded": "false",
+          "label": "Anzeige nach Eintragung"
+        },
+        {
+          "id": "dk_form:dktree:0_0_2_0",
+          "leaf": false,
+          "selected": false,
+          "expanded": "false",
+          "label": "lfd. Nr. 2"
+        },
+        {
+          "id": "dk_form:dktree:0_0_2_0_0",
+          "leaf": true,
+          "selected": false,
+          "expanded": "false",
+          "label": "Anmeldung vom 01.09.2008"
+        },
+        {
+          "id": "dk_form:dktree:0_0_2_0_1",
+          "leaf": true,
+          "selected": false,
+          "expanded": "false",
+          "label": "Gesellschaftsvertrag / Satzung / Statut vom 01.09.2008"
+        },
+        {
+          "id": "dk_form:dktree:0_0_2_0_2",
+          "leaf": true,
+          "selected": false,
+          "expanded": "false",
+          "label": "Protokoll / Beschluss / Niederschrift vom 01.09.2008"
+        },
+        {
+          "id": "dk_form:dktree:0_0_3",
+          "leaf": false,
+          "selected": false,
+          "expanded": "false",
+          "label": "Anzeige nach Eingang"
+        },
+        {
+          "id": "dk_form:dktree:0_0_3_0",
+          "leaf": false,
+          "selected": false,
+          "expanded": "false",
+          "label": "13.10.2008"
+        },
+        {
+          "id": "dk_form:dktree:0_0_3_0_0",
+          "leaf": true,
+          "selected": false,
+          "expanded": "false",
+          "label": "Anmeldung vom 01.09.2008"
+        },
+        {
+          "id": "dk_form:dktree:0_0_3_0_1",
+          "leaf": true,
+          "selected": false,
+          "expanded": "false",
+          "label": "Gesellschaftsvertrag / Satzung / Statut vom 01.09.2008"
+        },
+        {
+          "id": "dk_form:dktree:0_0_3_0_2",
+          "leaf": true,
+          "selected": false,
+          "expanded": "false",
+          "label": "Protokoll / Beschluss / Niederschrift vom 01.09.2008"
+        }
+      ]
+    },
+    {
+      "t": "2026-09-10T13-41-52-986Z",
+      "shot": "/workspace/artifacts/06-tree-expanded.png"
+    },
+    {
+      "t": "2026-09-10T13-41-52-991Z",
+      "name": "06-tree-expanded",
+      "url": "https://www.handelsregister.de/rp_web/documents/welcome.xhtml?cid=1",
+      "title": "Registerportal | Suchergebnis - Freigegebene Dokumente"
+    },
+    {
+      "t": "2026-09-10T13-41-52-993Z",
+      "note": "No Gesellschafterliste in official DK tree; falling back to Gesellschaftsvertrag leaf"
+    },
+    {
+      "t": "2026-09-10T13-41-54-237Z",
+      "documentKind": "Gesellschaftsvertrag / Satzung / Statut vom 01.09.2008",
+      "node": {
+        "id": "dk_form:dktree:0_0_0_0",
+        "leaf": true,
+        "selected": false,
+        "expanded": "false",
+        "label": "Gesellschaftsvertrag / Satzung / Statut vom 01.09.2008"
+      }
+    },
+    {
+      "t": "2026-09-10T13-41-54-359Z",
+      "shot": "/workspace/artifacts/07-document-selected.png"
+    },
+    {
+      "t": "2026-09-10T13-41-54-364Z",
+      "name": "07-document-selected",
+      "url": "https://www.handelsregister.de/rp_web/documents/welcome.xhtml?cid=1",
+      "title": "Registerportal | Suchergebnis - Freigegebene Dokumente"
+    },
+    {
+      "t": "2026-09-10T13-41-54-483Z",
+      "shot": "/workspace/artifacts/07a-after-leaf-wait.png"
+    },
+    {
+      "t": "2026-09-10T13-41-54-487Z",
+      "name": "07a-after-leaf-wait",
+      "url": "https://www.handelsregister.de/rp_web/documents/welcome.xhtml?cid=1",
+      "title": "Registerportal | Suchergebnis - Freigegebene Dokumente"
+    },
+    {
+      "t": "2026-09-10T13-41-54-494Z",
+      "format": "zip"
+    },
+    {
+      "t": "2026-09-10T13-41-55-100Z",
+      "shot": "/workspace/artifacts/07b-format-selected.png"
+    },
+    {
+      "t": "2026-09-10T13-41-55-104Z",
+      "name": "07b-format-selected",
+      "url": "https://www.handelsregister.de/rp_web/documents/welcome.xhtml?cid=1",
+      "title": "Registerportal | Suchergebnis - Freigegebene Dokumente"
+    },
+    {
+      "t": "2026-09-10T13-41-56-549Z",
+      "shot": "/workspace/artifacts/08-after-download.png"
+    },
+    {
+      "t": "2026-09-10T13-41-56-553Z",
+      "name": "08-after-download",
+      "url": "https://www.handelsregister.de/rp_web/documents/welcome.xhtml?cid=1",
+      "title": "Registerportal | Suchergebnis - Freigegebene Dokumente"
+    }
+  ],
+  "downloads": [
+    {
+      "path": "/workspace/artifacts/HE-Offenbach_am_Main_HRB_40210+Gesellschaftsvertrag_-_Satzung_-_Statut_v-20260910154156.zip",
+      "name": "HE-Offenbach_am_Main_HRB_40210+Gesellschaftsvertrag_-_Satzung_-_Statut_v-20260910154156.zip",
+      "bytes": 230557,
+      "kind": "Gesellschaftsvertrag / Satzung / Statut vom 01.09.2008",
+      "format": "zip"
+    }
+  ],
+  "lastError": null,
+  "unternehmensregister": {
+    "status": 200,
+    "url": "https://www.unternehmensregister.de/de",
+    "title": "Unternehmensregister - Die zentrale Plattform zu Unternehmensdaten",
+    "bytes": 577478
+  },
+  "finishedAt": "2026-09-10T13:41:56.613Z"
+}

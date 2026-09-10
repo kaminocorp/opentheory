@@ -1,0 +1,37 @@
+SUCCESS (official Handelsregister download; Gesellschafterliste absent from DK tree)
+
+Target
+- Firma: Round Solutions Verwaltungs GmbH
+- Sitz: Neu-Isenburg (Historie: Dreieich)
+- Gericht: Amtsgericht Offenbach am Main
+- Register: HRB 40210
+- Portal: https://www.handelsregister.de/rp_web/welcome.xhtml
+- Probe: HTTP 200, title "Registerportal | Startseite" (handelsregister.de loads from this VM)
+- Unternehmensregister probe: HTTP 200, title "Unternehmensregister - Die zentrale Plattform zu Unternehmensdaten"
+
+What the official DK tree contained (fully expanded)
+- Gesellschaftsvertrag / Satzung / Statut vom 01.09.2008
+- Anmeldung vom 01.09.2008
+- Protokoll / Beschluss / Niederschrift vom 01.09.2008
+- Same three documents repeated under Anzeige nach Eintragung (lfd. Nr. 2)
+  and Anzeige nach Eingang (13.10.2008)
+- NO node named Gesellschafterliste
+
+Downloaded document (user-specified fallback)
+- Path: artifacts/HE-Offenbach_am_Main_HRB_40210+Gesellschaftsvertrag_-_Satzung_-_Statut_v-20260910154156.zip
+- Size: 230557 bytes
+- Official suggested filename from handelsregister.de (DK ZIP)
+- ZIP payload: 63065_HRB40210_GEV_R_2008-09-01_4069364_17502.tiff (241214 bytes, 11 pages)
+- Extracted TIFF also saved next to the ZIP
+- Page PNGs: gev-page-1.png … gev-page-11.png
+
+Shareholder data inside the Gesellschaftsvertrag (§ 3, page 2 of the scan)
+- Stammkapital: EUR 25.000,00
+- Gesellschafter Gunther Hölke: Stammeinlage EUR 22.500,00
+- Gesellschafterin Sabine Maria Hölke: Stammeinlage EUR 2.500,00
+This is the 01.09.2008 founding state. The electronic file has no later
+Gesellschafterliste filing.
+
+Script
+- scripts/fetch_gesellschafterliste_hrb_40210.js
+- scripts/fetch_gesellschafterliste_hrb_40210.sh
