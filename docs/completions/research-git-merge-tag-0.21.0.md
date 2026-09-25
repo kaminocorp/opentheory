@@ -57,10 +57,21 @@ convergent rather than permanently forked.
 
 ## Verification
 
-Filled after the check run in this PR.
+- `ruff check .` clean.
+- Default pytest: **407 passed, 153 skipped** (DB-gated).
+- With `TEST_DATABASE_URL` at a local throwaway Postgres: merge + tag + the
+  existing branch / checkpoint / read-model suites **37 passed**, including
+  multi-parent merge, one-branch-into-main, claim refs without rewrite,
+  closed/already-merged rejected, merged line sealed, tag create/list,
+  duplicate name `409`, tag append-only, and tag-on-merged-line records on
+  main.
+- Frontend `typecheck` / `lint` / `build` clean.
 
 ## Unverified
 
 - No pixel-level browser walk of the Merge form or Tags bay (same owed
   eyeball pass as `0.14.0`–`0.16.0`).
 - Migration `0016` is not applied to the live database by this PR.
+- The full DB-gated toolbench write-path suite was not used as a gate for
+  this slice (7 pre-existing stub/`calc.eval` input-shape failures on the
+  complete `TEST_DATABASE_URL` run, unrelated to merge/tag).

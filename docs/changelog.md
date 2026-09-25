@@ -121,8 +121,11 @@ on `branch_status` since the baseline.
 
 ```bash
 cd backend && uv run ruff check .   # clean
-cd backend && uv run pytest -q      # (counts filled after the run)
-cd frontend && npm run typecheck && npm run lint && npm run build   # (filled after the run)
+cd backend && uv run pytest -q      # 407 passed, 153 skipped (DB-gated)
+# With TEST_DATABASE_URL at a local throwaway Postgres:
+#   tests/test_merges.py tests/test_tags.py tests/test_branches.py \
+#   tests/test_checkpoints.py tests/test_read_models.py  → 37 passed
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
 ```
 
 See `docs/completions/research-git-merge-tag-0.21.0.md`.
