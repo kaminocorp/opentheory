@@ -108,7 +108,7 @@ function ClaimListPanelInner({
     if (!node) return;
     node.scrollIntoView({ block: "nearest", behavior: "smooth" });
     if (node instanceof HTMLElement) node.focus({ preventScroll: true });
-  }, [focusClaimId, claims]);
+  }, [focusClaimId, claimsQuery.data]);
 
   return (
     <Bay density="none" className="flex flex-col">

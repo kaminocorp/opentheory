@@ -132,6 +132,7 @@ changelog head.
 
 ```bash
 cd frontend && npm run typecheck && npm run lint && npm run build
+# typecheck clean · lint clean · build clean (9/9 static pages)
 ```
 
 See `docs/completions/deepdive-phase-c-0.30.0.md`.

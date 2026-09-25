@@ -80,7 +80,20 @@ takes you there":
 
 ## Verification
 
-Recorded after the implementation pass.
+```bash
+cd frontend && npm run typecheck   # clean
+cd frontend && npm run lint        # clean
+cd frontend && npm run build       # clean — Compiled successfully; 9/9 static pages
+```
+
+`npm run build` is the meaningful gate: a missing `<Suspense>` around
+`useSearchParams` fails the Next 15 static-generation deopt. The
+`/projects/[projectId]` route stays on-demand (`ƒ`). Backend was not
+run — this release does not touch it.
+
+`npm test` (`src/lib/project-tab.test.ts`) failed here on a pre-existing
+Node ESM `ERR_MODULE_NOT_FOUND` for `./project-tab` (no `.ts` suffix).
+This release does not edit that file; the 0.24.0 contract is unchanged.
 
 ## Unverified
 
