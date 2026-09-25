@@ -141,10 +141,10 @@ Does not reintroduce `formula.render`. `0.33.0` is on `main`.
 
 ```bash
 cd backend && uv run ruff check .   # clean
-cd backend && uv run pytest -q      # (counts filled after the verification pass)
+cd backend && uv run pytest -q      # 626 passed, 211 skipped (no TEST_DATABASE_URL)
 # Write-path interval.eval round-trips are DB-gated (skip without Postgres)
 cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
-cd frontend && npm test             # (counts filled after the verification pass)
+cd frontend && npm test             # 29 passed
 ```
 
 See `docs/completions/interval-eval-0.35.0.md`.

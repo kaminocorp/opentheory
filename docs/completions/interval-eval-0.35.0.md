@@ -90,9 +90,16 @@ dispatch, Instruments drive/show UI. Sits on `0.34.0` (stacked — #19;
 ## Verification
 
 - `ruff check .` clean.
-- Default pytest / frontend counts are recorded in `docs/changelog.md`
-  §0.35.0 after the verification pass.
-- Write-path tests skip without `TEST_DATABASE_URL`.
+- Default pytest (no `TEST_DATABASE_URL`): **626 passed, 211 skipped**.
+  Includes √2 enclosure (no float), exact `1/2` singleton, `pi > 3`,
+  `sqrt(2) == 2` refute, `sqrt(2) == sqrt(2)` overlap → undecided,
+  free symbols / `sqrt(-1)` / timeout, float-literal reject,
+  killable-subprocess round-trip, grade-matrix / planner raise path,
+  and the existing `0.33.0` / `0.34.0` suites.
+- Write-path `interval.eval` `run_instrument` tests are written and
+  skip without Postgres.
+- Frontend `typecheck` / `lint` / `build` clean (9/9 static pages).
+  `npm test` **29 passed**.
 
 ## Unverified
 
