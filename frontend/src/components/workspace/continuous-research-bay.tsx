@@ -54,6 +54,9 @@ const STOP_COPY: Record<string, string> = {
 function stopLine(campaign: ResearchCampaignRead): string {
   if (campaign.status === "running") {
     if (campaign.cancel_requested) return "Stopping after the current cycle…";
+    if ((campaign.concurrency ?? 1) > 1) {
+      return `${campaign.concurrency} cycles at a time — researching until the pot is empty.`;
+    }
     return `Cycle ${campaign.current_cycle || 1} — researching until the pot is empty.`;
   }
   if (campaign.stop_reason && STOP_COPY[campaign.stop_reason]) {
@@ -64,11 +67,12 @@ function stopLine(campaign: ResearchCampaignRead): string {
 }
 
 /**
- * Quiet Start / Stop continuous research (0.25.0). Lives on Overview next to
- * the one-shot Run research bay. Repeatedly commissions the 0.22.0 orchestrator
- * against the shared ComputeDebit ceiling until the pot is empty, no raisable
- * work remains, the cycle cap is hit, or a member stops it. Same 404
- * feature-detect as a single agent pass.
+ * Quiet Start / Stop continuous research (0.25.0 / 0.32.0). Lives on Overview
+ * next to the one-shot Run research bay. Repeatedly commissions the 0.22.0
+ * orchestrator against the shared ComputeDebit ceiling until the pot is empty,
+ * no raisable work remains, the cycle cap is hit, or a member stops it. A
+ * campaign may run a bounded number of cycles at once; 1 is sequential. Same
+ * 404 feature-detect as a single agent pass.
  */
 export function ContinuousResearchBay({
   projectId,
@@ -242,6 +246,9 @@ export function ContinuousResearchBay({
               <p className="text-[13px] leading-[1.5] text-text-soft">{stopLine(campaign)}</p>
               <p className="font-mono text-[11px] tabular-nums text-text-faint">
                 cycle {campaign.current_cycle}/{campaign.max_cycles}
+                {(campaign.concurrency ?? 1) > 1
+                  ? ` · ${campaign.concurrency} at a time`
+                  : ""}
                 {campaign.budget_available_end != null
                   ? ` · ${campaign.budget_available_end} remaining`
                   : ""}
@@ -258,6 +265,7 @@ export function ContinuousResearchBay({
                       <span className="font-mono text-[11px] text-text-faint">
                         {cycle.passes_completed ?? 0}/{cycle.passes_commissioned ?? 0} passes
                         {cycle.stop_reason ? ` · ${cycle.stop_reason}` : ""}
+                        {cycle.parallel_with?.length ? " · in parallel" : ""}
                         {cycle.budget_remaining ? ` · ${cycle.budget_remaining} left` : ""}
                       </span>
                     </li>

@@ -38,8 +38,8 @@ Migration `0019_concurrent_subpasses` (additive). No Mathlib expansion.
 ## What did not change
 
 - Per-pass safety caps and the 0.19.0 debit-after-tokens ledger.
-- Campaigns still run one orchestration per cycle. Concurrent *cycles* are
-  out of scope.
+- Campaigns still ran one orchestration per cycle here. Concurrent *cycles*
+  shipped later as `0.32.0`.
 - A single planning call can still bill more than a tiny remaining pot — the
   same 0.19.0 first-call overshoot. Concurrent *starts* cannot both take the
   last dollar.

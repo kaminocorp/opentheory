@@ -1,8 +1,10 @@
-// Continuous research campaign types (0.25.0), mirroring app/schemas/campaign.py.
-// A ResearchCampaign is the human-visible *trace* of a long-running loop that
-// repeatedly commissions 0.22.0 orchestrations against the shared ComputeDebit
-// ceiling. It is NOT a ledger primitive — each cycle's OrchestrationRun writes
-// the ledger through run_agent_pass. Merge / tag stay human.
+// Continuous research campaign types (0.25.0 / 0.32.0), mirroring
+// app/schemas/campaign.py. A ResearchCampaign is the human-visible *trace* of
+// a long-running loop that repeatedly commissions 0.22.0 orchestrations
+// against the shared ComputeDebit ceiling. It is NOT a ledger primitive —
+// each cycle's OrchestrationRun writes the ledger through run_agent_pass.
+// Merge / tag stay human. concurrency (0.32.0) is how many cycles may run
+// at once; 1 is sequential.
 
 import type { AgentRole } from "./project";
 
@@ -26,6 +28,8 @@ export type CampaignCycle = {
   passes_failed: number | null;
   budget_remaining: string | null;
   error: string | null;
+  wave?: number | null;
+  parallel_with?: number[];
 };
 
 export type ResearchCampaignSummary = {
@@ -42,6 +46,7 @@ export type ResearchCampaignSummary = {
   budget_available_start: string | null;
   budget_available_end: string | null;
   max_cycles: number;
+  concurrency: number;
   error_budget: number;
   error: string | null;
   created_at: string;

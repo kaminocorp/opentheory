@@ -77,16 +77,20 @@ and invariants live in `docs/blueprints/primitives.md`.)
   pass runs.
 
 **Shipped on the agent path (Phase 1 autonomy `0.17.0` + replan `0.20.0` +
-orchestrator `0.22.0` + continuous campaign `0.25.0`):** a member can
-commission a bounded agent pass, **Run research** across open threads, or
-**Start** a continuous campaign that re-commissions that orchestrator until
-the project pot is empty or no raisable work remains. The assigned
-Research-crew model plans a short batch of *existing* instrument runs,
-observes outcomes and grounding yield, and may replan inside the same pass —
-still hard-capped, still on the fixed catalog. A project-level loop allocates
-the shared `ComputeDebit` pot across sequential sub-passes; the campaign is
-the outer loop that continues after one orchestration's pass cap. The agent
-Actor lands attributed checkpoints on a durable agent branch through the same
+orchestrator `0.22.0` / `0.27.0` + continuous campaign `0.25.0` /
+`0.32.0`):** a member can commission a bounded agent pass, **Run research**
+across open threads, or **Start** a continuous campaign that re-commissions
+that orchestrator until the project pot is empty or no raisable work remains.
+The assigned Research-crew model plans a short batch of *existing*
+instrument runs, observes outcomes and grounding yield, and may replan
+inside the same pass — still hard-capped, still on the fixed catalog. A
+project-level loop allocates the shared `ComputeDebit` pot across
+sub-passes (up to `orchestration_concurrency` at a time); the campaign is
+the outer loop that continues after one orchestration's pass cap, and may
+itself keep a bounded number of cycles in flight
+(`campaign_cycle_concurrency`, default 1). Concurrent starts reserve a
+slice of `available` so they cannot oversell. The agent Actor lands
+attributed checkpoints on a durable agent branch through the same
 chokepoint humans use. A successful pass **stands without a mandatory human
 gate** — accept / reject / fork remain opt-in audit. The loop is still dark
 in production until `AGENT_LOOP_ENABLED` + `OPENROUTER_API_KEY` are flipped

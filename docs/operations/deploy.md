@@ -262,9 +262,12 @@ the same flag and the same pot; `ORCHESTRATION_MAX_PASSES` (default 4) caps
 how many sub-passes one commission may start, and `ORCHESTRATION_CONCURRENCY`
 (default 2; `1` is sequential) caps how many of those run at once. Concurrent
 passes reserve a slice of `available` before they start so they cannot oversell
-the pot. The 0.25.0 continuous campaign (`Start` on Overview) reuses that flag
-and that pot; `CAMPAIGN_MAX_CYCLES` (default 8) and `CAMPAIGN_ERROR_BUDGET`
-(default 3) are safety caps, not a second dark-launch switch.
+the pot. The 0.25.0 / 0.32.0 continuous campaign (`Start` on Overview) reuses
+that flag and that pot; `CAMPAIGN_MAX_CYCLES` (default 8),
+`CAMPAIGN_CYCLE_CONCURRENCY` (default 1; `1` is sequential, hard-capped at 4),
+and `CAMPAIGN_ERROR_BUDGET` (default 3) are safety caps, not a second
+dark-launch switch. Concurrent cycle starts reuse the same reservation lock
+as concurrent sub-passes so they cannot oversell.
 
 ### Live OpenRouter price metering (`0.28.0`)
 
