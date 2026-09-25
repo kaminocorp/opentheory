@@ -69,6 +69,7 @@ export function demoAssumptionRows(instrumentName: string): AssumptionRow[] {
 const NO_ASSUMPTIONS = new Set([
   "counterexample.search",
   "z3.prove",
+  "lean.prove",
   "crossref.lookup",
   "arxiv.lookup",
   "openalex.lookup",

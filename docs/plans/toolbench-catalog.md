@@ -10,11 +10,12 @@
 > **Shipped:** Tier 0 SymPy instruments (`calc.eval`, `expr.compare`,
 > `geometry.coordinate_measure`, `counterexample.search`) + Tier 0 **`z3.prove`** (`0.13.x`)
 > + Tier 1 `oeis.search` + Tier 1 literature pins (`crossref.lookup`, `arxiv.lookup`,
-> `openalex.lookup`, `0.18.0`); adapter registry, write path, provenance spine, workspace UI,
+> `openalex.lookup`, `0.18.0`) + Tier 2-lite **`lean.prove`** (`0.23.0`, optional `lean`,
+> prelude/Init only); adapter registry, write path, provenance spine, workspace UI,
 > KaTeX render, execution sandbox. See `docs/plans/maths-toolbox.md` §Shipped in production.
 >
-> **Not shipped:** Arb/`interval.eval`, Lean, visualization instruments (Vega-Lite
-> tables/plots), `z3.satisfy` / boolean connectives.
+> **Not shipped:** Arb/`interval.eval`, Mathlib / `lake`, visualization instruments
+> (Vega-Lite tables/plots), `z3.satisfy` / boolean connectives.
 
 ## The organizing principle
 
@@ -150,25 +151,28 @@ coincide, which is convenient for sequencing.
 
 ## Recommended starter kit
 
-The original starter kit argued for SymPy + Z3 + OEIS. **As of `0.18.0` we shipped SymPy
-(four instruments) + OEIS + `z3.prove` + Crossref / arXiv / OpenAlex literature pins.**
+The original starter kit argued for SymPy + Z3 + OEIS. **As of `0.23.0` we shipped SymPy
+(four instruments) + OEIS + `z3.prove` + literature pins + a thin `lean.prove`.**
 That covers the flagship demo (`agent-research-tools.md` §5) **claims 1–4** with readable
-KaTeX *and* a machine-checked proof path *and* a citable literature retrieve path. Claim 5
-(Lean proof) still needs a heavier execution substrate.
+KaTeX *and* two machine-checked proof paths *and* a citable literature retrieve path.
+Claim 5 has a prelude/Init Grade-A path; Mathlib is still later.
 
 ```text
-Shipped (0.9.x–0.18.x):
+Shipped (0.9.x–0.23.0):
   SymPy     — calc.eval, expr.compare, geometry.coordinate_measure, counterexample.search
   OEIS      — oeis.search (Tier 1, pinned retrieval)
   Z3        — z3.prove (validity: proof / counter-model / undecided)
   Literature — crossref.lookup, arxiv.lookup, openalex.lookup (0.18.0)
+  Lean      — lean.prove (0.23.0; optional lean; prelude/Init; no Mathlib)
 
-Next in-process adds (no Lean infra):
+Next adds:
   Arb     — interval.eval (optional 0.10.6+ stretch)
   z3.satisfy / bool connectives / quantifiers — verifier-wave follow-ons
+  Mathlib / lake / REPL — only if a thread actually needs them
 ```
 
-**Lean** remains the tool that forces net-new infrastructure beyond the existing sandbox.
+**Mathlib** remains the piece that would force a heavier image (oleans cache,
+`lake` project). `lean.prove` v1 deliberately does not.
 
 ---
 
@@ -179,8 +183,11 @@ Next in-process adds (no Lean infra):
   (`"unsat"`) + optional unsat-core** of named hypotheses on the result payload;
   `artifact_kind="proof"` (free-form VARCHAR, no migration). Full `solver.proof()` terms
   deliberately out of scope for v1. See `docs/executing/z3-instrument-0.13.md`.
-- **Lean toolchain hosting** — when Lean lands, how Mathlib is built/cached and which
-  sandbox (Fly microVM / Sprites vs E2B vs gVisor) wraps it. Sandbox policy (`0.11.x`) is
-  the prerequisite; Lean still needs a heavier substrate for agent-written proof code.
+- **Resolved (`0.23.0`):** `lean.prove` on the existing sandbox — optional `lean`
+  binary, prelude/Init only, Grade A only on a real kernel check. Missing Lean is
+  honest `undecided`.
+- **Lean / Mathlib hosting** — still open if a later slice wants Mathlib oleans +
+  `lake`. Not required for the `1 + 1 = 2` demo. Sandbox policy (`0.11.x`) is the
+  v1 substrate.
 - **Resolved:** first build width (SymPy + OEIS + flagship instruments);
   adapter interface (`0.9.2`); provenance spine (`0.9.1`); Z3 as Tier-0 verifier (`0.13.x`).

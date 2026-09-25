@@ -758,6 +758,38 @@ function Z3ProveForm({ onInputs, disabled }: FormProps) {
   );
 }
 
+// --- lean.prove -------------------------------------------------------------
+
+const LEAN_DEMO = "example : 1 + 1 = 2 := rfl";
+
+function LeanProveForm({ onInputs, disabled }: FormProps) {
+  const [source, setSource] = useState(LEAN_DEMO);
+  const emit = useEmit(onInputs);
+
+  useEffect(() => {
+    const text = source.trim();
+    emit.current(text ? { source: text } : null);
+  }, [source, emit]);
+
+  return (
+    <div className="grid gap-3">
+      <Field
+        label="Lean snippet"
+        hint="Prelude / Init only. No imports, no Mathlib, no sorry or axiom. A supporting result is Grade A only when lean typechecks this file."
+      >
+        <Textarea
+          mono
+          value={source}
+          onChange={(event) => setSource(event.target.value)}
+          rows={8}
+          aria-label="Lean 4 snippet"
+          disabled={disabled}
+        />
+      </Field>
+    </div>
+  );
+}
+
 // --- generic fallback (any future instrument, no bespoke form yet) ----------
 
 function JsonForm({ descriptor, onInputs, disabled }: FormProps & { descriptor: InstrumentDescriptor }) {
@@ -830,6 +862,8 @@ export function DriveForm({
       return <CounterexampleSearchForm onInputs={onInputs} disabled={disabled} />;
     case "z3.prove":
       return <Z3ProveForm onInputs={onInputs} disabled={disabled} />;
+    case "lean.prove":
+      return <LeanProveForm onInputs={onInputs} disabled={disabled} />;
     default:
       return <JsonForm descriptor={descriptor} onInputs={onInputs} disabled={disabled} />;
   }

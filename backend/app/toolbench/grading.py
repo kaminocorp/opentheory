@@ -60,6 +60,15 @@ _MATRIX: dict[str, dict[ResultStatus, EvidenceGrade | None]] = {
         ResultStatus.REFUTED: EvidenceGrade.A,
         ResultStatus.UNDECIDED: None,
     },
+    # Kernel-checked Lean 4. ``result`` is returned *only* when ``lean`` typechecks the
+    # snippet and the source has no sorry/axiom/IO — a real proof. Failed checks and
+    # missing-toolchain / timeout land as ``undecided`` (no grade). v1 has no
+    # counterexample path — Lean does not mint ``refuted``.
+    "lean.prove": {
+        ResultStatus.RESULT: EvidenceGrade.A,
+        ResultStatus.REFUTED: None,  # n/a — this instrument never refutes
+        ResultStatus.UNDECIDED: None,
+    },
     # Exact symbolic equivalence, and (0.9.6) a refutation only on a *provably* non-zero
     # difference —
     # a true identity SymPy cannot close reads ``undecided``, so ``refuted`` here is exact.
@@ -197,8 +206,8 @@ def raise_path(current: EvidenceGrade | None) -> list[str]:
     """Instruments that could produce a grade **strictly stronger** than ``current``.
 
     ``None`` (nothing recorded yet) means anything graded is an improvement; Grade A returns the
-    empty list, because nothing beats a machine-checked proof — which is the signal the planner
-    needs to stop spending on an already-settled claim.
+    empty list, because nothing beats a machine-checked proof (``z3.prove`` or ``lean.prove``) —
+    which is the signal the planner needs to stop spending on an already-settled claim.
 
     Off-ladder retrieval (``oeis.search`` / ``crossref.lookup`` / ``arxiv.lookup`` /
     ``openalex.lookup``, all cells ``None``) never appears here. That is correct

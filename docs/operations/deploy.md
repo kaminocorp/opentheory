@@ -140,6 +140,46 @@ machine. Set these secrets alongside the DB URLs (tune after observing `resource
 Leave `TOOLBENCH_SUBPROCESS_SANDBOX_ENABLED=true` in production. Local dev defaults
 `TOOLBENCH_MEMORY_LIMIT_MB=0` because `RLIMIT_AS` is unreliable on macOS.
 
+## Lean 4 (optional, `0.23.0`)
+
+`lean.prove` is registered whether or not Lean is installed. **Do not install Lean
+in CI** — the suite stays green on the missing-toolchain path
+(`undecided` / `unavailable`). Other instruments do not depend on it.
+
+**What CI runs:** banned-construct / no-theorem / timeout / crash / unavailable
+unit tests, plus a fake-binary "proved" path. Tests that invoke a real `lean`
+binary are `@pytest.mark.skipif` and stay skipped.
+
+**What production needs for a real Grade A proof:** the `lean` binary on the
+Fly machine PATH (elan wrapper is fine). `lake` / Mathlib are **not** used in
+v1 — prelude / `Init` only.
+
+Exact install path — rebuild the backend image with the optional Dockerfile
+arg (do not put this in the default CI image):
+
+```bash
+cd backend
+fly deploy --build-arg INSTALL_LEAN=1 --build-arg LEAN_TOOLCHAIN=leanprover/lean4:v4.14.0
+```
+
+That runs the official [elan](https://github.com/leanprover/elan) installer
+inside the image, pins `leanprover/lean4:v4.14.0`, and prepends
+`/root/.elan/bin` to `PATH`. Confirm on the machine:
+
+```bash
+fly ssh console -C 'lean --version'
+```
+
+Without that rebuild, `lean.prove` still appears in the catalog and still
+lands attributed checkpoints: a missing binary is recorded as
+`undecided` / `unavailable`, never as a proof. Keep
+`TOOLBENCH_LEAN_TIMEOUT_MS` (default 8000) strictly below
+`TOOLBENCH_WALL_TIMEOUT_S` so a slow typecheck is citable undecided rather
+than a sandbox kill that mints nothing.
+
+v1 does **not** ship a Mathlib oleans cache or a `lake` project. A snippet
+that `import`s anything is rejected before `lean` runs.
+
 ## Agent loop prod light-up (`0.12.x` / Phase 1 autonomy)
 
 The thin agent loop is **complete in the codebase and ships dark**. Lighting it up

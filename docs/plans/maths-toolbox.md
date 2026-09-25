@@ -28,9 +28,10 @@
 >   it's derivable on demand from the blame tuple, never stamped. See *"What every result
 >   records"* below.
 > - **Interval arithmetic (Arb) is in** the agreed core (not yet shipped — optional `0.10.6+`).
-> - **Z3 (`z3.prove`) shipped in `0.13.x`.** Lean and all physics-specific tools remain deferred.
+> - **Z3 (`z3.prove`) shipped in `0.13.x`.** **Lean (`lean.prove`) shipped in `0.23.0`**
+>   (optional toolchain, prelude/Init only — not Mathlib). Physics-specific tools remain deferred.
 
-## Shipped in production (`0.9.x`–`0.18.x`)
+## Shipped in production (`0.9.x`–`0.23.x`)
 
 These instruments are registered, conformance-tested, membership-gated on the run route,
 and have workspace drive/show surfaces (KaTeX where `*_latex` companions exist):
@@ -43,6 +44,7 @@ and have workspace drive/show surfaces (KaTeX where `*_latex` companions exist):
 | `oeis.search` | Falsify & discover | `0.9.4` | Tier 1 retrieval; embeds `source.pin` on match |
 | `counterexample.search` | Falsify & discover | `0.10.1` | Integer grid falsifier; weak-support honesty in UI |
 | `z3.prove` | Verify | `0.13.1` | Machine-checked validity — `proof` / counter-model / undecided |
+| `lean.prove` | Verify | `0.23.0` | Lean 4 kernel check — Grade A only on a real proof; optional `lean` |
 | `crossref.lookup` | Falsify & discover | `0.18.0` | DOI / bibliographic pin via Crossref |
 | `arxiv.lookup` | Falsify & discover | `0.18.0` | Versioned arXiv id pin via export API |
 | `openalex.lookup` | Falsify & discover | `0.18.0` | Optional-key OpenAlex pin (demo-pool degrade) |
@@ -277,9 +279,9 @@ through the *same* API.
 ## What this list deliberately excludes (the agreed boundary)
 
 - **Verifier layer** — **Z3 (`z3.prove`) shipped in `0.13.x`** (proof / counter-model /
-  undecided; vacuous-hypotheses guard). Follow-ons: `z3.satisfy`, bool connectives,
-  quantifiers. **Lean** still deferred — forces a heavier execution substrate
-  (`agent-research-tools.md` §6) for agent-written proofs.
+  undecided; vacuous-hypotheses guard). **Lean (`lean.prove`) shipped in `0.23.0`**
+  for prelude/Init snippets on the existing sandbox; Mathlib / `lake` / REPL still
+  deferred. Follow-ons: `z3.satisfy`, bool connectives, quantifiers.
 - **Physics tools** — units & dimensional analysis, constants, statistics, tensors/GR, QM
   → *deferred* (math-first). Units + constants are the cheapest physics re-entry point.
 - **Heavy compute** (DFT / MD / PDE / FEM) → *deferred*, a separate GPU/HPC job service.

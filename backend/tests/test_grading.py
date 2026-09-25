@@ -23,6 +23,7 @@ from app.toolbench.registry import registry
 # The production instruments, for the exhaustive sweeps below.
 INSTRUMENTS = (
     "z3.prove",
+    "lean.prove",
     "expr.compare",
     "calc.eval",
     "geometry.coordinate_measure",
@@ -41,6 +42,9 @@ MATRIX_CELLS = [
     ("z3.prove", ResultStatus.RESULT, EvidenceGrade.A),
     ("z3.prove", ResultStatus.REFUTED, EvidenceGrade.A),
     ("z3.prove", ResultStatus.UNDECIDED, None),
+    ("lean.prove", ResultStatus.RESULT, EvidenceGrade.A),
+    ("lean.prove", ResultStatus.REFUTED, None),  # n/a — never refutes
+    ("lean.prove", ResultStatus.UNDECIDED, None),
     ("expr.compare", ResultStatus.RESULT, EvidenceGrade.B),
     ("expr.compare", ResultStatus.REFUTED, EvidenceGrade.B),
     ("expr.compare", ResultStatus.UNDECIDED, None),
@@ -87,8 +91,8 @@ def test_undecided_never_earns_a_grade(instrument: str) -> None:
     """Rule 1 — ``undecided`` is the escalation seam, not a weak pass.
 
     Asserted for *every* instrument, including the two that can produce a machine-checked A: a Z3
-    timeout is an honest "I could not decide", and grading it would be exactly the dishonesty the
-    toolbench contract forbids.
+    timeout or a missing Lean toolchain is an honest "I could not decide", and grading it would be
+    exactly the dishonesty the toolbench contract forbids.
     """
     assert grade_for(instrument, ResultStatus.UNDECIDED) is None
 
@@ -185,13 +189,13 @@ def test_conformance_flags_a_partially_graded_instrument(monkeypatch: pytest.Mon
 # --- 0.16.1: reading the matrix backwards (the raise path) ----------------------------------------
 
 
-def test_only_z3_can_reach_grade_a_today() -> None:
-    """Acceptance 1 — the A-path names the one machine-checked instrument, and nothing else.
+def test_only_machine_checked_instruments_reach_grade_a() -> None:
+    """Acceptance 1 — the A-path names the kernel/SMT checkers, and nothing else.
 
-    This is the assertion that goes red the day Lean lands, which is the point: the prompt's advice
-    is derived from the matrix, so widening the matrix widens the advice with no prompt edit.
+    Derived from the matrix, so a new A-capable instrument widens the planner advice
+    with no prompt edit. ``lean.prove`` joins ``z3.prove``; order is alphabetical.
     """
-    assert instruments_reaching(EvidenceGrade.A) == ["z3.prove"]
+    assert instruments_reaching(EvidenceGrade.A) == ["lean.prove", "z3.prove"]
 
 
 def test_capability_is_read_across_all_statuses_not_just_result() -> None:
@@ -215,8 +219,8 @@ def test_retrieval_is_never_a_way_to_raise_a_rung() -> None:
 
 
 def test_raise_path_from_b_is_the_a_capable_set() -> None:
-    """A claim already at exact-symbolic B has exactly one way up: machine-check it."""
-    assert raise_path(EvidenceGrade.B) == ["z3.prove"]
+    """A claim already at exact-symbolic B has exactly two ways up: machine-check it."""
+    assert raise_path(EvidenceGrade.B) == ["lean.prove", "z3.prove"]
 
 
 def test_nothing_beats_a_machine_checked_proof() -> None:
@@ -229,6 +233,7 @@ def test_raise_path_from_nothing_offers_every_graded_instrument() -> None:
     path = raise_path(None)
     assert set(path) == {
         "z3.prove",
+        "lean.prove",
         "expr.compare",
         "calc.eval",
         "geometry.coordinate_measure",

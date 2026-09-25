@@ -14,10 +14,12 @@ import json
 from datetime import UTC, datetime
 from uuid import UUID
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from app.core.config import settings
 from app.models.actor import Actor
 from app.models.artifact import Artifact
 from app.models.enums import ResultStatus
@@ -28,8 +30,10 @@ from app.toolbench.instruments import (
     CALC_EVAL,
     COORDINATE_MEASURE,
     COUNTEREXAMPLE_SEARCH,
+    LEAN_PROVE,
     Z3_PROVE,
 )
+from app.toolbench.instruments._lean_support import LeanCheck
 from app.toolbench.instruments._sympy_support import ENGINE_VERSION
 from app.toolbench.instruments._z3_support import ENGINE_VERSION as Z3_ENGINE_VERSION
 from app.toolbench.instruments.arxiv_lookup import ArxivLookup
@@ -576,3 +580,91 @@ async def test_z3_prove_refutation_weakens_the_claim_as_a_counterexample(
     assert entry["output"]["refuted"] is True
     # Exact integer witness — x=0 or x=1 both break x*x != x. Never a float.
     assert entry["output"]["witness"]["x"] in {"0", "1"}
+
+
+# --- 0.23.0: lean.prove through the chokepoint ----------------------------------------------------
+
+
+async def test_lean_prove_sorry_lands_undecided_never_a_proof(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """A sorry snippet is a recorded failed check — derivation, not proof — through the chokepoint.
+
+    Classification is in-process (banned-construct scan) so this does not need ``lean`` installed.
+    """
+    actor_id = await _actor(client)
+    project_id = await _project(client, "instr-lean-sorry")
+    pid = UUID(project_id)
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        run = await run_instrument(
+            session,
+            pid,
+            LEAN_PROVE,
+            actor,
+            inputs={"source": "example : 1 + 1 = 2 := sorry"},
+        )
+
+    assert run.status is ResultStatus.UNDECIDED
+    async with session_factory() as session:
+        artifact = await session.get(Artifact, run.artifact_id)
+        assert artifact.kind == "derivation"
+    entry = run.checkpoint.tool_invocations[0]
+    assert entry["instrument"] == "lean.prove"
+    assert entry["engine"] == "lean4"
+    assert entry["output"]["proven"] is False
+    assert entry["output"]["outcome"] == "failed"
+    assert entry["output"]["status_reason"] == "rejected_constructs"
+
+
+async def test_lean_prove_proof_lands_through_chokepoint_when_sandbox_in_thread(
+    client: AsyncClient,
+    session_factory: async_sessionmaker,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A kernel proof composes through ``run_instrument`` — Grade A only on this status.
+
+    Sandbox is in-thread so the monkeypatched checker runs in-process (CI has no ``lean``).
+    """
+    monkeypatch.setattr(settings, "toolbench_subprocess_sandbox_enabled", False)
+    monkeypatch.setattr(
+        "app.toolbench.instruments.lean_prove.check_source",
+        lambda source, timeout_s, lean_bin=None: LeanCheck(
+            kind="proved",
+            lean_version="4.14.0",
+        ),
+    )
+    actor_id = await _actor(client)
+    project_id = await _project(client, "instr-lean-proof")
+    thread_id = await _thread(client, project_id, actor_id)
+    claim_id = await _claim(client, thread_id, actor_id, "1 + 1 = 2")
+    pid = UUID(project_id)
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        run = await run_instrument(
+            session,
+            pid,
+            LEAN_PROVE,
+            actor,
+            inputs={"source": "example : 1 + 1 = 2 := rfl"},
+            claim_id=UUID(claim_id),
+        )
+
+    assert run.status is ResultStatus.RESULT
+    assert run.evidence_id is not None
+    async with session_factory() as session:
+        artifact = await session.get(Artifact, run.artifact_id)
+        assert artifact.kind == "proof"
+        link = (
+            await session.execute(
+                select(ClaimEvidenceLink).where(ClaimEvidenceLink.evidence_id == run.evidence_id)
+            )
+        ).scalar_one()
+        assert link.relation_kind == "support"
+    entry = run.checkpoint.tool_invocations[0]
+    assert entry["instrument"] == "lean.prove"
+    assert entry["output"]["proven"] is True
+    assert entry["output"]["outcome"] == "proved"
+    assert entry["output"]["certificate"] == "lean-kernel"

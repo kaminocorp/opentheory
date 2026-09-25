@@ -27,6 +27,22 @@ COPY . .
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
+# Optional Lean 4 for ``lean.prove`` Grade A. Off by default — CI and the slim
+# Fly image stay Lean-free; a missing ``lean`` binary is honest undecided/unavailable
+# and does not break other instruments.
+# Enable:  docker build --build-arg INSTALL_LEAN=1
+# Pin:     docker build --build-arg INSTALL_LEAN=1 --build-arg LEAN_TOOLCHAIN=leanprover/lean4:v4.14.0
+# See docs/operations/deploy.md §Lean 4 (optional, 0.23.0).
+ARG INSTALL_LEAN=0
+ARG LEAN_TOOLCHAIN=leanprover/lean4:v4.14.0
+RUN if [ "$INSTALL_LEAN" = "1" ]; then \
+      apt-get update && apt-get install -y --no-install-recommends curl ca-certificates git && \
+      curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf \
+        | sh -s -- -y --default-toolchain "$LEAN_TOOLCHAIN" && \
+      rm -rf /var/lib/apt/lists/* ; \
+    fi
+ENV PATH="/root/.elan/bin:${PATH}"
+
 EXPOSE 8000
 
 # `fastapi run` is the production entrypoint from fastapi[standard]: no autoreload, binds all

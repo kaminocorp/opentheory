@@ -73,14 +73,29 @@ function CounterexampleCard({ caption, children }: { caption: string; children: 
 }
 
 /**
- * Proof card for `z3.prove`: a machine-checked entailment — strong positive edge, never
- * styled like weak support (the whole point of the verifier wave).
+ * Proof card for `z3.prove` / `lean.prove`: a machine-checked entailment — strong
+ * positive edge, never styled like weak support (the whole point of the verifier wave).
  */
 function ProofCard({ caption, children }: { caption: string; children: ReactNode }) {
   return (
     <div className="relative rounded-built bg-panel p-3 pl-4" style={{ border: "1px solid var(--hairline)" }}>
       <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-state-ok" />
       <p className="text-[12px] font-medium text-state-ok">Proof · machine-checked</p>
+      <div className="mt-1.5">{children}</div>
+      <p className="mt-1.5 text-[12px] leading-[1.5] text-text-mute">{caption}</p>
+    </div>
+  );
+}
+
+/** Failed Lean check — warn edge, never a pass and never a refutation. */
+function FailedProofCard({ caption, children }: { caption: string; children: ReactNode }) {
+  return (
+    <div
+      className="relative rounded-built bg-panel p-3 pl-4"
+      style={{ border: "1px solid var(--hairline)" }}
+    >
+      <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-state-warn" />
+      <p className="text-[12px] font-medium text-state-warn">Failed · proof did not check</p>
       <div className="mt-1.5">{children}</div>
       <p className="mt-1.5 text-[12px] leading-[1.5] text-text-mute">{caption}</p>
     </div>
@@ -457,6 +472,123 @@ function Z3ProveBody({
   );
 }
 
+// --- lean.prove -------------------------------------------------------------
+
+const LEAN_REASON_GLOSS: Record<string, string> = {
+  unavailable:
+    "lean is not installed on this runtime — optional toolchain; recorded as undecided, never a proof. Other instruments are unaffected.",
+  timeout:
+    "Lean soft-timeout — recorded as undecided so a slow typecheck is citable, not killed.",
+  failed: "Lean rejected the snippet — a failed check is not a refutation of the claim.",
+  rejected_constructs:
+    "The source contains sorry, axiom, import, IO, or another construct that cannot earn a proof.",
+  no_theorem:
+    "The snippet declares no theorem, lemma, or example — a typechecking empty file is not a proof.",
+};
+
+function LeanProveBody({
+  output,
+  status,
+}: {
+  output: Record<string, unknown>;
+  status: string;
+}) {
+  const source = asString(output.source);
+  const reason = asString(output.status_reason);
+  const certificate = asString(output.certificate);
+  const version = asString(output.lean_version);
+  const diagnostics = asString(output.diagnostics);
+  const banned = Array.isArray(output.banned_constructs)
+    ? (output.banned_constructs as unknown[]).map(asString)
+    : [];
+  const outcome = asString(output.outcome);
+
+  const sourceBlock = (
+    <KeyValue k="Source">
+      <pre className="max-h-48 overflow-auto whitespace-pre-wrap font-mono text-[12px] text-text-soft">
+        {source}
+      </pre>
+    </KeyValue>
+  );
+
+  if (status === "result" && output.proven === true && outcome === "proved") {
+    return (
+      <div className="grid gap-2">
+        {sourceBlock}
+        <ProofCard caption="Lean kernel accepted this snippet — no sorry, no axiom, no import. Grade A only for this outcome.">
+          <div className="grid gap-1.5">
+            {certificate ? (
+              <KeyValue k="Certificate">
+                <span className="font-mono text-[13px] text-text">{certificate}</span>
+              </KeyValue>
+            ) : null}
+            {version ? (
+              <KeyValue k="Lean">
+                <span className="font-mono text-[13px] text-text">{version}</span>
+              </KeyValue>
+            ) : null}
+          </div>
+        </ProofCard>
+      </div>
+    );
+  }
+
+  if (outcome === "failed") {
+    const gloss =
+      (reason && LEAN_REASON_GLOSS[reason]) ||
+      "Lean did not accept the snippet — recorded, never a pass and never a refutation.";
+    return (
+      <div className="grid gap-2">
+        {sourceBlock}
+        <FailedProofCard caption={gloss}>
+          <div className="grid gap-1.5">
+            {reason ? (
+              <KeyValue k="Reason">
+                <span className="font-mono text-[13px] text-text">{reason}</span>
+              </KeyValue>
+            ) : null}
+            {banned.length > 0 ? (
+              <KeyValue k="Rejected">
+                <span className="flex flex-wrap gap-1.5">
+                  {banned.map((name) => (
+                    <Chip key={name}>{name}</Chip>
+                  ))}
+                </span>
+              </KeyValue>
+            ) : null}
+            {diagnostics ? (
+              <pre className="max-h-32 overflow-auto whitespace-pre-wrap font-mono text-[11px] text-text-faint">
+                {diagnostics}
+              </pre>
+            ) : null}
+          </div>
+        </FailedProofCard>
+      </div>
+    );
+  }
+
+  const gloss =
+    (reason && LEAN_REASON_GLOSS[reason]) ||
+    "Lean could not decide — missing toolchain or timeout. Recorded, never a pass.";
+  return (
+    <div className="grid gap-2">
+      {sourceBlock}
+      <UndecidedCard caption={gloss}>
+        {reason ? (
+          <KeyValue k="Reason">
+            <span className="font-mono text-[13px] text-text">{reason}</span>
+          </KeyValue>
+        ) : null}
+        {diagnostics ? (
+          <pre className="max-h-32 overflow-auto whitespace-pre-wrap font-mono text-[11px] text-text-faint">
+            {diagnostics}
+          </pre>
+        ) : null}
+      </UndecidedCard>
+    </div>
+  );
+}
+
 // --- pinned retrieval (OEIS + literature) -----------------------------------
 
 function PinFooter({ pin }: { pin: Record<string, unknown> }) {
@@ -604,6 +736,29 @@ function resolveOutcomeMeta(
       };
     }
   }
+  if (instrumentName === "lean.prove") {
+    if (status === "result" && output.proven === true) {
+      return {
+        tone: "ok",
+        label: "Proven",
+        gloss: "Lean kernel accepted the snippet — machine-checked proof.",
+      };
+    }
+    if (output.outcome === "failed") {
+      return {
+        tone: "warn",
+        label: "Failed",
+        gloss: "Lean rejected the snippet — not a proof, not a refutation.",
+      };
+    }
+    if (status === "undecided") {
+      return {
+        tone: "warn",
+        label: "Undecided",
+        gloss: "Lean unavailable or timed out — recorded, never a pass.",
+      };
+    }
+  }
   return outcomeMeta(status);
 }
 
@@ -657,6 +812,8 @@ function ResultBody({
       return <CounterexampleSearchBody output={output} status={status} />;
     case "z3.prove":
       return <Z3ProveBody output={output} status={status} />;
+    case "lean.prove":
+      return <LeanProveBody output={output} status={status} />;
     default:
       return (
         <pre className="overflow-x-auto rounded-built bg-panel p-3 font-mono text-[12px] text-text-soft">

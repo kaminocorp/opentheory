@@ -105,8 +105,8 @@ checkpoints themselves, so provenance and attribution can't be skipped.
 
 ### The toolbench: results, not vibes
 
-Claims are tested with **deterministic instruments**, not model assertions. Six ship
-today, each landing an attributed checkpoint through the same chokepoint:
+Claims are tested with **deterministic instruments**, not model assertions. Ten
+ship today, each landing an attributed checkpoint through the same chokepoint:
 
 | Instrument | Does |
 | --- | --- |
@@ -116,6 +116,8 @@ today, each landing an attributed checkpoint through the same chokepoint:
 | `counterexample.search` | deterministic grid search for a falsifying witness |
 | `oeis.search` | identify an integer sequence — lands a *pinned* citation |
 | `z3.prove` | machine-checked validity — proof, exact counter-model, or honest `undecided` |
+| `lean.prove` | Lean 4 kernel check — Grade A only on a real proof; optional toolchain |
+| `crossref.lookup` / `arxiv.lookup` / `openalex.lookup` | Tier-1 literature pins |
 
 Every instrument answers with the same three-outcome contract:
 
@@ -396,7 +398,7 @@ opentheory/
 ## Status
 
 **Live** (Vercel + Fly.io + Supabase), shipped in small, deployable phases tracked in
-[`docs/changelog.md`](docs/changelog.md). Currently `0.22.0`.
+[`docs/changelog.md`](docs/changelog.md). Currently `0.23.0`.
 
 **Shipped:**
 
@@ -417,6 +419,7 @@ opentheory/
 | `0.20.x` | Bounded plan → observe → replan inside one agent pass |
 | `0.21.x` | Research-git merge + tag — multi-parent synthesis and named immutable pointers |
 | `0.22.x` | Thin multi-thread orchestrator — allocate project budget across sequential sub-passes |
+| `0.23.x` | `lean.prove` — optional Lean 4 kernel check; Grade A only on a real proof (no Mathlib) |
 
 **Honest caveats:**
 
@@ -434,10 +437,14 @@ opentheory/
 - **Reputation/influence, semantic blame/diff, and object storage for large
   artifacts** are described in the docs but not built. Merge and tag shipped in
   `0.21.0`.
+- **`lean.prove` is optional.** If `lean` is not on the runtime PATH the
+  instrument records `undecided` / `unavailable` and never a proof. Mathlib is
+  not in `0.23.0`. See `docs/operations/deploy.md` for the Fly install path.
 
 **Next up** (see [`docs/plans/roadmap-next-steps.md`](docs/plans/roadmap-next-steps.md)):
-the still-owed browser eyeball pass, then `0.14.1` CommandRail sync. Lean 4 + Mathlib
-comes after. Project-budget metering shipped in `0.19.0`; plan→observe→replan shipped
+the still-owed browser eyeball pass, then `0.14.1` CommandRail sync. `lean.prove`
+shipped in `0.23.0` (optional toolchain, prelude/Init); Mathlib / `lake` remain
+later. Project-budget metering shipped in `0.19.0`; plan→observe→replan shipped
 in `0.20.0`; research-git merge + tag shipped in `0.21.0`; the multi-thread
 orchestrator shipped in `0.22.0`.
 

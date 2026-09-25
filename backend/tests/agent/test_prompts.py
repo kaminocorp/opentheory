@@ -57,7 +57,7 @@ def test_a_claim_at_b_is_told_to_machine_check_it() -> None:
     """Acceptance 1 — the only way up from exact-symbolic B is the machine-checked instrument."""
     claim = make_claim()
     text = _prompt([claim], {claim.id: ClaimGrounding(support=EvidenceGrade.B, headline="B")})
-    assert "to raise: run one of [z3.prove]" in text
+    assert "to raise: run one of [lean.prove, z3.prove]" in text
 
 
 def test_a_proven_claim_is_marked_settled_and_gets_no_raise_path() -> None:

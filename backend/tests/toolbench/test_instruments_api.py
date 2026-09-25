@@ -41,6 +41,7 @@ def test_instruments_catalog_is_public(dbfree_client: TestClient) -> None:
         "arxiv.lookup",
         "openalex.lookup",
         "z3.prove",
+        "lean.prove",
     } <= names
     # every descriptor carries the universal three-outcome contract
     contract = {o["status"] for o in resp.json()[0]["result_contract"]}

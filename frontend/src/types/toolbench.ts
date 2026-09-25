@@ -73,3 +73,16 @@ export type Z3ProveOutput = {
   goal_latex?: string | null;
   constraints_latex?: string[] | null;
 };
+
+// Output shape of `lean.prove` (0.23.0) — proved / failed / undecided. Grade A only
+// when `outcome === "proved"` (status `result`). Failed typechecks are not refutations.
+export type LeanProveOutput = {
+  source: string;
+  outcome: "proved" | "failed" | "undecided";
+  proven: boolean;
+  status_reason?: string | null;
+  banned_constructs?: string[] | null;
+  diagnostics?: string | null;
+  lean_version?: string | null;
+  certificate?: string | null;
+};

@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.23.0` — **Lean 4 Grade-A path (`lean.prove`).** A bounded Lean 4 snippet can raise a claim to Grade A / `proven` when the optional `lean` binary typechecks it with no `sorry`/`axiom`/import/IO. Missing toolchain, soft timeout, and a failed check are honest `undecided` (failed ≠ refuted). Crash / sandbox kill mints nothing. Lands only through `run_instrument`. No Mathlib / `lake` project in v1. No schema, no migration.
 - `0.22.0` — **Thin multi-thread orchestrator.** A project-level loop selects open threads with raisable claims, commissions capped sequential `run_agent_pass` calls against the shared `ComputeDebit` / project-budget ceiling, and stops when the pot is empty, no raisable work remains, or `orchestration_max_passes` is hit. Same `AGENT_LOOP_ENABLED` dark-launch flag as a single pass — no second flag. Trace records which threads were commissioned or skipped and why. Orchestrator is contributor infrastructure: never writes `Validation` or `FundingAllocation`. Frontend: quiet **Run research** on Overview. Migration `0017_orchestration_runs` (additive). Sits on shipped `0.21.0` research-git merge/tag.
 - `0.21.0` — **Research-git merge + tag.** Parallel exploration lines can converge without rewriting history: a merge is a new multi-parent checkpoint that records which branches (and optionally claims) were combined and marks sources `merged`. A tag is a named immutable pointer at a checkpoint (`milestone` / `validated` / `retraction`); a colliding name is `409`, never a silent overwrite. Workspace: Merge on the line bar, a Tags bay on Research. Migration `0016_research_git_merge_tag` (additive).
 - `0.20.0` — **Bounded plan → observe → replan inside one agent pass.** After each instrument batch the pass feeds observations (outcomes, whether anything minted, grounding deltas) into a capped replan. Hard bounds: `agent_pass_max_replans` (default 2), `agent_pass_max_batch_runs` (default 2), existing `agent_pass_max_runs` / token recording. `BudgetPolicy.check` is the shipped `0.19.0` project ceiling (`ProjectBudgetPolicy` / `record_compute_debit` / refuse-to-start / skip-remaining-on-exhaust; no replan after a budget stop). Trace shows each plan version and why it replanned. Failed/empty steps still mint nothing. Planner stays on the fixed catalog. Human review stays opt-in (`0.17.0`). No schema, no migration.
@@ -90,6 +91,50 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.23.0
+
+**Lean 4 / Mathlib Grade-A path — thin spike.** Claim 5 has been gated on a heavier
+execution substrate. This release lays the *honest* path: a claim can reach
+Grade A by a real Lean kernel check, without shipping Mathlib or rewriting the
+orchestrator. **No schema, no migration.**
+
+- **`lean.prove`.** Bounded snippet (8k chars / 200 lines). Sync instrument, so
+  it already runs in the killable sandbox (wall-clock + optional `RLIMIT_AS`).
+  Soft timeout `toolbench_lean_timeout_ms` (default 8000) stays under the wall
+  so a slow typecheck records `undecided` / `timeout` instead of a 422 that
+  mints nothing. A crash (signal death) raises — mint nothing.
+- **Honesty contract.** `proved` → `result` + `artifact_kind="proof"` +
+  certificate `lean-kernel`. `failed` (type error, `sorry`/`axiom`, no theorem)
+  → `undecided` — **not** a refutation. `timeout` / `unavailable` → `undecided`.
+  Grade A / headline `proven` only on `result`.
+- **Optional toolchain.** If `lean` is not on PATH the instrument still
+  conforms and returns `undecided` / `unavailable`. Other instruments are
+  unaffected. CI does **not** install Lean; tests that need a real binary are
+  skipped. Prod install is an explicit Fly image rebuild
+  (`INSTALL_LEAN=1`, see `docs/operations/deploy.md`).
+- **Not Mathlib.** v1 is prelude / `Init` only. `import` is rejected before
+  `lean` runs. The offline demo is `example : 1 + 1 = 2 := rfl`.
+- **Frontend.** Quiet drive form (snippet textarea) + proof / failed /
+  undecided cards. Assumptions gated off.
+- **Planner.** The grade-matrix raise path now names `lean.prove` beside
+  `z3.prove` automatically — no prompt rewrite.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 447 passed, 169 skipped (no TEST_DATABASE_URL)
+# tests/toolbench/test_lean_prove.py: 24 passed, 2 skipped (real `lean` not on PATH)
+# With TEST_DATABASE_URL: write-path sorry + in-thread mocked proof (unrun here).
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
+```
+
+See `docs/completions/lean-prove-0.23.0.md`.
+
+**Not in this release:** Mathlib import graph, `lake` project, Lean REPL /
+LeanDojo tactics, `z3.satisfy`, semantic research-git blame/diff, rewriting
+the orchestrator. A missing `lean` binary is not a fake proof.
 
 ---
 

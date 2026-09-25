@@ -118,6 +118,7 @@ def test_production_registry_holds_the_tier0_instruments() -> None:
         "arxiv.lookup",
         "openalex.lookup",
         "z3.prove",
+        "lean.prove",
     } <= names
     catalog = build_catalog()
     assert len(catalog) == len(registry)
