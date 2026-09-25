@@ -1,4 +1,4 @@
-"""ResearchCampaign — the persistent outer loop over 0.22.0 orchestrations (0.25.0).
+"""ResearchCampaign — the persistent outer loop over 0.22.0 orchestrations (0.25.0 / 0.32.0).
 
 One row per commissioned continuous run: which orchestration each cycle produced,
 why the campaign stopped (budget, no raisable work, max cycles, cancel, error
@@ -24,7 +24,9 @@ Cycle JSON shape (each entry in ``cycles``)::
      "passes_completed": int | None,
      "passes_failed": int | None,
      "budget_remaining": str | None,
-     "error": str | None}
+     "error": str | None,
+     "wave": int | None,
+     "parallel_with": list[int]}
 
 Campaign ``stop_reason`` values: ``budget_exhausted``, ``no_open_work``,
 ``max_cycles``, ``cancelled``, ``error_budget``, ``error``. Null while
@@ -75,7 +77,8 @@ class ResearchCampaign(IdMixin, TimestampMixin, Base):
     current_cycle: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     cycles_completed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     consecutive_errors: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    # Human-requested stop; the loop honours it between cycles (current cycle finishes).
+    # Human-requested stop; the loop honours it between cycle waves (in-flight
+    # orchestrations are flagged so they can stop between their own waves).
     cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # Snapshot of ``project_budget.available`` at start / after the last cycle.
     budget_available_start: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
@@ -83,6 +86,9 @@ class ResearchCampaign(IdMixin, TimestampMixin, Base):
     # Bounds this run used (copied from settings so a later default change never
     # rewrites history).
     max_cycles: Mapped[int] = mapped_column(Integer, nullable=False)
+    # How many orchestrations this campaign may run at once (0.32.0). Copied from
+    # settings at commission; ``1`` is sequential.
+    concurrency: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     error_budget: Mapped[int] = mapped_column(Integer, nullable=False)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 

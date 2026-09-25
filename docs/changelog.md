@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.32.0` — **Concurrent campaign cycles under project budget.** A `0.25.0` campaign may run a bounded number of `0.22.0` orchestrations at once against the shared `ComputeDebit` pot (`campaign_cycle_concurrency`, default 1 = sequential, hard-capped at 4). Cycle starts reuse the `0.27.0` project-row reservation lock; live OpenRouter quotes (`0.28.0`) stay the source for hold + debit. Trace records overlapping cycles, skips, and stop reasons (including cancel). Same `AGENT_LOOP_ENABLED` gate. One campaign per project still (`409`). Never auto-validates, auto-funds, or auto-merges. Overview shows "N cycles at a time". Migration `0021_concurrent_campaign_cycles` (additive). Sits on shipped `0.31.0`.
 - `0.31.0` — **Deepdive Phase D.** Shareable Research deep links (`?tab=research&thread=<id>&branch=<id>`) restore selection via `router.replace`. A quiet "Pass running" cue on the strip and CommandRail lights from the existing keep-alive newest-run flag — no new fetch — and clears when idle. Rail-only nav recorded; no sidecar. Historically the optional deepdive Phase D (after `0.14.0` / `0.24.0` / `0.30.0`). Sits on shipped `0.30.0`. Frontend-only — no backend, schema, or migration.
 - `0.30.0` — **Deepdive Phase C polish.** Compact header metric line finalized; Overview keeps the full grid as reference. Contested header items switch to Research and focus that claim. Tab badges reuse existing reads (contested count, member/invite count, running-pass `LiveDot`). Instruments context readout is honest for sealed / no-thread. Historically the deferred deepdive Phase C (`0.14.2`). Sits on shipped `0.29.0`. Frontend-only — no backend, schema, or migration.
 - `0.29.0` — **Semantic git diff.** A derived ledger read compares two checkpoint / branch / tag / `main` tips and returns a structured research-space delta: claims opened or left a line, validation-signal changes, grounding-rung moves, and instrument outcomes on `from..to`. Deterministic — same two tips, same payload. No LLM prose. Mints nothing. Public GET, always-on. Quiet Compare bay on Research. **No schema, no migration.** Sits on shipped `0.28.0`. Does not claim live OpenRouter prices (`0.28.0`).
@@ -99,6 +100,59 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.32.0
+
+**Concurrent campaign cycles under project budget.** `0.25.0` already
+re-commissions the orchestrator until the pot is empty; `0.27.0` already
+lets one orchestration run several `run_agent_pass` calls at once. This
+release lifts the remaining sequential bound: a campaign may keep a small
+number of *cycles* in flight against the same pot, without overselling
+and without a second dark-launch flag. **Migration
+`0021_concurrent_campaign_cycles` (additive).** Sits on shipped `0.31.0`
+deepdive Phase D. Does not expand Mathlib.
+
+- **Bounded concurrency.** `CAMPAIGN_CYCLE_CONCURRENCY` (default 1,
+  hard-capped at 4). `1` is the sequential fallback shipped in `0.25.0`.
+  The bound is snapshotted on `ResearchCampaign.concurrency`. A second
+  cycle starts only when leftover threads would otherwise wait for the
+  next scan (`ceil(eligible / orchestration_max_passes)`).
+- **Reserve, then debit.** Concurrent cycle starts serialize on the
+  `0.27.0` project-row lock. The hold is still the safety-cap cost of
+  `agent_pass_max_tokens` at the `0.28.0` live/fallback quote, clamped
+  to live `available`. A peer that finds a thread already running skips
+  it (`pass_in_flight`) and tries the next. Two cycles racing the last
+  dollar produce one hold.
+- **Trace.** Each cycle records `wave` and `parallel_with`. Stop reasons
+  include `cancelled` (honoured between waves; in-flight orchestrations
+  are flagged so they can stop between their own pass-waves). A
+  `no_open_work` peer is not a campaign stop when another cycle hit
+  `max_passes`.
+- **One campaign per project.** A second Start is still `409`.
+  Concurrency is inside a campaign, not a second campaign. A standalone
+  **Run research** is still `409` while the campaign is running.
+- **Dark launch.** Same `AGENT_LOOP_ENABLED` flag. Off ⇒ every
+  agent-family route `404`s. `CAMPAIGN_CYCLE_CONCURRENCY` is a safety
+  cap, not a sibling switch.
+- **Contributor only.** Never writes `Validation` or
+  `FundingAllocation`. Merge / tag stay human/API. `after_pass_hook`
+  stays unused.
+- **Frontend.** Overview Start / Stop shows "N cycles at a time" when
+  the bound is above 1, marks parallel cycle rows, and keeps Stop
+  honest.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # (see verification)
+cd frontend && npm run typecheck && npm run lint && npm run build
+```
+
+See `docs/completions/concurrent-campaign-cycles-0.32.0.md`.
+
+**Not in this release:** a durable job queue; auto-merge / auto-validate;
+Mathlib expansion; a second dark-launch flag.
 
 ---
 
@@ -323,8 +377,9 @@ cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
 
 See `docs/completions/concurrent-subpasses-0.27.0.md`.
 
-**Not in this release:** concurrent campaign cycles; a durable job queue;
-auto-merge / auto-validate; Mathlib expansion.
+**Not in this release:** concurrent campaign cycles (shipped later as
+`0.32.0`); a durable job queue; auto-merge / auto-validate; Mathlib
+expansion.
 
 ---
 
@@ -418,9 +473,9 @@ cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
 See `docs/completions/continuous-research-0.25.0.md`.
 
 **Not in this release:** a durable job queue (BackgroundTasks still die with
-the process — the row is what makes that honest); concurrent cycles;
-auto-merge / auto-validate; Mathlib / `lake`. CommandRail shipped separately
-as `0.24.0`.
+the process — the row is what makes that honest); concurrent cycles
+(shipped later as `0.32.0`); auto-merge / auto-validate; Mathlib / `lake`.
+CommandRail shipped separately as `0.24.0`.
 
 ---
 

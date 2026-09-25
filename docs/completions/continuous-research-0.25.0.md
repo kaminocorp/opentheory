@@ -75,4 +75,5 @@ shipped `0.24.0` CommandRail.
 - Process restart does **not** resume an in-flight BackgroundTask. The
   persisted row is swept to `failed` once stale so the UI does not lie. A
   member Starts again.
-- Concurrent cycles are not implemented (sequential by design).
+- Concurrent cycles were sequential by design here; they shipped later as
+  `0.32.0`.

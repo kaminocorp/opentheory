@@ -443,7 +443,7 @@ the reasoning is in [`docs/plans/roadmap-next-steps.md`](docs/plans/roadmap-next
 | **Real funding / settlement (Stripe, …)** | `FundingAllocation` is recorded; payment rails are future work. |
 | **Reputation / influence** | In the vision doc; no data model yet — needs design, not code. |
 | **Lean REPL / LeanDojo** | `lean.prove` (prelude + optional Mathlib / `lake`) is shipped; tactic REPL is later. |
-| **Durable / scheduled agent queues** | In-process continuous campaigns shipped in `0.25.0`. A durable job queue (survive-restart resume) is not built. Autonomy still expands only behind budgets. |
+| **Durable / scheduled agent queues** | In-process continuous campaigns shipped in `0.25.0` / concurrent cycles in `0.32.0`. A durable job queue (survive-restart resume) is not built. Autonomy still expands only behind budgets. |
 | **Object storage for large artifacts** | Planned; upload path not built. |
 
 ---

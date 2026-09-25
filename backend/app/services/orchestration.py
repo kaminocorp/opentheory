@@ -35,6 +35,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agent.planner import plan as default_plan
+from app.agent.pricing import quote_model_price
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.models.actor import Actor
@@ -73,6 +74,11 @@ SKIP_PASS_IN_FLIGHT = "pass_in_flight"
 SKIP_BUDGET_EXHAUSTED = "budget_exhausted"
 SKIP_MAX_PASSES = "max_passes"
 SKIP_CANCELLED = "cancelled"
+
+# Sentinel from ``_commission_reserved_pass``: the thread already has a running
+# pass (a peer cycle won the project-row lock). Distinct from ``None``, which
+# means the pot is gone — the wave should try the next thread, not abort.
+SKIP_THREAD_BUSY = object()
 
 STOP_BUDGET_EXHAUSTED = "budget_exhausted"
 STOP_NO_OPEN_WORK = "no_open_work"
@@ -225,13 +231,15 @@ async def start_orchestration(
     role: str,
     for_campaign: bool = False,
 ) -> OrchestrationRun:
-    """Mint the ``running`` trace in the request session. One in-flight loop per project.
+    """Mint the ``running`` trace in the request session.
 
-    A second concurrent commission is ``409`` — two loops racing the shared pot is the
-    failure mode 0.19.0 already named. A running continuous campaign also blocks a
-    standalone orchestration (they share the pot); the campaign itself passes
-    ``for_campaign=True`` so it can commission its own cycles. ``role`` validity is
-    enforced upstream.
+    A standalone second commission is ``409`` — two independent loops racing the
+    shared pot is the failure mode 0.19.0 already named. A running continuous
+    campaign also blocks a standalone orchestration (they share the pot); the
+    campaign itself passes ``for_campaign=True`` so it can commission its own
+    cycles. ``0.32.0`` allows a campaign to hold up to
+    ``ResearchCampaign.concurrency`` running orchestrations; a further cycle
+    start is ``409``. ``role`` validity is enforced upstream.
     """
     project = (
         await db.execute(select(Project).where(Project.id == project_id).with_for_update())
@@ -239,19 +247,38 @@ async def start_orchestration(
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
-    existing = await db.execute(
-        select(OrchestrationRun)
-        .where(
-            OrchestrationRun.project_id == project_id,
-            OrchestrationRun.status == OrchestrationRunStatus.RUNNING,
-        )
-        .with_for_update()
+    running = list(
+        (
+            await db.execute(
+                select(OrchestrationRun)
+                .where(
+                    OrchestrationRun.project_id == project_id,
+                    OrchestrationRun.status == OrchestrationRunStatus.RUNNING,
+                )
+                .with_for_update()
+            )
+        ).scalars()
     )
-    if existing.scalar_one_or_none() is not None:
+    if running and not for_campaign:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="An orchestration is already running on this project",
         )
+    if running and for_campaign:
+        campaign = (
+            await db.execute(
+                select(ResearchCampaign).where(
+                    ResearchCampaign.project_id == project_id,
+                    ResearchCampaign.status == ResearchCampaignStatus.RUNNING,
+                )
+            )
+        ).scalar_one_or_none()
+        cap = campaign.concurrency if campaign is not None else 1
+        if len(running) >= max(1, cap):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Campaign cycle concurrency is already at the bound",
+            )
 
     if not for_campaign:
         running_campaign = await db.execute(
@@ -438,16 +465,32 @@ async def _execute(
                 leftover.extend(pending[index:])
                 break
             commissioned = await _commission_reserved_pass(db, run, actor, eligibility.thread)
+            if commissioned is SKIP_THREAD_BUSY:
+                live = await funding_service.project_budget(db, run.project_id)
+                decisions.append(
+                    _decision(
+                        eligibility.thread,
+                        action="skipped",
+                        reason=SKIP_PASS_IN_FLIGHT,
+                        budget_remaining=live.available,
+                    )
+                )
+                run.passes_skipped += 1
+                run.decisions = list(decisions)
+                await db.commit()
+                continue
             if commissioned is None:
                 leftover.extend(pending[index:])
                 break
+            assert isinstance(commissioned, AgentRun)
             wave.append((eligibility, commissioned))
             run = await _reload()
         pending = leftover
 
         if not wave:
-            await _skip_all(pending, SKIP_BUDGET_EXHAUSTED)
-            hit_budget = True
+            if pending:
+                await _skip_all(pending, SKIP_BUDGET_EXHAUSTED)
+                hit_budget = True
             break
 
         wave_n += 1
@@ -543,18 +586,29 @@ async def _commission_reserved_pass(
     run: OrchestrationRun,
     actor: Actor,
     thread: Thread,
-) -> AgentRun | None:
-    """Lock the project, hold a slice, mint the running pass. ``None`` if the pot is gone."""
+) -> AgentRun | object | None:
+    """Lock the project, hold a slice, mint the running pass.
+
+    ``None`` if the pot is gone. ``SKIP_THREAD_BUSY`` if a peer already holds
+    this thread. The live/fallback OpenRouter quote (0.28.0) is fetched
+    *before* the row lock so a catalog call cannot sit on the critical section;
+    the same effective rate sizes the hold the debit will later consume.
+    """
+    peeked = await db.get(Project, run.project_id)
+    model = (peeked.agent_models or {}).get(run.role) if peeked is not None else None
+    quote = await quote_model_price(model)
+    rate = quote.effective_rate_per_1k
+
     project = (
         await db.execute(select(Project).where(Project.id == run.project_id).with_for_update())
     ).scalar_one_or_none()
     if project is None:
         return None
+    if await _thread_has_running_pass(db, thread.id):
+        return SKIP_THREAD_BUSY
     live = await funding_service.project_budget(db, run.project_id)
     if live.available <= 0:
         return None
-    model = (project.agent_models or {}).get(run.role)
-    rate = compute_service.rate_for_model(model)
     amount = compute_service.pass_reserve_amount(live.available, rate_per_1k=rate)
     if amount <= 0:
         return None

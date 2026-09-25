@@ -1,4 +1,4 @@
-"""Schemas for the continuous research campaign (0.25.0).
+"""Schemas for the continuous research campaign (0.25.0 / 0.32.0).
 
 ``ResearchCampaignSummary`` is the list-view row; ``ResearchCampaignRead`` is the
 poll target (summary + the per-cycle narrative). Both are lenient reads
@@ -73,6 +73,7 @@ class ResearchCampaignSummary(BaseModel):
     budget_available_start: Decimal | None
     budget_available_end: Decimal | None
     max_cycles: int
+    concurrency: int
     error_budget: int
     error: str | None
     created_at: datetime

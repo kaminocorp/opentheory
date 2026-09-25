@@ -2,8 +2,8 @@
 
 - ``POST /projects/{id}/campaigns`` — member-gated; mints the ``running``
   campaign, schedules the loop in a ``BackgroundTask``, returns ``202``.
-- ``POST /campaigns/{id}/cancel`` — member-gated; requests a stop after the
-  current cycle.
+- ``POST /campaigns/{id}/cancel`` — member-gated; requests a stop before the
+  next cycle (in-flight orchestrations are flagged to stop between waves).
 - ``GET  /projects/{id}/campaigns`` — public, newest-first summaries.
 - ``GET  /campaigns/{id}`` — public poll target: the full cycle trace.
 
@@ -61,8 +61,9 @@ async def cancel_campaign(
     db: DbSession,
     actor: ActingActor,
 ) -> ResearchCampaign:
-    """Request a stop after the current cycle.
+    """Request a stop before the next cycle.
 
+    In-flight orchestrations are flagged so they can halt between waves.
     The campaign stays ``running`` until the loop honours the flag.
     """
     campaign = await campaign_service.get_campaign(db, campaign_id)

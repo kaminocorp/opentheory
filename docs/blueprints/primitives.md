@@ -150,6 +150,7 @@ Typical fields:
 - `cancel_requested`
 - `budget_available_start` / `budget_available_end`
 - `max_cycles` / `error_budget`
+- `concurrency` — how many orchestrations this campaign may run at once (`0.32.0`; `1` is sequential)
 
 ## Thread
 

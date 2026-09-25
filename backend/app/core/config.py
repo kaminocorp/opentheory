@@ -142,6 +142,11 @@ class Settings(BaseSettings):
     # Hard cap on how many 0.22.0 orchestrations one continuous campaign may
     # commission. Safety, not a second dark-launch flag. Default 8.
     campaign_max_cycles: int = 8
+    # How many of those orchestrations may run at once (0.32.0). Default 1 is
+    # today's sequential campaign. Clamped to
+    # ``CAMPAIGN_CYCLE_CONCURRENCY_HARD_CAP`` (4). Concurrent cycle starts still
+    # serialize on the project-row reservation lock so they cannot oversell.
+    campaign_cycle_concurrency: int = 1
     # Consecutive failed cycles after which a campaign stops (error budget).
     campaign_error_budget: int = 3
 

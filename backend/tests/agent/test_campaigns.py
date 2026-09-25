@@ -1,11 +1,13 @@
-"""The continuous research campaign (0.25.0) — DB-backed.
+"""The continuous research campaign (0.25.0 / 0.32.0) — DB-backed.
 
 Drives ``run_campaign`` with a **stub planner** so each cycle still goes through
 the real 0.22.0 orchestrator and ``run_agent_pass`` chokepoint. Covers the
 release's acceptance matrix: continues across cycles, stops on budget, stops on
 no-work, honours cancel, and a failed cycle does not write Validation / funding.
+``0.32.0`` adds bounded concurrent cycles against the same reservation lock.
 """
 
+import asyncio
 from decimal import Decimal
 from uuid import UUID
 
@@ -31,9 +33,10 @@ from app.services.campaigns import (
     run_campaign,
     start_campaign,
 )
+from app.services import funding as funding_service
 from app.services.compute import tokens_to_cost
 from app.services.orchestration import STOP_MAX_PASSES
-from tests.agent.test_orchestration import _one_calc, _start
+from tests.agent.test_orchestration import _one_calc, _sleeping_planner, _start, _waves_overlapped
 from tests.agent.test_orchestrator import (
     _actor,
     _assign_model,
@@ -345,3 +348,146 @@ async def test_running_campaign_blocks_a_standalone_orchestration(
     with pytest.raises(HTTPException) as exc:
         await _start(session_factory, project_id, actor_id)
     assert exc.value.status_code == 409
+
+
+async def test_concurrency_one_preserves_sequential_cycles(
+    client: AsyncClient, session_factory: async_sessionmaker, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "orchestration_max_passes", 1)
+    monkeypatch.setattr(settings, "campaign_max_cycles", 2)
+    monkeypatch.setattr(settings, "campaign_cycle_concurrency", 1)
+    actor_id = await _actor(client)
+    project_id = await _project(client, "camp-seq-cycles")
+    t1 = await _thread(client, project_id, actor_id)
+    t2 = await _thread(client, project_id, actor_id)
+    await _claim(client, t1, actor_id, "First.")
+    await _claim(client, t2, actor_id, "Second.")
+    await _thread_checkpoint(client, project_id, t1, actor_id)
+    await _thread_checkpoint(client, project_id, t2, actor_id)
+    await _assign_model(session_factory, project_id)
+    campaign_id = await _start_campaign(session_factory, project_id, actor_id, max_cycles=2)
+    planner, marks = _sleeping_planner(hold=0.08)
+
+    async with session_factory() as session:
+        result = await run_campaign(session, campaign_id, planner=planner)
+
+    assert result.concurrency == 1
+    assert result.current_cycle == 2
+    assert result.cycles_completed == 2
+    assert not _waves_overlapped(marks)
+    assert all(row["wave"] == index + 1 for index, row in enumerate(result.cycles))
+    assert all(row["parallel_with"] == [] for row in result.cycles)
+
+
+async def test_concurrent_cycles_overlap_and_trace_the_wave(
+    client: AsyncClient, session_factory: async_sessionmaker, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "orchestration_max_passes", 1)
+    monkeypatch.setattr(settings, "campaign_max_cycles", 2)
+    monkeypatch.setattr(settings, "campaign_cycle_concurrency", 2)
+    actor_id = await _actor(client)
+    project_id = await _project(client, "camp-parallel-cycles")
+    t1 = await _thread(client, project_id, actor_id)
+    t2 = await _thread(client, project_id, actor_id)
+    await _claim(client, t1, actor_id, "First.")
+    await _claim(client, t2, actor_id, "Second.")
+    await _thread_checkpoint(client, project_id, t1, actor_id)
+    await _thread_checkpoint(client, project_id, t2, actor_id)
+    await _assign_model(session_factory, project_id)
+    campaign_id = await _start_campaign(session_factory, project_id, actor_id, max_cycles=2)
+    planner, marks = _sleeping_planner(hold=0.2)
+
+    async with session_factory() as session:
+        result = await run_campaign(session, campaign_id, planner=planner)
+
+    assert result.status is ResearchCampaignStatus.COMPLETED
+    assert result.concurrency == 2
+    assert result.current_cycle == 2
+    assert result.cycles_completed == 2
+    assert _waves_overlapped(marks)
+    assert all(row["wave"] == 1 for row in result.cycles)
+    assert {row["cycle"] for row in result.cycles} == {1, 2}
+    assert result.cycles[0]["parallel_with"] == [2]
+    assert result.cycles[1]["parallel_with"] == [1]
+    assert result.cycles[0]["orchestration_id"] != result.cycles[1]["orchestration_id"]
+
+
+async def test_concurrent_cycles_cannot_oversell_the_pot(
+    client: AsyncClient, session_factory: async_sessionmaker, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "agent_token_rate_usd_per_1k", Decimal("1.00"))
+    monkeypatch.setattr(settings, "orchestration_max_passes", 1)
+    monkeypatch.setattr(settings, "campaign_max_cycles", 4)
+    monkeypatch.setattr(settings, "campaign_cycle_concurrency", 2)
+    actor_id = await _actor(client)
+    project_id = await _project(client, "camp-race-cycles")
+    t1 = await _thread(client, project_id, actor_id)
+    t2 = await _thread(client, project_id, actor_id)
+    await _claim(client, t1, actor_id, "Spender.")
+    await _claim(client, t2, actor_id, "Peer.")
+    await _thread_checkpoint(client, project_id, t1, actor_id)
+    await _thread_checkpoint(client, project_id, t2, actor_id)
+    await _assign_model(session_factory, project_id, budget=None)
+    await _grant_budget(session_factory, project_id, amount="1.00")
+    campaign_id = await _start_campaign(session_factory, project_id, actor_id)
+
+    plan = _one_calc(tokens_used=1000)
+    assert tokens_to_cost(1000, Decimal("1.00")) == Decimal("1.000000")
+
+    async with session_factory() as session:
+        result = await run_campaign(session, campaign_id, planner=_stub_planner(plan))
+        budget = await funding_service.project_budget(session, UUID(project_id))
+
+    assert result.status is ResearchCampaignStatus.COMPLETED
+    assert result.stop_reason == STOP_BUDGET_EXHAUSTED
+    assert budget.available >= 0
+    assert budget.spent + budget.reserved <= budget.funded
+    commissioned = sum(int(row["passes_commissioned"] or 0) for row in result.cycles)
+    assert commissioned == 1
+
+
+async def test_cancel_flags_every_in_flight_cycle_and_skips_the_next_wave(
+    client: AsyncClient, session_factory: async_sessionmaker, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "orchestration_max_passes", 1)
+    monkeypatch.setattr(settings, "campaign_max_cycles", 8)
+    monkeypatch.setattr(settings, "campaign_cycle_concurrency", 2)
+    actor_id = await _actor(client)
+    project_id = await _project(client, "camp-cancel-wave")
+    threads = []
+    for title in ("One.", "Two.", "Three.", "Four."):
+        thread_id = await _thread(client, project_id, actor_id)
+        await _claim(client, thread_id, actor_id, title)
+        await _thread_checkpoint(client, project_id, thread_id, actor_id)
+        threads.append(thread_id)
+    await _assign_model(session_factory, project_id)
+    campaign_id = await _start_campaign(session_factory, project_id, actor_id)
+
+    started = asyncio.Event()
+
+    async def _planner(
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None
+    ):
+        started.set()
+        await asyncio.sleep(0.2)
+        if observations is None:
+            return _one_calc()
+        return PlanResult(runnable=[], proposed_count=0, tokens_used=0)
+
+    async def _run() -> None:
+        async with session_factory() as session:
+            return await run_campaign(session, campaign_id, planner=_planner)
+
+    task = asyncio.create_task(_run())
+    await asyncio.wait_for(started.wait(), timeout=5)
+    async with session_factory() as session:
+        cancelled = await request_cancel(session, campaign_id)
+        assert cancelled.cancel_requested is True
+    result = await asyncio.wait_for(task, timeout=10)
+
+    assert result.status is ResearchCampaignStatus.COMPLETED
+    assert result.stop_reason == STOP_CANCELLED
+    assert result.current_cycle == 2
+    assert result.cycles_completed == 2
+    assert all(row["wave"] == 1 for row in result.cycles)
+    assert len(result.cycles) == 2

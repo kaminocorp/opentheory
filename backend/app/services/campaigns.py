@@ -1,4 +1,4 @@
-"""Continuous research campaign (0.25.0) — re-commission the 0.22.0 orchestrator.
+"""Continuous research campaign (0.25.0 / 0.32.0) — re-commission the orchestrator.
 
 ``run_campaign`` is contributor infrastructure: it repeatedly commissions
 ``start_orchestration`` → ``run_orchestration`` against the shared
@@ -14,13 +14,21 @@ One in-flight campaign per project; a running campaign also blocks a standalone
 orchestration (they share the pot). Each cycle is one 0.22.0 / 0.27.0
 orchestration, so per-orchestration ``orchestration_max_passes`` and
 ``orchestration_concurrency`` still bound a single scan; the campaign is what
-continues after that cap. Concurrent *cycles* are out of scope — concurrency
-lives inside each cycle.
+continues after that cap.
+
+``0.32.0`` may run a bounded number of those cycles at once
+(``campaign_cycle_concurrency``, default ``1`` = sequential). Concurrent cycle
+starts serialize on the same project-row reservation lock as ``0.27.0``
+sub-passes, so they cannot oversell the pot. Live OpenRouter quotes (``0.28.0``)
+remain the source for hold + debit. ``1`` stays on the caller session; ``>1``
+runs peer orchestrations on their own sessions, like a ``0.27.0`` wave.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import math
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -51,6 +59,9 @@ from app.services.orchestration import (
 from app.services.orchestration import (
     STOP_CANCELLED as ORCH_STOP_CANCELLED,
 )
+from app.services.orchestration import (
+    STOP_MAX_PASSES as ORCH_STOP_MAX_PASSES,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +70,9 @@ STOP_CANCELLED = "cancelled"
 STOP_ERROR_BUDGET = "error_budget"
 STOP_CAMPAIGN_ERROR = "error"
 
+# Safety clamp so a typo in CAMPAIGN_CYCLE_CONCURRENCY cannot fan out a process.
+CAMPAIGN_CYCLE_CONCURRENCY_HARD_CAP = 4
+
 
 def resolve_max_cycles(requested: int | None) -> int:
     """Clamp a client-supplied cap to the server safety bound (never above settings)."""
@@ -66,6 +80,30 @@ def resolve_max_cycles(requested: int | None) -> int:
     if requested is None:
         return cap
     return min(max(1, requested), cap)
+
+
+def resolve_cycle_concurrency(requested: int | None = None) -> int:
+    """Clamp cycle concurrency to ``[1, min(settings, hard cap)]``. ``1`` is sequential."""
+    configured = max(1, int(settings.campaign_cycle_concurrency))
+    cap = min(configured, CAMPAIGN_CYCLE_CONCURRENCY_HARD_CAP)
+    if requested is None:
+        return cap
+    return min(max(1, int(requested)), cap)
+
+
+def _cycle_slots(campaign: ResearchCampaign, eligible_count: int) -> int:
+    """How many cycles this wave should start.
+
+    A single orchestration can cover ``orchestration_max_passes`` threads, so a
+    second cycle is only useful when leftover work would otherwise wait for the
+    next sequential scan. ``concurrency=1`` is always one cycle per wave.
+    """
+    remaining = campaign.max_cycles - campaign.current_cycle
+    if remaining <= 0 or eligible_count <= 0:
+        return 0
+    per_scan = max(1, int(settings.orchestration_max_passes))
+    needed = max(1, math.ceil(eligible_count / per_scan))
+    return min(campaign.concurrency, remaining, needed)
 
 
 async def _lock_project(db: AsyncSession, project_id: UUID) -> Project:
@@ -103,6 +141,8 @@ def _cycle_row(
     *,
     budget_remaining: Decimal | None,
     error: str | None = None,
+    wave: int | None = None,
+    parallel_with: list[int] | None = None,
 ) -> dict[str, Any]:
     return {
         "cycle": cycle,
@@ -114,6 +154,8 @@ def _cycle_row(
         "passes_failed": orch.passes_failed if orch is not None else None,
         "budget_remaining": str(budget_remaining) if budget_remaining is not None else None,
         "error": error,
+        "wave": wave,
+        "parallel_with": list(parallel_with) if parallel_with is not None else [],
     }
 
 
@@ -165,14 +207,30 @@ async def start_campaign(
         status=ResearchCampaignStatus.RUNNING,
         max_cycles=resolve_max_cycles(max_cycles),
         error_budget=settings.campaign_error_budget,
+        concurrency=resolve_cycle_concurrency(),
     )
     db.add(campaign)
     await db.commit()
     return campaign
 
 
+async def _running_orchestrations(
+    db: AsyncSession, project_id: UUID
+) -> list[OrchestrationRun]:
+    return list(
+        (
+            await db.execute(
+                select(OrchestrationRun).where(
+                    OrchestrationRun.project_id == project_id,
+                    OrchestrationRun.status == OrchestrationRunStatus.RUNNING,
+                )
+            )
+        ).scalars()
+    )
+
+
 async def request_cancel(db: AsyncSession, campaign_id: UUID) -> ResearchCampaign:
-    """Ask a running campaign to stop after the current cycle. Idempotent while running."""
+    """Ask a running campaign to stop after the current wave. Idempotent while running."""
     campaign = await db.get(ResearchCampaign, campaign_id)
     if campaign is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Campaign not found")
@@ -182,16 +240,7 @@ async def request_cancel(db: AsyncSession, campaign_id: UUID) -> ResearchCampaig
             detail="Campaign is not running",
         )
     campaign.cancel_requested = True
-    running_orch = (
-        await db.execute(
-            select(OrchestrationRun)
-            .where(
-                OrchestrationRun.project_id == campaign.project_id,
-                OrchestrationRun.status == OrchestrationRunStatus.RUNNING,
-            )
-        )
-    ).scalar_one_or_none()
-    if running_orch is not None:
+    for running_orch in await _running_orchestrations(db, campaign.project_id):
         running_orch.cancel_requested = True
     await db.commit()
     return campaign
@@ -235,6 +284,72 @@ async def run_campaign(
         )
 
 
+async def _fail_running_orchestration(
+    db: AsyncSession, orchestration_id: UUID, error: str
+) -> OrchestrationRun | None:
+    leftover = await db.get(OrchestrationRun, orchestration_id)
+    if leftover is not None and leftover.status is OrchestrationRunStatus.RUNNING:
+        leftover.status = OrchestrationRunStatus.FAILED
+        leftover.stop_reason = STOP_ERROR
+        leftover.error = error[:2000]
+        await db.commit()
+    return leftover
+
+
+async def _run_cycle_wave(
+    db: AsyncSession,
+    orchestration_ids: list[UUID],
+    *,
+    planner: PlannerFn | None,
+    llm: Any | None,
+) -> list[OrchestrationRun | BaseException]:
+    """Run one wave of cycles. ``concurrency=1`` stays on the caller session."""
+    if len(orchestration_ids) == 1:
+        try:
+            finished = await orchestration_service.run_orchestration(
+                db, orchestration_ids[0], planner=planner, llm=llm
+            )
+            return [finished]
+        except Exception as exc:
+            await db.rollback()
+            await _fail_running_orchestration(db, orchestration_ids[0], str(exc))
+            return [exc]
+
+    factory = async_sessionmaker(db.bind, expire_on_commit=False, class_=AsyncSession)
+
+    async def _one(orchestration_id: UUID) -> OrchestrationRun:
+        async with factory() as session:
+            return await orchestration_service.run_orchestration(
+                session, orchestration_id, planner=planner, llm=llm
+            )
+
+    gathered = await asyncio.gather(
+        *[_one(orchestration_id) for orchestration_id in orchestration_ids],
+        return_exceptions=True,
+    )
+    finished: list[OrchestrationRun | BaseException] = []
+    for orchestration_id, result in zip(orchestration_ids, gathered, strict=True):
+        if isinstance(result, BaseException):
+            logger.warning(
+                "campaign_wave_cycle_error orchestration_id=%s error=%s",
+                orchestration_id,
+                result,
+            )
+            async with factory() as session:
+                await _fail_running_orchestration(session, orchestration_id, str(result))
+            finished.append(result)
+        else:
+            finished.append(result)
+    return finished
+
+
+@dataclass
+class _WaveCycle:
+    number: int
+    orchestration_id: UUID | None
+    error: str | None = None
+
+
 async def _execute(
     db: AsyncSession,
     campaign: ResearchCampaign,
@@ -265,11 +380,12 @@ async def _execute(
         if reloaded is None:  # pragma: no cover
             raise ValueError(f"ResearchCampaign {campaign_id} disappeared")
         # Refresh so a cancel committed from another session (the Stop route)
-        # is visible between cycles — ``get`` would otherwise return the
+        # is visible between waves — ``get`` would otherwise return the
         # identity-map copy.
         await db.refresh(reloaded)
         return reloaded
 
+    wave_n = 0
     while True:
         campaign = await _reload()
         if campaign.cancel_requested:
@@ -296,7 +412,8 @@ async def _execute(
         campaign.budget_available_end = live.available
 
         classified = await classify_project_threads(db, campaign.project_id)
-        if not any(row.eligible for row in classified):
+        eligible_count = sum(1 for row in classified if row.eligible)
+        if eligible_count == 0:
             await db.commit()
             return await _finalize(
                 db,
@@ -316,88 +433,142 @@ async def _execute(
                 budget_end=live.available,
             )
 
-        campaign.current_cycle += 1
-        cycle_n = campaign.current_cycle
-        await db.commit()
-
-        orch: OrchestrationRun | None = None
-        try:
-            orch = await orchestration_service.start_orchestration(
-                db,
-                campaign.project_id,
-                triggered_by=actor,
-                role=campaign.role,
-                for_campaign=True,
-            )
-            finished = await orchestration_service.run_orchestration(
-                db, orch.id, planner=planner, llm=llm
-            )
-        except Exception as exc:
-            logger.warning(
-                "campaign_cycle_error campaign_id=%s cycle=%s error=%s",
-                campaign_id,
-                cycle_n,
-                exc,
-            )
-            leftover_id = orch.id if orch is not None else None
-            await db.rollback()
-            if leftover_id is not None:
-                leftover = await db.get(OrchestrationRun, leftover_id)
-                if leftover is not None and leftover.status is OrchestrationRunStatus.RUNNING:
-                    leftover.status = OrchestrationRunStatus.FAILED
-                    leftover.stop_reason = STOP_ERROR
-                    leftover.error = str(exc)[:2000]
-                    await db.commit()
-            campaign = await _reload()
-            live = await funding_service.project_budget(db, campaign.project_id)
-            campaign.budget_available_end = live.available
-            campaign.consecutive_errors += 1
-            cycles = list(campaign.cycles)
-            cycles.append(
-                _cycle_row(cycle_n, None, budget_remaining=live.available, error=str(exc)[:500])
-            )
-            campaign.cycles = cycles
+        slots = _cycle_slots(campaign, eligible_count)
+        if slots < 1:
             await db.commit()
-            if campaign.consecutive_errors >= campaign.error_budget:
-                return await _finalize(
+            return await _finalize(
+                db,
+                campaign,
+                status=ResearchCampaignStatus.COMPLETED,
+                stop_reason=STOP_MAX_CYCLES,
+                budget_end=live.available,
+            )
+
+        wave_n += 1
+        actor = await db.get(Actor, campaign.triggered_by_actor_id)
+        if actor is None:
+            return await _finalize(
+                db,
+                campaign,
+                status=ResearchCampaignStatus.FAILED,
+                stop_reason=STOP_CAMPAIGN_ERROR,
+                error="triggering actor not found",
+            )
+
+        planned: list[_WaveCycle] = []
+        for _ in range(slots):
+            campaign = await _reload()
+            if campaign.cancel_requested or campaign.current_cycle >= campaign.max_cycles:
+                break
+            campaign.current_cycle += 1
+            cycle_n = campaign.current_cycle
+            await db.commit()
+            try:
+                orch = await orchestration_service.start_orchestration(
                     db,
-                    campaign,
-                    status=ResearchCampaignStatus.COMPLETED,
-                    stop_reason=STOP_ERROR_BUDGET,
-                    error=str(exc),
-                    budget_end=live.available,
+                    campaign.project_id,
+                    triggered_by=actor,
+                    role=campaign.role,
+                    for_campaign=True,
                 )
-            continue
+                planned.append(_WaveCycle(cycle_n, orch.id))
+            except Exception as exc:
+                logger.warning(
+                    "campaign_cycle_start_error campaign_id=%s cycle=%s error=%s",
+                    campaign_id,
+                    cycle_n,
+                    exc,
+                )
+                planned.append(_WaveCycle(cycle_n, None, error=str(exc)))
+
+        started_ids = [row.orchestration_id for row in planned if row.orchestration_id is not None]
+        wave_results: dict[UUID, OrchestrationRun | BaseException] = {}
+        if started_ids:
+            finished_rows = await _run_cycle_wave(
+                db, started_ids, planner=planner, llm=llm
+            )
+            for orch_id, result in zip(started_ids, finished_rows, strict=True):
+                wave_results[orch_id] = result
 
         live = await funding_service.project_budget(db, campaign.project_id)
         campaign = await _reload()
         campaign.budget_available_end = live.available
-        campaign.cycles_completed += 1
         cycles = list(campaign.cycles)
-        cycles.append(_cycle_row(cycle_n, finished, budget_remaining=live.available))
-        campaign.cycles = cycles
+        peer_nums = [row.number for row in planned]
+        recorded: list[dict[str, Any]] = []
 
-        failed = (
-            finished.status is OrchestrationRunStatus.FAILED
-            or finished.stop_reason == STOP_ERROR
-        )
-        if failed:
-            campaign.consecutive_errors += 1
-        else:
-            campaign.consecutive_errors = 0
+        for row in planned:
+            peers = [n for n in peer_nums if n != row.number]
+            if row.orchestration_id is None:
+                campaign.consecutive_errors += 1
+                entry = _cycle_row(
+                    row.number,
+                    None,
+                    budget_remaining=live.available,
+                    error=(row.error or "cycle failed to start")[:500],
+                    wave=wave_n,
+                    parallel_with=peers,
+                )
+                cycles.append(entry)
+                recorded.append(entry)
+                continue
+
+            result = wave_results.get(row.orchestration_id)
+            if result is None or isinstance(result, BaseException):
+                error_text = str(result) if isinstance(result, BaseException) else (
+                    row.error or "cycle failed"
+                )
+                campaign.consecutive_errors += 1
+                entry = _cycle_row(
+                    row.number,
+                    None,
+                    budget_remaining=live.available,
+                    error=error_text[:500],
+                    wave=wave_n,
+                    parallel_with=peers,
+                )
+                cycles.append(entry)
+                recorded.append(entry)
+                continue
+
+            campaign.cycles_completed += 1
+            failed = (
+                result.status is OrchestrationRunStatus.FAILED
+                or result.stop_reason == STOP_ERROR
+            )
+            if failed:
+                campaign.consecutive_errors += 1
+            else:
+                campaign.consecutive_errors = 0
+            entry = _cycle_row(
+                row.number,
+                result,
+                budget_remaining=live.available,
+                wave=wave_n,
+                parallel_with=peers,
+            )
+            cycles.append(entry)
+            recorded.append(entry)
+            logger.info(
+                "campaign_cycle campaign_id=%s cycle=%s orchestration_id=%s "
+                "orch_stop=%s wave=%s budget_remaining=%s",
+                campaign.id,
+                row.number,
+                result.id,
+                result.stop_reason,
+                wave_n,
+                live.available,
+            )
+
+        campaign.cycles = cycles
         await db.commit()
 
-        logger.info(
-            "campaign_cycle campaign_id=%s cycle=%s orchestration_id=%s "
-            "orch_stop=%s budget_remaining=%s",
-            campaign.id,
-            cycle_n,
-            finished.id,
-            finished.stop_reason,
-            live.available,
-        )
+        if not recorded:
+            continue
 
-        if finished.stop_reason == ORCH_STOP_CANCELLED or campaign.cancel_requested:
+        if campaign.cancel_requested or any(
+            entry.get("stop_reason") == ORCH_STOP_CANCELLED for entry in recorded
+        ):
             return await _finalize(
                 db,
                 campaign,
@@ -405,7 +576,9 @@ async def _execute(
                 stop_reason=STOP_CANCELLED,
                 budget_end=live.available,
             )
-        if finished.stop_reason == STOP_BUDGET_EXHAUSTED or live.available <= 0:
+        if any(entry.get("stop_reason") == STOP_BUDGET_EXHAUSTED for entry in recorded) or (
+            live.available <= 0
+        ):
             return await _finalize(
                 db,
                 campaign,
@@ -413,7 +586,20 @@ async def _execute(
                 stop_reason=STOP_BUDGET_EXHAUSTED,
                 budget_end=live.available,
             )
-        if finished.stop_reason == STOP_NO_OPEN_WORK:
+
+        wave_hit_cap = any(entry.get("stop_reason") == ORCH_STOP_MAX_PASSES for entry in recorded)
+        wave_full_scan = any(
+            entry.get("stop_reason") == STOP_NO_OPEN_WORK
+            and (entry.get("passes_commissioned") or 0) > 0
+            for entry in recorded
+        )
+        wave_empty_scan = all(
+            entry.get("stop_reason") == STOP_NO_OPEN_WORK
+            and (entry.get("passes_commissioned") or 0) == 0
+            for entry in recorded
+            if entry.get("error") is None
+        ) and all(entry.get("error") is None for entry in recorded)
+        if not wave_hit_cap and (wave_full_scan or wave_empty_scan):
             return await _finalize(
                 db,
                 campaign,
@@ -421,16 +607,21 @@ async def _execute(
                 stop_reason=STOP_NO_OPEN_WORK,
                 budget_end=live.available,
             )
-        if failed and campaign.consecutive_errors >= campaign.error_budget:
+
+        last_error = next(
+            (entry.get("error") for entry in reversed(recorded) if entry.get("error")),
+            None,
+        )
+        if campaign.consecutive_errors >= campaign.error_budget:
             return await _finalize(
                 db,
                 campaign,
                 status=ResearchCampaignStatus.COMPLETED,
                 stop_reason=STOP_ERROR_BUDGET,
-                error=finished.error,
+                error=str(last_error) if last_error else None,
                 budget_end=live.available,
             )
-        # max_passes (or a recoverable cycle error under budget) → next cycle.
+        # max_passes (or a recoverable cycle error under budget) → next wave.
 
 
 @dataclass

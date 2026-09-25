@@ -26,14 +26,14 @@ def test_revision_linkage() -> None:
     assert mod.down_revision == "0019_concurrent_subpasses"
 
 
-def test_it_is_the_only_head() -> None:
-    """Nothing revises 0020 — a second head makes ``alembic upgrade head`` ambiguous on deploy."""
+def test_it_is_revised_by_0021() -> None:
+    """0021 (concurrent campaign cycles) revises 0020; a second head is a deploy footgun."""
     down_revisions = {
         match.group(1)
         for path in _VERSIONS.glob("*.py")
         if (match := re.search(r'down_revision[^=]*=\s*"([^"]+)"', path.read_text()))
     }
-    assert _REVISION not in down_revisions
+    assert _REVISION in down_revisions
 
 
 def test_the_columns_the_model_declares_are_the_columns_the_migration_adds() -> None:
