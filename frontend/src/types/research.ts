@@ -71,11 +71,6 @@ export type Thread = {
   updated_at: string;
 };
 
-// Thread list rows carry their claim count (0.3.4).
-export type ThreadSummary = Thread & {
-  claim_count: number;
-};
-
 export type ActorSummary = {
   id: string;
   display_name: string;
@@ -118,6 +113,8 @@ export type ProjectOverview = {
   counts: ProjectCounts;
   branch_counts: BranchStatusCounts;
   contradictions: ContradictionItem[];
+  // Project-wide claim grounding rollup (0.16.3) — same derivation as each claim row.
+  grounding_rollup: GroundingRollup;
   // Budget derived from the funding ledger (0.6.3); null if not yet loaded.
   budget: ProjectBudget | null;
 };
@@ -196,6 +193,24 @@ export type GroundingHeadline =
   | "D"
   | "cited"
   | "ungrounded";
+
+// Counts of claims by grounding headline (0.16.3). Zero buckets are omitted; `total` is
+// the claim count the buckets sum to. Derived — never stamped.
+export type GroundingBucket = {
+  headline: GroundingHeadline;
+  count: number;
+};
+
+export type GroundingRollup = {
+  buckets: GroundingBucket[];
+  total: number;
+};
+
+// Thread list rows carry their claim count (0.3.4) and grounding rollup (0.16.3).
+export type ThreadSummary = Thread & {
+  claim_count: number;
+  grounding_rollup: GroundingRollup;
+};
 
 // The evidence axis of a claim (0.16.0) — how strongly it is backed by *what actually ran*.
 // Deliberately kept separate from `ClaimSignal` (the validation axis): the two are shown as

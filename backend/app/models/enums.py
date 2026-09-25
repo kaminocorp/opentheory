@@ -127,6 +127,9 @@ class AgentRunStatus(StrEnum):
     place as the background pass progresses. It records what the agent *attempted* and what landed
     on the ledger (through the chokepoint), so it is deliberately excluded from the append-only
     guards — the ledger writes it triggers are immutable; the trace narrating them is not.
+
+    There is no ``awaiting_review`` (0.17.0). ``completed`` means the pass stands; human
+    accept / reject / fork is opt-in audit, not a fourth lifecycle state.
     """
 
     RUNNING = "running"

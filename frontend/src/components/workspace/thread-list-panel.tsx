@@ -10,6 +10,7 @@ import { cn } from "@/lib/cn";
 import { queryKeys } from "@/lib/query-keys";
 import { useActingIdentity } from "@/lib/use-identity";
 
+import { formatGroundingRollup } from "./grounding-chip";
 import { PanelEmpty, PanelError, PanelLoading } from "./panel-state";
 
 type ThreadListPanelProps = {
@@ -160,6 +161,11 @@ export function ThreadListPanel({
                     <p className="mt-2 text-[12px] capitalize text-text-mute">
                       {thread.stage} · {thread.status.replace("_", " ")}
                     </p>
+                    {thread.grounding_rollup.total > 0 ? (
+                      <p className="mt-1 text-[11px] leading-[1.45] text-text-faint">
+                        {formatGroundingRollup(thread.grounding_rollup)}
+                      </p>
+                    ) : null}
                   </button>
                 </li>
               );

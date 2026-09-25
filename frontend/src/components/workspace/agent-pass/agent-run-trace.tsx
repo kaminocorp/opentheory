@@ -213,8 +213,8 @@ function StepRow({ step }: { step: AgentRunStep }) {
 /**
  * One agent pass's trace. Polls `GET /agent-runs/{id}` while `running` (stopping on
  * `completed`/`failed`), renders the plan's per-step outcomes with the honest toolbench vocabulary,
- * and — once a pass settles on a branch — offers a route to that line where the shipped branch-bar
- * (reject = close as dead-end, branch further = fork) and claim validation (accept) already live.
+ * and — once a pass settles on a branch — offers an *opt-in* route to that line (0.17.0).
+ * The pass stands without a human gate; accept / reject / fork remain available as audit.
  * On the `running → terminal` transition it refreshes the ledger surfaces the pass touched.
  */
 export function AgentRunTrace({
@@ -328,21 +328,41 @@ export function AgentRunTrace({
         </p>
       ) : null}
 
-      {/* Route to the shipped write paths: landing on a branch, the human reviews it on its line —
-          where reject (close as dead-end) and branch further (fork) live; accept validates a claim
-          from the claim panel. We don't duplicate those write flows here. */}
+      {/* 0.17.0 — completed is done. The shipped write paths (validate a claim / close as
+          dead-end / fork) stay available as opt-in audit; they are not a gate on the pass.
+          Copy is driven by `requires_review` so this surface cannot invent a mandatory step
+          the API does not assert. */}
       {landedOnBranch ? (
         <div className="grid gap-1 border-t pt-2" style={{ borderColor: "var(--hairline)" }}>
-          <ActionText size="sm" onClick={() => onSelectBranch(run.branch_id)} className="w-fit">
-            Review on its line
-          </ActionText>
-          <p className="text-[11px] leading-[1.5] text-text-faint">
-            Accept (validate a claim), reject (close the line as a dead end), or branch further from the
-            line selector above.
-          </p>
+          {run.requires_review ? (
+            <>
+              <ActionText size="sm" onClick={() => onSelectBranch(run.branch_id)} className="w-fit">
+                Review on its line
+              </ActionText>
+              <p className="text-[11px] leading-[1.5] text-text-faint">
+                Accept (validate a claim), reject (close the line as a dead end), or branch further
+                from the line selector above.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-[12px] leading-[1.5] text-text-soft">
+                This pass stands on its line — no review required.
+              </p>
+              <ActionText size="sm" onClick={() => onSelectBranch(run.branch_id)} className="w-fit">
+                Inspect its line
+              </ActionText>
+              <p className="text-[11px] leading-[1.5] text-text-faint">
+                Audit or override if you want: accept a claim, reject the line as a dead end, or
+                fork further from the line selector above.
+              </p>
+            </>
+          )}
         </div>
       ) : run.status === "completed" && run.branch_id === null ? (
-        <p className="text-[11px] text-text-faint">Landed on the project main line.</p>
+        <p className="text-[11px] text-text-faint">
+          Landed on the project main line — this pass stands; no review required.
+        </p>
       ) : null}
     </div>
   );

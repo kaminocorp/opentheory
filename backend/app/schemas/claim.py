@@ -34,6 +34,18 @@ GroundingHeadline = Literal["proven", "refuted", "B", "C", "D", "cited", "ungrou
 # derived raise path exists to prevent (0.16.2).
 SETTLED_HEADLINES: frozenset[str] = frozenset({"proven", "refuted"})
 
+# Ladder order for thread/project rollups (0.16.3). A display-order, not a rank — ``refuted`` is
+# a successful outcome, not a downgrade, so it sits next to ``proven`` rather than at the bottom.
+GROUNDING_HEADLINE_ORDER: tuple[GroundingHeadline, ...] = (
+    "proven",
+    "refuted",
+    "B",
+    "C",
+    "D",
+    "cited",
+    "ungrounded",
+)
+
 
 class ClaimGrounding(BaseModel):
     """How strongly a claim is backed by *what actually ran* — the evidence axis (0.16.0).
@@ -57,6 +69,26 @@ class ClaimGrounding(BaseModel):
     # True when a retrieval instrument landed a real pin against this claim (off-ladder, D7).
     cited: bool = False
     headline: GroundingHeadline = "ungrounded"
+
+
+class GroundingBucket(BaseModel):
+    """One non-zero headline count in a thread/project rollup (0.16.3)."""
+
+    headline: GroundingHeadline
+    count: int
+
+
+class GroundingRollup(BaseModel):
+    """Counts of claims by grounding headline — derived, never stamped (0.16.3).
+
+    Pure aggregation of :class:`ClaimGrounding` headlines. Zero buckets are omitted so a thread
+    with three B claims and one ungrounded serializes as two entries — the roadmap example
+    (``"3 claims at B, 1 ungrounded"``) is a client formatting of this shape, not a stored string.
+    ``total`` is the claim count the buckets sum to (an empty thread is ``total=0``, no buckets).
+    """
+
+    buckets: list[GroundingBucket] = Field(default_factory=list)
+    total: int = 0
 
 
 class ClaimBase(BaseModel):

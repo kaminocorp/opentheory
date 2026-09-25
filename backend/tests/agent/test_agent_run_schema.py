@@ -16,6 +16,7 @@ from uuid import uuid4
 
 from app.models.enums import AgentRunStatus
 from app.schemas.agent_run import AgentRunSummary, PassYield
+from app.services.agent_runs import requires_review
 
 
 def _row(**overrides):
@@ -88,3 +89,38 @@ def test_a_recorded_movement_round_trips_through_the_read_model() -> None:
     entry = summary.grounding_yield.changed[0]
     assert entry.claim_id == claim_id
     assert (entry.before, entry.after, entry.movement) == ("proven", "refuted", "settled")
+
+
+# --- 0.17.0: review is opt-in, never a gate on "done" --------------------------------------------
+
+
+def test_a_completed_pass_does_not_require_review() -> None:
+    """The happy path is autonomous: ``completed`` stands without a human accept/reject."""
+    summary = AgentRunSummary.model_validate(_row(status=AgentRunStatus.COMPLETED))
+    assert summary.status is AgentRunStatus.COMPLETED
+    assert summary.requires_review is False
+
+
+def test_a_failed_pass_does_not_queue_review_either() -> None:
+    """Nothing to accept — a failed pass is also not a pending-review state."""
+    summary = AgentRunSummary.model_validate(
+        _row(status=AgentRunStatus.FAILED, error="planner failed")
+    )
+    assert summary.requires_review is False
+
+
+def test_requires_review_cannot_be_forced_true() -> None:
+    """Computed, not stored — a client (or a future column) cannot invent a mandatory gate."""
+    dumped = AgentRunSummary.model_validate(_row()).model_dump()
+    dumped["requires_review"] = True
+    assert AgentRunSummary.model_validate(dumped).requires_review is False
+
+
+def test_lifecycle_has_no_awaiting_review_state() -> None:
+    """Regression: a fourth 'awaiting_review' status would reintroduce the mandatory gate."""
+    assert {member.value for member in AgentRunStatus} == {"running", "completed", "failed"}
+
+
+def test_service_requires_review_is_always_false() -> None:
+    assert requires_review() is False
+    assert requires_review(None) is False

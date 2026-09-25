@@ -66,8 +66,11 @@ class Settings(BaseSettings):
     #
     # NOTE on caps: `agent_pass_max_runs` / `agent_pass_max_tokens` are SAFETY limits (they bound
     # a single pass's blast radius), NOT budget. Real budget is a *project-level* concern wired in
-    # 0.12.5 (never per-thread). `OPENROUTER_API_KEY` is a Fly **secret** (`fly secrets set`), never
-    # `fly.toml [env]`; `AGENT_LOOP_ENABLED` is the dark-launch flag production flips when ready.
+    # 0.12.5 (never per-thread) — still deferred; these caps remain the blast-radius bound.
+    # Prod enablement is an ops flip, not a code change: `OPENROUTER_API_KEY` is a Fly **secret**
+    # (`fly secrets set`), never `fly.toml [env]`; `AGENT_LOOP_ENABLED` is the dark-launch flag
+    # production sets when the key is in place (see docs/operations/deploy.md). Do not invent
+    # a second key or a second flag.
     openrouter_api_key: str | None = None
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     # Wall-clock cap for the single planning call (the one LLM round-trip per pass).

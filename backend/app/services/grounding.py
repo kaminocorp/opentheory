@@ -26,7 +26,8 @@ is correct by construction. If a divergence is ever observed the fix is to read 
 never to stamp a grade.
 """
 
-from collections import defaultdict
+from collections import Counter, defaultdict
+from collections.abc import Iterable
 from typing import Any
 from uuid import UUID
 
@@ -37,7 +38,14 @@ from app.models.enums import EvidenceGrade, ResultStatus
 from app.models.evidence import Evidence
 from app.models.links import ClaimEvidenceLink
 from app.schemas.agent_run import ClaimMovement, ClaimYield, PassYield
-from app.schemas.claim import SETTLED_HEADLINES, ClaimGrounding, GroundingHeadline
+from app.schemas.claim import (
+    GROUNDING_HEADLINE_ORDER,
+    SETTLED_HEADLINES,
+    ClaimGrounding,
+    GroundingBucket,
+    GroundingHeadline,
+    GroundingRollup,
+)
 from app.toolbench.grading import grade_for, outranks, strongest
 
 # The ``Evidence.source_type`` a *compute* instrument's evidence carries (``tool_runs.py``:
@@ -256,3 +264,45 @@ async def grounding_by_claim(
         by_claim[claim_id].append((relation_kind, source_type, metadata))
 
     return {claim_id: compute_grounding(rows) for claim_id, rows in by_claim.items()}
+
+
+# --- 0.16.3: thread / project rollup --------------------------------------------------------------
+
+
+def compute_rollup(headlines: Iterable[GroundingHeadline]) -> GroundingRollup:
+    """Count headlines into the thread/project rollup (pure — loaders do the I/O).
+
+    Zero buckets are omitted; remaining buckets keep ``GROUNDING_HEADLINE_ORDER`` so a client can
+    format ``"3 claims at B, 1 ungrounded"`` without inventing its own sort. Claims with no
+    evidence links are ``ungrounded`` (the empty :class:`ClaimGrounding` headline) — the caller
+    must pass those headlines in, not drop the ids.
+    """
+    counts: Counter[str] = Counter(headlines)
+    buckets = [
+        GroundingBucket(headline=headline, count=counts[headline])
+        for headline in GROUNDING_HEADLINE_ORDER
+        if counts[headline]
+    ]
+    return GroundingRollup(buckets=buckets, total=sum(counts.values()))
+
+
+async def rollup_for_claim_ids(db: AsyncSession, claim_ids: list[UUID]) -> GroundingRollup:
+    """One thread or project's grounding rollup. Claims with no links read ``ungrounded``."""
+    empty = ClaimGrounding()
+    by_claim = await grounding_by_claim(db, claim_ids)
+    return compute_rollup((by_claim.get(claim_id) or empty).headline for claim_id in claim_ids)
+
+
+async def rollup_by_thread(
+    db: AsyncSession, claim_ids_by_thread: dict[UUID, list[UUID]]
+) -> dict[UUID, GroundingRollup]:
+    """Batched per-thread rollups — one ``grounding_by_claim`` for the whole project list."""
+    all_ids = [claim_id for claim_ids in claim_ids_by_thread.values() for claim_id in claim_ids]
+    by_claim = await grounding_by_claim(db, all_ids)
+    empty = ClaimGrounding()
+    return {
+        thread_id: compute_rollup(
+            (by_claim.get(claim_id) or empty).headline for claim_id in claim_ids
+        )
+        for thread_id, claim_ids in claim_ids_by_thread.items()
+    }

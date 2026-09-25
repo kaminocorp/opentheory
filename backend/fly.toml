@@ -11,7 +11,9 @@ primary_region = "sin"
   dockerfile = "Dockerfile"
 
 # Non-secret runtime config. Secrets (DATABASE_URL, MIGRATION_DATABASE_URL,
-# BACKEND_CORS_ORIGINS) are set with `fly secrets set` — never committed here.
+# BACKEND_CORS_ORIGINS, OPENROUTER_API_KEY) are set with `fly secrets set` — never
+# committed here. AGENT_LOOP_ENABLED stays off until that key is in place
+# (`fly secrets set AGENT_LOOP_ENABLED=true`); see docs/operations/deploy.md.
 [env]
   APP_ENV = "production"
   API_V1_PREFIX = "/api/v1"

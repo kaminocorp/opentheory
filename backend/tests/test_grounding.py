@@ -15,8 +15,8 @@ from typing import Any
 from uuid import uuid4
 
 from app.models.enums import EvidenceGrade
-from app.schemas.claim import ClaimGrounding
-from app.services.grounding import compute_grounding, compute_yield
+from app.schemas.claim import ClaimGrounding, GroundingRollup
+from app.services.grounding import compute_grounding, compute_rollup, compute_yield
 
 # --- link builders (relation_kind, source_type, evidence_metadata) --------------------------------
 
@@ -416,3 +416,44 @@ def test_nothing_measured_is_a_valid_empty_measure() -> None:
     """A thread with no open claims: the pass had nothing to move, and the record says so."""
     result = compute_yield([], {}, {})
     assert (result.measured, result.moved, result.changed) == (0, 0, [])
+
+
+# --- 0.16.3: thread / project rollup (pure aggregation of headlines) ------------------------------
+
+
+def test_rollup_matches_the_roadmap_example() -> None:
+    """``"3 claims at B, 1 ungrounded"`` is a client formatting of this shape."""
+    rollup = compute_rollup(["B", "B", "B", "ungrounded"])
+    assert rollup.total == 4
+    assert [(bucket.headline, bucket.count) for bucket in rollup.buckets] == [
+        ("B", 3),
+        ("ungrounded", 1),
+    ]
+
+
+def test_empty_rollup_is_zero_not_a_fake_ungrounded() -> None:
+    """No claims is not "0 ungrounded" — that would invent a measurement of nothing."""
+    rollup = compute_rollup([])
+    assert rollup == GroundingRollup()
+    assert rollup.total == 0
+    assert rollup.buckets == []
+
+
+def test_rollup_preserves_ladder_order_not_input_order() -> None:
+    rollup = compute_rollup(["ungrounded", "proven", "C", "proven"])
+    assert [bucket.headline for bucket in rollup.buckets] == ["proven", "C", "ungrounded"]
+    assert [bucket.count for bucket in rollup.buckets] == [2, 1, 1]
+
+
+def test_rollup_omits_zero_buckets() -> None:
+    rollup = compute_rollup(["cited", "cited"])
+    assert [(bucket.headline, bucket.count) for bucket in rollup.buckets] == [("cited", 2)]
+
+
+def test_rollup_counts_every_headline_including_settled() -> None:
+    rollup = compute_rollup(["proven", "refuted", "D"])
+    assert [(bucket.headline, bucket.count) for bucket in rollup.buckets] == [
+        ("proven", 1),
+        ("refuted", 1),
+        ("D", 1),
+    ]

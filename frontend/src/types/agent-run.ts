@@ -87,6 +87,10 @@ export type AgentRunSummary = {
   error: string | null;
   created_at: string;
   updated_at: string;
+  // Phase 1 autonomy (0.17.0): always false. A completed pass's checkpoints stand;
+  // accept / reject / fork is opt-in audit, not a gate on "done". Computed server-side
+  // so a client cannot invent a mandatory review step.
+  requires_review: boolean;
 };
 
 // The poll target: the summary plus the validated plan and the per-step outcomes.

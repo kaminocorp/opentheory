@@ -22,12 +22,13 @@ const ROLES: { key: AgentRole; label: string }[] = [
 ];
 
 /**
- * The agent-pass surface (0.12.4): commission one bounded pass on the selected thread and watch its
- * trace. The trigger is member-gated (the backend still authorizes) and disabled when the chosen
- * role has no model assigned in Research crew, or when the loop is dark for this deployment
- * (feature-detected via a 404 on the list). The pass runs on the backend; the trace polls until it
- * settles, landing real checkpoints on a durable agent branch — the same ledger a human's instrument
- * run lands on, one layer down.
+ * The agent-pass surface (0.12.4; review opt-in in 0.17.0): commission one bounded pass on the
+ * selected thread and watch its trace. The trigger is member-gated (the backend still authorizes)
+ * and disabled when the chosen role has no model assigned in Research crew, or when the loop is
+ * dark for this deployment (feature-detected via a 404 on the list). The pass runs on the backend;
+ * the trace polls until it settles, landing real checkpoints on a durable agent branch — the same
+ * ledger a human's instrument run lands on. A completed pass stands without a human gate; accept /
+ * reject / fork remain available as opt-in audit.
  */
 export function AgentPassPanel({
   projectId,

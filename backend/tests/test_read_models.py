@@ -157,6 +157,14 @@ async def test_thread_list_includes_claim_count(client: AsyncClient) -> None:
     assert listed.status_code == 200, listed.text
     by_title = {t["title"]: t["claim_count"] for t in listed.json()}
     assert by_title == {"busy": 2, "empty": 0}
+    # 0.16.3 — two ungrounded claims on busy, none on empty. No evidence ran, so both
+    # headlines are the empty-ClaimGrounding default, not a stored grade.
+    by_rollup = {t["title"]: t["grounding_rollup"] for t in listed.json()}
+    assert by_rollup["busy"] == {
+        "total": 2,
+        "buckets": [{"headline": "ungrounded", "count": 2}],
+    }
+    assert by_rollup["empty"] == {"total": 0, "buckets": []}
 
 
 async def test_checkpoint_read_is_enriched(client: AsyncClient) -> None:
@@ -277,6 +285,52 @@ async def test_branch_list_includes_checkpoint_count(client: AsyncClient) -> Non
     rows = {b["id"]: b for b in listed.json()}
     assert rows[branch_id]["checkpoint_count"] == 2
     assert rows[branch_id]["status"] == "open"
+
+
+async def test_thread_and_overview_grounding_rollup(client: AsyncClient) -> None:
+    """0.16.3 — the thread list, thread read, and project overview share one rollup shape.
+
+    Two claims at D (hand-attached evidence, honesty rule 2) and one ungrounded, on one thread;
+    a second empty thread stays ``total=0``. The project overview sums the same headlines.
+    """
+    actor_id = await _actor(client)
+    project_id = await _project(client, "rollup-overview")
+    busy = await _thread(client, project_id, actor_id, "busy")
+    empty = await _thread(client, project_id, actor_id, "empty")
+    grounded_a = await _claim(client, busy, actor_id, "asserted a")
+    grounded_b = await _claim(client, busy, actor_id, "asserted b")
+    await _claim(client, busy, actor_id, "still open")
+    await _evidence(client, grounded_a, actor_id, "Paper A")
+    await _evidence(client, grounded_b, actor_id, "Paper B")
+
+    expected_busy = {
+        "total": 3,
+        "buckets": [{"headline": "D", "count": 2}, {"headline": "ungrounded", "count": 1}],
+    }
+    expected_empty = {"total": 0, "buckets": []}
+    expected_project = {
+        "total": 3,
+        "buckets": [{"headline": "D", "count": 2}, {"headline": "ungrounded", "count": 1}],
+    }
+
+    listed = await client.get(f"/api/v1/projects/{project_id}/threads")
+    assert listed.status_code == 200, listed.text
+    by_title = {t["title"]: t for t in listed.json()}
+    assert by_title["busy"]["grounding_rollup"] == expected_busy
+    assert by_title["empty"]["grounding_rollup"] == expected_empty
+
+    detail = await client.get(f"/api/v1/threads/{busy}")
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["claim_count"] == 3
+    assert detail.json()["grounding_rollup"] == expected_busy
+
+    empty_detail = await client.get(f"/api/v1/threads/{empty}")
+    assert empty_detail.json()["grounding_rollup"] == expected_empty
+
+    overview = await client.get(f"/api/v1/projects/{project_id}/overview")
+    assert overview.status_code == 200, overview.text
+    assert overview.json()["grounding_rollup"] == expected_project
+    assert overview.json()["counts"]["claims"] == 3
 
 
 # --- 0.16.0: claim grounding through the chokepoint -----------------------------------------------

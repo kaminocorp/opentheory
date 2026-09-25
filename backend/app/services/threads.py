@@ -10,6 +10,7 @@ from app.models.project import Project
 from app.models.thread import Thread
 from app.schemas.thread import ThreadCreate, ThreadRead, ThreadSummary
 from app.services import contributions
+from app.services.grounding import rollup_by_thread, rollup_for_claim_ids
 
 
 async def create_thread(
@@ -40,7 +41,8 @@ async def create_thread(
 
 async def list_threads(db: AsyncSession, project_id: UUID) -> list[ThreadSummary]:
     # One grouped query yields each thread with its claim count (0.3.4); outer join so
-    # threads with zero claims still appear.
+    # threads with zero claims still appear. The grounding rollup (0.16.3) is a second
+    # batched pass over the same claim ids — never one query per thread.
     result = await db.execute(
         select(Thread, func.count(Claim.id))
         .outerjoin(Claim, Claim.thread_id == Thread.id)
@@ -48,9 +50,22 @@ async def list_threads(db: AsyncSession, project_id: UUID) -> list[ThreadSummary
         .group_by(Thread.id)
         .order_by(Thread.created_at.desc())
     )
+    rows = list(result)
+    claim_ids_by_thread: dict[UUID, list[UUID]] = {thread.id: [] for thread, _count in rows}
+    if claim_ids_by_thread:
+        claims = await db.execute(
+            select(Claim.id, Claim.thread_id).where(Claim.thread_id.in_(claim_ids_by_thread))
+        )
+        for claim_id, thread_id in claims:
+            claim_ids_by_thread[thread_id].append(claim_id)
+    rollups = await rollup_by_thread(db, claim_ids_by_thread)
     return [
-        ThreadSummary(**ThreadRead.model_validate(thread).model_dump(), claim_count=count)
-        for thread, count in result
+        ThreadSummary(
+            **ThreadRead.model_validate(thread).model_dump(),
+            claim_count=count,
+            grounding_rollup=rollups[thread.id],
+        )
+        for thread, count in rows
     ]
 
 
@@ -62,3 +77,15 @@ async def get_thread(db: AsyncSession, thread_id: UUID) -> Thread:
             detail="Thread not found",
         )
     return thread
+
+
+async def get_thread_summary(db: AsyncSession, thread_id: UUID) -> ThreadSummary:
+    """The thread read model: identity plus claim count and grounding rollup (0.16.3)."""
+    thread = await get_thread(db, thread_id)
+    result = await db.execute(select(Claim.id).where(Claim.thread_id == thread_id))
+    claim_ids = list(result.scalars())
+    return ThreadSummary(
+        **ThreadRead.model_validate(thread).model_dump(),
+        claim_count=len(claim_ids),
+        grounding_rollup=await rollup_for_claim_ids(db, claim_ids),
+    )

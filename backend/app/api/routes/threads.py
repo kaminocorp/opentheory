@@ -34,6 +34,6 @@ async def list_threads(project_id: UUID, db: DbSession) -> list[ThreadSummary]:
     return await thread_service.list_threads(db, project_id)
 
 
-@router.get("/threads/{thread_id}", response_model=ThreadRead, tags=["threads"])
-async def get_thread(thread_id: UUID, db: DbSession) -> Thread:
-    return await thread_service.get_thread(db, thread_id)
+@router.get("/threads/{thread_id}", response_model=ThreadSummary, tags=["threads"])
+async def get_thread(thread_id: UUID, db: DbSession) -> ThreadSummary:
+    return await thread_service.get_thread_summary(db, thread_id)
