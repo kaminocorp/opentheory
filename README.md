@@ -30,7 +30,7 @@ Nothing resets. Dead ends are recorded, not deleted.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-live-success)](https://opentheory.vercel.app)
-[![Version](https://img.shields.io/badge/version-0.17.0-crimson)](docs/changelog.md)
+[![Version](https://img.shields.io/badge/version-0.18.0-crimson)](docs/changelog.md)
 &nbsp;
 ![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
@@ -393,7 +393,7 @@ opentheory/
 ## Status
 
 **Live** (Vercel + Fly.io + Supabase), shipped in small, deployable phases tracked in
-[`docs/changelog.md`](docs/changelog.md). Currently `0.17.0`.
+[`docs/changelog.md`](docs/changelog.md). Currently `0.18.0`.
 
 **Shipped:**
 
@@ -409,6 +409,7 @@ opentheory/
 | `0.14.x`–`0.15.x` | Five-tab project deepdive; quiet-minimalist Console re-skin |
 | `0.16.x` | Claim grounding — evidence grade ladder, planner yield measure, post-review hardening, thread/project rollup (`0.16.3`) |
 | `0.17.x` | Phase 1 agent autonomy — a completed pass stands; human accept/reject/fork is opt-in audit |
+| `0.18.x` | Tier-1 literature pins — `crossref.lookup`, `arxiv.lookup`, `openalex.lookup` |
 
 **Honest caveats:**
 
@@ -425,9 +426,8 @@ opentheory/
   artifacts** are described in the docs but not built.
 
 **Next up** (see [`docs/plans/roadmap-next-steps.md`](docs/plans/roadmap-next-steps.md)):
-Tier 1 literature pin instruments (Crossref / arXiv, and OpenAlex if the key is ready)
-on the proven `source.pin` shape — **in flight, not shipped**. Lean 4 + Mathlib comes
-after.
+the still-owed browser eyeball pass, then `0.14.1` CommandRail sync. Lean 4 + Mathlib
+comes after. Tier 1 literature pins shipped in `0.18.0`.
 
 ---
 

@@ -7,7 +7,7 @@
 > rendered artifact, a pinned source — **always recorded against the instrument that
 > derived it.**
 
-> **Status — working spec (2026-06-30), partially shipped (`0.9.x`–`0.10.5`).** The
+> **Status — working spec (2026-06-30), partially shipped (`0.9.x`–`0.17.0`).** The
 > *agreed scope* for the first toolbox, math-first. Third doc in the toolbench set and
 > the one that fixes the list:
 > - `agent-research-tools.md` — *why* the bench exists; the four families
@@ -30,7 +30,7 @@
 > - **Interval arithmetic (Arb) is in** the agreed core (not yet shipped — optional `0.10.6+`).
 > - **Z3 (`z3.prove`) shipped in `0.13.x`.** Lean and all physics-specific tools remain deferred.
 
-## Shipped in production (`0.9.x`–`0.13.x`)
+## Shipped in production (`0.9.x`–`0.17.x`)
 
 These instruments are registered, conformance-tested, membership-gated on the run route,
 and have workspace drive/show surfaces (KaTeX where `*_latex` companions exist):
@@ -43,6 +43,9 @@ and have workspace drive/show surfaces (KaTeX where `*_latex` companions exist):
 | `oeis.search` | Falsify & discover | `0.9.4` | Tier 1 retrieval; embeds `source.pin` on match |
 | `counterexample.search` | Falsify & discover | `0.10.1` | Integer grid falsifier; weak-support honesty in UI |
 | `z3.prove` | Verify | `0.13.1` | Machine-checked validity — `proof` / counter-model / undecided |
+| `crossref.lookup` | Falsify & discover | `0.17.0` | DOI / bibliographic pin via Crossref |
+| `arxiv.lookup` | Falsify & discover | `0.17.0` | Versioned arXiv id pin via export API |
+| `openalex.lookup` | Falsify & discover | `0.17.0` | Optional-key OpenAlex pin (demo-pool degrade) |
 
 **Cross-cutting (shipped):** blame tuple on `Checkpoint.tool_invocations`, assumptions on
 Evidence/Artifact (`0.9.1` migration `0012_toolbench_provenance`), AST-gated SymPy parser
@@ -290,8 +293,9 @@ through the *same* API.
 - **Completeness** — resolved for v1 scope: interval arithmetic stays **in** the agreed
   list but **unshipped**; grades & stamped result-kind stay **out** (derived from the
   recorded instrument).
-- **Next instrument candidates** — see `docs/plans/roadmap-next-steps.md`: Tier 1 literature
-  pins, `interval.eval` (optional), `z3.satisfy` / bools, Bench 6 tables/plots, then Lean.
+- **Next instrument candidates** — see `docs/plans/roadmap-next-steps.md`:
+  `interval.eval` (optional), `z3.satisfy` / bools, Bench 6 tables/plots, then Lean.
+  Tier 1 literature pins shipped in `0.17.0`.
 
 ## Build infrastructure (done — `0.9.x`)
 

@@ -416,9 +416,9 @@ tradeoffs, and the blast radius. Look at `git log` for the house style.
 - **A new Tier 0 instrument** — the adapter contract, code registry, and conformance
   harness make this the best-paved path. See
   [`docs/plans/toolbench-catalog.md`](docs/plans/toolbench-catalog.md) for the menu.
-  Tier 1 retrieval pins (Crossref / arXiv, and OpenAlex if the key is ready) on the
-  proven `source.pin` shape are the current Phase 1 priority. `z3.prove` already
-  shipped in `0.13.x`.
+  Tier 1 retrieval pins (Crossref / arXiv / OpenAlex) shipped in `0.17.0` on the
+  proven `source.pin` shape. `z3.prove` already shipped in `0.13.x`. Next cheap
+  adds: `interval.eval`, `z3.satisfy`.
 - **Read-model surfaces** — the workspace has more ledger structure available than it
   currently shows.
 - **Tests** — particularly DB-free gate tests for security controls, and invariant

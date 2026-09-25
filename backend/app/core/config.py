@@ -58,6 +58,14 @@ class Settings(BaseSettings):
     # than being killed by the subprocess wall-clock (mints nothing). The wall-clock/RLIMIT_AS
     # remain the hard backstop if a pathological case ignores the soft timeout.
     toolbench_z3_timeout_ms: int = 10_000
+    # Contact address embedded in the outbound User-Agent for Crossref's polite pool (and
+    # as courtesy on arXiv / OpenAlex). Not a secret. Empty → UA without mailto.
+    toolbench_retrieval_mailto: str | None = None
+    # Optional OpenAlex key. The works endpoint still answers a small unauthenticated demo
+    # pool; production agent loops should set this. Never required to boot the process —
+    # a missing key is not a startup failure, and tests inject a Fetcher so they never need
+    # one. As of Feb 2026 the polite-pool mailto param is ignored; the key is the real quota.
+    openalex_api_key: str | None = None
 
     # --- Thin agent loop (0.12.x) -----------------------------------------------------
     # The agent loop turns the config-only Research crew into an operator: one bounded planning

@@ -26,7 +26,8 @@ them.
    ``instrument`` key in its metadata) is legitimately D — the baseline the bench exists to climb
    out of. It must never render as an error.
 3. **A tolerance-only result may never be reported as exact.** No current instrument produces one
-   (all six are exact or retrieval), but the ladder must not acquire a "float → B" rule when SciPy
+   (all current instruments are exact or retrieval), but the ladder must not acquire a "float → B"
+   rule when SciPy
    lands. A numeric instrument whose output is a tolerance-bounded float belongs **below** the exact
    rung, or on its own axis — never at B.
 
@@ -45,7 +46,7 @@ from app.models.enums import EvidenceGrade, ResultStatus
 #
 # ``None`` appears for two distinct reasons, both deliberate:
 #   - ``undecided`` everywhere — honesty rule 1.
-#   - ``oeis.search`` everywhere — retrieval is **off-ladder** (plan D7). It is graded by source
+#   - retrieval instruments everywhere — **off-ladder** (plan D7). They are graded by source
 #     authority and pin quality, not by computation, so it reads ``cited``. The read model maps that
 #     via ``Evidence.source_type``, keeping the off-ladder rule in exactly one place.
 #   - ``geometry.coordinate_measure`` on ``refuted`` — n/a: the instrument measures, it never
@@ -91,6 +92,21 @@ _MATRIX: dict[str, dict[ResultStatus, EvidenceGrade | None]] = {
     },
     # Retrieval — off-ladder in every cell (D7). A pin is a citation, not a computation.
     "oeis.search": {
+        ResultStatus.RESULT: None,
+        ResultStatus.REFUTED: None,
+        ResultStatus.UNDECIDED: None,
+    },
+    "crossref.lookup": {
+        ResultStatus.RESULT: None,
+        ResultStatus.REFUTED: None,
+        ResultStatus.UNDECIDED: None,
+    },
+    "arxiv.lookup": {
+        ResultStatus.RESULT: None,
+        ResultStatus.REFUTED: None,
+        ResultStatus.UNDECIDED: None,
+    },
+    "openalex.lookup": {
         ResultStatus.RESULT: None,
         ResultStatus.REFUTED: None,
         ResultStatus.UNDECIDED: None,
@@ -184,7 +200,8 @@ def raise_path(current: EvidenceGrade | None) -> list[str]:
     empty list, because nothing beats a machine-checked proof — which is the signal the planner
     needs to stop spending on an already-settled claim.
 
-    Off-ladder retrieval (``oeis.search``, all cells ``None``) never appears here. That is correct
+    Off-ladder retrieval (``oeis.search`` / ``crossref.lookup`` / ``arxiv.lookup`` /
+    ``openalex.lookup``, all cells ``None``) never appears here. That is correct
     and load-bearing: a pin is a citation, not a rung, so it can never be *the* way to raise one.
     """
     return _instruments_above(_RANK[current] if current is not None else 0)

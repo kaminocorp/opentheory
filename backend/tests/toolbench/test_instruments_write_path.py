@@ -32,7 +32,10 @@ from app.toolbench.instruments import (
 )
 from app.toolbench.instruments._sympy_support import ENGINE_VERSION
 from app.toolbench.instruments._z3_support import ENGINE_VERSION as Z3_ENGINE_VERSION
+from app.toolbench.instruments.arxiv_lookup import ArxivLookup
+from app.toolbench.instruments.crossref_lookup import CrossrefLookup
 from app.toolbench.instruments.oeis_search import OeisSearch
+from app.toolbench.instruments.openalex_lookup import OpenAlexLookup
 from app.toolbench.retrieval import Retrieval
 
 # --- HTTP bootstrap helpers (mirror test_write_path.py) -------------------------------------------
@@ -332,6 +335,164 @@ async def test_oeis_search_lands_a_pinned_external_evidence(
     assert pin["identifier"] == "A000045"
     assert pin["url"] == "https://oeis.org/A000045"
     assert pin["retrieved_at"] and pin["raw_response_hash"]
+
+
+# --- 0.17.0: literature pins through the same chokepoint -----------------------------------------
+
+_CROSSREF_RAW = json.dumps(
+    {
+        "status": "ok",
+        "message": {
+            "DOI": "10.1038/nature14539",
+            "title": ["Deep learning"],
+            "author": [{"given": "Yann", "family": "LeCun"}],
+            "issued": {"date-parts": [[2015]]},
+            "container-title": ["Nature"],
+        },
+    }
+)
+_ARXIV_ATOM = (
+    '<?xml version="1.0" encoding="UTF-8"?>'
+    '<feed xmlns="http://www.w3.org/2005/Atom">'
+    "<entry><id>http://arxiv.org/abs/1706.03762v7</id>"
+    "<title>Attention Is All You Need</title>"
+    "<published>2017-06-12T00:00:00Z</published>"
+    "<author><name>Ashish Vaswani</name></author></entry></feed>"
+)
+_OPENALEX_RAW = json.dumps(
+    {
+        "id": "https://openalex.org/W2963682871",
+        "doi": "https://doi.org/10.1038/nature14539",
+        "display_name": "Deep learning",
+        "publication_year": 2015,
+        "authorships": [{"author": {"display_name": "Yann LeCun"}}],
+    }
+)
+
+
+class _CrossrefFetcher:
+    async def get_json(self, url: str) -> Retrieval:
+        return Retrieval(
+            url=url,
+            retrieved_at=datetime(2026, 9, 25, 12, 0, tzinfo=UTC),
+            raw_response=_CROSSREF_RAW,
+            parsed=json.loads(_CROSSREF_RAW),
+        )
+
+
+class _ArxivFetcher:
+    async def get_text(self, url: str) -> Retrieval:
+        return Retrieval(
+            url=url,
+            retrieved_at=datetime(2026, 9, 25, 12, 0, tzinfo=UTC),
+            raw_response=_ARXIV_ATOM,
+            parsed=None,
+        )
+
+
+class _OpenAlexFetcher:
+    async def get_json(self, url: str) -> Retrieval:
+        return Retrieval(
+            url=url,
+            retrieved_at=datetime(2026, 9, 25, 12, 0, tzinfo=UTC),
+            raw_response=_OPENALEX_RAW,
+            parsed=json.loads(_OPENALEX_RAW),
+        )
+
+
+async def test_crossref_lookup_lands_a_pinned_external_evidence(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    actor_id = await _actor(client)
+    project_id = await _project(client, "instr-crossref")
+    thread_id = await _thread(client, project_id, actor_id)
+    claim_id = await _claim(client, thread_id, actor_id, "Deep learning is a Nature paper.")
+    pid = UUID(project_id)
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        run = await run_instrument(
+            session,
+            pid,
+            CrossrefLookup(_CrossrefFetcher()),
+            actor,
+            inputs={"doi": "10.1038/nature14539"},
+            claim_id=UUID(claim_id),
+        )
+
+    assert run.status is ResultStatus.RESULT
+    assert run.evidence_id is not None
+    async with session_factory() as session:
+        artifact = await session.get(Artifact, run.artifact_id)
+        assert artifact.kind == "pinned_source"
+        evidence = await session.get(Evidence, run.evidence_id)
+        assert evidence.source_type == "crossref"
+    pin = run.checkpoint.tool_invocations[0]["output"]["pin"]
+    assert pin["identifier"] == "10.1038/nature14539"
+    assert pin["url"] == "https://doi.org/10.1038/nature14539"
+    assert pin["retrieved_at"] and pin["raw_response_hash"]
+
+
+async def test_arxiv_lookup_lands_a_pinned_external_evidence(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    actor_id = await _actor(client)
+    project_id = await _project(client, "instr-arxiv")
+    thread_id = await _thread(client, project_id, actor_id)
+    claim_id = await _claim(client, thread_id, actor_id, "Attention Is All You Need is on arXiv.")
+    pid = UUID(project_id)
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        run = await run_instrument(
+            session,
+            pid,
+            ArxivLookup(_ArxivFetcher()),
+            actor,
+            inputs={"arxiv_id": "1706.03762v7"},
+            claim_id=UUID(claim_id),
+        )
+
+    assert run.status is ResultStatus.RESULT
+    async with session_factory() as session:
+        artifact = await session.get(Artifact, run.artifact_id)
+        assert artifact.kind == "pinned_source"
+        evidence = await session.get(Evidence, run.evidence_id)
+        assert evidence.source_type == "arxiv"
+    pin = run.checkpoint.tool_invocations[0]["output"]["pin"]
+    assert pin["identifier"] == "1706.03762v7"
+    assert pin["url"] == "https://arxiv.org/abs/1706.03762v7"
+
+
+async def test_openalex_lookup_lands_a_pinned_external_evidence(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    actor_id = await _actor(client)
+    project_id = await _project(client, "instr-openalex")
+    thread_id = await _thread(client, project_id, actor_id)
+    claim_id = await _claim(client, thread_id, actor_id, "This work is in OpenAlex.")
+    pid = UUID(project_id)
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        run = await run_instrument(
+            session,
+            pid,
+            OpenAlexLookup(_OpenAlexFetcher()),
+            actor,
+            inputs={"doi": "10.1038/nature14539"},
+            claim_id=UUID(claim_id),
+        )
+
+    assert run.status is ResultStatus.RESULT
+    async with session_factory() as session:
+        artifact = await session.get(Artifact, run.artifact_id)
+        assert artifact.kind == "pinned_source"
+        evidence = await session.get(Evidence, run.evidence_id)
+        assert evidence.source_type == "openalex"
+    pin = run.checkpoint.tool_invocations[0]["output"]["pin"]
+    assert pin["identifier"] == "W2963682871"
+    assert pin["url"] == "https://doi.org/10.1038/nature14539"
 
 
 # --- Phase 0.13.5: z3.prove (the first machine-checked verifier through the chokepoint) -----------

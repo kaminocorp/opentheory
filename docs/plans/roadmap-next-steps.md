@@ -1,16 +1,16 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-09-25 · **Current release line:** `0.17.x` (Phase 1 agent autonomy —
-> human review is opt-in) sitting on `0.16.x` (claim grounding, now rolled up at thread/project
-> scale). For the per-phase ledger see `docs/changelog.md`; for the two most recent lines see
-> `docs/completions/agent-autonomy-0.17.0.md` and `docs/completions/grounding-rollup-0.16.3.md`.
-> The `0.14.x` plan (phases B–D still open) now lives at
-> `docs/archive/project-deepdive-tabs-0.14.md`.
+> **Last updated:** 2026-09-25 · **Current release line:** `0.18.x` (Tier-1 literature pins —
+> Crossref / arXiv / OpenAlex on the proven `source.pin` shape), sitting on shipped `0.17.0`
+> (Phase 1 agent autonomy — review is opt-in) and `0.16.3` (thread/project grounding rollup).
+> For the per-phase ledger see `docs/changelog.md`; for the lines just closed see
+> `docs/completions/literature-pin-instruments-0.18.0.md`,
+> `docs/completions/agent-autonomy-0.17.0.md`, and
+> `docs/completions/grounding-rollup-0.16.3.md`. The `0.14.x` plan (phases B–D still open)
+> now lives at `docs/archive/project-deepdive-tabs-0.14.md`.
 >
-> **In flight / next (Phase 1 overnight train — not shipped):** Tier 1 literature pin
-> instruments — Crossref / arXiv, and OpenAlex if the key/readiness is there — on the proven
-> `source.pin` shape. Human-review opt-in (`0.17.0`) and the `0.16.3` thread-level grounding
-> rollup are **shipped**. Unmerged work is not claimed as shipped.
+> **Next after this line:** the still-owed browser eyeball pass, then `0.14.1` CommandRail
+> sync. Unmerged work is not claimed as shipped.
 
 ## Where we are
 
@@ -41,10 +41,11 @@ A signed-in member can today:
 1. Own or collaborate on a project; invite others; assign Research crew models (UI only).
 2. Decompose work into threads; add claims; attach evidence; record checkpoints.
 3. Fork and close branches; record validations; read contradiction signals.
-4. Run **six** production instruments from the workspace — with KaTeX-readable math and bounded
+4. Run **nine** production instruments from the workspace — with KaTeX-readable math and bounded
    execution (subprocess isolation, wall-clock/memory caps, concurrency limit):
    `calc.eval`, `expr.compare`, `geometry.coordinate_measure`, `oeis.search`,
-   `counterexample.search`, **`z3.prove`** — each landing an attributed checkpoint through the
+   `counterexample.search`, **`z3.prove`**, plus the literature pins **`crossref.lookup`**,
+   **`arxiv.lookup`**, **`openalex.lookup`** — each landing an attributed checkpoint through the
    chokepoint.
 5. Do all of it from a **five-tab deepdive** (`research` · `instruments` · `crew` · `funding` ·
    `overview`) under a persistent header, deep-linkable via `?tab=`. Research and Instruments
@@ -147,15 +148,15 @@ cheapest available frontend wins — full checklists in
 - **Phase D (optional)** — `?thread=` / `?branch=` deep links, a cross-tab agent in-flight
   indicator, and recording the rail-only nav decision (recommendation: skip the in-page sidecar).
 
-### Tier 1 retrieval wave — literature pin instruments
+### Tier 1 retrieval wave — literature pin instruments ✅ **shipped** (`0.18.0`)
 
-The highest-value *product* step from here: it directly widens what an agent pass can do.
-**Phase 1 overnight train (a) — in flight, not shipped.**
-
-- Crossref / arXiv pin instruments first (reuse the `source.pin` pattern from `oeis.search`).
-- OpenAlex on the same shape **if** the API key / readiness is there (the polite-pool retired;
-  catalog notes a key is required as of Feb 2026).
-- See `docs/plans/toolbench-catalog.md` Tier 1 table.
+Delivered: `crossref.lookup`, `arxiv.lookup`, and `openalex.lookup` on the proven `source.pin`
+shape — DOI / versioned arXiv id / OpenAlex id land as attributed checkpoints through
+`run_instrument`, with `url` + `source_url` + `retrieved_at` + `raw_response_hash`. Network
+failures mint nothing; a successful empty match is honest `undecided`. OpenAlex does **not**
+hard-require a prod secret: optional `OPENALEX_API_KEY`, demo-pool degrade when absent (the
+polite-pool `mailto` was retired Feb 2026; a key is the real quota). See
+`docs/completions/literature-pin-instruments-0.18.0.md`.
 
 ### `0.12.x` — Thin agent loop ✅ **shipped** (`0.12.0`–`0.12.4`)
 
@@ -232,9 +233,8 @@ demo requirement.
    DB is available.
 9. ~~**`0.16.3` thread-level grounding rollup + `0.17.0` review opt-in**~~ ✅ shipped
     (same branch).
-10. **Tier 1 retrieval** — literature pin instruments (Crossref / arXiv; OpenAlex if ready) on the
-    proven `source.pin` shape. Directly widens what an agent pass can *do*. (Each new instrument now
-    also needs a grade-matrix row — the harness will insist.) **Phase 1 overnight train (a).**
+10. ~~**Tier 1 retrieval** — literature pin instruments (Crossref / arXiv / OpenAlex)~~ ✅
+    shipped in `0.18.0` on the proven `source.pin` shape. OpenAlex degrades without a key.
 11. **`0.14.1` Phase B** — CommandRail sync; retires the last two fakes (`#funding`, inert Agents
     zone). Small, self-contained, and removes visible dead affordances.
 12. **`0.12.5` project-budget metering** — debit the project's compute budget per pass (stretch; the
@@ -261,17 +261,16 @@ demo requirement.
 | `0.15.x` | Quiet-minimalist re-skin — neutral near-black system, ornament retired |
 | `0.16.x` | Claim grounding — the evidence grade ladder, derived beside the validation signal, consumed by the planner as a yield measure, post-review hardened, and rolled up at thread/project scale (`0.16.3`) |
 | `0.17.x` | Phase 1 agent autonomy — a completed pass stands; human accept/reject/fork is opt-in audit |
+| `0.18.x` | Tier-1 literature pins — `crossref.lookup`, `arxiv.lookup`, `openalex.lookup` on `source.pin` |
 
 ## Success criteria for the next milestone
 
-`0.16.1` / `0.16.2` already closed the yield-measure line (planner sees each open claim's rung;
-a pass reports what it moved). **`0.17.0` (review → opt-in)** and **`0.16.3` (thread-level
-rollup)** are shipped: a completed pass stands without a human gate, and a thread with three
-B claims and one ungrounded reads that sentence on the thread list and Overview.
+**`0.17.0` (review → opt-in)** and **`0.16.3` (thread-level rollup)** are shipped. **Tier 1
+retrieval (`0.18.0`) is shipped:** an agent pass (or a human) can pin a literature source
+(Crossref / arXiv / OpenAlex) as content-addressed Evidence via the same `source.pin` shape
+`oeis.search` proved — landing an attributed checkpoint through the chokepoint, with a
+reproducible citation (`url` + `source_url` + `retrieved_at` + `raw_response_hash`), off-ladder
+as `cited`. OpenAlex degrades without `OPENALEX_API_KEY` (demo pool; mint-nothing on auth
+failure).
 
-**Tier 1 retrieval** (the remaining Phase 1 overnight train) is successful when an agent pass
-(or a human) can pin a literature source (Crossref / arXiv, and OpenAlex if ready) as
-content-addressed Evidence via the same `source.pin` shape `oeis.search` proved — landing an
-attributed checkpoint through the chokepoint, with a reproducible citation
-(`url` + `retrieved_at` + `raw_response_hash`), and carrying its grade-matrix row
-(retrieval instruments are off-ladder: `cited`, never a letter).
+**Next product step:** the still-owed browser eyeball pass, then `0.14.1` CommandRail sync.

@@ -172,6 +172,130 @@ function OeisSearchForm({ onInputs, disabled }: FormProps) {
   );
 }
 
+// --- literature pins (Crossref / arXiv / OpenAlex) --------------------------
+
+function CrossrefLookupForm({ onInputs, disabled }: FormProps) {
+  const [doi, setDoi] = useState("10.1038/nature14539");
+  const [query, setQuery] = useState("");
+  const emit = useEmit(onInputs);
+  useEffect(() => {
+    const d = doi.trim();
+    const q = query.trim();
+    if (d) {
+      emit.current({ doi: d });
+      return;
+    }
+    emit.current(q ? { query: q } : null);
+  }, [doi, query, emit]);
+
+  return (
+    <div className="grid gap-3">
+      <Field
+        label="DOI"
+        hint="Identity lookup. Bare (10.1038/…) or wrapped (https://doi.org/…, doi:…)."
+      >
+        <Input
+          mono
+          value={doi}
+          onChange={(event) => setDoi(event.target.value)}
+          placeholder="10.1038/nature14539"
+          disabled={disabled}
+        />
+      </Field>
+      <Field
+        label="Bibliographic query"
+        hint="Used only when DOI is empty. Title / author / year — the top hit is pinned only if it carries a DOI."
+      >
+        <Input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Deep learning LeCun 2015"
+          disabled={disabled}
+        />
+      </Field>
+    </div>
+  );
+}
+
+function ArxivLookupForm({ onInputs, disabled }: FormProps) {
+  const [arxivId, setArxivId] = useState("1706.03762v7");
+  const emit = useEmit(onInputs);
+  useEffect(() => {
+    const id = arxivId.trim();
+    emit.current(id ? { arxiv_id: id } : null);
+  }, [arxivId, emit]);
+
+  return (
+    <Field
+      label="arXiv id"
+      hint="Prefer a versioned id (1706.03762v7). Bare, arxiv:, or an abs/pdf URL are accepted."
+    >
+      <Input
+        mono
+        value={arxivId}
+        onChange={(event) => setArxivId(event.target.value)}
+        placeholder="1706.03762v7"
+        disabled={disabled}
+      />
+    </Field>
+  );
+}
+
+function OpenAlexLookupForm({ onInputs, disabled }: FormProps) {
+  const [doi, setDoi] = useState("10.1038/nature14539");
+  const [openalexId, setOpenalexId] = useState("");
+  const [query, setQuery] = useState("");
+  const emit = useEmit(onInputs);
+  useEffect(() => {
+    const oid = openalexId.trim();
+    const d = doi.trim();
+    const q = query.trim();
+    if (oid) {
+      emit.current({ openalex_id: oid });
+      return;
+    }
+    if (d) {
+      emit.current({ doi: d });
+      return;
+    }
+    emit.current(q ? { query: q } : null);
+  }, [doi, openalexId, query, emit]);
+
+  return (
+    <div className="grid gap-3">
+      <Field label="DOI" hint="Preferred identity lookup when known.">
+        <Input
+          mono
+          value={doi}
+          onChange={(event) => setDoi(event.target.value)}
+          placeholder="10.1038/nature14539"
+          disabled={disabled}
+        />
+      </Field>
+      <Field label="OpenAlex id" hint="W… work id. Wins over DOI when both are filled.">
+        <Input
+          mono
+          value={openalexId}
+          onChange={(event) => setOpenalexId(event.target.value)}
+          placeholder="W2963682871"
+          disabled={disabled}
+        />
+      </Field>
+      <Field
+        label="Search query"
+        hint="Used only when DOI and OpenAlex id are empty. Optional OPENALEX_API_KEY raises the production quota; without one this uses the public demo pool."
+      >
+        <Input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Deep learning"
+          disabled={disabled}
+        />
+      </Field>
+    </div>
+  );
+}
+
 // --- geometry.coordinate_measure --------------------------------------------
 
 // `id` is a stable React key (removing a middle row must reconcile by identity, not index, or the
@@ -696,6 +820,12 @@ export function DriveForm({
       return <CoordinateMeasureForm onInputs={onInputs} disabled={disabled} />;
     case "oeis.search":
       return <OeisSearchForm onInputs={onInputs} disabled={disabled} />;
+    case "crossref.lookup":
+      return <CrossrefLookupForm onInputs={onInputs} disabled={disabled} />;
+    case "arxiv.lookup":
+      return <ArxivLookupForm onInputs={onInputs} disabled={disabled} />;
+    case "openalex.lookup":
+      return <OpenAlexLookupForm onInputs={onInputs} disabled={disabled} />;
     case "counterexample.search":
       return <CounterexampleSearchForm onInputs={onInputs} disabled={disabled} />;
     case "z3.prove":
