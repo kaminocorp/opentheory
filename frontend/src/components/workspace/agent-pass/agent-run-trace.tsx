@@ -286,6 +286,9 @@ export function AgentRunTrace({
       queryClient.invalidateQueries({ queryKey: queryKeys.branches(projectId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.budget(projectId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.funding(projectId) });
+      if (runThreadId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.agentRuns(runThreadId) });
+      }
       // A pass runs instruments against the thread's claims, so it moves their *grounding*
       // (0.16.0) — the claim read is stale in a way it was not before this release.
       if (runThreadId) {

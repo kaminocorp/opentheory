@@ -1,14 +1,14 @@
 # Project deepdive — sectioned tab workspace (implementation)
 
 > **Status — Phase A shipped as `0.14.0`; Phase B shipped as `0.24.0` (historical
-> alias `0.14.1`).** Phases C–D remain open. Frontend layout / information-architecture only.
+> alias `0.14.1`); Phase C shipped as `0.30.0` (historical alias `0.14.2`).**
+> Phase D remains optional. Frontend layout / information-architecture only.
 > **No backend, schema, API, or migration.** Implements the proposal
 > `docs/plans/project-deepdive-tab-redesign.md`; read it first for the *why*. This doc is
 > the *how* — decisions locked, phases, tasks, and the file map to follow methodically.
 >
-> **Target release line:** `0.14.x` (frontend-only slices). **Confirm the number** against the
-> in-flight `0.13.x` Z3 instrument line (`docs/executing/z3-instrument-0.13.md`) so the two don't
-> collide — bump this line if `0.13.x` is still open when this ships.
+> **Shipped release numbers:** Phase A as `0.14.0`, Phase B as `0.24.0`, Phase C
+> as `0.30.0`. Do not reopen `0.14.x` as the changelog head.
 
 ---
 
@@ -223,25 +223,25 @@ Each phase is independently shippable. **Phase A is the demoable declutter and c
 - [ ] **A8** Verify: `npm run typecheck && npm run lint && npm run build` (build catches the
       Suspense deopt). Manual walk of the §8 acceptance list.
 
-### Phase B — CommandRail sync + retire the fakes (P1) · target `0.14.1` · risk: low–med
+### Phase B — CommandRail sync + retire the fakes (P1) · shipped `0.24.0` (historical `0.14.1`)
 
-- [ ] **B1** Share the `ProjectTabId` union between rail and tabs (single import).
-- [ ] **B2** `command-rail.tsx`: when `onProject`, render real zone links → `${pathname}?tab=<id>`
+- [x] **B1** Share the `ProjectTabId` union between rail and tabs (single import).
+- [x] **B2** `command-rail.tsx`: when `onProject`, render real zone links → `${pathname}?tab=<id>`
       for Research / Instruments / Crew / Funding; derive each zone's `active` from the current
       `?tab=` (read via `useSearchParams`). Rail + in-page strip stay in sync via the URL.
-- [ ] **B3** Retire the `#funding` hash target (now `?tab=funding`) and the **inert Agents hatch**:
+- [x] **B3** Retire the `#funding` hash target (now `?tab=funding`) and the **inert Agents hatch**:
       point Agents → `?tab=instruments` (or relabel "Operators"). No zone stays permanently inert.
-- [ ] **B4** Verify rail active-state, keyboard, and `aria-current` across all five tabs.
+- [x] **B4** Verify rail active-state, keyboard, and `aria-current` across all five tabs.
 
-### Phase C — Polish (P2) · target `0.14.2` · risk: med (polish only)
+### Phase C — Polish (P2) · shipped `0.30.0` (historical `0.14.2`)
 
-- [ ] **C1** Finalize compact header metric line; ensure full grid on Overview reads as reference.
-- [ ] **C2** Contested-claim click-through: clicking a contested item in the header `setTab('research')`
+- [x] **C1** Finalize compact header metric line; ensure full grid on Overview reads as reference.
+- [x] **C2** Contested-claim click-through: clicking a contested item in the header `setTab('research')`
       + scrolls/highlights the claim in `ClaimListPanel` (needs a claim-focus signal — a
       `focusClaimId` prop or an imperative scroll; keep it minimal).
-- [ ] **C3** Tab badges (§4): contested count on Research; member/invite count on Crew; running-pass
+- [x] **C3** Tab badges (§4): contested count on Research; member/invite count on Crew; running-pass
       `LiveDot` on Instruments (derive "running" from the newest `AgentRun.status`).
-- [ ] **C4** Sticky Instruments context readout refinement (sealed-line note, no-thread copy).
+- [x] **C4** Sticky Instruments context readout refinement (sealed-line note, no-thread copy).
 
 ### Phase D — Deep-link selection + nav finalization (P3, optional) · risk: med
 
@@ -302,8 +302,8 @@ A signed-in member opening a mid-size project:
 
 ## 10. Open items to confirm before merge
 
-1. **Version number** — `0.14.x` assumes `0.13.x` is the Z3 line. Confirm and adjust if needed.
-2. **Claim-focus mechanism (C2)** — prop drill (`focusClaimId`) vs a light imperative scroll;
-   pick the smaller one when Phase C starts.
-3. **Badge data source (C3)** — reuse existing queries (overview contradictions, members list,
-   newest agent run) — confirm no new fetch is introduced.
+1. **Version number** — closed: Phase C shipped as `0.30.0` (historical `0.14.2`).
+2. **Claim-focus mechanism (C2)** — closed: `focusClaimId` prop drill + `scrollIntoView`.
+3. **Badge data source (C3)** — closed: overview contradictions, members + invitations
+   (same keys as Collaborators), newest `AgentRun` on the selected thread (same keys as
+   `AgentPassPanel`). No new endpoint.

@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 
+import { LiveDot } from "@/components/console";
 import { cn } from "@/lib/cn";
 import { PROJECT_TAB_IDS, PROJECT_TAB_LABELS, type ProjectTabId } from "@/lib/project-tab";
 
@@ -9,9 +10,14 @@ import { PROJECT_TAB_IDS, PROJECT_TAB_LABELS, type ProjectTabId } from "@/lib/pr
 export const projectTabDomId = (tab: ProjectTabId) => `project-tab-${tab}`;
 export const projectPanelDomId = (tab: ProjectTabId) => `project-panel-${tab}`;
 
-export type ProjectTabBadges = Partial<
-  Record<ProjectTabId, { count: number; tone?: "mute" | "fail" } | null>
->;
+export type ProjectTabBadge = {
+  count?: number;
+  tone?: "mute" | "fail";
+  /** Instruments: a pass is actually running. Never colour-only for the active tab. */
+  live?: boolean;
+} | null;
+
+export type ProjectTabBadges = Partial<Record<ProjectTabId, ProjectTabBadge>>;
 
 type ProjectTabsProps = {
   active: ProjectTabId;
@@ -67,6 +73,17 @@ export function ProjectTabs({ active, onSelect, badges, className }: ProjectTabs
       {PROJECT_TAB_IDS.map((tab) => {
         const isActive = tab === active;
         const badge = badges?.[tab];
+        const count = badge?.count ?? 0;
+        const live = Boolean(badge?.live);
+        const label = PROJECT_TAB_LABELS[tab];
+        const announced =
+          live && count > 0
+            ? `${label}, ${count}, pass running`
+            : live
+              ? `${label}, pass running`
+              : count > 0
+                ? `${label}, ${count}`
+                : undefined;
 
         return (
           <button
@@ -77,6 +94,7 @@ export function ProjectTabs({ active, onSelect, badges, className }: ProjectTabs
             id={projectTabDomId(tab)}
             type="button"
             role="tab"
+            aria-label={announced}
             aria-selected={isActive}
             aria-controls={projectPanelDomId(tab)}
             tabIndex={isActive ? 0 : -1}
@@ -86,17 +104,18 @@ export function ProjectTabs({ active, onSelect, badges, className }: ProjectTabs
               isActive ? "text-text" : "text-text-mute hover:text-text",
             )}
           >
-            {PROJECT_TAB_LABELS[tab]}
-            {badge && badge.count > 0 ? (
+            {label}
+            {count > 0 ? (
               <span
                 className={cn(
                   "ml-1.5 tabular-nums",
-                  badge.tone === "fail" ? "text-state-fail" : "text-text-faint",
+                  badge?.tone === "fail" ? "text-state-fail" : "text-text-faint",
                 )}
               >
-                {badge.count}
+                {count}
               </span>
             ) : null}
+            {live ? <LiveDot tone="signal" pulse className="ml-1.5 align-middle" /> : null}
             {isActive ? (
               <span aria-hidden className="absolute inset-x-2 bottom-0 h-0.5 bg-signal" />
             ) : null}

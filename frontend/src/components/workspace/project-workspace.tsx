@@ -5,9 +5,12 @@ import { useRef, useState, type ReactNode } from "react";
 
 import { AwaitingState, Bay, MetricReadout, ReadoutLabel } from "@/components/console";
 import {
+  getAgentRun,
   getProject,
   getProjectOverview,
+  listAgentRuns,
   listBranches,
+  listProjectInvitations,
   listProjectMembers,
   listThreads,
 } from "@/lib/api";
@@ -68,6 +71,8 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   // Project stewardship (0.8.1): the metadata edit form, which renders on Overview.
   const [editing, setEditing] = useState(false);
+  // Contested-strip click-through (0.30.0): which claim the Research list should land on.
+  const [focusClaimId, setFocusClaimId] = useState<string | null>(null);
 
   const { tab, setTab } = useProjectTab();
   const { isAuthed, me } = useActingIdentity();
@@ -108,6 +113,32 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
     queryFn: () => listThreads(projectId),
   });
   const selectedThread = threadsQuery.data?.find((t) => t.id === selectedThreadId) ?? null;
+
+  // Same key Collaborators already uses. Stewards get one shared request (not a
+  // second fetch); visitors never hit the steward-only invitations read.
+  const invitationsQuery = useQuery({
+    queryKey: queryKeys.projectInvitations(projectId),
+    queryFn: () => listProjectInvitations(projectId),
+    enabled: canManageProject,
+  });
+
+  // Same key + enablement as AgentPassPanel (keep-alive). TanStack serves one
+  // request; the Instruments LiveDot does not invent a project-wide list.
+  const agentRunsQuery = useQuery({
+    queryKey: queryKeys.agentRuns(selectedThreadId ?? ""),
+    queryFn: () => listAgentRuns(projectId, selectedThreadId as string),
+    enabled: Boolean(selectedThreadId),
+    retry: false,
+  });
+  const newestRun = agentRunsQuery.data?.[0];
+  const newestRunQuery = useQuery({
+    queryKey: queryKeys.agentRun(newestRun?.id ?? ""),
+    queryFn: () => getAgentRun(newestRun!.id),
+    enabled: Boolean(newestRun?.id),
+    refetchInterval: (query) => (query.state.data?.status === "running" ? 2000 : false),
+  });
+  const passRunning =
+    (newestRunQuery.data?.status ?? newestRun?.status) === "running";
 
   // Cold tabs mount on first activation and then stay mounted. Research and
   // Instruments start mounted because they are the hot path and share selection
@@ -156,7 +187,15 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
         counts={counts}
         countsError={overviewQuery.isError}
         contradictions={contradictions}
-        onShowContested={() => setTab("research")}
+        onShowContested={() => {
+          setFocusClaimId(null);
+          setTab("research");
+        }}
+        onFocusClaim={(item) => {
+          if (item.thread_id) setSelectedThreadId(item.thread_id);
+          setFocusClaimId(item.claim_id);
+          setTab("research");
+        }}
       />
 
       <ProjectTabs
@@ -164,7 +203,14 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
         onSelect={setTab}
         badges={{
           research: contradictions.length ? { count: contradictions.length, tone: "fail" } : null,
-          crew: membersQuery.data ? { count: membersQuery.data.length } : null,
+          crew:
+            membersQuery.data || invitationsQuery.data
+              ? {
+                  count:
+                    (membersQuery.data?.length ?? 0) + (invitationsQuery.data?.length ?? 0),
+                }
+              : null,
+          instruments: passRunning ? { live: true } : null,
         }}
       />
 
@@ -179,9 +225,16 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
           <ThreadListPanel
             projectId={projectId}
             selectedThreadId={selectedThreadId}
-            onSelectThread={setSelectedThreadId}
+            onSelectThread={(threadId) => {
+              setSelectedThreadId(threadId);
+              setFocusClaimId(null);
+            }}
           />
-          <ClaimListPanel projectId={projectId} threadId={selectedThreadId} />
+          <ClaimListPanel
+            projectId={projectId}
+            threadId={selectedThreadId}
+            focusClaimId={focusClaimId}
+          />
           <CheckpointTimelinePanel
             projectId={projectId}
             selectedThreadId={selectedThreadId}
@@ -264,6 +317,10 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
 
         <Bay density="narrative" className="grid gap-3">
           <ReadoutLabel as="h2">Ledger totals</ReadoutLabel>
+          <p className="text-[12px] leading-[1.5] text-text-faint">
+            Reference — evidence, validations, and branches sit here. The header keeps
+            threads, claims, and checkpoints.
+          </p>
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {COUNT_LABELS.map(({ key, label }) => (
               <MetricReadout
@@ -451,19 +508,30 @@ function InstrumentContext({
 }) {
   return (
     <div
-      className="sticky top-12 z-10 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-control bg-panel-2 px-3 py-2 text-[12px]"
+      className="sticky top-12 z-10 grid gap-1 rounded-control bg-panel-2 px-3 py-2 text-[12px]"
       style={{ border: "1px solid var(--hairline)" }}
     >
-      <span className="font-medium text-text-mute">Thread</span>
-      <span className={cn("truncate", threadTitle ? "text-text" : "text-text-faint")}>
-        {threadTitle ?? "none selected — pick one on Research"}
-      </span>
-      <span aria-hidden className="text-text-faint">
-        ·
-      </span>
-      <span className="font-medium text-text-mute">Line</span>
-      <span className="truncate text-text">{branchName}</span>
-      {lineSealed ? <span className="font-medium text-state-warn">· sealed</span> : null}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="font-medium text-text-mute">Thread</span>
+        <span className={cn("truncate", threadTitle ? "text-text" : "text-text-faint")}>
+          {threadTitle ?? "No thread selected"}
+        </span>
+        <span aria-hidden className="text-text-faint">
+          ·
+        </span>
+        <span className="font-medium text-text-mute">Line</span>
+        <span className="truncate text-text">{branchName}</span>
+      </div>
+      {threadTitle ? null : (
+        <p className="text-[12px] leading-[1.45] text-text-faint">
+          Pick a thread on Research — a run has nowhere to land.
+        </p>
+      )}
+      {lineSealed ? (
+        <p className="text-[12px] leading-[1.45] text-state-warn">
+          This line is sealed — runs will not record here.
+        </p>
+      ) : null}
     </div>
   );
 }

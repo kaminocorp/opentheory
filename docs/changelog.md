@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.30.0` — **Deepdive Phase C polish.** Compact header metric line finalized; Overview keeps the full grid as reference. Contested header items switch to Research and focus that claim. Tab badges reuse existing reads (contested count, member/invite count, running-pass `LiveDot`). Instruments context readout is honest for sealed / no-thread. Historically the deferred deepdive Phase C (`0.14.2`). Sits on shipped `0.29.0`. Frontend-only — no backend, schema, or migration.
 - `0.29.0` — **Semantic git diff.** A derived ledger read compares two checkpoint / branch / tag / `main` tips and returns a structured research-space delta: claims opened or left a line, validation-signal changes, grounding-rung moves, and instrument outcomes on `from..to`. Deterministic — same two tips, same payload. No LLM prose. Mints nothing. Public GET, always-on. Quiet Compare bay on Research. **No schema, no migration.** Sits on shipped `0.28.0`. Does not claim live OpenRouter prices (`0.28.0`).
 - `0.28.0` — **Live OpenRouter price metering.** Agent-pass `ComputeDebit` rows bill at the model's live prompt/completion rates when `GET /models` is reachable (process cache, short timeout). Missing key, timeout, fetch failure, or unknown model falls back to the configured blended `agent_token_rate_usd_per_1k` (or catalog `usd_per_1k`) and records that fallback on the row — never skips metering, never labels a fallback as live. Snapshot columns for the split and `rate_source`. Migration `0020_compute_debit_live_rates` (additive). Rebased after shipped `0.27.0` (does not claim it).
 - `0.27.0` — **Concurrent sub-passes under project budget.** The `0.22.0` orchestrator (and each `0.25.0` campaign cycle) can run a small number of `run_agent_pass` calls at once against the shared `ComputeDebit` pot. Before a pass starts, a project-row lock holds a slice of `available`; debit stays after tokens, so concurrent starts cannot oversell. Trace records which threads ran in parallel, skips, and stop reasons (including cancel). Same `AGENT_LOOP_ENABLED` gate. Never auto-validates or auto-funds. Overview shows concurrency status and Stop. Migration `0019_concurrent_subpasses` (additive). No Mathlib expansion.
@@ -97,6 +98,48 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.30.0
+
+**Deepdive Phase C polish.** Phase A (`0.14.0`) put Research first; Phase B
+(`0.24.0`, historical `0.14.1`) synced the CommandRail. This release closes
+the polish slice: the header metric line, contested click-through, tab
+badges, and an honest Instruments readout. Historically sketched as
+`0.14.2`. **Frontend-only — no backend, schema, API, or migration.** Sits
+on shipped `0.29.0` semantic git diff. Does not reopen `0.14.x` as the
+changelog head.
+
+- **C1 — Compact metric line.** The persistent header reads
+  `n threads · n claims · n checkpoints` (mono / tabular-nums). Overview
+  keeps the full six-metric grid and names it as reference.
+- **C2 — Contested click-through.** A contested statement in the header
+  strip sets `?tab=research`, selects that claim's thread, and
+  scrolls / highlights the row in `ClaimListPanel` via a `focusClaimId`
+  prop. The strip heading still opens Research without a specific claim.
+- **C3 — Tab badges, no new endpoint.** Research shows the contested
+  count (already on the overview read). Crew shows members + outstanding
+  invites (same keys `Collaborators` already uses). Instruments shows a
+  `LiveDot tone="signal" pulse` only when the newest `AgentRun.status` on
+  the selected thread is `running` (same keys as `AgentPassPanel`). Active
+  tab still reads from weight + edge tick; never colour-only.
+- **C4 — Instruments context.** Sticky readout says "No thread selected"
+  and that a run has nowhere to land; a sealed line says runs will not
+  record there.
+- **Keep-alive unchanged.** Research + Instruments stay mounted.
+  CommandRail `?tab=` sync from `0.24.0` is untouched.
+
+```bash
+cd frontend && npm run typecheck && npm run lint && npm run build
+# typecheck clean · lint clean · build clean (9/9 static pages)
+```
+
+See `docs/completions/deepdive-phase-c-0.30.0.md`.
+
+**Not in this release:** Phase D (`?thread=` / `?branch=` deep links, a
+project-wide in-flight indicator). No schema, no migration. Semantic
+diff remains `0.29.0`.
 
 ---
 
