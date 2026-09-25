@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.24.0` — **CommandRail sync.** The left rail's project zones are live `?tab=` links (research · instruments · crew · funding · overview); active state comes from the URL, same source as the in-page strip. Retires the `#funding` hash target and the inert Agents hatch — the agent surface is Instruments. Historically the deferred deepdive Phase B (`0.14.1`). Frontend-only — no backend, schema, or migration.
 - `0.23.0` — **Lean 4 Grade-A path (`lean.prove`).** A bounded Lean 4 snippet can raise a claim to Grade A / `proven` when the optional `lean` binary typechecks it with no `sorry`/`axiom`/import/IO. Missing toolchain, soft timeout, and a failed check are honest `undecided` (failed ≠ refuted). Crash / sandbox kill mints nothing. Lands only through `run_instrument`. No Mathlib / `lake` project in v1. No schema, no migration.
 - `0.22.0` — **Thin multi-thread orchestrator.** A project-level loop selects open threads with raisable claims, commissions capped sequential `run_agent_pass` calls against the shared `ComputeDebit` / project-budget ceiling, and stops when the pot is empty, no raisable work remains, or `orchestration_max_passes` is hit. Same `AGENT_LOOP_ENABLED` dark-launch flag as a single pass — no second flag. Trace records which threads were commissioned or skipped and why. Orchestrator is contributor infrastructure: never writes `Validation` or `FundingAllocation`. Frontend: quiet **Run research** on Overview. Migration `0017_orchestration_runs` (additive). Sits on shipped `0.21.0` research-git merge/tag.
 - `0.21.0` — **Research-git merge + tag.** Parallel exploration lines can converge without rewriting history: a merge is a new multi-parent checkpoint that records which branches (and optionally claims) were combined and marks sources `merged`. A tag is a named immutable pointer at a checkpoint (`milestone` / `validated` / `retraction`); a colliding name is `409`, never a silent overwrite. Workspace: Merge on the line bar, a Tags bay on Research. Migration `0016_research_git_merge_tag` (additive).
@@ -91,6 +92,48 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.24.0
+
+**CommandRail sync.** Phase A (`0.14.0`) made `?tab=` the in-page source of truth but
+left the left rail on two fakes: Funding still jumped to `#funding`, and Agents sat
+inert as a "coming soon" hatch. This release closes that deferred Phase B (historically
+sketched as `0.14.1`): rail and strip agree, and no zone stays permanently dead.
+**Frontend-only — no backend, schema, API, or migration.**
+
+- **Shared tab contract** (`lib/project-tab.ts`) — the frozen five-id union, href
+  builder, and `buildCommandRailZones()` are one import for the strip and the rail.
+  Unknown `?tab=` still falls back to `research`. Sibling params are preserved.
+- **Live project zones.** On `/projects/<id>` the rail links
+  `${pathname}?tab=<id>` for Research, Instruments, Crew, Funding, and Overview.
+  `aria-current="page"` follows the URL tab, not local state. Off-project those
+  five stay in the tree as contextual-off ("open a project first") — present, not
+  actionable, never "coming soon".
+- **Agents hatch retired, not aliased.** The agent pass already lives on Instruments
+  (and project-wide Run research on Overview). A second rail item pointing at the
+  same tab would have been a duplicate, not a surface.
+- **`#funding` retired as a rail target.** The Funding bay drops `id="funding"`.
+  Leftover bookmarks that still carry the hash still normalize once to
+  `?tab=funding`.
+- **Keep-alive unchanged.** Research + Instruments stay mounted (`KEEP_ALIVE_TABS`);
+  an in-flight agent trace still survives a tab switch. The rail is a `<Link>`, not
+  a remount.
+- **Quiet chrome.** Same filled-tile active state as `0.15.0` — no edge tick, no
+  pulse, no new ornament. The rail wraps `useSearchParams` in its own `<Suspense>`
+  so the global shell does not deopt `next build`.
+
+```bash
+cd frontend && npm test            # project-tab contract (see completions for count)
+cd frontend && npm run typecheck && npm run lint && npm run build
+```
+
+See `docs/completions/commandrail-sync-0.24.0.md`.
+
+**Not in this release:** Phase C (contested click-through, running-pass LiveDot,
+context-readout polish), Phase D (`?thread=` / `?branch=` deep links). No
+schema, no migration.
 
 ---
 

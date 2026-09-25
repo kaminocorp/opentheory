@@ -14,7 +14,8 @@ import {
 import { cn } from "@/lib/cn";
 import { queryKeys } from "@/lib/query-keys";
 import { useActingIdentity } from "@/lib/use-identity";
-import { useProjectTab, type ProjectTabId } from "@/lib/use-project-tab";
+import { KEEP_ALIVE_TABS, type ProjectTabId } from "@/lib/project-tab";
+import { useProjectTab } from "@/lib/use-project-tab";
 import type { GroundingRollup, ProjectBudget, ProjectCounts } from "@/types/research";
 
 import { AgentPassPanel } from "./agent-pass/agent-pass-panel";
@@ -110,7 +111,7 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
   // Instruments start mounted because they are the hot path and share selection
   // state — and because AgentPassPanel polls a live run from local state, so
   // unmounting Instruments would silently kill an in-flight trace (§5.2).
-  const visitedTabs = useRef(new Set<ProjectTabId>(["research", "instruments"]));
+  const visitedTabs = useRef(new Set<ProjectTabId>(KEEP_ALIVE_TABS));
   visitedTabs.current.add(tab);
 
   if (projectQuery.isLoading) {
