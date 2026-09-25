@@ -128,10 +128,12 @@ Grade-A. Does not expand Mathlib.
   decisions, and offers Stop.
 
 ```bash
-cd backend && uv run ruff check .
-cd backend && uv run pytest -q
-# With TEST_DATABASE_URL: tests/agent/test_orchestration*.py + migration/select
-cd frontend && npm run typecheck && npm run lint && npm run build
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 480 passed, 191 skipped (no TEST_DATABASE_URL)
+# With TEST_DATABASE_URL: tests/agent/test_orchestration*.py + campaigns + budget
+#   44 passed (parallel wave, sequential fallback, budget race, cancel,
+#   existing empty/no-work / failed-sub-pass / max-passes / dark 404 / 409)
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
 ```
 
 See `docs/completions/concurrent-subpasses-0.27.0.md`.

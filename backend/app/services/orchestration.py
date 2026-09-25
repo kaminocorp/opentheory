@@ -55,6 +55,7 @@ from app.schemas.claim import SETTLED_HEADLINES, ClaimGrounding
 from app.services import agent_runs as agent_run_service
 from app.services import compute as compute_service
 from app.services import funding as funding_service
+from app.services.agent_actors import get_or_create_project_agent_actor
 from app.services.agent_runs import PlannerFn
 from app.services.compute import BUDGET_EXHAUSTED, ProjectBudgetPolicy
 from app.services.grounding import grounding_by_claim
@@ -403,6 +404,12 @@ async def _execute(
         run.decisions = list(decisions)
         await db.commit()
 
+    if pending:
+        # Mint the per-project agent Actor once so concurrent sub-passes do not
+        # race ``uq_actors_one_agent_per_project`` on first use.
+        await get_or_create_project_agent_actor(db, run.project_id)
+        await db.commit()
+
     wave_n = 0
     while pending:
         run = await _reload()
@@ -578,7 +585,8 @@ async def _run_wave(
         )
         return [finished]
 
-    factory = async_sessionmaker(db.get_bind(), expire_on_commit=False)
+    # ``get_bind()`` is the sync Engine; concurrent tasks need the AsyncEngine.
+    factory = async_sessionmaker(db.bind, expire_on_commit=False, class_=AsyncSession)
 
     async def _one(agent_run_id: UUID) -> AgentRun:
         async with factory() as session:

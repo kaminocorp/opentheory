@@ -58,10 +58,18 @@ Migration `0019_concurrent_subpasses` (additive). No Mathlib expansion.
 
 ## Verification
 
-See `docs/changelog.md` §0.27.0.
+- `ruff check .` clean.
+- Default pytest (no `TEST_DATABASE_URL`): **480 passed, 191 skipped**.
+- With `TEST_DATABASE_URL` at a local throwaway Postgres: focused
+  `tests/agent/test_orchestration*.py` + campaigns + budget metering
+  **44 passed**, including parallel-wave overlap, sequential fallback,
+  two-session reserve race (one winner, `available >= 0`), cancel after
+  the current wave, budget-stop, failed-sub-pass ledger purity, and
+  dark-launch `404`.
+- Frontend `typecheck` / `lint` / `build` clean.
 
 ## Unverified
 
 - No live orchestration against OpenRouter.
-- No pixel-level browser walk of the Overview control.
-- DB-gated tests skip without `TEST_DATABASE_URL`.
+- No pixel-level browser walk of the Overview control (no signed-in
+  browser session against a live backend in this environment).
