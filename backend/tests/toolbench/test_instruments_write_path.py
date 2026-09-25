@@ -32,6 +32,7 @@ from app.toolbench.instruments import (
     COUNTEREXAMPLE_SEARCH,
     LEAN_PROVE,
     Z3_PROVE,
+    Z3_SATISFY,
 )
 from app.toolbench.instruments._lean_support import LeanCheck
 from app.toolbench.instruments._sympy_support import ENGINE_VERSION
@@ -580,6 +581,91 @@ async def test_z3_prove_refutation_weakens_the_claim_as_a_counterexample(
     assert entry["output"]["refuted"] is True
     # Exact integer witness — x=0 or x=1 both break x*x != x. Never a float.
     assert entry["output"]["witness"]["x"] in {"0", "1"}
+
+
+# --- 0.33.0: z3.satisfy (model-finding through the chokepoint) ------------------------------------
+
+
+async def test_z3_satisfy_lands_a_model_with_the_z3_engine_pinned(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """A sat assignment composes through ``run_instrument`` as a ``model`` artifact, Z3-pinned."""
+    actor_id = await _actor(client)
+    project_id = await _project(client, "instr-z3-sat")
+    pid = UUID(project_id)
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        run = await run_instrument(
+            session,
+            pid,
+            Z3_SATISFY,
+            actor,
+            inputs={
+                "variables": {"x": "real", "y": "real"},
+                "constraints": ["x > 0", "y > 0", "x + y == 1"],
+            },
+        )
+
+    assert run.status is ResultStatus.RESULT
+
+    async with session_factory() as session:
+        artifact = await session.get(Artifact, run.artifact_id)
+        assert artifact.kind == "model"
+
+    entry = run.checkpoint.tool_invocations[0]
+    assert entry["instrument"] == "z3.satisfy"
+    assert entry["engine"] == "z3"
+    assert entry["engine_version"] == Z3_ENGINE_VERSION
+    assert entry["status"] == "result"
+    assert entry["output"]["satisfied"] is True
+    assert entry["output"]["unsatisfiable"] is False
+    model = entry["output"]["model"]
+    assert set(model) == {"x", "y"}
+    assert isinstance(model["x"], str)
+    assert "." not in model["x"]
+
+
+async def test_z3_satisfy_unsat_weakens_the_claim_with_no_model(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """Unsat means no model exists → ``refuted`` / ``proof`` artifact, never a fake assignment."""
+    actor_id = await _actor(client)
+    project_id = await _project(client, "instr-z3-unsat")
+    thread_id = await _thread(client, project_id, actor_id)
+    claim_id = await _claim(client, thread_id, actor_id, "x is both positive and negative.")
+    pid = UUID(project_id)
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        run = await run_instrument(
+            session,
+            pid,
+            Z3_SATISFY,
+            actor,
+            inputs={"variables": {"x": "real"}, "constraints": ["x > 0", "x < 0"]},
+            claim_id=UUID(claim_id),
+        )
+
+    assert run.status is ResultStatus.REFUTED
+    assert run.evidence_id is not None
+
+    async with session_factory() as session:
+        artifact = await session.get(Artifact, run.artifact_id)
+        assert artifact.kind == "proof"
+        link = (
+            await session.execute(
+                select(ClaimEvidenceLink).where(ClaimEvidenceLink.evidence_id == run.evidence_id)
+            )
+        ).scalar_one()
+        assert link.relation_kind == "weaken"
+
+    entry = run.checkpoint.tool_invocations[0]
+    assert entry["instrument"] == "z3.satisfy"
+    assert entry["engine_version"] == Z3_ENGINE_VERSION
+    assert entry["output"]["unsatisfiable"] is True
+    assert entry["output"]["model"] is None
+    assert entry["output"]["certificate"] == "unsat"
 
 
 # --- 0.23.0: lean.prove through the chokepoint ----------------------------------------------------

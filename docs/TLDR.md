@@ -74,7 +74,8 @@ and invariants live in `docs/blueprints/primitives.md`.)
   deepdive is a five-tab workspace (`0.14.0` / `0.24.0` / `0.30.0` / `0.31.0`):
   Research first, shareable via `?thread=` / `?branch=`, contested header items
   land on that claim, tab badges from existing reads, a quiet live cue while a
-  pass runs.
+  pass runs. Eleven deterministic instruments ship, including machine-checked
+  `z3.prove` / `z3.satisfy` (`0.33.0`) and optional `lean.prove`.
 
 **Shipped on the agent path (Phase 1 autonomy `0.17.0` + replan `0.20.0` +
 orchestrator `0.22.0` / `0.27.0` + continuous campaign `0.25.0` /

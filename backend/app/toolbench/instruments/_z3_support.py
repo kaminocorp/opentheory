@@ -1,4 +1,4 @@
-"""Shared Z3 plumbing for ``z3.prove`` — the security-critical translator + solver harness.
+"""Shared Z3 plumbing for ``z3.prove`` and ``z3.satisfy``.
 
 Mirrors :mod:`app.toolbench.instruments._sympy_support` in role:
 
@@ -9,9 +9,12 @@ Mirrors :mod:`app.toolbench.instruments._sympy_support` in role:
   non-whitelisted node raise ``ValueError`` (→ write path mints nothing, 422).
 - **Relation bridge.** ``relation_to_z3`` reuses the hardened ``split_relation`` + ``parse`` gate
   so the ``0.9.7`` ``parse_expr``-is-``eval`` lesson is inherited, not re-learned.
-- **Two-stage solver.** ``solve`` first checks hypotheses alone (vacuous-proof guard), then
-  ``H ∧ ¬goal``. Soft timeout under the subprocess wall-clock so a hard problem returns
+- **Two-stage validity solver.** ``solve`` first checks hypotheses alone (vacuous-proof guard),
+  then ``H ∧ ¬goal``. Soft timeout under the subprocess wall-clock so a hard problem returns
   ``unknown`` → honest ``undecided`` rather than a sandbox kill.
+- **One-stage model-finder.** ``satisfy`` asserts the constraints as-is (no goal, no vacuous
+  guard — ``unsat`` *is* the honest no-model outcome) and returns a concrete assignment on
+  ``sat``. Same soft-timeout honesty as ``solve``.
 """
 
 from __future__ import annotations
@@ -252,6 +255,57 @@ def solve(
 
     # unknown
     return SolveOutcome(kind="undecided", reason=_reason_unknown(solver))
+
+
+@dataclass(frozen=True)
+class SatisfyOutcome:
+    """Result of a one-stage model-finding check (``z3.satisfy``)."""
+
+    kind: Literal["sat", "unsat", "undecided"]
+    model: dict[str, str] | None = None
+    reason: str | None = None
+    certificate: str | None = None
+    used_constraints: list[str] | None = None
+
+
+def satisfy(
+    constraints: list[tuple[str, z3.BoolRef]],
+    *,
+    env: dict[str, z3.ExprRef],
+    timeout_ms: int,
+) -> SatisfyOutcome:
+    """One-stage check: is there a model of ``constraints``?
+
+    ``constraints`` are ``(track_name, formula)`` pairs — track names appear in the unsat-core
+    when the set is unsatisfiable, so a reader sees which constraints actually conflict.
+
+    Unlike :func:`solve`, there is no vacuous-hypotheses guard and no negated goal. ``unsat``
+    here means *no model exists* (honest ``refuted``), not a proof of a universal. ``unknown``
+    / timeout stays ``undecided`` — never a fabricated assignment.
+    """
+    if timeout_ms < 1:
+        raise ValueError("timeout_ms must be >= 1")
+
+    solver = z3.Solver()
+    solver.set("timeout", timeout_ms)
+    for name, formula in constraints:
+        solver.assert_and_track(formula, name)
+    check = solver.check()
+
+    if check == z3.sat:
+        model = solver.model()
+        return SatisfyOutcome(kind="sat", model=render_model(model, env))
+
+    if check == z3.unsat:
+        core = solver.unsat_core()
+        used = sorted({str(c) for c in core})
+        return SatisfyOutcome(
+            kind="unsat",
+            certificate="unsat",
+            used_constraints=used or None,
+        )
+
+    return SatisfyOutcome(kind="undecided", reason=_reason_unknown(solver))
 
 
 def symbol_flags_for(variables: dict[str, str]) -> dict[str, dict[str, bool]]:

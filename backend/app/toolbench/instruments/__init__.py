@@ -18,6 +18,7 @@ from app.toolbench.instruments.lean_prove import LEAN_PROVE
 from app.toolbench.instruments.oeis_search import OEIS_SEARCH
 from app.toolbench.instruments.openalex_lookup import OPENALEX_LOOKUP
 from app.toolbench.instruments.z3_prove import Z3_PROVE
+from app.toolbench.instruments.z3_satisfy import Z3_SATISFY
 from app.toolbench.registry import registry
 
 # The production instrument set, in the order they are registered (registry sorts by name on read).
@@ -32,6 +33,7 @@ INSTRUMENTS = (
     OEIS_SEARCH,
     OPENALEX_LOOKUP,
     Z3_PROVE,
+    Z3_SATISFY,
 )
 
 for _instrument in INSTRUMENTS:
@@ -48,5 +50,6 @@ __all__ = [
     "OEIS_SEARCH",
     "OPENALEX_LOOKUP",
     "Z3_PROVE",
+    "Z3_SATISFY",
     "INSTRUMENTS",
 ]

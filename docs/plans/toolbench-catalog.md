@@ -9,6 +9,7 @@
 >
 > **Shipped:** Tier 0 SymPy instruments (`calc.eval`, `expr.compare`,
 > `geometry.coordinate_measure`, `counterexample.search`) + Tier 0 **`z3.prove`** (`0.13.x`)
+> + Tier 0 **`z3.satisfy`** (`0.33.0`)
 > + Tier 1 `oeis.search` + Tier 1 literature pins (`crossref.lookup`, `arxiv.lookup`,
 > `openalex.lookup`, `0.18.0`) + Tier 2 **`lean.prove`** (`0.23.0` prelude/Init;
 > `0.26.0` optional Mathlib / offline `lake`); adapter registry, write path,
@@ -16,7 +17,7 @@
 > `docs/plans/maths-toolbox.md` §Shipped in production.
 >
 > **Not shipped:** Arb/`interval.eval`, Lean REPL / LeanDojo, visualization
-> instruments (Vega-Lite tables/plots), `z3.satisfy` / boolean connectives.
+> instruments (Vega-Lite tables/plots), boolean connectives / quantifiers on Z3.
 
 ## The organizing principle
 
@@ -152,24 +153,25 @@ coincide, which is convenient for sequencing.
 
 ## Recommended starter kit
 
-The original starter kit argued for SymPy + Z3 + OEIS. **As of `0.23.0` we shipped SymPy
-(four instruments) + OEIS + `z3.prove` + literature pins + a thin `lean.prove`.**
+The original starter kit argued for SymPy + Z3 + OEIS. **As of `0.33.0` we shipped SymPy
+(four instruments) + OEIS + `z3.prove` + `z3.satisfy` + literature pins + a thin `lean.prove`.**
 That covers the flagship demo (`agent-research-tools.md` §5) **claims 1–4** with readable
-KaTeX *and* two machine-checked proof paths *and* a citable literature retrieve path.
+KaTeX *and* two machine-checked proof paths *and* a model-finder *and* a citable literature retrieve path.
 Claim 5 has a prelude/Init Grade-A path (`0.23.0`) and an optional Mathlib
 path (`0.26.0`) when the image is rebuilt with `INSTALL_MATHLIB=1`.
 
 ```text
-Shipped (0.9.x–0.23.0):
+Shipped (0.9.x–0.33.0):
   SymPy     — calc.eval, expr.compare, geometry.coordinate_measure, counterexample.search
   OEIS      — oeis.search (Tier 1, pinned retrieval)
   Z3        — z3.prove (validity: proof / counter-model / undecided)
+              z3.satisfy (model-finding: assignment / unsat / undecided)
   Literature — crossref.lookup, arxiv.lookup, openalex.lookup (0.18.0)
   Lean      — lean.prove (0.23.0 prelude/Init; 0.26.0 optional Mathlib / lake)
 
 Next adds:
   Arb     — interval.eval (optional 0.10.6+ stretch)
-  z3.satisfy / bool connectives / quantifiers — verifier-wave follow-ons
+  bool connectives / quantifiers — remaining verifier-wave follow-ons
   Lean REPL / LeanDojo — only if a thread actually needs tactic interaction
 ```
 
@@ -185,7 +187,10 @@ Next adds:
   `sat` branch doubles as exact counterexample-finding). Certificate = **marker
   (`"unsat"`) + optional unsat-core** of named hypotheses on the result payload;
   `artifact_kind="proof"` (free-form VARCHAR, no migration). Full `solver.proof()` terms
-  deliberately out of scope for v1. See `docs/executing/z3-instrument-0.13.md`.
+  deliberately out of scope for v1. See `docs/archive/z3-instrument-0.13.md`.
+- **Resolved (`0.33.0`):** **`z3.satisfy`** — model-finding as the primary output.
+  `sat` → `result` / `artifact_kind="model"`; `unsat` → `refuted` / no model;
+  `unknown` → `undecided`. Boolean connectives / quantifiers remain later.
 - **Resolved (`0.23.0`):** `lean.prove` on the existing sandbox — optional `lean`
   binary, prelude/Init only, Grade A only on a real kernel check. Missing Lean is
   honest `undecided`.

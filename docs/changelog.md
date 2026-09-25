@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.33.0` — **`z3.satisfy` — model-finding as the primary instrument output.** The deferred verifier-wave follow-on to shipped `z3.prove`: typed constraints go to Z3 and come back as a concrete assignment (`result` / `artifact_kind="model"`), an honest no-model (`refuted` / `unsat` certificate), or `undecided` on timeout / unknown. Same `_z3_support` translator, same safety bounds, same soft-timeout-under-wall-clock honesty. No boolean connectives, no quantifiers. Quiet Instruments drive form + result card. **No schema, no migration.** Sits on shipped `0.32.0`.
 - `0.32.0` — **Concurrent campaign cycles under project budget.** A `0.25.0` campaign may run a bounded number of `0.22.0` orchestrations at once against the shared `ComputeDebit` pot (`campaign_cycle_concurrency`, default 1 = sequential, hard-capped at 4). Cycle starts reuse the `0.27.0` project-row reservation lock; live OpenRouter quotes (`0.28.0`) stay the source for hold + debit. Trace records overlapping cycles, skips, and stop reasons (including cancel). Same `AGENT_LOOP_ENABLED` gate. One campaign per project still (`409`). Never auto-validates, auto-funds, or auto-merges. Overview shows "N cycles at a time". Migration `0021_concurrent_campaign_cycles` (additive). Sits on shipped `0.31.0`.
 - `0.31.0` — **Deepdive Phase D.** Shareable Research deep links (`?tab=research&thread=<id>&branch=<id>`) restore selection via `router.replace`. A quiet "Pass running" cue on the strip and CommandRail lights from the existing keep-alive newest-run flag — no new fetch — and clears when idle. Rail-only nav recorded; no sidecar. Historically the optional deepdive Phase D (after `0.14.0` / `0.24.0` / `0.30.0`). Sits on shipped `0.30.0`. Frontend-only — no backend, schema, or migration.
 - `0.30.0` — **Deepdive Phase C polish.** Compact header metric line finalized; Overview keeps the full grid as reference. Contested header items switch to Research and focus that claim. Tab badges reuse existing reads (contested count, member/invite count, running-pass `LiveDot`). Instruments context readout is honest for sealed / no-thread. Historically the deferred deepdive Phase C (`0.14.2`). Sits on shipped `0.29.0`. Frontend-only — no backend, schema, or migration.
@@ -100,6 +101,49 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.33.0
+
+**`z3.satisfy` — model-finding as the primary instrument output.** `z3.prove`
+asks whether a goal is entailed. This release asks the dual question: is
+there a model of these constraints? The deferred verifier-wave follow-on
+from `0.13.x`. **No schema, no migration** — instruments are
+code-registered. Sits on shipped `0.32.0` concurrent campaign cycles.
+Does not weaken `z3.prove` (vacuous-hypotheses guard, timeout→undecided
+stay).
+
+- **Three honest outcomes.** `sat` → `result` + `artifact_kind="model"`
+  (exact int / `p/q` assignment, never a float). `unsat` → `refuted` +
+  `artifact_kind="proof"` (no model exists; unsat-core of named
+  constraints). `unknown` / timeout → `undecided` + `derivation` — never
+  a fabricated assignment.
+- **Same safety bounds as `z3.prove`.** Variable-name regex, max 8
+  vars, max 16 constraints, 500-char relations, closed-allow-list
+  translator. Top-level relations only — no boolean-connective parser,
+  no quantifiers.
+- **Same write path.** Lands only through `run_instrument` → the
+  checkpoint chokepoint. Parse / translation failure raises (422, mints
+  nothing). Soft timeout stays under the subprocess wall-clock so a
+  hard problem is a citable `undecided`, not a sandbox kill.
+- **Grade A both ways.** A machine-checked model and a machine-checked
+  unsat sit on the same rung as `z3.prove`. `undecided` still
+  contributes nothing. The planner raise path widens automatically.
+- **Frontend.** Quiet Instruments drive form (variables + constraints)
+  and sat / unsat / undecided cards. Sentence case, no AI chrome.
+  Assumptions gated off.
+
+```bash
+cd backend && uv run ruff check .
+cd backend && uv run pytest -q
+cd frontend && npm run typecheck && npm run lint && npm run build
+```
+
+See `docs/completions/z3-satisfy-0.33.0.md`.
+
+**Not in this release:** boolean connectives / `bool` sort; quantifiers;
+full replayable proof terms; Lean REPL / LeanDojo.
 
 ---
 

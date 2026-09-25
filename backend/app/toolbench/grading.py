@@ -60,6 +60,15 @@ _MATRIX: dict[str, dict[ResultStatus, EvidenceGrade | None]] = {
         ResultStatus.REFUTED: EvidenceGrade.A,
         ResultStatus.UNDECIDED: None,
     },
+    # Machine-checked model-finding. ``result`` is a Z3 ``sat`` with an exact assignment
+    # (existence, not a universal proof — but SMT-backed, same engine as ``z3.prove``'s
+    # counter-model). ``refuted`` is ``unsat``: a machine-checked demonstration that no
+    # model exists. Both are Grade A; ``undecided`` still contributes nothing.
+    "z3.satisfy": {
+        ResultStatus.RESULT: EvidenceGrade.A,
+        ResultStatus.REFUTED: EvidenceGrade.A,
+        ResultStatus.UNDECIDED: None,
+    },
     # Kernel-checked Lean 4. ``result`` is returned *only* when ``lean`` typechecks the
     # snippet and the source has no sorry/axiom/IO — a real proof. Failed checks and
     # missing-toolchain / timeout land as ``undecided`` (no grade). v1 has no
@@ -206,7 +215,8 @@ def raise_path(current: EvidenceGrade | None) -> list[str]:
     """Instruments that could produce a grade **strictly stronger** than ``current``.
 
     ``None`` (nothing recorded yet) means anything graded is an improvement; Grade A returns the
-    empty list, because nothing beats a machine-checked proof (``z3.prove`` or ``lean.prove``) —
+    empty list, because nothing beats a machine-checked proof (``z3.prove``, ``z3.satisfy``,
+    or ``lean.prove``) —
     which is the signal the planner needs to stop spending on an already-settled claim.
 
     Off-ladder retrieval (``oeis.search`` / ``crossref.lookup`` / ``arxiv.lookup`` /

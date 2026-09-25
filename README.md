@@ -105,7 +105,7 @@ checkpoints themselves, so provenance and attribution can't be skipped.
 
 ### The toolbench: results, not vibes
 
-Claims are tested with **deterministic instruments**, not model assertions. Ten
+Claims are tested with **deterministic instruments**, not model assertions. Eleven
 ship today, each landing an attributed checkpoint through the same chokepoint:
 
 | Instrument | Does |
@@ -116,6 +116,7 @@ ship today, each landing an attributed checkpoint through the same chokepoint:
 | `counterexample.search` | deterministic grid search for a falsifying witness |
 | `oeis.search` | identify an integer sequence — lands a *pinned* citation |
 | `z3.prove` | machine-checked validity — proof, exact counter-model, or honest `undecided` |
+| `z3.satisfy` | machine-checked model-finding — exact assignment, unsat / no model, or honest `undecided` |
 | `lean.prove` | Lean 4 kernel check — Grade A only on a real proof; optional Lean + optional Mathlib / `lake` |
 | `crossref.lookup` / `arxiv.lookup` / `openalex.lookup` | Tier-1 literature pins |
 
@@ -400,7 +401,7 @@ opentheory/
 ## Status
 
 **Live** (Vercel + Fly.io + Supabase), shipped in small, deployable phases tracked in
-[`docs/changelog.md`](docs/changelog.md). Currently `0.32.0`.
+[`docs/changelog.md`](docs/changelog.md). Currently `0.33.0`.
 
 **Shipped:**
 
@@ -431,6 +432,7 @@ opentheory/
 | `0.30.x` | Deepdive Phase C polish — contested click-through, tab badges, compact metric line (historical `0.14.2`) |
 | `0.31.x` | Deepdive Phase D — shareable Research `?thread=` / `?branch=`, cross-tab live cue, rail-only nav |
 | `0.32.x` | Concurrent campaign cycles under the shared project budget — reserved slices, no oversell |
+| `0.33.x` | `z3.satisfy` — model-finding (sat assignment / unsat no-model / honest undecided) |
 
 **Honest caveats:**
 

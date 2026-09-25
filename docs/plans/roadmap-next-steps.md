@@ -1,8 +1,8 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-09-25 · **Current release line:** `0.32.0`
-> (concurrent campaign cycles under project budget), sitting on shipped
-> `0.31.0` (deepdive Phase D — shareable Research deep links), `0.30.0`
+> **Last updated:** 2026-09-25 · **Current release line:** `0.33.0`
+> (`z3.satisfy` model-finding), sitting on shipped `0.32.0`
+> (concurrent campaign cycles under project budget), `0.31.0` (deepdive Phase D — shareable Research deep links), `0.30.0`
 > (Phase C polish — historical alias `0.14.2`), `0.29.0`
 > (semantic git diff), `0.28.0` (live OpenRouter price metering),
 > `0.27.0` (concurrent sub-passes under project budget), `0.26.0` (Mathlib /
@@ -14,7 +14,7 @@
 > (project-budget metering), `0.18.0` (Tier-1 literature pins), `0.17.0`
 > (review is opt-in) and `0.16.3` (thread/project grounding rollup). For the
 > per-phase ledger see `docs/changelog.md`; for the line just closed see
-> `docs/completions/concurrent-campaign-cycles-0.32.0.md`. The deepdive line
+> `docs/completions/z3-satisfy-0.33.0.md`. The deepdive line
 > (A–D) is closed; the archive plan is at
 > `docs/archive/project-deepdive-tabs-0.14.md`.
 >
@@ -24,7 +24,8 @@
 ## Where we are
 
 OpenTheory is a **live research ledger** with a deterministic toolbench, two
-**machine-checked verifiers** (`z3.prove`, `lean.prove`), and a **thin agent
+**machine-checked verifiers** (`z3.prove`, `lean.prove`), a **model-finder**
+(`z3.satisfy`), and a **thin agent
 loop** — operated from a five-tab project workspace.
 The foundation through `0.4.x` (ledger writes, validation, branching), identity and collaboration
 through `0.8.x`, auth and funding through `0.6.x`–`0.7.x`, the toolbench spine plus flagship math
@@ -51,10 +52,10 @@ A signed-in member can today:
 1. Own or collaborate on a project; invite others; assign Research crew models (UI only).
 2. Decompose work into threads; add claims; attach evidence; record checkpoints.
 3. Fork, merge, and close branches; pin tags; record validations; read contradiction signals.
-4. Run **ten** production instruments from the workspace — with KaTeX-readable math and bounded
+4. Run **eleven** production instruments from the workspace — with KaTeX-readable math and bounded
    execution (subprocess isolation, wall-clock/memory caps, concurrency limit):
    `calc.eval`, `expr.compare`, `geometry.coordinate_measure`, `oeis.search`,
-   `counterexample.search`, **`z3.prove`**, **`lean.prove`**, plus the literature pins
+   `counterexample.search`, **`z3.prove`**, **`z3.satisfy`**, **`lean.prove`**, plus the literature pins
    **`crossref.lookup`**, **`arxiv.lookup`**, **`openalex.lookup`** — each landing an
    attributed checkpoint through the chokepoint.
 5. Do all of it from a **five-tab deepdive** (`research` · `instruments` · `crew` · `funding` ·
@@ -405,7 +406,7 @@ no false-proof path exists.
 
 **Natural follow-ons (verifier wave remainder):**
 
-- `z3.satisfy` — model-finding as the primary output.
+- ~~`z3.satisfy` — model-finding as the primary output.~~ ✅ shipped as `0.33.0`.
 - Boolean connectives / `bool` sort (needs a parser beyond `split_relation`).
 - Quantifiers; full replayable proof terms (out of scope for v1).
 - **Lean + Mathlib** (Tier 2 remainder) — `lean.prove` shipped in `0.23.0`
@@ -480,6 +481,9 @@ demo requirement.
 16. ~~**Lean Grade-A path**~~ ✅ shipped as `0.23.0` (`lean.prove`, optional
     toolchain, prelude/Init) and `0.26.0` (Mathlib / offline `lake` opt-in).
     **REPL / LeanDojo** remain later.
+17. ~~**`z3.satisfy` model-finding**~~ ✅ shipped as `0.33.0` — sat → concrete
+    model; unsat → honest no-model; unknown/timeout → undecided. Boolean
+    connectives / quantifiers remain later.
 
 ## Shipped milestones (reference)
 
@@ -513,6 +517,7 @@ demo requirement.
 | `0.30.x` | Deepdive Phase C polish — contested click-through, tab badges, compact metric line (historical `0.14.2`) |
 | `0.31.x` | Deepdive Phase D — shareable Research `?thread=` / `?branch=`, cross-tab live cue, rail-only nav |
 | `0.32.x` | Concurrent campaign cycles under the shared project budget — reserved slices, no oversell |
+| `0.33.x` | `z3.satisfy` — model-finding (sat assignment / unsat no-model / honest undecided) |
 
 ## Success criteria for the next milestone
 
@@ -579,5 +584,10 @@ shared pot. `concurrency=1` is sequential. Reservation holds prevent
 oversell; debit stays after tokens at the live/fallback quote. Never
 auto-validates or auto-funds.
 
+**`0.33.0` (`z3.satisfy`)** is shipped: model-finding as a first-class
+instrument. `sat` lands a concrete model; `unsat` is an honest no-model
+(`refuted`); timeout / `unknown` is `undecided`. No boolean connectives
+or quantifiers. Lean REPL / LeanDojo remain later.
+
 **Next product step:** the still-owed browser eyeball pass. Blame-as-an-op
-remains later.
+remains later. Boolean connectives / quantifiers on Z3 remain later.

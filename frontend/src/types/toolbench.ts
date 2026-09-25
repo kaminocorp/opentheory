@@ -74,6 +74,19 @@ export type Z3ProveOutput = {
   constraints_latex?: string[] | null;
 };
 
+// Output shape of `z3.satisfy` (0.33.0) — sat model / unsat / undecided.
+export type Z3SatisfyOutput = {
+  variables: Record<string, "int" | "real" | string>;
+  constraints: string[];
+  satisfied: boolean;
+  unsatisfiable: boolean;
+  status_reason?: string | null;
+  model?: Record<string, string> | null;
+  certificate?: string | null;
+  used_constraints?: string[] | null;
+  constraints_latex?: string[] | null;
+};
+
 // Output shape of `lean.prove` (0.23.0 / 0.26.0) — proved / failed / undecided.
 // Grade A only when `outcome === "proved"` (status `result`). Failed typechecks
 // are not refutations. `mathlib` is the opt-in; missing lake/Mathlib is undecided.

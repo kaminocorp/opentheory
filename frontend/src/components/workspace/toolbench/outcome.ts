@@ -18,7 +18,8 @@ export type OutcomeMeta = {
  *   asymmetrically **strong** outcome (a single witness settles it), not an error — the fail tone
  *   marks the claim as false, and the counterexample card frames it as the definitive finding it is.
  * - `undecided` → ▲ warn — the tool ran but could not decide. It renders as "escalate",
- *   **never** as a pass (`z3.prove` / `lean.prove` can land a real proof; a failed
+ *   **never** as a pass (`z3.prove` / `z3.satisfy` / `lean.prove` can land a real
+   decision; a failed
  *   Lean check or missing toolchain stays here).
  */
 export const OUTCOME: Record<ResultStatus, OutcomeMeta> = {

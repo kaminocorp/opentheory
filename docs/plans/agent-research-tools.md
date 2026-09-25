@@ -1,11 +1,11 @@
 # Agent Research Tools — The Deterministic Instrument Bench
 
-> **Status — design proposal (2026-06-29), partially implemented (`0.9.x`–`0.26.0`).**
+> **Status — design proposal (2026-06-29), partially implemented (`0.9.x`–`0.33.0`).**
 > This doc argues for the *tool surface* an `Actor` (human now, agent later) uses to
 > produce ground-truth research results. The **instrument bench spine** is shipped:
 > adapter protocol, registry, conformance harness, chokepoint-composed write path,
 > membership-gated `POST …/instruments/{name}/run`, workspace drive/show UI, execution
-> sandbox (`0.11.x`), `z3.prove` (`0.13.x`), literature pins (`0.18.0`), and
+> sandbox (`0.11.x`), `z3.prove` (`0.13.x`), `z3.satisfy` (`0.33.0`), literature pins (`0.18.0`), and
 > `lean.prove` (`0.23.0` prelude/Init; `0.26.0` optional Mathlib / offline `lake`).
 > See `docs/plans/maths-toolbox.md` §Shipped in production.
 >
