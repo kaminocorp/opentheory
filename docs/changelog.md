@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.36.0` — **Research-git blame.** A derived ledger read walks the checkpoints, actors, and tool invocations that produced or evidence-grounded a claim (`GET /projects/{id}/claims/{claim_id}/blame`). Deterministic. Mints nothing. Quiet Blame bay next to Compare on Research. **No schema, no migration.** Sits on `0.35.0` interval.eval (stacked — #20, not on `main`). Does not claim 0.35/0.36 as on `main`. `0.34.0` and `0.33.0` are on `main`.
 - `0.35.0` — **`interval.eval` — proven numeric enclosures.** Evaluate a closed-form real expression to a proven `[lo, hi]` via python-flint / Arb (mpmath.iv fallback if the C extension fails to import). Successful enclosure is `result` (Grade C — a bound, not a proof). A relation the enclosure entirely misses is `refuted` (Grade B witness). Overlap / timeout / domain / free symbols / missing library is honest `undecided` — never a fabricated bound, never Grade A. Quiet Instruments drive/show. **No schema, no migration.** Sits on shipped `0.34.0` Bench 6 (`a7cd946`). Does not claim this line as on `main`.
 - `0.34.0` — **Bench 6 tables & plots.** `table.create` / `table.derive_column` / `table.render` / `plot.function` / `plot.points` — typed grids, a *computed* column with calc-spine honesty, and Vega-Lite specs (not rasters). Tables are the falsification grid; plots are optional viz and never Grade-A evidence. `formula.render` is not reintroduced (`*_latex` + KaTeX already covers it). Quiet Instruments drive/show. **No schema, no migration.** Sits on shipped `0.33.0` `z3.satisfy` (`e3a07ea`). On `main` as `a7cd946` (#19 squash).
 - `0.33.0` — **`z3.satisfy` — model-finding as the primary instrument output.** The deferred verifier-wave follow-on to shipped `z3.prove`: typed constraints go to Z3 and come back as a concrete assignment (`result` / `artifact_kind="model"`), an honest no-model (`refuted` / `unsat` certificate), or `undecided` on timeout / unknown. Same `_z3_support` translator, same safety bounds, same soft-timeout-under-wall-clock honesty. No boolean connectives, no quantifiers. Quiet Instruments drive form + result card. **No schema, no migration.** Sits on shipped `0.32.0`.
@@ -103,6 +104,51 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.36.0
+
+**Research-git blame — the remaining planned research-git *read*.** For any
+claim in a project, return the ordered chain of checkpoints, actors, and
+tool invocations that produced or evidence-grounded it. Substrate for
+attribution and for debugging a bad result. Like semantic diff (`0.29.0`),
+this is a **derived read that mints nothing** — not an instrument.
+**No schema, no migration.** Sits on `0.35.0` even if that line (and
+`0.34.0`) is not yet on `main`. Main is shipped `0.33.0` (`e3a07ea`).
+
+- **`GET /projects/{id}/claims/{claim_id}/blame`.** Public, always-on.
+  Unknown project or claim → `404`. A claim that exists in another
+  project is `404`, not a leak. Same two reads always serialize the
+  same payload.
+- **Touch.** A checkpoint is on the chain when it refs the claim, refs
+  evidence linked to the claim, or records a validation of the claim.
+  Unrelated commits stay off the chain. Ancestor state (signal /
+  grounding) uses the same DAG closure as `0.29.0`.
+- **Each step.** Author Actor (never an Account), contribution kind,
+  ref roles, well-formed instrument outcomes (`result | refuted |
+  undecided`), optional agent-run linkage from `AgentRun.steps`, and
+  whether that commit moved signal or grounding.
+- **Frontend.** Quiet Blame bay under Compare on Research. Claim picker
+  or a sentence-case *Blame* on the claim row. No write affordance, no
+  AI chrome.
+- **Write path untouched.** `create_checkpoint` stays the only ledger
+  write. Append-only guards are not involved. Blame is not an
+  instrument and never lands a `result`.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 634 passed, 220 skipped (no TEST_DATABASE_URL)
+# Blame HTTP round-trips are DB-gated (skip without Postgres)
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
+cd frontend && npm test             # 35 passed
+```
+
+See `docs/completions/research-git-blame-0.36.0.md`.
+
+**Not in this release:** merging #19 / #20; auto-validate / auto-fund /
+auto-merge; Lean REPL / LeanDojo; content-addressed commit ids;
+rewriting claim field history tables; a browser eyeball pass.
 
 ---
 

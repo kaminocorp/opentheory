@@ -533,6 +533,57 @@ export type SemanticDiffRead = {
   ancestry: DiffAncestry;
 };
 
+// --- Semantic blame (0.36.0) ------------------------------------------------
+
+export type BlameActor = ActorSummary;
+
+export type BlameInstrument = {
+  instrument: string;
+  status: ResultStatus;
+  instrument_version: string | null;
+  engine: string | null;
+  engine_version: string | null;
+};
+
+export type BlameAgentRun = {
+  id: string;
+  role: string;
+  model: string | null;
+  status: string;
+};
+
+export type ClaimBlameStep = {
+  checkpoint_id: string;
+  created_at: string;
+  summary: string;
+  stage: ThreadStage | null;
+  branch_id: string | null;
+  parent_ids: string[];
+  author: BlameActor | null;
+  contribution_kind: string | null;
+  roles: string[];
+  instruments: BlameInstrument[];
+  agent_run: BlameAgentRun | null;
+  signal_after: ClaimSignal;
+  grounding_after: GroundingHeadline;
+  signal_moved: boolean;
+  grounding_moved: boolean;
+  from_signal: ClaimSignal | null;
+  from_grounding: GroundingHeadline | null;
+};
+
+export type ClaimBlameRead = {
+  project_id: string;
+  claim_id: string;
+  statement: string;
+  thread_id: string | null;
+  empty: boolean;
+  current_signal: ClaimSignal;
+  current_grounding: GroundingHeadline;
+  chain: ClaimBlameStep[];
+  checkpoint_ids: string[];
+};
+
 // --- Funding (0.6.3) --------------------------------------------------------
 // Monetary amounts are Decimals serialized as strings (e.g. "500.00") to preserve precision.
 
