@@ -54,6 +54,21 @@ def test_z3_proof_reads_proven() -> None:
     assert grounding.headline == "proven"
 
 
+def test_lean_proof_reads_proven() -> None:
+    """Grade A / proven only when lean.prove actually returned result (a kernel proof)."""
+    grounding = compute_grounding([tool_link("support", "lean.prove", "result")])
+    assert grounding.support is EvidenceGrade.A
+    assert grounding.counter is None
+    assert grounding.headline == "proven"
+
+
+def test_lean_failed_or_unavailable_does_not_ground() -> None:
+    """A failed typecheck or missing toolchain is undecided — never proven, never Grade A."""
+    grounding = compute_grounding([tool_link("support", "lean.prove", "undecided")])
+    assert grounding.support is None
+    assert grounding.headline == "ungrounded"
+
+
 # --- acceptance 2: an exact counter dominates any amount of support (D8) --------------------------
 
 

@@ -178,7 +178,7 @@ async def test_grounding_context_reaches_the_planning_call() -> None:
     )
     user_message = llm.calls[0]["messages"][1]["content"]
     assert "grounding: B" in user_message
-    assert "to raise: run one of [z3.prove]" in user_message
+    assert "to raise: run one of [lean.prove, z3.prove]" in user_message
 
 
 async def test_observations_reach_the_planning_call() -> None:

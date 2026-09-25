@@ -1,21 +1,23 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-09-25 · **Current release line:** `0.22.0` (thin multi-thread
-> orchestrator — allocate project budget across sequential sub-passes), sitting on
-> shipped `0.21.0` (research-git merge + tag), `0.20.0` (plan → observe → replan),
-> `0.19.0` (project-budget metering), `0.18.0` (Tier-1 literature pins), `0.17.0`
-> (review is opt-in) and `0.16.3` (thread/project grounding rollup). For the
-> per-phase ledger see `docs/changelog.md`; for the line just closed see
-> `docs/completions/multi-thread-orchestrator-0.22.0.md`. The `0.14.x` plan
-> (phases B–D still open) now lives at `docs/archive/project-deepdive-tabs-0.14.md`.
+> **Last updated:** 2026-09-25 · **Current release line:** `0.23.0` (Lean 4 Grade-A
+> path — `lean.prove`), sitting on shipped `0.22.0` (thin multi-thread
+> orchestrator), `0.21.0` (research-git merge + tag), `0.20.0` (plan → observe →
+> replan), `0.19.0` (project-budget metering), `0.18.0` (Tier-1 literature pins),
+> `0.17.0` (review is opt-in) and `0.16.3` (thread/project grounding rollup). For
+> the per-phase ledger see `docs/changelog.md`; for the line just closed see
+> `docs/completions/lean-prove-0.23.0.md`. The `0.14.x` plan (phases B–D still
+> open) now lives at `docs/archive/project-deepdive-tabs-0.14.md`.
 >
 > **Next after this line:** the still-owed browser eyeball pass; then `0.14.1`
-> CommandRail sync. Unmerged work is not claimed as shipped.
+> CommandRail sync. Unmerged work is not claimed as shipped. Mathlib / `lake`
+> remain out of scope until a later verifier-wave slice.
 
 ## Where we are
 
-OpenTheory is a **live research ledger** with a deterministic toolbench, a **machine-checked
-verifier** (`z3.prove`), and a **thin agent loop** — operated from a five-tab project workspace.
+OpenTheory is a **live research ledger** with a deterministic toolbench, two
+**machine-checked verifiers** (`z3.prove`, `lean.prove`), and a **thin agent
+loop** — operated from a five-tab project workspace.
 The foundation through `0.4.x` (ledger writes, validation, branching), identity and collaboration
 through `0.8.x`, auth and funding through `0.6.x`–`0.7.x`, the toolbench spine plus flagship math
 instruments through `0.9.x`–`0.10.x`, the execution sandbox through `0.11.x`, the thin agent loop
@@ -41,12 +43,12 @@ A signed-in member can today:
 1. Own or collaborate on a project; invite others; assign Research crew models (UI only).
 2. Decompose work into threads; add claims; attach evidence; record checkpoints.
 3. Fork, merge, and close branches; pin tags; record validations; read contradiction signals.
-4. Run **nine** production instruments from the workspace — with KaTeX-readable math and bounded
+4. Run **ten** production instruments from the workspace — with KaTeX-readable math and bounded
    execution (subprocess isolation, wall-clock/memory caps, concurrency limit):
    `calc.eval`, `expr.compare`, `geometry.coordinate_measure`, `oeis.search`,
-   `counterexample.search`, **`z3.prove`**, plus the literature pins **`crossref.lookup`**,
-   **`arxiv.lookup`**, **`openalex.lookup`** — each landing an attributed checkpoint through the
-   chokepoint.
+   `counterexample.search`, **`z3.prove`**, **`lean.prove`**, plus the literature pins
+   **`crossref.lookup`**, **`arxiv.lookup`**, **`openalex.lookup`** — each landing an
+   attributed checkpoint through the chokepoint.
 5. Do all of it from a **five-tab deepdive** (`research` · `instruments` · `crew` · `funding` ·
    `overview`) under a persistent header, deep-linkable via `?tab=`. Research and Instruments
    render keep-alive, so an in-flight agent trace survives a tab switch.
@@ -56,8 +58,8 @@ A signed-in member can today:
    (`"3 claims at B, 1 ungrounded"`).
 
 The flagship *measuring across a corner* thread (claims 1–4) is walkthrough-ready with
-shipped instruments. Claim 5 (Lean proof → Grade A) remains explicitly out of scope until
-the execution substrate exists.
+shipped instruments. Claim 5 has a **thin Grade-A path** (`lean.prove`, `0.23.0`) for
+prelude / `Init` snippets when `lean` is installed; Mathlib / `lake` are not shipped.
 
 **Agents are now bounded operators, and a successful pass stands.** A member commissions a
 **Run agent pass** on a thread (`0.12.x` + `0.17.0` + `0.19.0` + `0.20.0`): the assigned
@@ -86,6 +88,15 @@ bypassing the checkpoint chokepoint or conflating funder / contributor / validat
 
 ## Recommended next releases
 
+### `0.23.x` — Lean 4 Grade-A path ✅ **shipped** (`0.23.0`)
+
+Delivered: `lean.prove` — a bounded Lean 4 snippet typechecked by the optional
+`lean` binary, through the existing killable sandbox. Grade A / `proven` only
+when the kernel accepts the file and the source has no `sorry`/`axiom`/import/IO.
+Missing toolchain and timeouts are honest `undecided`. Failed checks are not
+refutations. **No schema, no migration.** No Mathlib / `lake` in v1. See
+`docs/completions/lean-prove-0.23.0.md`.
+
 ### `0.22.x` — Thin multi-thread orchestrator ✅ **shipped** (`0.22.0`)
 
 Delivered: a project-level loop selects open threads with raisable claims,
@@ -109,8 +120,9 @@ name is `409`, never a silent overwrite. Workspace: Merge on the line bar, a
 Tags bay on Research. Migration `0016_research_git_merge_tag` (additive). See
 `docs/completions/research-git-merge-tag-0.21.0.md`.
 
-**Not in this line:** semantic diff, blame-as-an-op, Lean / Mathlib. The
-multi-thread orchestrator shipped as `0.22.0`.
+**Not in this line:** semantic diff, blame-as-an-op. `lean.prove` shipped as
+`0.23.0` (prelude/Init). Mathlib / `lake` remain later. The multi-thread
+orchestrator shipped as `0.22.0`.
 
 ### `0.20.x` — Plan → observe → replan ✅ **shipped** (`0.20.0`)
 
@@ -249,7 +261,9 @@ no false-proof path exists.
 - `z3.satisfy` — model-finding as the primary output.
 - Boolean connectives / `bool` sort (needs a parser beyond `split_relation`).
 - Quantifiers; full replayable proof terms (out of scope for v1).
-- **Lean** (Tier 2) — Claim 5 / Grade A; still gated on a heavier execution substrate.
+- **Lean + Mathlib** (Tier 2 remainder) — `lean.prove` shipped in `0.23.0` for
+  prelude / `Init` only. Mathlib import graph, `lake` project, and REPL / LeanDojo
+  are still later.
 
 ### `0.10.6+` (optional stretch) — `interval.eval`
 
@@ -304,7 +318,8 @@ demo requirement.
     under the shared project pot.
 13. **`0.14.2` Phase C** — tab badges, contested click-through, context-readout polish.
 14. **Bench 6 surfaces** — tables and Vega-Lite plots when a thread needs them.
-15. **Lean + full substrate** — Claim 5; only after the above.
+15. ~~**Lean Grade-A path**~~ ✅ shipped as `0.23.0` (`lean.prove`, optional
+    toolchain, prelude/Init only). **Mathlib / `lake` / REPL** remain later.
 
 ## Shipped milestones (reference)
 
@@ -328,6 +343,7 @@ demo requirement.
 | `0.20.x` | Bounded plan → observe → replan inside one agent pass |
 | `0.21.x` | Research-git merge + tag — multi-parent synthesis and named immutable pointers |
 | `0.22.x` | Thin multi-thread orchestrator — allocate project budget across sequential sub-passes |
+| `0.23.x` | `lean.prove` — optional Lean 4 kernel check; Grade A only on a real proof (no Mathlib) |
 
 ## Success criteria for the next milestone
 
@@ -346,5 +362,9 @@ neither rewrites history.
 capped sequential passes across open threads against the shared `ComputeDebit`
 ceiling, and stops when the pot is empty or no raisable work remains.
 
+**`0.23.0` (Lean Grade-A path)** is shipped: `lean.prove` can raise a claim to
+Grade A when the optional `lean` binary typechecks a prelude snippet. Missing
+Lean is honest `undecided`. Mathlib is not in this release.
+
 **Next product step:** the still-owed browser eyeball pass; then `0.14.1` CommandRail
-sync.
+sync. Mathlib / `lake` only when a thread actually needs them.

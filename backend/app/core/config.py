@@ -59,6 +59,11 @@ class Settings(BaseSettings):
     # than being killed by the subprocess wall-clock (mints nothing). The wall-clock/RLIMIT_AS
     # remain the hard backstop if a pathological case ignores the soft timeout.
     toolbench_z3_timeout_ms: int = 10_000
+    # Soft timeout for a ``lean.prove`` typecheck (ms). Must stay strictly below
+    # toolbench_wall_timeout_s so a slow snippet records honest undecided rather
+    # than a sandbox kill that mints nothing. Lean is optional: a missing binary
+    # is undecided/unavailable, not a boot failure.
+    toolbench_lean_timeout_ms: int = 8_000
     # Contact address embedded in the outbound User-Agent for Crossref's polite pool (and
     # as courtesy on arXiv / OpenAlex). Not a secret. Empty → UA without mailto.
     toolbench_retrieval_mailto: str | None = None
