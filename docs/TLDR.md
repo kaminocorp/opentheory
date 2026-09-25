@@ -73,18 +73,21 @@ and invariants live in `docs/blueprints/primitives.md`.)
   live, presented in the "OpenTheory Console" design language.
 
 **Shipped on the agent path (Phase 1 autonomy `0.17.0` + replan `0.20.0` +
-orchestrator `0.22.0`):** a member can commission a bounded agent pass, or
-**Run research** across open threads. The assigned Research-crew model plans a
-short batch of *existing* instrument runs, observes outcomes and grounding
-yield, and may replan inside the same pass — still hard-capped, still on the
-fixed catalog. A project-level loop allocates the shared `ComputeDebit` pot
-across sequential sub-passes and stops when the budget is exhausted or no
-raisable claims remain. The agent Actor lands attributed checkpoints on a
-durable agent branch through the same chokepoint humans use. A successful pass
-**stands without a mandatory human gate** — accept / reject / fork remain
-opt-in audit. The loop is still dark in production until `AGENT_LOOP_ENABLED` +
-`OPENROUTER_API_KEY` are flipped (see `docs/operations/deploy.md`). Scheduled
-loops are not shipped. Project-budget metering shipped in `0.19.0`
+orchestrator `0.22.0` + continuous campaign `0.25.0`):** a member can
+commission a bounded agent pass, **Run research** across open threads, or
+**Start** a continuous campaign that re-commissions that orchestrator until
+the project pot is empty or no raisable work remains. The assigned
+Research-crew model plans a short batch of *existing* instrument runs,
+observes outcomes and grounding yield, and may replan inside the same pass —
+still hard-capped, still on the fixed catalog. A project-level loop allocates
+the shared `ComputeDebit` pot across sequential sub-passes; the campaign is
+the outer loop that continues after one orchestration's pass cap. The agent
+Actor lands attributed checkpoints on a durable agent branch through the same
+chokepoint humans use. A successful pass **stands without a mandatory human
+gate** — accept / reject / fork remain opt-in audit. The loop is still dark
+in production until `AGENT_LOOP_ENABLED` + `OPENROUTER_API_KEY` are flipped
+(see `docs/operations/deploy.md`). A durable job queue is not shipped (a lost
+worker is swept honestly). Project-budget metering shipped in `0.19.0`
 (historical alias `0.12.5`).
 
 **Once done — a continuous research engine:**

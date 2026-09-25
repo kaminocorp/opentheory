@@ -18,6 +18,7 @@ import {
 import {
   getOrchestration,
   isAgentLoopDisabled,
+  listCampaigns,
   listOrchestrations,
   triggerOrchestration,
 } from "@/lib/api";
@@ -80,6 +81,13 @@ export function RunResearchBay({
     retry: false,
   });
   const featureDisabled = isAgentLoopDisabled(listQuery.error);
+  const campaignsQuery = useQuery({
+    queryKey: queryKeys.campaigns(projectId),
+    queryFn: () => listCampaigns(projectId),
+    enabled: !featureDisabled,
+    retry: false,
+  });
+  const campaignRunning = campaignsQuery.data?.[0]?.status === "running";
   const latest = listQuery.data?.[0] ?? null;
   const runId = activeId ?? latest?.id ?? null;
 
@@ -100,6 +108,7 @@ export function RunResearchBay({
       queryClient.invalidateQueries({ queryKey: queryKeys.threads(projectId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.checkpoints(projectId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.branches(projectId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.campaigns(projectId) });
     }
     prevStatus.current = status;
   }, [run?.status, projectId, queryClient]);
@@ -117,7 +126,8 @@ export function RunResearchBay({
   });
 
   const inFlight = run?.status === "running" || trigger.isPending;
-  const runnable = canRun && Boolean(roleModel) && !featureDisabled && !inFlight;
+  const runnable =
+    canRun && Boolean(roleModel) && !featureDisabled && !inFlight && !campaignRunning;
 
   const gateHint = !isAuthed
     ? "Sign in to run research."
@@ -125,7 +135,9 @@ export function RunResearchBay({
       ? "You must be a project member to run research."
       : !roleModel
         ? `Assign a model to ${roleLabel} in Research crew to run this role.`
-        : "";
+        : campaignRunning
+          ? "A continuous research campaign is running. Stop it before a one-shot run."
+          : "";
 
   return (
     <Bay density="narrative" className="grid gap-3">

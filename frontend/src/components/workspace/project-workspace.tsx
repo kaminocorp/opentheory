@@ -30,6 +30,7 @@ import { ProjectEditForm } from "./project-edit-form";
 import { ProjectHeader } from "./project-header";
 import { ProjectTabs, projectPanelDomId, projectTabDomId } from "./project-tabs";
 import { ResearchCrewPanel } from "./research-crew-panel";
+import { ContinuousResearchBay } from "./continuous-research-bay";
 import { RunResearchBay } from "./run-research-bay";
 import { TagPanel } from "./tag-panel";
 import { ThreadListPanel } from "./thread-list-panel";
@@ -296,6 +297,12 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
         />
 
         <RunResearchBay
+          projectId={projectId}
+          canRun={canManageProject}
+          agentModels={project.agent_models}
+        />
+
+        <ContinuousResearchBay
           projectId={projectId}
           canRun={canManageProject}
           agentModels={project.agent_models}

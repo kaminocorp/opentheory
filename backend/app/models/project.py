@@ -86,3 +86,10 @@ class Project(IdMixin, TimestampMixin, Base):
         back_populates="project",
         cascade="all, delete-orphan",
     )
+    # Mutable continuous-run traces (0.25.0). Not append-only — the row narrates
+    # which orchestrations each cycle commissioned; ledger writes stay on those.
+    research_campaigns = relationship(
+        "ResearchCampaign",
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )
