@@ -62,8 +62,8 @@ special-case "instrument that never mints" that breaks the
 - Ledger writes still go only through `create_checkpoint`.
 - Append-only guards are untouched.
 - Funder / contributor / validator stay separate tables.
-- No Alembic revision — `0019` stays the head on `main`. In-flight
-  `0.28.0` may take `0020`; this release does not collide.
+- No Alembic revision — `0020_compute_debit_live_rates` stays the head
+  on `main` (`0.28.0`). This release does not add a migration.
 - Blame-as-an-op is still planned.
 
 ## Caveats (honest)
