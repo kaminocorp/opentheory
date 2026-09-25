@@ -21,6 +21,7 @@ import type { GroundingRollup, ProjectBudget, ProjectCounts } from "@/types/rese
 import { AgentPassPanel } from "./agent-pass/agent-pass-panel";
 import { BranchBar } from "./branch-bar";
 import { CheckpointTimelinePanel } from "./checkpoint-timeline-panel";
+import { ComparePanel } from "./compare-panel";
 import { ClaimListPanel } from "./claim-list-panel";
 import { Collaborators } from "./collaborators-panel";
 import { FundingPanel } from "./funding-panel";
@@ -189,6 +190,7 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
           />
         </div>
         <TagPanel projectId={projectId} />
+        <ComparePanel projectId={projectId} selectedBranchId={selectedBranchId} />
       </TabPanel>
 
       {/* --- instruments (keep-alive: an agent trace may be polling) ------------ */}

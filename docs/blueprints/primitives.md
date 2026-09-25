@@ -270,6 +270,22 @@ Key relationships:
 - is recorded through `Checkpoint`
 - creates `Contribution`
 
+## Semantic diff
+
+A derived read of what moved between two ledger tips (`0.29.0`).
+
+`GET /projects/{id}/diff?from=&to=` resolves each token onto a checkpoint
+(checkpoint UUID, branch tip, tag, or `main`) and compares ancestor
+closures. The payload is structured — claims added / removed / signal
+changed, grounding-rung moves, instrument outcomes on `from..to`, and
+merge-base ancestry. Same two tips always serialize the same result.
+Unknown refs are `404`. The read mints nothing and does not go through
+`create_checkpoint`.
+
+This is not a second ledger and not a blob diff. Claim *fields* have no
+history table; presence and the derived signal / grounding are what the
+diff can honestly report.
+
 ## Validation
 
 A structured review of a claim, artifact, checkpoint, branch, or result.

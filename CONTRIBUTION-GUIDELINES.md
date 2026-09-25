@@ -50,7 +50,7 @@ Before non-trivial domain work, read:
 | --- | --- |
 | [`docs/blueprints/primitives.md`](docs/blueprints/primitives.md) | The domain model and its invariants. **The most important document.** |
 | [`docs/blueprints/conceptual-model.md`](docs/blueprints/conceptual-model.md) | The mental model on one screen — the fastest orientation. |
-| [`docs/vision/research-git.md`](docs/vision/research-git.md) | The git-for-research ledger semantics. **Target semantics** — operations are annotated *(built)* / *(planned)*: commit, branch, merge, tag, and log are built; blame and semantic diff are not. |
+| [`docs/vision/research-git.md`](docs/vision/research-git.md) | The git-for-research ledger semantics. **Target semantics** — operations are annotated *(built)* / *(planned)*: commit, branch, merge, tag, log, and semantic diff are built; blame is not. |
 | [`docs/blueprints/techstack.md`](docs/blueprints/techstack.md) | Stack choices, and the rationale and boundaries behind them. |
 | [`docs/changelog.md`](docs/changelog.md) | The per-phase ledger of what shipped and why. **The fastest way to learn current state.** |
 | [`docs/plans/roadmap-next-steps.md`](docs/plans/roadmap-next-steps.md) | What's next and what's deliberately deferred. |

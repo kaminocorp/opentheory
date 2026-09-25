@@ -12,6 +12,9 @@ export const queryKeys = {
   checkpoints: (projectId: string) => ["checkpoints", projectId] as const,
   branches: (projectId: string) => ["branches", projectId] as const,
   tags: (projectId: string) => ["tags", projectId] as const,
+  // Semantic research-git diff (0.29.0) — derived read, keyed by the two tips.
+  semanticDiff: (projectId: string, fromRef: string, toRef: string) =>
+    ["diff", projectId, fromRef, toRef] as const,
   funding: (projectId: string) => ["funding", projectId] as const,
   budget: (projectId: string) => ["budget", projectId] as const,
   members: (projectId: string) => ["members", projectId] as const,

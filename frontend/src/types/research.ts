@@ -473,6 +473,66 @@ export type TagCreate = {
   notes?: string | null;
 };
 
+// --- Semantic diff (0.29.0) -------------------------------------------------
+
+export type DiffRefKind = "checkpoint" | "branch" | "tag" | "main";
+export type ClaimDiffChange = "added" | "removed" | "status_changed";
+export type GroundingMovement = "raised" | "settled" | "unchanged";
+
+export type ResolvedDiffRef = {
+  input: string;
+  kind: DiffRefKind;
+  checkpoint_id: string;
+  branch_id: string | null;
+  tag_id: string | null;
+  label: string;
+};
+
+export type ClaimDelta = {
+  claim_id: string;
+  statement: string;
+  change: ClaimDiffChange;
+  from_signal: ClaimSignal | null;
+  to_signal: ClaimSignal | null;
+};
+
+export type GroundingMove = {
+  claim_id: string;
+  statement: string;
+  from_headline: GroundingHeadline;
+  to_headline: GroundingHeadline;
+  movement: GroundingMovement;
+};
+
+export type InstrumentOutcome = {
+  checkpoint_id: string;
+  instrument: string;
+  status: ResultStatus;
+  claim_ids: string[];
+  summary: string;
+};
+
+export type DiffAncestry = {
+  from_is_ancestor_of_to: boolean;
+  to_is_ancestor_of_from: boolean;
+  diverged: boolean;
+  merge_base_id: string | null;
+  interval_checkpoint_ids: string[];
+  from_only_checkpoint_ids: string[];
+  to_only_checkpoint_ids: string[];
+};
+
+export type SemanticDiffRead = {
+  project_id: string;
+  from_ref: ResolvedDiffRef;
+  to_ref: ResolvedDiffRef;
+  empty: boolean;
+  claims: ClaimDelta[];
+  grounding: GroundingMove[];
+  instruments: InstrumentOutcome[];
+  ancestry: DiffAncestry;
+};
+
 // --- Funding (0.6.3) --------------------------------------------------------
 // Monetary amounts are Decimals serialized as strings (e.g. "500.00") to preserve precision.
 

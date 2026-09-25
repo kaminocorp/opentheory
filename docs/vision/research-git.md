@@ -8,12 +8,13 @@ A git-like ledger for research, not code. The unit of versioning is a **claim** 
 > `tool_invocations` / `evidence_refs` carried as free-form JSON, not yet
 > schema-enforced), **branch** + **close-branch** (fork from a checkpoint;
 > close as dead-end / superseded), **merge** (a multi-parent checkpoint that
-> marks source branches `merged`, `0.21.0`), and **tag** (a named immutable
-> pointer at a checkpoint, `0.21.0`). **Not built yet: blame and semantic
-> diff.** Commit `id`s are UUIDs today — content-addressing is still target, not
-> current; and `confidence` is tracked on `Claim`, not on the commit. The
-> Operations list below is annotated *(built)* / *(planned)*. See
-> `docs/changelog.md`.
+> marks source branches `merged`, `0.21.0`), **tag** (a named immutable
+> pointer at a checkpoint, `0.21.0`), and **semantic diff** (a derived read
+> of claim / grounding / instrument deltas between two tips, `0.29.0`).
+> **Not built yet: blame.** Commit `id`s are UUIDs today — content-addressing
+> is still target, not current; and `confidence` is tracked on `Claim`, not
+> on the commit. The Operations list below is annotated *(built)* /
+> *(planned)*. See `docs/changelog.md`.
 
 ## Why git-shaped
 
@@ -69,7 +70,7 @@ Synthesis. Combining two or more branches back into a single line of belief. Thr
 
 ### Diff
 
-A diff between two commits answers: *what claims, confidences, or open questions changed?* Not a textual diff — a **semantic** diff over the structured outputs.
+A diff between two commits answers: *what claims, confidences, or open questions changed?* Not a textual diff — a **semantic** diff over the structured outputs. *(built — `GET /projects/{id}/diff`, `0.29.0`; derived read, mints nothing)*
 
 ### Blame
 
@@ -113,7 +114,7 @@ Limited, named operations. Agents do not get to write to the ledger arbitrarily.
 - `tag(commit, name, kind)` — promote, milestone, or retract. *(built — `create_tag`)*
 - `close_branch(commit, outcome)` — mark a branch as dead-end or superseded. *(built — `close_branch`)*
 
-Reads (`diff`, `blame`, `log`, `show`) are unrestricted. *(semantic `diff` / `blame` are planned; `log` / `show` exist today as checkpoint list / get)*
+Reads (`diff`, `blame`, `log`, `show`) are unrestricted. *(semantic `diff` built as `GET /projects/{id}/diff`, `0.29.0`; `blame` is planned; `log` / `show` exist as checkpoint list / get)*
 
 ## What is *not* in scope here
 
