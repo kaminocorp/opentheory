@@ -28,6 +28,7 @@ from app.models.enums import BranchStatus
 from app.models.evidence import Evidence
 from app.models.links import CheckpointRef
 from app.models.project import Project
+from app.models.tag import Tag
 from app.models.thread import Thread
 from app.models.validation import Validation
 from app.schemas.checkpoint import (
@@ -51,6 +52,7 @@ _REF_TARGET_MODELS: dict[str, type] = {
     "thread": Thread,
     "branch": Branch,
     "validation": Validation,
+    "tag": Tag,
 }
 _REF_LABEL_ATTR: dict[str, str] = {
     "claim": "statement",
@@ -59,6 +61,7 @@ _REF_LABEL_ATTR: dict[str, str] = {
     "thread": "title",
     "branch": "name",
     "validation": "outcome",
+    "tag": "name",
 }
 CHECKPOINT_TARGET_TYPES: frozenset[str] = frozenset(_REF_TARGET_MODELS)
 

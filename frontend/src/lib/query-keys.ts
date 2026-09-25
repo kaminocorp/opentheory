@@ -11,6 +11,7 @@ export const queryKeys = {
   evidence: (claimId: string) => ["evidence", claimId] as const,
   checkpoints: (projectId: string) => ["checkpoints", projectId] as const,
   branches: (projectId: string) => ["branches", projectId] as const,
+  tags: (projectId: string) => ["tags", projectId] as const,
   funding: (projectId: string) => ["funding", projectId] as const,
   budget: (projectId: string) => ["budget", projectId] as const,
   members: (projectId: string) => ["members", projectId] as const,

@@ -260,7 +260,12 @@ async def test_overview_branch_and_validation_summaries(client: AsyncClient) -> 
     overview = (await client.get(f"/api/v1/projects/{project_id}/overview")).json()
     assert overview["counts"]["validations"] == 1
     assert overview["counts"]["branches"] == 1
-    assert overview["branch_counts"] == {"open": 0, "dead_end": 1, "closed": 0}
+    assert overview["branch_counts"] == {
+        "open": 0,
+        "dead_end": 1,
+        "closed": 0,
+        "merged": 0,
+    }
     # the contested claim surfaces in the contradictions summary
     assert [c["claim_id"] for c in overview["contradictions"]] == [claim_id]
     assert overview["contradictions"][0]["statement"] == "contested claim"

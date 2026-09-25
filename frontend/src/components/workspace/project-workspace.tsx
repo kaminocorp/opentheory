@@ -29,6 +29,7 @@ import { ProjectEditForm } from "./project-edit-form";
 import { ProjectHeader } from "./project-header";
 import { ProjectTabs, projectPanelDomId, projectTabDomId } from "./project-tabs";
 import { ResearchCrewPanel } from "./research-crew-panel";
+import { TagPanel } from "./tag-panel";
 import { ThreadListPanel } from "./thread-list-panel";
 import { ToolbenchPanel } from "./toolbench/toolbench-panel";
 
@@ -184,6 +185,7 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
             lineSealed={lineSealed}
           />
         </div>
+        <TagPanel projectId={projectId} />
       </TabPanel>
 
       {/* --- instruments (keep-alive: an agent trace may be polling) ------------ */}

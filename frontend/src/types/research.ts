@@ -90,6 +90,7 @@ export type BranchStatusCounts = {
   open: number;
   dead_end: number;
   closed: number;
+  merged: number;
 };
 
 // A contested claim surfaced on the overview (0.4.4).
@@ -423,6 +424,53 @@ export type BranchCloseOutcome = "dead_end" | "closed";
 export type BranchClose = {
   outcome: BranchCloseOutcome;
   reason?: string | null;
+};
+
+// --- Merge (0.21.0) ---------------------------------------------------------
+
+export type MergeResolution = "clean" | "resolved";
+
+export type MergeCreate = {
+  source_branch_ids: string[];
+  target_branch_id?: string | null;
+  resolution: MergeResolution;
+  rationale?: string | null;
+  claim_ids?: string[];
+  summary?: string | null;
+  thread_id?: string | null;
+};
+
+export type MergeRead = {
+  checkpoint: Checkpoint;
+  source_branches: Branch[];
+  target_branch_id: string | null;
+  resolution: MergeResolution;
+  parent_ids: string[];
+};
+
+// --- Tags (0.21.0) ----------------------------------------------------------
+
+export type TagKind = "milestone" | "validated" | "retraction";
+
+export type ResearchTag = {
+  id: string;
+  project_id: string;
+  checkpoint_id: string;
+  author_id: string | null;
+  author: ActorSummary | null;
+  name: string;
+  kind: TagKind;
+  notes: string | null;
+  recording_checkpoint_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TagCreate = {
+  checkpoint_id: string;
+  name: string;
+  kind: TagKind;
+  notes?: string | null;
 };
 
 // --- Funding (0.6.3) --------------------------------------------------------

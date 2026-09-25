@@ -50,7 +50,7 @@ Before non-trivial domain work, read:
 | --- | --- |
 | [`docs/blueprints/primitives.md`](docs/blueprints/primitives.md) | The domain model and its invariants. **The most important document.** |
 | [`docs/blueprints/conceptual-model.md`](docs/blueprints/conceptual-model.md) | The mental model on one screen — the fastest orientation. |
-| [`docs/vision/research-git.md`](docs/vision/research-git.md) | The git-for-research ledger semantics. **Target semantics** — operations are annotated *(built)* / *(planned)*: commit, branch, and log are built; merge, tag, blame, and semantic diff are not. |
+| [`docs/vision/research-git.md`](docs/vision/research-git.md) | The git-for-research ledger semantics. **Target semantics** — operations are annotated *(built)* / *(planned)*: commit, branch, merge, tag, and log are built; blame and semantic diff are not. |
 | [`docs/blueprints/techstack.md`](docs/blueprints/techstack.md) | Stack choices, and the rationale and boundaries behind them. |
 | [`docs/changelog.md`](docs/changelog.md) | The per-phase ledger of what shipped and why. **The fastest way to learn current state.** |
 | [`docs/plans/roadmap-next-steps.md`](docs/plans/roadmap-next-steps.md) | What's next and what's deliberately deferred. |
@@ -92,7 +92,8 @@ Two sub-rules that are easy to miss:
 ### 2. Append-only is enforced, not requested
 
 `models/append_only.py` registers `before_update` / `before_delete` mapper guards on
-`Checkpoint`, `CheckpointRef`, `FundingAllocation`, `Validation`, and `ComputeDebit`,
+`Checkpoint`, `CheckpointRef`, `FundingAllocation`, `Validation`, `ComputeDebit`,
+and `Tag`,
 raising `AppendOnlyError` — so the invariant holds even if the route layer is bypassed.
 
 **Corrections, reversals, and retractions are *new* records.** A re-assessment is a new
@@ -149,7 +150,7 @@ change.
 | ✅ **Do** | Compose new write flows through `create_checkpoint` with `extra_refs` + `contribution_action`. |
 | ❌ **Don't** | Instantiate `Checkpoint(...)` anywhere but `services/checkpoints.py`. |
 | ✅ **Do** | Record a correction as a new row. |
-| ❌ **Don't** | Update or delete a `Checkpoint`, `CheckpointRef`, `FundingAllocation`, `Validation`, or `ComputeDebit` — the ORM will raise `AppendOnlyError`, and if it doesn't, you've found a bug worth reporting. |
+| ❌ **Don't** | Update or delete a `Checkpoint`, `CheckpointRef`, `FundingAllocation`, `Validation`, `ComputeDebit`, or `Tag` — the ORM will raise `AppendOnlyError`, and if it doesn't, you've found a bug worth reporting. |
 | ✅ **Do** | `db.add(...)` in helper writers and let the chokepoint commit. |
 | ❌ **Don't** | `await db.commit()` inside a helper or composing service — it breaks transaction atomicity. |
 | ✅ **Do** | Validate client-supplied refs. |

@@ -1,16 +1,17 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-09-25 · **Current release line:** `0.20.0` (bounded plan → observe
-> → replan inside one agent pass), sitting on shipped `0.19.0` (project-budget metering —
-> historically sketched as deferred `0.12.5`), `0.18.0` (Tier-1 literature pins), `0.17.0`
-> (Phase 1 agent autonomy — review is opt-in) and `0.16.3` (thread/project grounding
-> rollup). For the per-phase ledger see `docs/changelog.md`; for the lines just closed
-> see `docs/completions/plan-observe-replan-0.20.0.md` and
-> `docs/completions/project-budget-metering-0.19.0.md`. The `0.14.x` plan (phases B–D
+> **Last updated:** 2026-09-25 · **Current release line:** `0.21.0` (research-git merge +
+> tag), sitting on shipped `0.20.0` (bounded plan → observe → replan), `0.19.0`
+> (project-budget metering — historically sketched as deferred `0.12.5`), `0.18.0`
+> (Tier-1 literature pins), `0.17.0` (Phase 1 agent autonomy — review is opt-in) and
+> `0.16.3` (thread/project grounding rollup). For the per-phase ledger see
+> `docs/changelog.md`; for the line just closed see
+> `docs/completions/research-git-merge-tag-0.21.0.md`. The `0.14.x` plan (phases B–D
 > still open) now lives at `docs/archive/project-deepdive-tabs-0.14.md`.
 >
 > **Next after this line:** the still-owed browser eyeball pass; then `0.14.1`
-> CommandRail sync. Unmerged work is not claimed as shipped.
+> CommandRail sync. A multi-thread orchestrator is a separate line — not this
+> release. Unmerged work is not claimed as shipped.
 
 ## Where we are
 
@@ -40,7 +41,7 @@ A signed-in member can today:
 
 1. Own or collaborate on a project; invite others; assign Research crew models (UI only).
 2. Decompose work into threads; add claims; attach evidence; record checkpoints.
-3. Fork and close branches; record validations; read contradiction signals.
+3. Fork, merge, and close branches; pin tags; record validations; read contradiction signals.
 4. Run **nine** production instruments from the workspace — with KaTeX-readable math and bounded
    execution (subprocess isolation, wall-clock/memory caps, concurrency limit):
    `calc.eval`, `expr.compare`, `geometry.coordinate_measure`, `oeis.search`,
@@ -82,6 +83,19 @@ who changed it, and what evidence or artifacts were involved — then extend it 
 bypassing the checkpoint chokepoint or conflating funder / contributor / validator roles.
 
 ## Recommended next releases
+
+### `0.21.x` — Research-git merge + tag ✅ **shipped** (`0.21.0`)
+
+Delivered: parallel exploration lines can converge without rewriting history. A
+merge is a new multi-parent checkpoint (source heads + target tip) that records
+which branches and claims were combined and marks sources `merged`. A tag is a
+named immutable pointer (`milestone` / `validated` / `retraction`); a colliding
+name is `409`, never a silent overwrite. Workspace: Merge on the line bar, a
+Tags bay on Research. Migration `0016_research_git_merge_tag` (additive). See
+`docs/completions/research-git-merge-tag-0.21.0.md`.
+
+**Not in this line:** semantic diff, blame-as-an-op, a multi-thread orchestrator,
+Lean / Mathlib.
 
 ### `0.20.x` — Plan → observe → replan ✅ **shipped** (`0.20.0`)
 
@@ -293,6 +307,7 @@ demo requirement.
 | `0.18.x` | Tier-1 literature pins — `crossref.lookup`, `arxiv.lookup`, `openalex.lookup` on `source.pin` |
 | `0.19.x` | Project-budget metering — `ComputeDebit` from agent-pass tokens; funding `spent`/`available` are real (historical `0.12.5`) |
 | `0.20.x` | Bounded plan → observe → replan inside one agent pass |
+| `0.21.x` | Research-git merge + tag — multi-parent synthesis and named immutable pointers |
 
 ## Success criteria for the next milestone
 
@@ -303,5 +318,9 @@ project refuses to start. Historical alias `0.12.5`. Per-pass safety caps unchan
 **`0.20.0` (plan → observe → replan)** is shipped: a pass replans from instrument outcomes
 and grounding yield, under hard caps, with each plan version visible on the trace.
 
+**`0.21.0` (research-git merge + tag)** is shipped: a merge is a multi-parent
+checkpoint that marks sources `merged`; a tag is a named immutable pointer;
+neither rewrites history.
+
 **Next product step:** the still-owed browser eyeball pass; then `0.14.1` CommandRail
-sync.
+sync. A multi-thread orchestrator is a separate line.

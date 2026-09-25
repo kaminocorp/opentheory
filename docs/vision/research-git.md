@@ -6,11 +6,13 @@ A git-like ledger for research, not code. The unit of versioning is a **claim** 
 > full git-for-research ledger. Shipped today: the **commit** (`Checkpoint` —
 > append-only, with parent(s), an optional `stage`, and `inputs` / `outputs` /
 > `tool_invocations` / `evidence_refs` carried as free-form JSON, not yet
-> schema-enforced) and **branch** + **close-branch** (fork from a checkpoint;
-> close as dead-end / superseded). **Not built yet: merge, tag, blame, and
-> semantic diff.** Commit `id`s are UUIDs today — content-addressing is still
-> target, not current; and `confidence` is tracked on `Claim`, not on the commit.
-> The Operations list below is annotated *(built)* / *(planned)*. See
+> schema-enforced), **branch** + **close-branch** (fork from a checkpoint;
+> close as dead-end / superseded), **merge** (a multi-parent checkpoint that
+> marks source branches `merged`, `0.21.0`), and **tag** (a named immutable
+> pointer at a checkpoint, `0.21.0`). **Not built yet: blame and semantic
+> diff.** Commit `id`s are UUIDs today — content-addressing is still target, not
+> current; and `confidence` is tracked on `Claim`, not on the commit. The
+> Operations list below is annotated *(built)* / *(planned)*. See
 > `docs/changelog.md`.
 
 ## Why git-shaped
@@ -107,8 +109,8 @@ Limited, named operations. Agents do not get to write to the ledger arbitrarily.
 
 - `commit(stage, inputs, outputs, tool_invocations, parent)` — close a stage. *(built — `create_checkpoint`)*
 - `branch(from_commit, reason)` — open a new line of exploration. *(built — `create_branch`)*
-- `merge(commits, resolution)` — synthesize, with explicit resolution if conflict. *(planned)*
-- `tag(commit, name, kind)` — promote, milestone, or retract. *(planned)*
+- `merge(commits, resolution)` — synthesize, with explicit resolution if conflict. *(built — `merge_branches`)*
+- `tag(commit, name, kind)` — promote, milestone, or retract. *(built — `create_tag`)*
 - `close_branch(commit, outcome)` — mark a branch as dead-end or superseded. *(built — `close_branch`)*
 
 Reads (`diff`, `blame`, `log`, `show`) are unrestricted. *(semantic `diff` / `blame` are planned; `log` / `show` exist today as checkpoint list / get)*

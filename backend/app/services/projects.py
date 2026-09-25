@@ -117,6 +117,7 @@ async def _branch_counts(db: AsyncSession, project_id: UUID) -> tuple[BranchStat
         open=by_status.get(BranchStatus.OPEN, 0),
         dead_end=by_status.get(BranchStatus.DEAD_END, 0),
         closed=by_status.get(BranchStatus.CLOSED, 0),
+        merged=by_status.get(BranchStatus.MERGED, 0),
     )
     return counts, sum(by_status.values())
 

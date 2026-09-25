@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.21.0` — **Research-git merge + tag.** Parallel exploration lines can converge without rewriting history: a merge is a new multi-parent checkpoint that records which branches (and optionally claims) were combined and marks sources `merged`. A tag is a named immutable pointer at a checkpoint (`milestone` / `validated` / `retraction`); a colliding name is `409`, never a silent overwrite. Workspace: Merge on the line bar, a Tags bay on Research. Migration `0016_research_git_merge_tag` (additive).
 - `0.20.0` — **Bounded plan → observe → replan inside one agent pass.** After each instrument batch the pass feeds observations (outcomes, whether anything minted, grounding deltas) into a capped replan. Hard bounds: `agent_pass_max_replans` (default 2), `agent_pass_max_batch_runs` (default 2), existing `agent_pass_max_runs` / token recording. `BudgetPolicy.check` is the shipped `0.19.0` project ceiling (`ProjectBudgetPolicy` / `record_compute_debit` / refuse-to-start / skip-remaining-on-exhaust; no replan after a budget stop). Trace shows each plan version and why it replanned. Failed/empty steps still mint nothing. Planner stays on the fixed catalog. Human review stays opt-in (`0.17.0`). No schema, no migration.
 - `0.19.0` — **Project-budget metering for agent passes.** Recorded `AgentRun` tokens debit an append-only `ComputeDebit` ledger (not a `FundingAllocation` — the agent is a contributor, never a funder). `project_budget.spent` is the sum of those rows; `available` drops by the metered amount. An exhausted project refuses to start (`failed`, `error="project budget exhausted"`, mints nothing); a pass that burns the remainder mid-way skips remaining instrument runs with `budget_exhausted`. Per-pass safety caps are unchanged. Historically sketched as deferred `0.12.5`. Migration `0015_compute_debits` (additive).
 - `0.18.0` — **Tier-1 literature pin instruments.** `crossref.lookup`, `arxiv.lookup`, and `openalex.lookup` reuse the `source.pin` shape `oeis.search` proved: DOI / versioned arXiv id / OpenAlex id land as attributed checkpoints through `run_instrument`, with `url` + `source_url` + `retrieved_at` + `raw_response_hash`. Network failures mint nothing; a successful empty match is honest `undecided`. OpenAlex does not hard-require a prod secret — optional `OPENALEX_API_KEY`, demo-pool degrade when absent. Backend + frontend + docs — no schema, no migration.
@@ -90,6 +91,41 @@
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
 
 ---
+
+## 0.21.0
+
+**Research-git merge + tag.** The ledger already had commit (`Checkpoint`) and
+branch + close-branch. Agents and humans needed the two missing git-shaped
+operations so multi-hypothesis work can converge without deleting history.
+**Migration `0016_research_git_merge_tag` (additive).** Merge itself needs no
+table — `checkpoint_parents` already models multiple parents; `merged` has been
+on `branch_status` since the baseline.
+
+- **Merge.** `POST /projects/{id}/merges` composes through `create_checkpoint`.
+  The new checkpoint's parents are the head of each open source branch plus the
+  head of the target line (main line when `target_branch_id` is omitted). Source
+  branches flip to `merged` in the same transaction and cannot receive further
+  checkpoints. Claim rows are referenced, never rewritten. `resolution=resolved`
+  requires a rationale — a conflict cannot be papered over silently. Coexist is
+  *not merging* (siblings stay open). `close_branch` still cannot claim `merged`
+  without a merge checkpoint.
+- **Tag.** `tags` is an append-only named pointer (`milestone` / `validated` /
+  `retraction`) at a checkpoint. Unique on `(project_id, name)` — a second write
+  is `409`, never a retarget. Create composes through the chokepoint; tagging a
+  sealed/merged line still records, on the main line.
+- **Frontend.** Merge on the Research line bar when any branch is open; a Tags
+  bay lists and pins names; checkpoint cards show the tags that point at them.
+- **Honesty / roles.** No history rewrite; funder ≠ contributor ≠ validator
+  untouched. `merged` branch counts surface on the overview so a merged line is
+  not silently dropped from the tally.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # (counts filled after the run)
+cd frontend && npm run typecheck && npm run lint && npm run build   # (filled after the run)
+```
+
+See `docs/completions/research-git-merge-tag-0.21.0.md`.
 
 ## 0.20.0
 

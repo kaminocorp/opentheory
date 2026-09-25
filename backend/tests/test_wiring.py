@@ -16,6 +16,8 @@ WRITE_PATHS = [
     "/api/v1/projects/{project_id}/validations",
     "/api/v1/projects/{project_id}/branches",
     "/api/v1/branches/{branch_id}/close",
+    "/api/v1/projects/{project_id}/merges",
+    "/api/v1/projects/{project_id}/tags",
     "/api/v1/projects/{project_id}/funding",
 ]
 
@@ -26,6 +28,8 @@ APPEND_ONLY_PATHS = [
     "/api/v1/projects/{project_id}/validations",
     "/api/v1/claims/{claim_id}/validations",
     "/api/v1/validations/{validation_id}",
+    "/api/v1/projects/{project_id}/tags",
+    "/api/v1/tags/{tag_id}",
 ]
 
 
@@ -51,6 +55,8 @@ def test_new_paths_exist() -> None:
     assert "get" in paths["/api/v1/validations/{validation_id}"]
     assert "get" in paths["/api/v1/projects/{project_id}/branches"]
     assert "get" in paths["/api/v1/branches/{branch_id}"]
+    assert "get" in paths["/api/v1/projects/{project_id}/tags"]
+    assert "get" in paths["/api/v1/tags/{tag_id}"]
     for path in WRITE_PATHS:
         assert "post" in paths[path], f"missing POST for {path}"
 

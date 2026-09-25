@@ -40,6 +40,7 @@ traceable to who produced it and on what evidence.
 | Primitive      | What it is                                              | Note                            |
 | -------------- | ------------------------------------------------------ | ------------------------------- |
 | **Checkpoint** | An immutable, attributed snapshot of a state change     | **This is the commit.**         |
+| **Tag**        | A named immutable pointer at a checkpoint               | Milestone / validated / retraction (`0.21.0`) |
 
 ### 4. The three deliberately-separated roles
 
@@ -88,9 +89,9 @@ it was abandoned. Negative results are kept because they prevent repeated work.
 | ------------ | ------------------------------------------------------- |
 | commit       | **Checkpoint** — an immutable, attributed state change  |
 | branch       | **Branch** — a parallel line of exploration             |
-| merge / diff | integrating or comparing research lines                 |
+| merge / diff | integrating research lines (`0.21.0`); semantic diff planned |
 | blame        | provenance — who contributed what, on what evidence     |
-| tag          | a marked, citable result                                |
+| tag          | a marked, citable result (`0.21.0`)                     |
 
 ---
 
@@ -119,14 +120,14 @@ the frontend or route layer is bypassed:
 
 - **Append-only** (`models/append_only.py`): ORM `before_update` / `before_delete`
   guards raise `AppendOnlyError` on `Checkpoint`, `CheckpointRef`,
-  `FundingAllocation`, `Validation`, and `ComputeDebit`. Corrections, reversals,
+  `FundingAllocation`, `Validation`, `ComputeDebit`, and `Tag`. Corrections, reversals,
   and retractions are **new records**, never edits. (Caveat: the guards fire on
   the ORM unit-of-work only; bulk Core `UPDATE`/`DELETE` and DDL bypass them by
   design.)
 
 - **The checkpoint chokepoint** (`services/checkpoints.py`): `create_checkpoint`
   is the **only** code path that writes a `Checkpoint`. Composing flows
-  (validation, branching) call *into* it with trusted `extra_refs` rather than
+  (validation, branching, merge, tag) call *into* it with trusted `extra_refs` rather than
   minting their own checkpoints, and it owns the single DB `commit` — so each
   write is one atomic transaction that also auto-records the `Contribution`. If
   any part fails, nothing orphans.
@@ -162,6 +163,7 @@ Project
   ├── Evidence
   ├── Checkpoint
   ├── Validation
+  ├── Tag
   └── Contribution
 ```
 
