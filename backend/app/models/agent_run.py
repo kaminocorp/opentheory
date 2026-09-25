@@ -24,7 +24,7 @@ Step JSON shape (each entry in ``steps``)::
 
     {"index": int, "instrument": str, "inputs": dict,
      "claim_id": str | None, "relation_kind": str | None, "rationale": str,
-     "status": "landed" | "failed" | "dropped_invalid",
+     "status": "landed" | "failed" | "dropped_invalid" | "skipped",
      "checkpoint_id": str | None, "evidence_id": str | None,
      "outcome": str | None, "error": str | None, "reason": str | None}
 """

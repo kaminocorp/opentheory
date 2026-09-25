@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.19.0` — **Project-budget metering for agent passes.** Recorded `AgentRun` tokens debit an append-only `ComputeDebit` ledger (not a `FundingAllocation` — the agent is a contributor, never a funder). `project_budget.spent` is the sum of those rows; `available` drops by the metered amount. An exhausted project refuses to start (`failed`, `error="project budget exhausted"`, mints nothing); a pass that burns the remainder mid-way skips remaining instrument runs with `budget_exhausted`. Per-pass safety caps are unchanged. Historically sketched as deferred `0.12.5`. Migration `0015_compute_debits` (additive).
 - `0.18.0` — **Tier-1 literature pin instruments.** `crossref.lookup`, `arxiv.lookup`, and `openalex.lookup` reuse the `source.pin` shape `oeis.search` proved: DOI / versioned arXiv id / OpenAlex id land as attributed checkpoints through `run_instrument`, with `url` + `source_url` + `retrieved_at` + `raw_response_hash`. Network failures mint nothing; a successful empty match is honest `undecided`. OpenAlex does not hard-require a prod secret — optional `OPENALEX_API_KEY`, demo-pool degrade when absent. Backend + frontend + docs — no schema, no migration.
 - `0.17.0` — **Phase 1 agent autonomy: human review becomes opt-in.** A completed pass's attributed checkpoints on the agent branch stand without a mandatory accept/reject/fork. The API serializes `requires_review: false` (computed, never stored) so a client cannot invent a gate; accept / reject / fork remain available as opt-in audit through the existing Validation and Branch write paths. Per-pass safety caps are unchanged; `0.12.5` project-budget metering is still deferred. Prod enablement remains the ops flip `AGENT_LOOP_ENABLED` + `OPENROUTER_API_KEY`. No schema, no migration.
 - `0.16.3` — **Thread-level grounding rollup.** Project overview and thread reads carry a derived `grounding_rollup` (`"3 claims at B, 1 ungrounded"`), aggregated from existing `ClaimGrounding` headlines. Surfaced on the thread list and the Overview tab. No schema, no migration.
@@ -88,6 +89,57 @@
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
 
 ---
+
+## 0.19.0
+
+**Project-budget metering for agent passes** (historically sketched as deferred `0.12.5` in
+`docs/archive/thin-agent-loop-0.12.md`; shipped here as `0.19.0` so the version number is not
+reused). Humans configure the research question, the agent roster, and a **budget**. Agents
+then research autonomously against that budget as real accounting, not just per-pass safety
+caps.
+
+The model choice: a lightweight append-only `ComputeDebit` row, **not** a negative
+`FundingAllocation`. A debit on the funding table would shrink `funded` (Σ settled
+allocations) and attribute money to an `Account` — making the agent a funder. The agent
+is a contributor only: it authors checkpoints and `tool_run` contributions; it never
+writes a `FundingAllocation`, never records a `fund` contribution, and never
+self-validates.
+
+- **`ComputeDebit`** (`models/compute_debit.py`) — `project_id`, `agent_run_id` (one debit
+  per pass; partial unique index), `tokens_used`, `amount` Numeric(12, 6), `currency`,
+  `model`, `rate_per_1k` (snapshot so a later rate change never rewrites history),
+  `kind` (`planning` | `execution`). ORM append-only guards, same as `FundingAllocation`.
+- **`services/compute.py`** — `tokens_to_cost`, `rate_for_model` (catalog
+  `ModelOption.usd_per_1k` override, else `settings.agent_token_rate_usd_per_1k`,
+  default `$0.005` / 1k), `record_compute_debit` (idempotent, no commit),
+  `ProjectBudgetPolicy` on the existing `BudgetPolicy` seam.
+- **`services/funding.py::project_budget`** — `spent` is Σ compute debits, no longer
+  hard-coded `0`. `available = funded − spent`.
+- **`run_agent_pass`** — refuse to start when `available <= 0` (`failed`,
+  `error="project budget exhausted"`, planner never called, mints nothing). After the
+  planning call, debit recorded tokens (a planner failure that already spent tokens
+  still bills). Before forking a branch / running instruments, stop when the remainder
+  is exhausted; skipped steps carry `reason=budget_exhausted`. Per-pass
+  `agent_pass_max_runs` / `agent_pass_max_tokens` stay as safety caps on top.
+- **Frontend** — Funding panel spent is live compute, not a muted placeholder. Overview
+  shows funded / spent / available from the existing overview budget block. Completing
+  a pass invalidates budget + funding queries.
+
+Migration `0015_compute_debits` (additive). No new HTTP endpoint — the budget read model
+and the agent-run trace already existed.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 389 passed, 138 skipped (DB-gated)  [was 379 / 132]
+# With TEST_DATABASE_URL pointing at local Postgres:
+#   520 passed, 7 failed
+# The 7 failures are pre-existing DB-gated toolbench write-path tests this line
+# did not touch: Stub("calc.eval") is re-resolved by the sandbox as the real
+# instrument, and the geometry assertion predates `*_latex` companions.
+# This line's new tests (compute math, migration 0015, budget metering,
+# updated orchestrator / API / funding) are green — 43/43 in the focused run.
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
+```
 
 ## 0.18.0
 

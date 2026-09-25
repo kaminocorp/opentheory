@@ -15,6 +15,7 @@ key), and the unassigned-role failed trace (Decision #7: commissioned ``202``, r
 """
 
 import asyncio
+from decimal import Decimal
 from uuid import UUID
 
 import pytest
@@ -25,6 +26,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.agent.llm import AgentLlmError
 from app.agent.planner import PlannedRun, PlanResult
 from app.core.config import settings
+from app.models.enums import FundingKind, FundingSource, FundingStatus
+from app.models.funding import FundingAllocation
 from app.models.project import Project
 from app.services import agent_runs as agent_run_service
 from app.services.agent_runs import BackgroundExecutor
@@ -107,6 +110,16 @@ async def _assign_model(
     async with session_factory() as session:
         project = await session.get(Project, UUID(project_id))
         project.agent_models = {role: "anthropic/claude-sonnet-4"}
+        session.add(
+            FundingAllocation(
+                project_id=UUID(project_id),
+                amount=Decimal("100.00"),
+                currency="USD",
+                kind=FundingKind.TOP_UP,
+                source=FundingSource.NATIVE,
+                status=FundingStatus.SETTLED,
+            )
+        )
         await session.commit()
 
 

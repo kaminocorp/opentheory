@@ -46,9 +46,9 @@ class FundingRead(BaseModel):
 class ProjectBudget(BaseModel):
     """Project budget derived from the funding ledger (0.6.3).
 
-    ``funded`` = Σ settled allocations; ``spent`` = 0 until agents meter compute (0.7.0,
-    Decision #6); ``available`` = funded − spent. Amounts are summed in a single accounting
-    unit (``currency``); multi-currency funding is out of scope for this release.
+    ``funded`` = Σ settled allocations; ``spent`` = Σ ``ComputeDebit`` amounts (0.19.0,
+    closing Decision #6); ``available`` = funded − spent. Amounts are summed in a single
+    accounting unit (``currency``); multi-currency funding is out of scope for this release.
     """
 
     project_id: UUID

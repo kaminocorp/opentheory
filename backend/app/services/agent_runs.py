@@ -47,7 +47,10 @@ from app.models.thread import Thread
 from app.schemas.branch import BranchCreate
 from app.services import branches as branch_service
 from app.services import checkpoints as checkpoint_service
+from app.services import compute as compute_service
+from app.services import funding as funding_service
 from app.services.agent_actors import get_or_create_project_agent_actor
+from app.services.compute import BUDGET_EXHAUSTED, BUDGET_EXHAUSTED_REASON, ProjectBudgetPolicy
 from app.services.grounding import compute_yield, grounding_by_claim
 from app.services.tool_runs import run_instrument
 from app.toolbench.catalog import build_catalog
@@ -66,14 +69,12 @@ PlannerFn = Callable[..., Awaitable[PlanResult]]
 class BudgetPolicy(Protocol):
     """The budget seam (Decision #4). ``check`` returns ``True`` to keep going.
 
-    v1 passes ``None`` here — the per-pass safety caps (``agent_pass_max_runs``) already bound blast
-    radius, and real budget is a **project-level** concern (0.12.5). A future orchestrator agent
-    supplies a project-budget-derived policy through this seam; **no per-thread limits ever**.
-
-    Deliberately unchanged in 0.16.1: the signature has no implementer yet, so widening it now would
-    be speculative. What that release *does* supply is the missing half of metering — the recorded
-    ``AgentRun.grounding_yield``, which is what lets a budget ask "what did the last pass buy?"
-    instead of only "how much did it spend?".
+    Default (``None``) is the project ceiling (0.19.0 / historical ``0.12.5``): refuse to
+    start when ``available <= 0``, debit recorded tokens, stop the instrument loop when
+    the remainder is exhausted. The per-pass safety caps (``agent_pass_max_runs``) still
+    bound blast radius independently. A future orchestrator supplies a project-budget-
+    derived policy through this seam (e.g. :class:`ProjectBudgetPolicy` with a subagent
+    slice); **no per-thread limits ever**.
     """
 
     def check(self, *, tokens_used: int, ran_count: int) -> bool: ...
@@ -260,6 +261,20 @@ async def _execute(
         )
     agent_run.model = model
 
+    # 2b. Project ceiling (0.19.0). An injected BudgetPolicy replaces the default so tests
+    #     and a future orchestrator can supply a slice; the default reads the live project
+    #     budget and refuses *before* the planner so an exhausted project never spends.
+    enforce_project_ceiling = budget_policy is None
+    if enforce_project_ceiling:
+        opening = await funding_service.project_budget(db, agent_run.project_id)
+        if opening.available <= 0:
+            return await _finalize(
+                db, agent_run, status=AgentRunStatus.FAILED, error=BUDGET_EXHAUSTED
+            )
+        budget_policy = ProjectBudgetPolicy(
+            opening.available, rate_per_1k=compute_service.rate_for_model(model)
+        )
+
     # 3. The ONE planning call — BEFORE any branch fork, so a planner failure (down provider /
     #    unparseable plan) is a recorded failed trace that mints nothing at all.
     #
@@ -283,6 +298,13 @@ async def _execute(
         )
     except AgentLlmError as exc:
         agent_run.tokens_used = getattr(exc, "tokens_used", 0)
+        await compute_service.record_compute_debit(
+            db,
+            project_id=agent_run.project_id,
+            agent_run_id=agent_run.id,
+            tokens_used=agent_run.tokens_used,
+            model=model,
+        )
         return await _finalize(
             db, agent_run, status=AgentRunStatus.FAILED, error=f"planner failed: {exc}"
         )
@@ -293,14 +315,30 @@ async def _execute(
     agent_run.planned_count = plan_result.proposed_count
     agent_run.tokens_used = plan_result.tokens_used
     agent_run.steps = list(steps)
+    # Debit the recorded tokens now — the provider already billed the planning call. A zero-token
+    # stub (tests) writes nothing. Idempotent on the agent_run_id unique index.
+    await compute_service.record_compute_debit(
+        db,
+        project_id=agent_run.project_id,
+        agent_run_id=agent_run.id,
+        tokens_used=agent_run.tokens_used,
+        model=model,
+    )
     await db.commit()
 
     # 4. Select the agent branch (reuse / fork / main-line fallback) — but ONLY now that we know a
     #    run will actually land. Forking mints a branch-creation checkpoint, so an empty plan (0
-    #    runnable) or a planner failure never creates a stray branch. Reuse across passes is a query
-    #    (mints nothing) and still resolves the durable agent line.
+    #    runnable), a planner failure, or a budget stop that will skip every step never creates a
+    #    stray branch. Reuse across passes is a query (mints nothing) and still resolves the
+    #    durable agent line.
     branch_id: UUID | None = None
-    if plan_result.runnable:
+    can_land = bool(plan_result.runnable)
+    if can_land and budget_policy is not None:
+        can_land = budget_policy.check(tokens_used=agent_run.tokens_used, ran_count=0)
+    if can_land and enforce_project_ceiling:
+        remaining = await funding_service.project_budget(db, agent_run.project_id)
+        can_land = remaining.available > 0
+    if plan_result.runnable and can_land:
         branch_id = await select_agent_branch(
             db, agent_run.project_id, agent_run.thread_id, agent_actor, role=agent_run.role
         )
@@ -311,10 +349,24 @@ async def _execute(
     #    atomic transaction; a per-step failure is caught and recorded (mints nothing).
     ran_count = 0
     for index, run in enumerate(plan_result.runnable):
+        stop = False
         if budget_policy is not None and not budget_policy.check(
             tokens_used=agent_run.tokens_used, ran_count=ran_count
         ):
-            steps.append(_executed_step(index, run, status="skipped", reason="budget_exhausted"))
+            stop = True
+        elif enforce_project_ceiling:
+            remaining = await funding_service.project_budget(db, agent_run.project_id)
+            if remaining.available <= 0:
+                stop = True
+        if stop:
+            # Record every remaining step so the trace shows what the ceiling cut, not just the
+            # first one the loop happened to be on.
+            for later_index, later_run in enumerate(plan_result.runnable[index:], start=index):
+                steps.append(
+                    _executed_step(
+                        later_index, later_run, status="skipped", reason=BUDGET_EXHAUSTED_REASON
+                    )
+                )
             agent_run.steps = list(steps)
             await db.commit()
             break
@@ -374,7 +426,7 @@ async def _execute(
     #    pre-plan snapshot. Every landed step has already committed, so this reads the pass's own
     #    durable effect. It is deliberately measured for *every* completed pass, including one that
     #    ran nothing — "measured 4, moved 0" is the honest record of a pass that bought nothing, and
-    #    it is the number 0.12.5's metering will read (see BudgetPolicy).
+    #    it is the number metering reads beside the debit (see BudgetPolicy / 0.19.0).
     #
     #    Guarded (0.16.2): the yield is *narrative*, like ``steps``, while the checkpoints this pass
     #    landed are already durable and committed. Letting a failed measurement reach the caller's

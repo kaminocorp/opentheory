@@ -9,8 +9,9 @@ ledger (funding implies no correctness, authorship, or validation).
 Source-aware (Decision #4): ``native`` = the platform comps budget against its own compute,
 created **only** by an actor holding the ``internal`` role (``403`` otherwise), born ``settled``
 (Decision #5); ``stripe`` = external paid funding, modeled and born ``pending`` (no real
-settlement here). Budget = Σ settled allocations; ``spent`` is 0 until agents meter compute
-(0.7.0, Decision #6).
+settlement here). Budget = Σ settled allocations; ``spent`` is Σ ``ComputeDebit`` rows
+(0.19.0, closing Decision #6 — historically sketched as deferred ``0.12.5``). The agent
+never writes a ``FundingAllocation``.
 
 ``FundingAllocation`` is append-only (``models/append_only.py``); a status lifecycle is modeled
 as new rows, never edits — so this service only ever *creates* allocations.
@@ -32,6 +33,7 @@ from app.models.funding import FundingAllocation
 from app.models.project import Project
 from app.schemas.account import AccountSummary
 from app.schemas.funding import FundingCreate, FundingRead, ProjectBudget
+from app.services import compute as compute_service
 from app.services import contributions
 
 # Default accounting unit for the budget totals when there is nothing settled to infer it from.
@@ -161,9 +163,10 @@ async def get_funding(db: AsyncSession, funding_id: UUID) -> FundingRead:
 async def project_budget(db: AsyncSession, project_id: UUID) -> ProjectBudget:
     """Derive the project budget from the funding ledger (one query, Python aggregation).
 
-    ``funded`` = Σ settled allocations; ``spent`` = 0 (no compute metering until 0.7.0);
+    ``funded`` = Σ settled allocations; ``spent`` = Σ ``ComputeDebit`` amounts (0.19.0);
     ``available`` = funded − spent. Breakdowns: settled totals by source, and totals by status
-    across all allocations. Amounts are summed in a single accounting unit.
+    across all allocations. Amounts are summed in a single accounting unit. Compute is
+    billed in USD; multi-currency funding remains the acknowledged-out-of-scope case.
     """
     # Ordered oldest→newest so the inferred accounting unit is deterministically the *most recent*
     # settled allocation's currency (last write wins), not whatever order the rows came back in.
@@ -185,7 +188,7 @@ async def project_budget(db: AsyncSession, project_id: UUID) -> ProjectBudget:
             by_source[a.source.value] += a.amount
             currency = a.currency  # infer the accounting unit from settled funding
 
-    spent = Decimal("0")  # Decision #6: no debit ledger until agents land
+    spent = await compute_service.project_compute_spent(db, project_id)
     return ProjectBudget(
         project_id=project_id,
         currency=currency,

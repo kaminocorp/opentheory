@@ -456,7 +456,7 @@ export type FundingCreate = {
   notes?: string | null;
 };
 
-// Budget derived from the funding ledger: funded = Σ settled; spent = 0 until agents (0.7.0).
+// Budget: funded = Σ settled allocations; spent = Σ ComputeDebit (0.19.0); available = funded − spent.
 export type ProjectBudget = {
   project_id: string;
   currency: string;

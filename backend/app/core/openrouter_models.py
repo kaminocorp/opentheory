@@ -13,16 +13,24 @@ display order; ``provider`` is the dropdown group label.
 """
 
 from dataclasses import dataclass
+from decimal import Decimal
 
 
 @dataclass(frozen=True, slots=True)
 class ModelOption:
     """One selectable model. ``id`` is the OpenRouter slug stored on the project; ``name`` is the
-    human label; ``provider`` groups the dropdown."""
+    human label; ``provider`` groups the dropdown.
+
+    ``usd_per_1k`` is an optional blended compute rate (0.19.0). When set, a pass that
+    records tokens against this model bills at that snapshot; when ``None``,
+    ``settings.agent_token_rate_usd_per_1k`` is the default. Not exposed on the catalog
+    read model — it is metering metadata, not a roster field.
+    """
 
     id: str
     name: str
     provider: str
+    usd_per_1k: Decimal | None = None
 
 
 # Curated roster. Slugs follow OpenRouter's ``vendor/model`` convention. Bias: strong reasoning

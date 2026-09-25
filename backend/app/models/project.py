@@ -50,6 +50,13 @@ class Project(IdMixin, TimestampMixin, Base):
         back_populates="project",
         cascade="all, delete-orphan",
     )
+    # Append-only compute spend (0.19.0). Cascade-delete is DB-level only; the ORM
+    # append-only guard refuses an in-session delete, same as FundingAllocation.
+    compute_debits = relationship(
+        "ComputeDebit",
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )
     # Project-level membership / authorization (0.8.1). Cascade-delete on project removal (a
     # membership has no meaning without its project); ProjectMember is not append-only, so an ORM
     # delete is permitted (unlike the ledger relationships above).

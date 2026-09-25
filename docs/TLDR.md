@@ -79,7 +79,8 @@ durable agent branch through the same chokepoint humans use. A successful pass
 **stands without a mandatory human gate** — accept / reject / fork remain opt-in
 audit. The loop is still dark in production until `AGENT_LOOP_ENABLED` +
 `OPENROUTER_API_KEY` are flipped (see `docs/operations/deploy.md`). Continuous /
-scheduled loops and project-budget metering (`0.12.5`) are not shipped.
+scheduled loops are not shipped. Project-budget metering shipped in `0.19.0`
+(historical alias `0.12.5`).
 
 **Once done — a continuous research engine:**
 

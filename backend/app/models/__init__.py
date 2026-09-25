@@ -6,6 +6,7 @@ from app.models.artifact import Artifact
 from app.models.branch import Branch
 from app.models.checkpoint import Checkpoint, checkpoint_parent
 from app.models.claim import Claim
+from app.models.compute_debit import ComputeDebit
 from app.models.contribution import Contribution
 from app.models.evidence import Evidence
 from app.models.funding import FundingAllocation
@@ -27,6 +28,7 @@ __all__ = [
     "CheckpointRef",
     "Claim",
     "ClaimEvidenceLink",
+    "ComputeDebit",
     "Contribution",
     "Evidence",
     "EvidenceArtifactLink",

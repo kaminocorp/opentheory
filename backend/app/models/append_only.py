@@ -1,14 +1,11 @@
 """Append-only enforcement for ledger primitives.
 
-``Checkpoint``, ``CheckpointRef``, ``FundingAllocation``, and ``Validation`` are
-append-only: once written they are never updated or deleted (see CLAUDE.md /
-docs/blueprints/primitives.md, which name ``Checkpoint`` and ``FundingAllocation`` as append-only;
-0.4.1 adds ``Validation`` — a point-in-time assessment feeding provenance, so a
-re-assessment is a *new* row, never an edit). We enforce this at the ORM layer (not
-merely "there is no endpoint") so the invariant holds even if the route layer is
-bypassed — corrections, reversals, and retractions must be *new* records, never edits.
-``FundingAllocation`` has no write path yet, so the guard is dormant but in place ahead
-of one landing.
+``Checkpoint``, ``CheckpointRef``, ``FundingAllocation``, ``Validation``, and
+``ComputeDebit`` are append-only: once written they are never updated or deleted
+(see CLAUDE.md / docs/blueprints/primitives.md). ``ComputeDebit`` (0.19.0) is
+spend accounting, not funding — a correction is a new debit (or a future credit
+row), never an edit. We enforce this at the ORM layer (not merely "there is no
+endpoint") so the invariant holds even if the route layer is bypassed.
 
 The guards fire on ORM ``before_update`` / ``before_delete`` mapper events, i.e. when a
 tracked instance is flushed as dirty or deleted. Bulk Core ``UPDATE``/``DELETE`` and DDL
@@ -25,6 +22,7 @@ from typing import Any
 from sqlalchemy import event
 
 from app.models.checkpoint import Checkpoint
+from app.models.compute_debit import ComputeDebit
 from app.models.funding import FundingAllocation
 from app.models.links import CheckpointRef
 from app.models.validation import Validation
@@ -34,7 +32,13 @@ class AppendOnlyError(Exception):
     """Raised when code attempts to UPDATE or DELETE an append-only ledger row."""
 
 
-_APPEND_ONLY_MODELS = (Checkpoint, CheckpointRef, FundingAllocation, Validation)
+_APPEND_ONLY_MODELS = (
+    Checkpoint,
+    CheckpointRef,
+    FundingAllocation,
+    Validation,
+    ComputeDebit,
+)
 
 
 def _block_mutation(mapper: Any, connection: Any, target: Any) -> None:

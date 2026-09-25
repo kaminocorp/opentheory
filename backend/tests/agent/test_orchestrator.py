@@ -8,6 +8,7 @@ reuse vs. re-fork after close, the main-line fallback, an unassigned role, and a
 """
 
 import json
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
@@ -23,7 +24,15 @@ from app.models.agent_run import AgentRun
 from app.models.branch import Branch
 from app.models.checkpoint import Checkpoint
 from app.models.contribution import Contribution
-from app.models.enums import ActorType, AgentRunStatus, BranchStatus
+from app.models.enums import (
+    ActorType,
+    AgentRunStatus,
+    BranchStatus,
+    FundingKind,
+    FundingSource,
+    FundingStatus,
+)
+from app.models.funding import FundingAllocation
 from app.models.project import Project
 from app.schemas.branch import BranchClose
 from app.services import branches as branch_service
@@ -91,13 +100,37 @@ async def _thread_checkpoint(
     return resp.json()["id"]
 
 
+async def _grant_budget(
+    session_factory: async_sessionmaker, project_id: str, *, amount: str = "100.00"
+) -> None:
+    """Settled native funding so the 0.19.0 project ceiling lets a pass start."""
+    async with session_factory() as session:
+        session.add(
+            FundingAllocation(
+                project_id=UUID(project_id),
+                amount=Decimal(amount),
+                currency="USD",
+                kind=FundingKind.TOP_UP,
+                source=FundingSource.NATIVE,
+                status=FundingStatus.SETTLED,
+            )
+        )
+        await session.commit()
+
+
 async def _assign_model(
-    session_factory: async_sessionmaker, project_id: str, role: str = "researcher"
+    session_factory: async_sessionmaker,
+    project_id: str,
+    role: str = "researcher",
+    *,
+    budget: str | None = "100.00",
 ) -> None:
     async with session_factory() as session:
         project = await session.get(Project, UUID(project_id))
         project.agent_models = {role: "anthropic/claude-sonnet-4"}
         await session.commit()
+    if budget is not None:
+        await _grant_budget(session_factory, project_id, amount=budget)
 
 
 async def _make_run(

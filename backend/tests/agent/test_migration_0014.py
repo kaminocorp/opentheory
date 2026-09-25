@@ -33,18 +33,14 @@ def test_revision_linkage() -> None:
     assert mod.down_revision == "0013_agent_runs"
 
 
-def test_it_is_the_only_head() -> None:
-    """Nothing revises 0014 — a second head makes ``alembic upgrade head`` ambiguous on deploy.
-
-    Read by regex rather than by executing every migration: a structural check should not depend on
-    each historical migration file still being importable.
-    """
+def test_it_is_revised_by_0015() -> None:
+    """0015 is the next head; 0014 must stay a single-parent link, not a second head."""
     down_revisions = {
         match.group(1)
         for path in _VERSIONS.glob("*.py")
         if (match := re.search(r'down_revision[^=]*=\s*"([^"]+)"', path.read_text()))
     }
-    assert _REVISION not in down_revisions
+    assert _REVISION in down_revisions
 
 
 def test_the_column_the_model_declares_is_the_column_the_migration_adds() -> None:

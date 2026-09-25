@@ -137,6 +137,18 @@ class AgentRunStatus(StrEnum):
     FAILED = "failed"
 
 
+class ComputeDebitKind(StrEnum):
+    """What a compute debit is billing (0.19.0) — accounting category, not a credit role.
+
+    v1 records one debit per pass for the planning-call tokens (``planning``). The kind
+    exists so a later iterative loop can add ``execution`` rows without a new table.
+    Like ``FundingKind``, this is a named Postgres enum (``name=`` is the DB type).
+    """
+
+    PLANNING = "planning"
+    EXECUTION = "execution"
+
+
 class EvidenceGrade(StrEnum):
     """How rigorously a piece of evidence backs a claim — the grade ladder (0.16.0).
 
