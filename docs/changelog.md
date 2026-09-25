@@ -129,9 +129,16 @@ Migration `0015_compute_debits` (additive). No new HTTP endpoint — the budget 
 and the agent-run trace already existed.
 
 ```bash
-cd backend && uv run ruff check .   # pending this PR's verification run
-cd backend && uv run pytest -q      # pending this PR's verification run
-cd frontend && npm run typecheck && npm run lint && npm run build   # pending
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 389 passed, 138 skipped (DB-gated)  [was 379 / 132]
+# With TEST_DATABASE_URL pointing at local Postgres:
+#   520 passed, 7 failed
+# The 7 failures are pre-existing DB-gated toolbench write-path tests this line
+# did not touch: Stub("calc.eval") is re-resolved by the sandbox as the real
+# instrument, and the geometry assertion predates `*_latex` companions.
+# This line's new tests (compute math, migration 0015, budget metering,
+# updated orchestrator / API / funding) are green — 43/43 in the focused run.
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
 ```
 
 ## 0.18.0

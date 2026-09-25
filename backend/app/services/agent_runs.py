@@ -349,24 +349,27 @@ async def _execute(
     #    atomic transaction; a per-step failure is caught and recorded (mints nothing).
     ran_count = 0
     for index, run in enumerate(plan_result.runnable):
+        stop = False
         if budget_policy is not None and not budget_policy.check(
             tokens_used=agent_run.tokens_used, ran_count=ran_count
         ):
-            steps.append(
-                _executed_step(index, run, status="skipped", reason=BUDGET_EXHAUSTED_REASON)
-            )
+            stop = True
+        elif enforce_project_ceiling:
+            remaining = await funding_service.project_budget(db, agent_run.project_id)
+            if remaining.available <= 0:
+                stop = True
+        if stop:
+            # Record every remaining step so the trace shows what the ceiling cut, not just the
+            # first one the loop happened to be on.
+            for later_index, later_run in enumerate(plan_result.runnable[index:], start=index):
+                steps.append(
+                    _executed_step(
+                        later_index, later_run, status="skipped", reason=BUDGET_EXHAUSTED_REASON
+                    )
+                )
             agent_run.steps = list(steps)
             await db.commit()
             break
-        if enforce_project_ceiling:
-            remaining = await funding_service.project_budget(db, agent_run.project_id)
-            if remaining.available <= 0:
-                steps.append(
-                    _executed_step(index, run, status="skipped", reason=BUDGET_EXHAUSTED_REASON)
-                )
-                agent_run.steps = list(steps)
-                await db.commit()
-                break
 
         instrument = registry.get(run.instrument)
         if instrument is None:  # pragma: no cover - the planner already resolved it

@@ -49,11 +49,14 @@ of scope here.
 
 ## Unverified
 
-- Counts in `docs/changelog.md` are filled after this PR's verification run.
 - No live agent pass was run. The loop is still dark in production until the ops flip.
-- DB-gated tests skip unless `TEST_DATABASE_URL` points at reachable Postgres.
-- No pixel-level browser walk of the funding / overview numbers.
+- No pixel-level browser walk of the funding / overview numbers (typecheck / lint /
+  build are the frontend gate).
 - Concurrent passes on the same project can each see `available > 0` before planning
   and overshoot on the planning call (the spend already happened at the provider). Each
   debit is recorded honestly; the instrument loop then stops. Same class of race as the
   known concurrent-first-pass branch fork.
+- Full DB-gated suite: **520 passed, 7 failed**. The 7 failures are pre-existing
+  toolbench write-path tests this line did not touch (`Stub("calc.eval")` vs the
+  sandbox; geometry `*_latex` assertion). Focused metering / orchestrator / funding
+  run: **43 passed**. Default suite (no `TEST_DATABASE_URL`): **389 passed, 138 skipped**.
