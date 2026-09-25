@@ -128,10 +128,11 @@ shipped `0.25.0` continuous research.
   off.
 
 ```bash
-cd backend && uv run ruff check .
-cd backend && uv run pytest -q tests/toolbench/test_lean_prove.py
-# CI: Mathlib tests skip unless lake + .lake/packages/mathlib are present
-cd frontend && npm run typecheck && npm run lint && npm run build
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 473 passed, 187 skipped (no TEST_DATABASE_URL)
+# tests/toolbench/test_lean_prove.py: 40 passed, 4 skipped
+#   (2 real `lean`, 2 real Mathlib/lake — neither installed here or in CI)
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
 ```
 
 See `docs/completions/lean-mathlib-0.26.0.md`.

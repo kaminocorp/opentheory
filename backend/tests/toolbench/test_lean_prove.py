@@ -298,7 +298,7 @@ def _fake_mathlib_project(root: Path, *, rev: str = "deadbeef") -> Path:
     (root / "lakefile.toml").write_text('name = "ot"\nrev = "v4.14.0"\n')
     (root / "lean-toolchain").write_text("leanprover/lean4:v4.14.0\n")
     (root / "lake-manifest.json").write_text(
-        '{"version": "1.1.0", "packages": [{"name": "mathlib", "rev": "%s"}]}' % rev
+        f'{{"version": "1.1.0", "packages": [{{"name": "mathlib", "rev": "{rev}"}}]}}'
     )
     pkg = root / ".lake" / "packages" / "mathlib"
     pkg.mkdir(parents=True)

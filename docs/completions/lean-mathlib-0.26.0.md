@@ -88,7 +88,11 @@ fly ssh console -C 'test -d /opt/opentheory/lean-mathlib/.lake/packages/mathlib 
 
 ## Verification
 
-Recorded after the local run on this branch.
+- `ruff check .` clean.
+- Default pytest (no `TEST_DATABASE_URL`): **473 passed, 187 skipped**.
+- `tests/toolbench/test_lean_prove.py`: **40 passed, 4 skipped** (2 real
+  `lean`, 2 real Mathlib/`lake` — not installed here or in CI).
+- Frontend `typecheck` / `lint` / `build` clean.
 
 ## Unverified
 
