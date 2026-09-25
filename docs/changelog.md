@@ -128,7 +128,7 @@ not touch live prices or concurrent sub-passes.
 
 ```bash
 cd backend && uv run ruff check .   # clean
-cd backend && uv run pytest -q      # 491 passed, 200 skipped (no TEST_DATABASE_URL)
+cd backend && uv run pytest -q      # 511 passed, 200 skipped (no TEST_DATABASE_URL)
 # With TEST_DATABASE_URL: tests/test_diff.py + test_diff_schema.py
 #   20 passed (empty same-tip + idle pair, claim signal change, grounding
 #   ungrounded→D, calc.eval on the interval, unknown ref 404 + no mint,

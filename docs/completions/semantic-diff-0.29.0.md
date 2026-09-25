@@ -81,7 +81,8 @@ special-case "instrument that never mints" that breaks the
 ## Verification
 
 - `ruff check .` clean.
-- Default pytest (no `TEST_DATABASE_URL`): **491 passed, 200 skipped**.
+- Default pytest (no `TEST_DATABASE_URL`): **511 passed, 200 skipped**
+  (includes shipped `0.28.0` live-rate tests; no new migration).
 - With `TEST_DATABASE_URL` at a local throwaway Postgres:
   `tests/test_diff.py` + `tests/test_diff_schema.py` **20 passed**,
   including empty same-tip and idle-pair deltas, claim signal
