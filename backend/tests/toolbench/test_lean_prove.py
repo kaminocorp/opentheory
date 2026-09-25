@@ -22,6 +22,10 @@ from app.toolbench.instruments._lean_support import (
     LeanCheck,
     check_source,
     has_theorem,
+    is_allowed_mathlib_import,
+    mathlib_project_ready,
+    mathlib_toolchain_available,
+    read_mathlib_rev,
     scan_banned,
     toolchain_available,
 )
@@ -30,16 +34,34 @@ from app.toolbench.instruments.lean_prove import LEAN_PROVE, _result_from_check
 _PROOF_SOURCE = "example : 1 + 1 = 2 := rfl"
 _FAIL_SOURCE = "example : 1 + 1 = 3 := rfl"
 _SORRY_SOURCE = "example : 1 + 1 = 2 := sorry"
+_MATHLIB_SMOKE = (
+    "import Mathlib.Data.Real.Basic\n"
+    "import Mathlib.Tactic.NormNum\n"
+    "example : (2 : ℝ) + 2 = 4 := by norm_num"
+)
+_MATHLIB_SORRY = "import Mathlib\nexample : True := sorry"
+_MATHLIB_BANNED_IMPORT = "import Lean\nexample : True := trivial"
 
 _LEAN_PRESENT = toolchain_available()
 requires_lean = pytest.mark.skipif(
     not _LEAN_PRESENT,
     reason="lean binary not on PATH — optional toolchain; CI does not install it",
 )
+requires_mathlib = pytest.mark.skipif(
+    not mathlib_toolchain_available(),
+    reason="lake + Mathlib cache not present — optional toolchain; CI does not install it",
+)
 
 
-def _run(source: str, assumptions: dict[str, Any] | None = None):
-    validated = LEAN_PROVE.InputModel.model_validate({"source": source})
+def _run(
+    source: str,
+    assumptions: dict[str, Any] | None = None,
+    *,
+    mathlib: bool = False,
+):
+    validated = LEAN_PROVE.InputModel.model_validate(
+        {"source": source, "mathlib": mathlib}
+    )
     return LEAN_PROVE.run(validated, assumptions or {})
 
 
@@ -55,6 +77,9 @@ def _write_executable(path: Path, body: str) -> str:
 def test_lean_prove_conforms_without_lean() -> None:
     """Missing toolchain is still a conforming instrument — example_inputs must not raise."""
     assert check_conformance(LEAN_PROVE, example_inputs={"source": _PROOF_SOURCE}) == []
+    assert check_conformance(
+        LEAN_PROVE, example_inputs={"source": _MATHLIB_SMOKE, "mathlib": True}
+    ) == []
 
 
 def test_engine_pin_is_lean4() -> None:
@@ -142,7 +167,7 @@ def test_has_theorem_recognises_example() -> None:
 def test_missing_toolchain_is_undecided_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "app.toolbench.instruments.lean_prove.check_source",
-        lambda source, timeout_s, lean_bin=None: LeanCheck(
+        lambda source, timeout_s, **_kwargs: LeanCheck(
             kind="unavailable",
             reason="unavailable",
             diagnostics="lean binary not on PATH",
@@ -187,7 +212,7 @@ def test_timeout_via_fake_binary_is_undecided(
 
     monkeypatch.setattr(
         "app.toolbench.instruments.lean_prove.check_source",
-        lambda source, timeout_s, lean_bin=None: check,
+        lambda source, timeout_s, **_kwargs: check,
     )
     result = _run(_PROOF_SOURCE)
     assert result.status is ResultStatus.UNDECIDED
@@ -232,7 +257,7 @@ def test_crash_via_fake_binary_is_not_a_result(tmp_path: Path) -> None:
 def test_instrument_raises_on_crash(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "app.toolbench.instruments.lean_prove.check_source",
-        lambda source, timeout_s, lean_bin=None: LeanCheck(
+        lambda source, timeout_s, **_kwargs: LeanCheck(
             kind="crash",
             reason="crash",
             diagnostics="lean killed by signal 9",
@@ -262,4 +287,222 @@ def test_real_lean_rejects_false_equality() -> None:
     assert result.output["outcome"] == "failed"
     assert result.output["proven"] is False
     assert result.output["status_reason"] == "failed"
+
+
+# --- Mathlib opt-in (0.26.0) --------------------------------------------------------------------
+
+
+def _fake_mathlib_project(root: Path, *, rev: str = "deadbeef") -> Path:
+    """A directory that looks like a cached Mathlib lake project (no real oleans)."""
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "lakefile.toml").write_text('name = "ot"\nrev = "v4.14.0"\n')
+    (root / "lean-toolchain").write_text("leanprover/lean4:v4.14.0\n")
+    (root / "lake-manifest.json").write_text(
+        '{"version": "1.1.0", "packages": [{"name": "mathlib", "rev": "%s"}]}' % rev
+    )
+    pkg = root / ".lake" / "packages" / "mathlib"
+    pkg.mkdir(parents=True)
+    (pkg / "lakefile.lean").write_text("-- stub cache marker\n")
+    return root
+
+
+def _offline_lake_script(exit_code: int = 0, body: str | None = None) -> str:
+    if body is not None:
+        return body
+    return (
+        "#!/bin/sh\n"
+        "off=\n"
+        'for a in "$@"; do [ "$a" = "--offline" ] && off=1; done\n'
+        '[ -n "$off" ] || { echo "refusing networked lake" >&2; exit 2; }\n'
+        f"exit {exit_code}\n"
+    )
+
+
+def test_mathlib_import_without_opt_in_is_rejected() -> None:
+    assert "import" in scan_banned(_MATHLIB_SMOKE)
+    result = _run(_MATHLIB_SMOKE, mathlib=False)
+    assert result.status is ResultStatus.UNDECIDED
+    assert result.output["outcome"] == "failed"
+    assert result.output["proven"] is False
+    assert result.output["status_reason"] == "rejected_constructs"
+    assert result.output["mathlib"] is False
+
+
+def test_mathlib_allow_list_accepts_mathlib_and_init() -> None:
+    assert is_allowed_mathlib_import("Mathlib")
+    assert is_allowed_mathlib_import("Mathlib.Data.Real.Basic")
+    assert is_allowed_mathlib_import("Init.Data.Nat")
+    assert not is_allowed_mathlib_import("Lean")
+    assert not is_allowed_mathlib_import("Lake")
+    assert not is_allowed_mathlib_import("MathlibX")
+    assert scan_banned(_MATHLIB_SMOKE, mathlib=True) == ()
+    assert scan_banned(_MATHLIB_BANNED_IMPORT, mathlib=True) == ("Lean",)
+
+
+def test_mathlib_sorry_is_failed_even_when_opted_in() -> None:
+    result = _run(_MATHLIB_SORRY, mathlib=True)
+    assert result.status is ResultStatus.UNDECIDED
+    assert result.output["outcome"] == "failed"
+    assert result.output["proven"] is False
+    assert result.output["status_reason"] == "rejected_constructs"
+    assert "sorry" in result.output["banned_constructs"]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import Mathlib\naxiom T : True\nexample : True := trivial",
+        "import Mathlib\nexample : True := admit",
+        "import Mathlib\n#eval 1\nexample : True := trivial",
+        "import Mathlib\nexample : True := (IO.println \"x\" *> pure trivial)",
+        "import Mathlib\ninitialize foo : Unit := pure ()\nexample : True := trivial",
+        _MATHLIB_BANNED_IMPORT,
+    ],
+)
+def test_mathlib_mode_still_rejects_banned_constructs(source: str) -> None:
+    result = _run(source, mathlib=True)
+    assert result.status is ResultStatus.UNDECIDED
+    assert result.output["outcome"] == "failed"
+    assert result.output["proven"] is False
+    assert result.output["status_reason"] == "rejected_constructs"
+
+
+def test_mathlib_missing_toolchain_is_undecided() -> None:
+    """Opt-in without lake/Mathlib cache is unavailable — never a proof."""
+    result = _run(_MATHLIB_SMOKE, mathlib=True)
+    if mathlib_toolchain_available():
+        pytest.skip("real Mathlib present — covered by test_real_mathlib_proves_smoke")
+    assert result.status is ResultStatus.UNDECIDED
+    assert result.output["outcome"] == "undecided"
+    assert result.output["proven"] is False
+    assert result.output["status_reason"] == "mathlib_unavailable"
+    assert result.artifact_kind == "derivation"
+
+
+def test_mathlib_skeleton_without_cache_is_not_ready(tmp_path: Path) -> None:
+    """The committed lake scaffold is not a proof environment."""
+    skeleton = tmp_path / "skeleton"
+    skeleton.mkdir()
+    (skeleton / "lakefile.toml").write_text('name = "ot"\n')
+    assert mathlib_project_ready(str(skeleton)) is False
+
+
+def test_mathlib_proved_via_fake_lake(tmp_path: Path) -> None:
+    root = _fake_mathlib_project(tmp_path / "mathlib-lake")
+    lake = _write_executable(tmp_path / "lake", _offline_lake_script(0))
+    check = check_source(
+        _MATHLIB_SMOKE,
+        timeout_s=2,
+        lake_bin=lake,
+        mathlib=True,
+        mathlib_root=str(root),
+    )
+    assert check.kind == "proved"
+    assert check.lake_used is True
+    assert check.mathlib is True
+    assert check.mathlib_rev == "deadbeef"
+    result = _result_from_check(_MATHLIB_SMOKE, check, mathlib=True)
+    assert result.status is ResultStatus.RESULT
+    assert result.artifact_kind == "proof"
+    assert result.output["outcome"] == "proved"
+    assert result.output["proven"] is True
+    assert result.output["certificate"] == "lean-kernel+mathlib"
+    assert result.output["mathlib"] is True
+    assert result.output["lake_used"] is True
+    assert result.output["mathlib_rev"] == "deadbeef"
+
+
+def test_mathlib_failed_via_fake_lake(tmp_path: Path) -> None:
+    root = _fake_mathlib_project(tmp_path / "mathlib-lake")
+    lake = _write_executable(
+        tmp_path / "lake",
+        _offline_lake_script(
+            body=(
+                "#!/bin/sh\n"
+                "echo 'error: type mismatch' >&2\n"
+                "exit 1\n"
+            )
+        ),
+    )
+    check = check_source(
+        _MATHLIB_SMOKE,
+        timeout_s=2,
+        lake_bin=lake,
+        mathlib=True,
+        mathlib_root=str(root),
+    )
+    assert check.kind == "failed"
+    result = _result_from_check(_MATHLIB_SMOKE, check, mathlib=True)
+    assert result.status is ResultStatus.UNDECIDED
+    assert result.output["outcome"] == "failed"
+    assert result.output["proven"] is False
+
+
+def test_mathlib_timeout_via_fake_lake_is_undecided(tmp_path: Path) -> None:
+    root = _fake_mathlib_project(tmp_path / "mathlib-lake")
+    lake = _write_executable(tmp_path / "lake", "#!/bin/sh\nsleep 30\n")
+    check = check_source(
+        _MATHLIB_SMOKE,
+        timeout_s=0.25,
+        lake_bin=lake,
+        mathlib=True,
+        mathlib_root=str(root),
+    )
+    assert check.kind == "timeout"
+    result = _result_from_check(_MATHLIB_SMOKE, check, mathlib=True)
+    assert result.status is ResultStatus.UNDECIDED
+    assert result.output["outcome"] == "undecided"
+    assert result.output["status_reason"] == "timeout"
+    assert result.output["proven"] is False
+
+
+def test_mathlib_lake_is_invoked_offline(tmp_path: Path) -> None:
+    """Grade A Mathlib checks must not fetch packages."""
+    root = _fake_mathlib_project(tmp_path / "mathlib-lake")
+    seen = tmp_path / "args.txt"
+    lake = _write_executable(
+        tmp_path / "lake",
+        "#!/bin/sh\n"
+        f'printf "%s\\n" "$*" > "{seen}"\n'
+        "exit 0\n",
+    )
+    check = check_source(
+        _MATHLIB_SMOKE,
+        timeout_s=2,
+        lake_bin=lake,
+        mathlib=True,
+        mathlib_root=str(root),
+    )
+    assert check.kind == "proved"
+    assert "--offline" in seen.read_text()
+
+
+def test_read_mathlib_rev_from_manifest(tmp_path: Path) -> None:
+    root = _fake_mathlib_project(tmp_path / "mathlib-lake", rev="abc123def")
+    assert read_mathlib_rev(str(root)) == "abc123def"
+
+
+@requires_mathlib
+def test_real_mathlib_proves_smoke() -> None:
+    result = _run(_MATHLIB_SMOKE, mathlib=True)
+    assert result.status is ResultStatus.RESULT
+    assert result.artifact_kind == "proof"
+    assert result.output["proven"] is True
+    assert result.output["outcome"] == "proved"
+    assert result.output["certificate"] == "lean-kernel+mathlib"
+    assert result.output["mathlib"] is True
+    assert result.output["lake_used"] is True
+
+
+@requires_mathlib
+def test_real_mathlib_rejects_false_equality() -> None:
+    source = (
+        "import Mathlib.Data.Real.Basic\n"
+        "import Mathlib.Tactic.NormNum\n"
+        "example : (2 : ℝ) + 2 = 5 := by norm_num"
+    )
+    result = _run(source, mathlib=True)
+    assert result.status is ResultStatus.UNDECIDED
+    assert result.output["outcome"] == "failed"
+    assert result.output["proven"] is False
 

@@ -30,7 +30,7 @@ Nothing resets. Dead ends are recorded, not deleted.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-live-success)](https://opentheory.vercel.app)
-[![Version](https://img.shields.io/badge/version-0.25.0-crimson)](docs/changelog.md)
+[![Version](https://img.shields.io/badge/version-0.26.0-crimson)](docs/changelog.md)
 &nbsp;
 ![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
@@ -116,7 +116,7 @@ ship today, each landing an attributed checkpoint through the same chokepoint:
 | `counterexample.search` | deterministic grid search for a falsifying witness |
 | `oeis.search` | identify an integer sequence — lands a *pinned* citation |
 | `z3.prove` | machine-checked validity — proof, exact counter-model, or honest `undecided` |
-| `lean.prove` | Lean 4 kernel check — Grade A only on a real proof; optional toolchain |
+| `lean.prove` | Lean 4 kernel check — Grade A only on a real proof; optional Lean + optional Mathlib / `lake` |
 | `crossref.lookup` / `arxiv.lookup` / `openalex.lookup` | Tier-1 literature pins |
 
 Every instrument answers with the same three-outcome contract:
@@ -400,7 +400,7 @@ opentheory/
 ## Status
 
 **Live** (Vercel + Fly.io + Supabase), shipped in small, deployable phases tracked in
-[`docs/changelog.md`](docs/changelog.md). Currently `0.25.0`.
+[`docs/changelog.md`](docs/changelog.md). Currently `0.26.0`.
 
 **Shipped:**
 
@@ -421,9 +421,10 @@ opentheory/
 | `0.20.x` | Bounded plan → observe → replan inside one agent pass |
 | `0.21.x` | Research-git merge + tag — multi-parent synthesis and named immutable pointers |
 | `0.22.x` | Thin multi-thread orchestrator — allocate project budget across sequential sub-passes |
-| `0.23.x` | `lean.prove` — optional Lean 4 kernel check; Grade A only on a real proof (no Mathlib) |
+| `0.23.x` | `lean.prove` — optional Lean 4 kernel check; Grade A only on a real proof (prelude / Init) |
 | `0.24.x` | CommandRail sync — rail zones are live `?tab=` links; `#funding` + inert Agents retired |
 | `0.25.x` | Continuous research campaign — re-commission the orchestrator until the pot is empty |
+| `0.26.x` | `lean.prove` Mathlib opt-in — bounded offline `lake`; missing Mathlib is honest `undecided` |
 
 **Honest caveats:**
 
@@ -442,17 +443,18 @@ opentheory/
   artifacts** are described in the docs but not built. Merge and tag shipped in
   `0.21.0`.
 - **`lean.prove` is optional.** If `lean` is not on the runtime PATH the
-  instrument records `undecided` / `unavailable` and never a proof. Mathlib is
-  not in `0.23.0`. See `docs/operations/deploy.md` for the Fly install path.
+  instrument records `undecided` / `unavailable` and never a proof. Mathlib
+  needs a separate image rebuild (`INSTALL_MATHLIB=1`); missing cache is
+  `undecided` / `mathlib_unavailable`. See `docs/operations/deploy.md`.
 
 **Next up** (see [`docs/plans/roadmap-next-steps.md`](docs/plans/roadmap-next-steps.md)):
 the still-owed browser eyeball pass, then `0.14.2` Phase C polish. CommandRail
 sync shipped in `0.24.0` (historical `0.14.1`). Continuous research under
 budget shipped in `0.25.0`. `lean.prove` shipped in `0.23.0` (optional
-toolchain, prelude/Init); Mathlib / `lake` remain later. Project-budget
-metering shipped in `0.19.0`; plan→observe→replan shipped in `0.20.0`;
-research-git merge + tag shipped in `0.21.0`; the multi-thread orchestrator
-shipped in `0.22.0`.
+toolchain, prelude/Init) and `0.26.0` (optional Mathlib / `lake`).
+Project-budget metering shipped in `0.19.0`; plan→observe→replan shipped in
+`0.20.0`; research-git merge + tag shipped in `0.21.0`; the multi-thread
+orchestrator shipped in `0.22.0`.
 
 ---
 

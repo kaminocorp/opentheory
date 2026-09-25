@@ -74,8 +74,9 @@ export type Z3ProveOutput = {
   constraints_latex?: string[] | null;
 };
 
-// Output shape of `lean.prove` (0.23.0) — proved / failed / undecided. Grade A only
-// when `outcome === "proved"` (status `result`). Failed typechecks are not refutations.
+// Output shape of `lean.prove` (0.23.0 / 0.26.0) — proved / failed / undecided.
+// Grade A only when `outcome === "proved"` (status `result`). Failed typechecks
+// are not refutations. `mathlib` is the opt-in; missing lake/Mathlib is undecided.
 export type LeanProveOutput = {
   source: string;
   outcome: "proved" | "failed" | "undecided";
@@ -85,4 +86,7 @@ export type LeanProveOutput = {
   diagnostics?: string | null;
   lean_version?: string | null;
   certificate?: string | null;
+  mathlib?: boolean;
+  lake_used?: boolean;
+  mathlib_rev?: string | null;
 };

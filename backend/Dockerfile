@@ -32,7 +32,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # and does not break other instruments.
 # Enable:  docker build --build-arg INSTALL_LEAN=1
 # Pin:     docker build --build-arg INSTALL_LEAN=1 --build-arg LEAN_TOOLCHAIN=leanprover/lean4:v4.14.0
-# See docs/operations/deploy.md §Lean 4 (optional, 0.23.0).
+# See docs/operations/deploy.md §Lean 4 (optional, 0.23.0 / 0.26.0).
 ARG INSTALL_LEAN=0
 ARG LEAN_TOOLCHAIN=leanprover/lean4:v4.14.0
 RUN if [ "$INSTALL_LEAN" = "1" ]; then \
@@ -42,6 +42,35 @@ RUN if [ "$INSTALL_LEAN" = "1" ]; then \
       rm -rf /var/lib/apt/lists/* ; \
     fi
 ENV PATH="/root/.elan/bin:${PATH}"
+
+# Optional Mathlib oleans + lake project for ``lean.prove`` mathlib=true.
+# Requires INSTALL_LEAN=1. Off by default — CI stays green without it; a missing
+# cache is honest undecided/mathlib_unavailable and never Grade A.
+# Enable:  docker build --build-arg INSTALL_LEAN=1 --build-arg INSTALL_MATHLIB=1
+# Pin:     --build-arg MATHLIB_REV=v4.14.0  (must match LEAN_TOOLCHAIN)
+# The build fetches the Mathlib cache (several GB). Do not enable on the CI image.
+# Redeclare Lean args so this layer can require INSTALL_LEAN=1.
+ARG INSTALL_LEAN
+ARG LEAN_TOOLCHAIN
+ARG INSTALL_MATHLIB=0
+ARG MATHLIB_REV=v4.14.0
+ENV OPENTHEORY_MATHLIB_LAKE=/opt/opentheory/lean-mathlib \
+    TOOLBENCH_MATHLIB_LAKE=/opt/opentheory/lean-mathlib
+RUN if [ "$INSTALL_MATHLIB" = "1" ]; then \
+      if [ "$INSTALL_LEAN" != "1" ]; then \
+        echo "INSTALL_MATHLIB=1 requires INSTALL_LEAN=1" >&2; \
+        exit 1; \
+      fi; \
+      mkdir -p /opt/opentheory/lean-mathlib && \
+      cp -a /app/lean-mathlib/. /opt/opentheory/lean-mathlib/ && \
+      printf '%s\n' "$LEAN_TOOLCHAIN" > /opt/opentheory/lean-mathlib/lean-toolchain && \
+      sed -i "s/^rev = \".*\"/rev = \"${MATHLIB_REV}\"/" \
+        /opt/opentheory/lean-mathlib/lakefile.toml && \
+      cd /opt/opentheory/lean-mathlib && \
+      lake update && \
+      lake exe cache get && \
+      lake build ; \
+    fi
 
 EXPOSE 8000
 

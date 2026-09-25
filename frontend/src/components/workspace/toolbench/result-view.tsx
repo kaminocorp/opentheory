@@ -477,11 +477,13 @@ function Z3ProveBody({
 const LEAN_REASON_GLOSS: Record<string, string> = {
   unavailable:
     "lean is not installed on this runtime — optional toolchain; recorded as undecided, never a proof. Other instruments are unaffected.",
+  mathlib_unavailable:
+    "Mathlib / lake is not installed on this runtime — optional toolchain; recorded as undecided, never a proof.",
   timeout:
     "Lean soft-timeout — recorded as undecided so a slow typecheck is citable, not killed.",
   failed: "Lean rejected the snippet — a failed check is not a refutation of the claim.",
   rejected_constructs:
-    "The source contains sorry, axiom, import, IO, or another construct that cannot earn a proof.",
+    "The source contains sorry, axiom, a disallowed import, IO, or another construct that cannot earn a proof.",
   no_theorem:
     "The snippet declares no theorem, lemma, or example — a typechecking empty file is not a proof.",
 };
@@ -502,6 +504,8 @@ function LeanProveBody({
     ? (output.banned_constructs as unknown[]).map(asString)
     : [];
   const outcome = asString(output.outcome);
+  const mathlib = output.mathlib === true;
+  const mathlibRev = asString(output.mathlib_rev);
 
   const sourceBlock = (
     <KeyValue k="Source">
@@ -515,7 +519,13 @@ function LeanProveBody({
     return (
       <div className="grid gap-2">
         {sourceBlock}
-        <ProofCard caption="Lean kernel accepted this snippet — no sorry, no axiom, no import. Grade A only for this outcome.">
+        <ProofCard
+          caption={
+            mathlib
+              ? "Lean kernel accepted this snippet with the Mathlib allow-list — no sorry, no axiom, no IO. Grade A only for this outcome."
+              : "Lean kernel accepted this snippet — no sorry, no axiom, no import. Grade A only for this outcome."
+          }
+        >
           <div className="grid gap-1.5">
             {certificate ? (
               <KeyValue k="Certificate">
@@ -525,6 +535,13 @@ function LeanProveBody({
             {version ? (
               <KeyValue k="Lean">
                 <span className="font-mono text-[13px] text-text">{version}</span>
+              </KeyValue>
+            ) : null}
+            {mathlib ? (
+              <KeyValue k="Mathlib">
+                <span className="font-mono text-[13px] text-text">
+                  {mathlibRev || "allowed set"}
+                </span>
               </KeyValue>
             ) : null}
           </div>
