@@ -33,8 +33,10 @@ type ProjectHeaderProps = {
   counts: ProjectCounts | null;
   countsError: boolean;
   contradictions: ContradictionItem[];
-  /** Contested claims live on Research; the strip is a way in. */
+  /** Contested claims live on Research; the strip heading is a way in. */
   onShowContested: () => void;
+  /** One contested statement → Research, that thread, that claim. */
+  onFocusClaim: (item: ContradictionItem) => void;
 };
 
 /**
@@ -55,6 +57,7 @@ export function ProjectHeader({
   countsError,
   contradictions,
   onShowContested,
+  onFocusClaim,
 }: ProjectHeaderProps) {
   return (
     <div className="grid gap-3">
@@ -90,38 +93,40 @@ export function ProjectHeader({
         ) : null}
 
         {/* Honesty surface: contested claims sit above the counts, marked by a
-            state-fail edge tick + glyph + label — never softened, never collapsed. */}
+            state-fail edge tick + glyph + label — never softened, never collapsed.
+            Each statement is its own control so a click can land on that claim. */}
         {contradictions.length > 0 ? (
-          <button
-            type="button"
-            onClick={onShowContested}
-            // No hover *surface* shift: `--panel-2` is already the lightest structural
-            // step, so interactivity reads from the statement text lifting instead.
-            className="group relative w-full rounded-built bg-panel-2 p-3 pl-4 text-left"
-          >
+          <div className="relative w-full rounded-built bg-panel-2 p-3 pl-4">
             <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-state-fail" />
-            <span className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={onShowContested}
+              className="flex items-center gap-1.5 text-left"
+            >
               <Icon icon={AlertTriangle} size={14} className="text-state-fail" />
               <span className="text-[13px] font-medium text-state-fail">
                 {contradictions.length} contested claim{contradictions.length === 1 ? "" : "s"}
               </span>
-            </span>
-            <span className="mt-2 grid gap-1">
+            </button>
+            <ul className="mt-2 grid gap-1">
               {contradictions.map((item) => (
-                <span
-                  key={item.claim_id}
-                  className="truncate text-[13px] leading-[1.5] text-text-soft transition-colors group-hover:text-text"
-                >
-                  {item.statement}
-                </span>
+                <li key={item.claim_id}>
+                  <button
+                    type="button"
+                    onClick={() => onFocusClaim(item)}
+                    className="block w-full truncate text-left text-[13px] leading-[1.5] text-text-soft transition-colors hover:text-text"
+                  >
+                    {item.statement}
+                  </button>
+                </li>
               ))}
-            </span>
-          </button>
+            </ul>
+          </div>
         ) : null}
 
-        {/* Compact scale readout — replaces the six-tile grid that used to push the
-            workspace below the fold. Loading and error fall back exactly as the
-            MetricReadout tiles did (shimmer, then "—"). */}
+        {/* Compact scale readout — `n threads · n claims · n checkpoints`. The
+            full six-metric grid is reference material on Overview (D3). Loading
+            and error fall back exactly as the MetricReadout tiles did. */}
         <dl className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-[12px] tabular-nums">
           {COMPACT_COUNTS.map(({ key, label }, index) => (
             <div key={key} className="flex items-center gap-1.5">
@@ -130,7 +135,6 @@ export function ProjectHeader({
                   ·
                 </span>
               ) : null}
-              <dt className="text-text-mute">{label}</dt>
               <dd className={cn("font-mono font-medium", counts ? "text-text" : "text-text-mute")}>
                 {counts ? (
                   counts[key]
@@ -143,6 +147,7 @@ export function ProjectHeader({
                   />
                 )}
               </dd>
+              <dt className="text-text-mute">{label}</dt>
             </div>
           ))}
         </dl>

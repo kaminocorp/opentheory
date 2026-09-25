@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ListChecks, Paperclip, Plus, ShieldCheck, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   Action,
@@ -16,6 +16,7 @@ import {
   type StateTone,
 } from "@/components/console";
 import { attachEvidence, createClaim, listClaims, listEvidence } from "@/lib/api";
+import { cn } from "@/lib/cn";
 import { queryKeys } from "@/lib/query-keys";
 import { useActingIdentity } from "@/lib/use-identity";
 import type { Claim, ClaimKind, RelationKind } from "@/types/research";
@@ -47,9 +48,11 @@ const RELATION_TONE: Record<RelationKind, StateTone> = {
 type ClaimListPanelProps = {
   projectId: string;
   threadId: string | null;
+  /** Header contested-strip click-through (0.30.0). Scroll + highlight; no rewrite. */
+  focusClaimId?: string | null;
 };
 
-export function ClaimListPanel({ projectId, threadId }: ClaimListPanelProps) {
+export function ClaimListPanel({ projectId, threadId, focusClaimId }: ClaimListPanelProps) {
   if (!threadId) {
     return (
       <Bay density="none" className="grid min-h-64 place-items-center">
@@ -57,10 +60,20 @@ export function ClaimListPanel({ projectId, threadId }: ClaimListPanelProps) {
       </Bay>
     );
   }
-  return <ClaimListPanelInner projectId={projectId} threadId={threadId} />;
+  return (
+    <ClaimListPanelInner projectId={projectId} threadId={threadId} focusClaimId={focusClaimId} />
+  );
 }
 
-function ClaimListPanelInner({ projectId, threadId }: { projectId: string; threadId: string }) {
+function ClaimListPanelInner({
+  projectId,
+  threadId,
+  focusClaimId,
+}: {
+  projectId: string;
+  threadId: string;
+  focusClaimId?: string | null;
+}) {
   const { canWrite, hydrated, signInHint } = useActingIdentity();
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
@@ -86,6 +99,16 @@ function ClaimListPanelInner({ projectId, threadId }: { projectId: string; threa
 
   const claims = claimsQuery.data ?? [];
   const canSubmit = canWrite && statement.trim().length > 0;
+
+  // Contested-strip click-through: once this thread's claims are in, land on the
+  // named row. Minimal — no list virtualization, so getElementById is enough.
+  useEffect(() => {
+    if (!focusClaimId) return;
+    const node = document.getElementById(`claim-${focusClaimId}`);
+    if (!node) return;
+    node.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    if (node instanceof HTMLElement) node.focus({ preventScroll: true });
+  }, [focusClaimId, claims]);
 
   return (
     <Bay density="none" className="flex flex-col">
@@ -168,13 +191,28 @@ function ClaimListPanelInner({ projectId, threadId }: { projectId: string; threa
           <PanelEmpty>No claims in this thread</PanelEmpty>
         ) : (
           <ul className="grid gap-3">
-            {claims.map((claim) => (
+            {claims.map((claim) => {
+              const focused = claim.id === focusClaimId;
+              return (
               // Claim sub-card on --panel-2 (raised out of the panel column).
               <li
                 key={claim.id}
-                className="rounded-built bg-panel-2 p-3"
-                style={{ border: "1px solid var(--hairline)" }}
+                id={`claim-${claim.id}`}
+                tabIndex={focused ? -1 : undefined}
+                aria-current={focused ? "true" : undefined}
+                className={cn(
+                  "relative rounded-built bg-panel-2 p-3",
+                  focused && "pl-4",
+                )}
+                style={{
+                  border: focused
+                    ? "1px solid var(--hairline-strong)"
+                    : "1px solid var(--hairline)",
+                }}
               >
+                {focused ? (
+                  <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-state-fail" />
+                ) : null}
                 <div className="flex items-start justify-between gap-3">
                   <p className="text-[14px] leading-6 text-text">{claim.statement}</p>
                   {claim.confidence != null ? (
@@ -201,7 +239,8 @@ function ClaimListPanelInner({ projectId, threadId }: { projectId: string; threa
                 <ClaimEvidence projectId={projectId} claimId={claim.id} />
                 <ClaimValidations projectId={projectId} threadId={threadId} claim={claim} />
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </div>

@@ -1,7 +1,8 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-09-25 · **Current release line:** `0.29.0` (semantic
-> git diff), sitting on shipped `0.28.0` (live OpenRouter price metering),
+> **Last updated:** 2026-09-25 · **Current release line:** `0.30.0` (deepdive
+> Phase C polish — historical alias `0.14.2`), sitting on shipped `0.29.0`
+> (semantic git diff), `0.28.0` (live OpenRouter price metering),
 > `0.27.0` (concurrent sub-passes under project budget), `0.26.0` (Mathlib /
 > lake Grade-A path on `lean.prove`), `0.25.0` (continuous
 > research under budget), `0.24.0` (CommandRail sync — historically the
@@ -11,12 +12,12 @@
 > (project-budget metering), `0.18.0` (Tier-1 literature pins), `0.17.0`
 > (review is opt-in) and `0.16.3` (thread/project grounding rollup). For the
 > per-phase ledger see `docs/changelog.md`; for the line just closed see
-> `docs/completions/semantic-diff-0.29.0.md`. The remaining `0.14.x` phases
-> (C–D) still live at `docs/archive/project-deepdive-tabs-0.14.md`.
+> `docs/completions/deepdive-phase-c-0.30.0.md`. Phase D of the deepdive
+> still lives at `docs/archive/project-deepdive-tabs-0.14.md`.
 >
-> **Next after this line:** the still-owed browser eyeball pass; then `0.14.2`
-> Phase C polish. Unmerged work is not claimed as shipped. Lean REPL /
-> LeanDojo remain later.
+> **Next after this line:** the still-owed browser eyeball pass; then
+> optional Phase D (`?thread=` / `?branch=`). Unmerged work is not claimed
+> as shipped. Lean REPL / LeanDojo remain later.
 
 ## Where we are
 
@@ -56,7 +57,8 @@ A signed-in member can today:
    attributed checkpoint through the chokepoint.
 5. Do all of it from a **five-tab deepdive** (`research` · `instruments` · `crew` · `funding` ·
    `overview`) under a persistent header, deep-linkable via `?tab=`. Research and Instruments
-   render keep-alive, so an in-flight agent trace survives a tab switch.
+   render keep-alive, so an in-flight agent trace survives a tab switch. Contested header
+   items land on that claim in Research; tab badges reuse existing reads (`0.30.0`).
 6. Read each claim's **grounding rung** inline — `proven` / `refuted` / B / C / D / `cited` /
    `ungrounded` — with a one-line *"what would raise this"*, so the ladder is actionable rather
    than decorative; and read the same derivation rolled up on the thread list and Overview
@@ -98,6 +100,19 @@ who changed it, and what evidence or artifacts were involved — then extend it 
 bypassing the checkpoint chokepoint or conflating funder / contributor / validator roles.
 
 ## Recommended next releases
+
+### `0.30.x` — Deepdive Phase C polish ✅ **shipped** (`0.30.0`)
+
+Delivered: compact header `n threads · n claims · n checkpoints`; Overview
+keeps the full metric grid as reference; contested header items switch to
+Research and focus that claim; tab badges from existing queries
+(contested / member+invite / running-pass `LiveDot`); honest Instruments
+sealed-line and no-thread copy. Historically the deferred Phase C
+(`0.14.2`). **No schema, no migration.** See
+`docs/completions/deepdive-phase-c-0.30.0.md`.
+
+**Not in this release:** Phase D (`?thread=` / `?branch=`, a project-wide
+in-flight indicator). Semantic diff remains `0.29.0`.
 
 ### `0.29.x` — Semantic git diff ✅ **shipped** (`0.29.0`)
 
@@ -288,7 +303,7 @@ over intact.
 emulation), the deepdive's five tabs, a toolbench result card, and the sign-in dropdown. No
 pixel-level browser walk has been possible since `0.14.0` (no connected browser extension).
 
-### `0.14.x` / `0.24.0` — Project deepdive tabs ✅ **Phase A + B shipped**; C–D outstanding
+### `0.14.x` / `0.24.0` / `0.30.0` — Project deepdive tabs ✅ **Phase A + B + C shipped**; D optional
 
 Delivered in `0.14.0`: the five-tab shell with `?tab=` as the single source of truth, the
 persistent header, keep-alive Research/Instruments mounting (load-bearing for the agent poll),
@@ -296,13 +311,16 @@ the WAI-ARIA tabs pattern, and the `<Suspense>` boundary.
 
 Delivered in `0.24.0` (historical alias `0.14.1`): CommandRail sync. Project zones are live
 `?tab=` links; active state is derived from the URL; the `#funding` hash target and the inert
-Agents hatch are gone. See `docs/completions/commandrail-sync-0.24.0.md`. Remaining checklist
+Agents hatch are gone. See `docs/completions/commandrail-sync-0.24.0.md`.
+
+Delivered in `0.30.0` (historical alias `0.14.2`): Phase C polish. Contested click-through,
+tab badges, compact metric line, Instruments readout. See
+`docs/completions/deepdive-phase-c-0.30.0.md`. Remaining checklist
 in `docs/archive/project-deepdive-tabs-0.14.md` §6:
 
 - ~~**Phase B (`0.14.1` / `0.24.0`)**~~ ✅ **shipped** — rail ↔ strip sync via `?tab=`.
-- **Phase C (`0.14.2`, polish)** — contested-claim click-through into `ClaimListPanel`, tab badges
-  (contested count, member count, a running-pass `LiveDot` derived from the newest `AgentRun`),
-  and the Instruments context-readout refinement.
+- ~~**Phase C (`0.14.2` / `0.30.0`, polish)**~~ ✅ **shipped** — contested click-through,
+  tab badges, compact metric line, Instruments readout.
 - **Phase D (optional)** — `?thread=` / `?branch=` deep links, a cross-tab agent in-flight
   indicator, and recording the rail-only nav decision (recommendation: skip the in-page sidecar).
 
@@ -380,7 +398,7 @@ demo requirement.
 3. ~~**Z3 instrument** (`0.13.x`)~~ ✅ shipped — first machine-checked proof path (`z3.prove`).
 4. ~~**Z3 write-path tests**~~ ✅ closed in `0.13.5` alongside the review-pass hardening.
 5. ~~**Deepdive tab shell** (`0.14.0`)~~ ✅ shipped — Phase A; ~~Phase B~~ ✅ shipped as
-   `0.24.0` (item 11). C–D still open.
+   `0.24.0` (item 11); ~~Phase C~~ ✅ shipped as `0.30.0` (item 13). D still optional.
 6. ~~**Design overhaul** (`0.15.0`)~~ ✅ shipped — but the **browser eyeball pass** is still owed
    (`/styleguide` with grayscale emulation **including the `0.16.0` grade chip**, the five tabs, a
    toolbench result card, the sign-in dropdown). Cheapest item on the list, and the only check the
@@ -409,8 +427,12 @@ demo requirement.
     under the shared project pot.
     ~~**`0.25.0` continuous research under budget**~~ ✅ shipped — re-commission
     the orchestrator until the pot is empty or no raisable work remains.
-13. **`0.14.2` Phase C** — tab badges, contested click-through, context-readout polish.
+13. ~~**`0.14.2` / `0.30.0` Phase C**~~ ✅ shipped — tab badges, contested
+    click-through, context-readout polish. See
+    `docs/completions/deepdive-phase-c-0.30.0.md`.
 14. **Bench 6 surfaces** — tables and Vega-Lite plots when a thread needs them.
+    Optional Phase D (`?thread=` / `?branch=`) if shareable Research deep links
+    become the next product need.
 15. ~~**Lean Grade-A path**~~ ✅ shipped as `0.23.0` (`lean.prove`, optional
     toolchain, prelude/Init) and `0.26.0` (Mathlib / offline `lake` opt-in).
     **REPL / LeanDojo** remain later.
@@ -428,7 +450,7 @@ demo requirement.
 | `0.11.x` | Execution sandbox — killable subprocess, wall-clock/memory caps, concurrency limit |
 | `0.12.x` | Thin agent loop — planner, bounded orchestrator, `202`+background API, workspace UI |
 | `0.13.x` | `z3.prove` — machine-checked validity (proof / counter-model / undecided) + hardening |
-| `0.14.x` | Project deepdive — persistent header + five `?tab=` tabs, keep-alive agent trace; CommandRail sync shipped as `0.24.0` |
+| `0.14.x` | Project deepdive — persistent header + five `?tab=` tabs, keep-alive agent trace; CommandRail sync shipped as `0.24.0`; Phase C polish shipped as `0.30.0` |
 | `0.15.x` | Quiet-minimalist re-skin — neutral near-black system, ornament retired |
 | `0.16.x` | Claim grounding — the evidence grade ladder, derived beside the validation signal, consumed by the planner as a yield measure, post-review hardened, and rolled up at thread/project scale (`0.16.3`) |
 | `0.17.x` | Phase 1 agent autonomy — a completed pass stands; human accept/reject/fork is opt-in audit |
@@ -444,6 +466,7 @@ demo requirement.
 | `0.27.x` | Concurrent sub-passes under the shared project budget — reserved slices, no oversell |
 | `0.28.x` | Live OpenRouter price metering — `ComputeDebit` at prompt/completion rates, honest blended fallback |
 | `0.29.x` | Semantic git diff — structured claim / grounding / instrument delta between two tips |
+| `0.30.x` | Deepdive Phase C polish — contested click-through, tab badges, compact metric line (historical `0.14.2`) |
 
 ## Success criteria for the next milestone
 
@@ -494,5 +517,10 @@ Reservation envelopes use the same quote. Rebased after `0.27.0`.
 structured research-space delta. Deterministic. Mints nothing. Blame is
 not in this release.
 
-**Next product step:** the still-owed browser eyeball pass; then `0.14.2`
-Phase C polish. Blame-as-an-op remains later.
+**`0.30.0` (deepdive Phase C polish)** is shipped: contested header items
+land on that claim in Research; tab badges reuse existing reads; the
+header metric line and Instruments readout are finalized. Historical
+alias `0.14.2`. Frontend-only.
+
+**Next product step:** the still-owed browser eyeball pass; then optional
+Phase D (`?thread=` / `?branch=`). Blame-as-an-op remains later.

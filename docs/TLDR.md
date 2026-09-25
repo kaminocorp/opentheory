@@ -70,7 +70,10 @@ and invariants live in `docs/blueprints/primitives.md`.)
 - Identity is real: verified auth provisions actors; funding allocations are
   recorded as a separate, source-aware concern.
 - It runs as a split Next.js frontend + FastAPI backend + Postgres, deployed
-  live, presented in the "OpenTheory Console" design language.
+  live, presented in the "OpenTheory Console" design language. The project
+  deepdive is a five-tab workspace (`0.14.0` / `0.24.0` / `0.30.0`): Research
+  first, contested header items land on that claim, tab badges from existing
+  reads.
 
 **Shipped on the agent path (Phase 1 autonomy `0.17.0` + replan `0.20.0` +
 orchestrator `0.22.0` + continuous campaign `0.25.0`):** a member can
