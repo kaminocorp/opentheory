@@ -26,14 +26,14 @@ def test_revision_linkage() -> None:
     assert mod.down_revision == "0015_compute_debits"
 
 
-def test_it_is_the_only_head() -> None:
-    """Nothing revises 0016 — a second head makes ``alembic upgrade head`` ambiguous on deploy."""
+def test_it_is_revised_by_0017() -> None:
+    """0017 (orchestrator) revises 0016; 0016 must stay a single-parent link."""
     down_revisions = {
         match.group(1)
         for path in _VERSIONS.glob("*.py")
         if (match := re.search(r'down_revision[^=]*=\s*"([^"]+)"', path.read_text()))
     }
-    assert _REVISION not in down_revisions
+    assert _REVISION in down_revisions
 
 
 def test_the_table_the_model_declares_is_the_table_the_migration_adds() -> None:

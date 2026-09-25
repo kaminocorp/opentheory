@@ -127,10 +127,12 @@ the frontend or route layer is bypassed:
 
 - **The checkpoint chokepoint** (`services/checkpoints.py`): `create_checkpoint`
   is the **only** code path that writes a `Checkpoint`. Composing flows
-  (validation, branching, merge, tag) call *into* it with trusted `extra_refs` rather than
+  (validation, branching, merge, tag, agent passes, the 0.22.0 multi-thread
+  orchestrator) call *into* it — never around it — with trusted `extra_refs` rather than
   minting their own checkpoints, and it owns the single DB `commit` — so each
   write is one atomic transaction that also auto-records the `Contribution`. If
-  any part fails, nothing orphans.
+  any part fails, nothing orphans. The orchestrator is contributor
+  infrastructure and never self-validates.
 
 And one philosophical rule that shapes the whole model:
 

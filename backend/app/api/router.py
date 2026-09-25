@@ -15,6 +15,7 @@ from app.api.routes import (
     invitations,
     me,
     merges,
+    orchestrations,
     projects,
     tags,
     threads,
@@ -50,3 +51,6 @@ api_router.include_router(instruments.router)
 # so the router mounts at the root and declares full paths (like threads/instruments). The whole
 # surface is dark-launch-gated (404 while agent_loop_enabled is off) via a router-level dependency.
 api_router.include_router(agent_runs.router)
+# Orchestrations span /projects/{id}/orchestrations + the poll target /orchestrations/{id}.
+# Same dark-launch gate as agent runs (AGENT_LOOP_ENABLED) — one flag, not a second.
+api_router.include_router(orchestrations.router)

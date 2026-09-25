@@ -26,4 +26,7 @@ export const queryKeys = {
   // Agent runs (0.12.x): a thread's passes (list + feature-detect) and one pass's polled trace.
   agentRuns: (threadId: string) => ["agent-runs", threadId] as const,
   agentRun: (agentRunId: string) => ["agent-run", agentRunId] as const,
+  // Project-level research orchestrations (0.22.0).
+  orchestrations: (projectId: string) => ["orchestrations", projectId] as const,
+  orchestration: (orchestrationId: string) => ["orchestration", orchestrationId] as const,
 };

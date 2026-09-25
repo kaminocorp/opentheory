@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import type { ReactNode } from "react";
 
 import { AuthProvider } from "@/providers/auth-provider";
@@ -8,18 +8,23 @@ import { QueryProvider } from "@/providers/query-provider";
 import "./globals.css";
 
 // IBM Plex Sans = every sentence a human wrote; IBM Plex Mono = every measured
-// value or machine token (§3.1). Self-hosted by next/font (no FOUT, size-adjust
-// fallback minimises layout shift); exposed as CSS vars the Tailwind theme reads.
-const plexSans = IBM_Plex_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500"],
+// value or machine token (§3.1). Self-hosted via next/font/local (bundled
+// woff2 in ./fonts) so the build never fetches Google Fonts CSS. Exposed as
+// CSS vars the Tailwind theme reads.
+const plexSans = localFont({
+  src: [
+    { path: "./fonts/IBMPlexSans-Regular.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/IBMPlexSans-Medium.woff2", weight: "500", style: "normal" },
+  ],
   variable: "--font-plex-sans",
   display: "swap",
 });
 
-const plexMono = IBM_Plex_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500"],
+const plexMono = localFont({
+  src: [
+    { path: "./fonts/IBMPlexMono-Regular.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/IBMPlexMono-Medium.woff2", weight: "500", style: "normal" },
+  ],
   variable: "--font-plex-mono",
   display: "swap",
 });

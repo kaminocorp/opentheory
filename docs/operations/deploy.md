@@ -164,7 +164,7 @@ run in production until both of these are set.
 
 | State | What operators see |
 | --- | --- |
-| `AGENT_LOOP_ENABLED` unset / `false` (the default) | Every agent route `404`s, before auth |
+| `AGENT_LOOP_ENABLED` unset / `false` (the default) | Every agent-run **and** orchestration route `404`s, before auth |
 | Flag `true`, no `OPENROUTER_API_KEY` | A commissioned pass fails cleanly (`422`/`503`), never a `500` |
 | Flag `true` **and** the key set | The loop is live |
 
@@ -174,7 +174,9 @@ dev copies the same pair from `backend/.env.example`. Per-pass **safety** caps
 `AGENT_PASS_MAX_TOKENS`) already bound blast radius — they are not budget. Full
 project-budget metering shipped in `0.19.0` (historical `0.12.5`) and is **not**
 required to flip the loop on — an unfunded project simply refuses to start a
-pass (`available = 0`).
+pass (`available = 0`). The 0.22.0 project orchestrator (`Run research`) uses
+the same flag and the same pot; `ORCHESTRATION_MAX_PASSES` (default 4) caps
+how many sequential sub-passes one commission may start.
 
 ## Operating notes
 

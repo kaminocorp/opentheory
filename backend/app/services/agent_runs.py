@@ -77,9 +77,10 @@ class BudgetPolicy(Protocol):
     start when ``available <= 0``, debit recorded tokens, stop the instrument loop when
     the remainder is exhausted — and do not replan after a budget stop. The per-pass
     safety caps (``agent_pass_max_runs``, ``agent_pass_max_replans``,
-    ``agent_pass_max_batch_runs``) still bound blast radius independently. A future
-    orchestrator supplies a project-budget-derived policy through this seam (e.g.
-    :class:`ProjectBudgetPolicy` with a subagent slice); **no per-thread limits ever**.
+    ``agent_pass_max_batch_runs``) still bound blast radius independently. The
+    0.22.0 project orchestrator commissions sequential sub-passes against the
+    shared project ceiling (it does not inject a per-thread slice — **no
+    per-thread limits ever**).
 
     0.16.1 supplied the missing half of metering — the recorded ``AgentRun.grounding_yield`` —
     so a budget can ask "what did the last pass buy?" instead of only "how much did it spend?".

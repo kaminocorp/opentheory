@@ -79,3 +79,10 @@ class Project(IdMixin, TimestampMixin, Base):
         back_populates="project",
         cascade="all, delete-orphan",
     )
+    # Mutable project-level traces (0.22.0). Not append-only — the row narrates which
+    # threads got a pass; ledger writes stay on the commissioned AgentRuns.
+    orchestration_runs = relationship(
+        "OrchestrationRun",
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )

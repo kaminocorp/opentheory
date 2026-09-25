@@ -18,28 +18,13 @@ not exist yet.
 
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, status
 
-from app.api.deps import ActingActor, DbSession
-from app.core.config import settings
+from app.api.deps import ActingActor, DbSession, require_agent_loop_enabled
 from app.models.agent_run import AgentRun
 from app.schemas.agent_run import AgentRunRead, AgentRunSummary, AgentRunTrigger
 from app.services import agent_runs as agent_run_service
 from app.services.project_members import ensure_is_member
-
-
-async def require_agent_loop_enabled() -> None:
-    """Dark-launch gate: while ``agent_loop_enabled`` is off, the whole surface ``404``s.
-
-    Declared as a **router-level** dependency so it runs *before* ``ActingActor``: FastAPI inserts
-    router/route ``dependencies`` at the front of the dependency tree, so even an *unauthenticated*
-    request sees ``404`` (not ``401``). The flag therefore leaks nothing about the feature — the
-    route is indistinguishable from one that is not registered yet, which is the point of a dark
-    launch. Production flips the flag when the line is trusted (``docs/operations/deploy.md``).
-    """
-    if not settings.agent_loop_enabled:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
-
 
 router = APIRouter(dependencies=[Depends(require_agent_loop_enabled)])
 
