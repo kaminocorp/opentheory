@@ -249,11 +249,19 @@ async def test_full_round_trip_commissions_polls_and_lands(
     assert len(landed) == 1
     assert landed[0]["checkpoint_id"]
     assert trace["branch_id"]  # landed on the forked agent line
+    # 0.17.0 — the pass is done for the operator. Attributed checkpoints already stand;
+    # there is no pending-review gate on the trace or the list row.
+    assert trace["requires_review"] is False
+    checkpoint = await client.get(f"/api/v1/checkpoints/{landed[0]['checkpoint_id']}")
+    assert checkpoint.status_code == 200, checkpoint.text
+    assert checkpoint.json()["id"] == landed[0]["checkpoint_id"]
 
     # The list surface shows it (newest-first).
     listing = await client.get(f"/api/v1/projects/{project_id}/threads/{thread_id}/agent-runs")
     assert listing.status_code == 200, listing.text
-    assert any(r["id"] == run_id for r in listing.json())
+    listed = next(r for r in listing.json() if r["id"] == run_id)
+    assert listed["requires_review"] is False
+    assert listed["status"] == "completed"
 
 
 async def test_unassigned_role_is_commissioned_then_fails_on_the_trace(

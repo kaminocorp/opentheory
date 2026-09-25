@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.enums import ThreadStage, ThreadStatus
+from app.schemas.claim import GroundingRollup
 
 
 class ThreadBase(BaseModel):
@@ -29,6 +30,9 @@ class ThreadRead(ThreadBase):
 
 
 class ThreadSummary(ThreadRead):
-    """Thread plus its claim count, for the workspace thread list (0.3.4)."""
+    """Thread plus its claim count (0.3.4) and grounding rollup (0.16.3)."""
 
     claim_count: int
+    # Derived from each claim's ``ClaimGrounding.headline`` — same derivation as the claim row,
+    # aggregated. Empty when the thread has no claims.
+    grounding_rollup: GroundingRollup = Field(default_factory=GroundingRollup)

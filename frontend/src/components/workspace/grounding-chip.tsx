@@ -1,5 +1,5 @@
 import { cn } from "@/lib/cn";
-import type { ClaimGrounding, GroundingHeadline } from "@/types/research";
+import type { ClaimGrounding, GroundingHeadline, GroundingRollup } from "@/types/research";
 
 /**
  * The evidence grade ladder, on a claim (0.16.0).
@@ -105,6 +105,27 @@ export function groundingRaiseLine(grounding: ClaimGrounding): string {
  */
 export function groundingHeadlineLabel(headline: GroundingHeadline): string {
   return HEADLINE_STYLE[headline].label;
+}
+
+/**
+ * The quiet thread/project rollup line (0.16.3) — `"3 claims at B, 1 ungrounded"`.
+ *
+ * Letter rungs keep the letter (`at B`); named headlines use the same words the claim
+ * chip already uses, lowercased, so the two surfaces cannot drift into two vocabularies.
+ * Empty rollups return `""` — the caller decides whether to hide the line, rather than
+ * inventing `"0 ungrounded"`.
+ */
+export function formatGroundingRollup(rollup: GroundingRollup): string {
+  if (rollup.total === 0) return "";
+  return rollup.buckets.map(formatGroundingBucket).join(", ");
+}
+
+function formatGroundingBucket(bucket: GroundingRollup["buckets"][number]): string {
+  const noun = bucket.count === 1 ? "claim" : "claims";
+  if (bucket.headline === "B" || bucket.headline === "C" || bucket.headline === "D") {
+    return `${bucket.count} ${noun} at ${bucket.headline}`;
+  }
+  return `${bucket.count} ${groundingHeadlineLabel(bucket.headline).toLowerCase()}`;
 }
 
 export function GroundingChip({

@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.core.openrouter_models import VALID_MODEL_IDS
 from app.models.enums import ProjectRole, ProjectStatus
 from app.schemas.account import AccountSummary
+from app.schemas.claim import GroundingRollup
 from app.schemas.funding import ProjectBudget
 
 # Generous soft cap on the long-form background (0.8.1): roomy enough for a deep briefing, bounded
@@ -169,5 +170,8 @@ class ProjectOverview(ProjectRead):
     counts: ProjectCounts
     branch_counts: BranchStatusCounts = Field(default_factory=BranchStatusCounts)
     contradictions: list[ContradictionItem] = Field(default_factory=list)
+    # Project-wide claim grounding rollup (0.16.3) — the same derivation as each claim row,
+    # counted by headline. Empty when the project has no claims.
+    grounding_rollup: GroundingRollup = Field(default_factory=GroundingRollup)
     # Budget derived from the funding ledger (0.6.3): funded / spent / available + breakdowns.
     budget: ProjectBudget | None = None

@@ -65,7 +65,8 @@ async def trigger_agent_pass(
     non-member) → mint the ``running`` ``AgentRun`` (``404`` if the thread is not in the project) →
     schedule the pass. The response is the trace in its ``running`` state (serialized before the
     background task runs); the client then polls ``GET /agent-runs/{id}`` until it is
-    ``completed``/``failed``.
+    ``completed``/``failed``. ``completed`` is operator-done — attributed checkpoints stand;
+    human review is opt-in audit (``requires_review`` is always false).
     """
     await ensure_is_member(db, project_id, actor)
     agent_run = await agent_run_service.start_agent_pass(

@@ -40,6 +40,7 @@ from app.services import claims as claim_service
 from app.services import contributions
 from app.services import funding as funding_service
 from app.services import validations as validation_service
+from app.services.grounding import rollup_for_claim_ids
 
 
 async def create_project(db: AsyncSession, payload: ProjectCreate, actor: Actor) -> Project:
@@ -147,9 +148,12 @@ async def get_project_overview(db: AsyncSession, project_id: UUID) -> ProjectOve
         )
 
     branch_counts, branch_total = await _branch_counts(db, project_id)
+    claim_ids = list(
+        (await db.execute(select(Claim.id).where(Claim.project_id == project_id))).scalars()
+    )
     counts = ProjectCounts(
         threads=await _count(db, Thread, project_id),
-        claims=await _count(db, Claim, project_id),
+        claims=len(claim_ids),
         evidence=await _count(db, Evidence, project_id),
         checkpoints=await _count(db, Checkpoint, project_id),
         validations=await _count(db, Validation, project_id),
@@ -160,5 +164,6 @@ async def get_project_overview(db: AsyncSession, project_id: UUID) -> ProjectOve
         counts=counts,
         branch_counts=branch_counts,
         contradictions=await _contradictions(db, project_id),
+        grounding_rollup=await rollup_for_claim_ids(db, claim_ids),
         budget=await funding_service.project_budget(db, project_id),
     )

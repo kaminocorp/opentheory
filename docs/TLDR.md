@@ -72,11 +72,20 @@ and invariants live in `docs/blueprints/primitives.md`.)
 - It runs as a split Next.js frontend + FastAPI backend + Postgres, deployed
   live, presented in the "OpenTheory Console" design language.
 
-**Once done — an autonomous research engine:**
+**Shipped on the agent path (Phase 1 autonomy, `0.17.0`):** a member can commission
+a bounded agent pass. The assigned Research-crew model plans a capped sequence of
+*existing* instrument runs; the agent Actor lands attributed checkpoints on a
+durable agent branch through the same chokepoint humans use. A successful pass
+**stands without a mandatory human gate** — accept / reject / fork remain opt-in
+audit. The loop is still dark in production until `AGENT_LOOP_ENABLED` +
+`OPENROUTER_API_KEY` are flipped (see `docs/operations/deploy.md`). Continuous /
+scheduled loops and project-budget metering (`0.12.5`) are not shipped.
 
-- **Agents** become first-class operators, using the *same* APIs, permissions,
-  and provenance rules as humans — never a parallel data model. They propose
-  checkpoints that a human or orchestrator can accept, reject, or branch.
+**Once done — a continuous research engine:**
+
+- **Agents** remain first-class operators, using the *same* APIs, permissions,
+  and provenance rules as humans — never a parallel data model. Human review is
+  audit/override, not a required step on the happy path.
 - Projects run **continuously** against their token budgets, decomposing
   questions into threads and working them in parallel without resetting.
 - **Reputation and influence** accrue over time to those who consistently back,

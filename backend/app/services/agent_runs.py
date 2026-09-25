@@ -163,6 +163,22 @@ def _executed_step(index: int, run: Any, *, status: str, **extra: Any) -> dict[s
     }
 
 
+def requires_review(_agent_run: AgentRun | None = None) -> bool:
+    """Whether a human must accept/reject/fork before the pass is done for the operator.
+
+    Phase 1 autonomy (0.17.0): **never**. A successful pass's attributed checkpoints on the
+    agent branch stand as soon as ``status`` is ``completed`` — there is no pending-review
+    state, and this function is the contract the read model serializes so a client cannot
+    invent one. Accept / reject / fork remain available as opt-in audit through the existing
+    Validation and Branch write paths (they do not compose a second gate here). A failed or
+    empty pass also does not wait: there is nothing to accept.
+
+    The argument is accepted so a future policy can inspect the row without changing callers;
+    it is unused on purpose.
+    """
+    return False
+
+
 async def _finalize(
     db: AsyncSession,
     agent_run: AgentRun,
@@ -170,7 +186,12 @@ async def _finalize(
     status: AgentRunStatus,
     error: str | None = None,
 ) -> AgentRun:
-    """Commit the current (maybe partial) trace with a terminal status. Never leaves ``running``."""
+    """Commit the current (maybe partial) trace with a terminal status. Never leaves ``running``.
+
+    ``completed`` is operator-done (0.17.0): the pass's attributed checkpoints already stand
+    on the agent branch. Human accept / reject / fork is opt-in audit after this commit, not
+    a precondition of it — see :func:`requires_review`.
+    """
     agent_run.status = status
     if error is not None:
         agent_run.error = error[:2000]

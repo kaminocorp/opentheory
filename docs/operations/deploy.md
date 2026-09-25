@@ -140,15 +140,19 @@ machine. Set these secrets alongside the DB URLs (tune after observing `resource
 Leave `TOOLBENCH_SUBPROCESS_SANDBOX_ENABLED=true` in production. Local dev defaults
 `TOOLBENCH_MEMORY_LIMIT_MB=0` because `RLIMIT_AS` is unreliable on macOS.
 
-## Agent loop prod light-up (`0.12.x`)
+## Agent loop prod light-up (`0.12.x` / Phase 1 autonomy)
 
 The thin agent loop is **complete in the codebase and ships dark**. Lighting it up
 in production is exactly two settings — **both required**; either one alone leaves
-the loop unusable.
+the loop unusable. **Do not invent a second key or a second flag.** A completed
+pass's checkpoints stand without a human gate (`0.17.0`); the loop still will not
+run in production until both of these are set.
 
-1. Set the OpenRouter key as a Fly **secret** (never `fly.toml [env]`):
+1. Set the OpenRouter key as a Fly **secret** (never `fly.toml [env]`, never the
+   frontend, never a committed `.env`):
 
    ```bash
+   cd backend
    fly secrets set OPENROUTER_API_KEY='…'
    ```
 
@@ -165,7 +169,10 @@ the loop unusable.
 | Flag `true` **and** the key set | The loop is live |
 
 Leave `AGENT_LOOP_ENABLED=false` until you intend to take live agent traffic. Local
-dev copies the same pair from `backend/.env.example`.
+dev copies the same pair from `backend/.env.example`. Per-pass **safety** caps
+(`AGENT_PASS_MAX_RUNS`, `AGENT_PASS_MAX_TOKENS`) already bound blast radius — they
+are not budget. Full project-budget metering is `0.12.5` and is **not** required
+to flip the loop on.
 
 ## Operating notes
 

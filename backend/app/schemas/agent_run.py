@@ -14,7 +14,7 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from app.models.enums import AgentRunStatus
 from app.schemas.claim import GroundingHeadline
@@ -109,6 +109,21 @@ class AgentRunSummary(BaseModel):
     error: str | None
     created_at: datetime
     updated_at: datetime
+
+    @computed_field
+    @property
+    def requires_review(self) -> bool:
+        """Whether a human must accept/reject/fork before this pass is done.
+
+        Phase 1 autonomy (0.17.0): never. A successful pass's attributed checkpoints on the
+        agent branch **stand** — ``completed`` is terminal for the operator. Accept / reject /
+        fork remain available as opt-in audit through the existing Validation and Branch write
+        paths; they are not a gate on this field, and the field cannot be forced true (it is
+        computed, not stored) so a client cannot invent a mandatory review step.
+
+        A failed or empty pass also does not wait: there is nothing to accept.
+        """
+        return False
 
     @field_validator("grounding_yield", mode="before")
     @classmethod

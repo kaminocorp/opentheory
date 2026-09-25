@@ -228,8 +228,8 @@ export function listThreads(projectId: string): Promise<ThreadSummary[]> {
   return request<ThreadSummary[]>(`/projects/${projectId}/threads`);
 }
 
-export function getThread(threadId: string): Promise<Thread> {
-  return request<Thread>(`/threads/${threadId}`);
+export function getThread(threadId: string): Promise<ThreadSummary> {
+  return request<ThreadSummary>(`/threads/${threadId}`);
 }
 
 export function createThread(projectId: string, payload: ThreadCreate): Promise<Thread> {

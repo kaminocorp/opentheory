@@ -30,7 +30,7 @@ Nothing resets. Dead ends are recorded, not deleted.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-live-success)](https://opentheory.vercel.app)
-[![Version](https://img.shields.io/badge/version-0.16.2-crimson)](docs/changelog.md)
+[![Version](https://img.shields.io/badge/version-0.17.0-crimson)](docs/changelog.md)
 &nbsp;
 ![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
@@ -167,8 +167,9 @@ advertise an instrument the runtime lacks.
 A member commissions a **Run agent pass** on a thread. The assigned model plans a
 capped sequence of *existing* instrument runs; the agent `Actor` lands attributed
 checkpoints on a durable agent branch through the **same** `run_instrument`
-chokepoint a human uses. A live trace shows what it tried and what landed — then a
-human accepts, rejects (dead-end), or branches.
+chokepoint a human uses. A live trace shows what it tried and what landed. A
+successful pass **stands** (`0.17.0`) — human accept / reject / fork is opt-in
+audit, not a required gate.
 
 Bounded, deliberately: per-pass safety caps, no continuous loop, no multi-thread
 orchestrator. The agent has no capability a human doesn't have through the API.
@@ -392,7 +393,7 @@ opentheory/
 ## Status
 
 **Live** (Vercel + Fly.io + Supabase), shipped in small, deployable phases tracked in
-[`docs/changelog.md`](docs/changelog.md). Currently `0.16.2`.
+[`docs/changelog.md`](docs/changelog.md). Currently `0.17.0`.
 
 **Shipped:**
 
@@ -406,7 +407,8 @@ opentheory/
 | `0.12.x` | Thin agent loop — planner, bounded orchestrator, background API, workspace UI |
 | `0.13.x` | `z3.prove` — machine-checked validity (proof / counter-model / undecided) |
 | `0.14.x`–`0.15.x` | Five-tab project deepdive; quiet-minimalist Console re-skin |
-| `0.16.x` | Claim grounding — evidence grade ladder, planner yield measure, post-review hardening |
+| `0.16.x` | Claim grounding — evidence grade ladder, planner yield measure, post-review hardening, thread/project rollup (`0.16.3`) |
+| `0.17.x` | Phase 1 agent autonomy — a completed pass stands; human accept/reject/fork is opt-in audit |
 
 **Honest caveats:**
 
@@ -423,10 +425,9 @@ opentheory/
   artifacts** are described in the docs but not built.
 
 **Next up** (see [`docs/plans/roadmap-next-steps.md`](docs/plans/roadmap-next-steps.md)):
-Phase 1 overnight trains — **in flight, not shipped** — (a) Tier 1 literature pin
-instruments (Crossref / arXiv, and OpenAlex if the key is ready) on the proven
-`source.pin` shape, and (b) agent human-review becoming opt-in plus the `0.16.3`
-thread-level grounding rollup. Lean 4 + Mathlib comes after.
+Tier 1 literature pin instruments (Crossref / arXiv, and OpenAlex if the key is ready)
+on the proven `source.pin` shape — **in flight, not shipped**. Lean 4 + Mathlib comes
+after.
 
 ---
 

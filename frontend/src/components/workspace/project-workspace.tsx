@@ -15,7 +15,7 @@ import { cn } from "@/lib/cn";
 import { queryKeys } from "@/lib/query-keys";
 import { useActingIdentity } from "@/lib/use-identity";
 import { useProjectTab, type ProjectTabId } from "@/lib/use-project-tab";
-import type { ProjectCounts } from "@/types/research";
+import type { GroundingRollup, ProjectCounts } from "@/types/research";
 
 import { AgentPassPanel } from "./agent-pass/agent-pass-panel";
 import { BranchBar } from "./branch-bar";
@@ -23,6 +23,7 @@ import { CheckpointTimelinePanel } from "./checkpoint-timeline-panel";
 import { ClaimListPanel } from "./claim-list-panel";
 import { Collaborators } from "./collaborators-panel";
 import { FundingPanel } from "./funding-panel";
+import { formatGroundingRollup } from "./grounding-chip";
 import { Markdown } from "./markdown";
 import { ProjectEditForm } from "./project-edit-form";
 import { ProjectHeader } from "./project-header";
@@ -129,6 +130,7 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
   const project = projectQuery.data;
   const contradictions = overviewQuery.data?.contradictions ?? [];
   const counts = overviewQuery.data?.counts ?? null;
+  const groundingRollup = overviewQuery.data?.grounding_rollup ?? null;
 
   // The toggle lives in the header (visible on every tab) but the form renders on
   // Overview — so opening it has to bring Overview with it.
@@ -275,6 +277,12 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
             ))}
           </dl>
         </Bay>
+
+        <GroundingRollupBay
+          rollup={groundingRollup}
+          loading={!groundingRollup && !overviewQuery.isError}
+          error={overviewQuery.isError}
+        />
       </TabPanel>
     </div>
   );
@@ -320,6 +328,40 @@ function TabPanel({ tab, active, mounted, children }: TabPanelProps) {
  * otherwise a member can run an instrument without seeing what it attaches to.
  * Read-only by design; BranchBar stays the single branch *selector*.
  */
+/**
+ * Project-wide grounding, one quiet sentence — the same derivation as each claim chip,
+ * counted. Hidden when there are no claims so an empty project does not invent
+ * "0 ungrounded".
+ */
+function GroundingRollupBay({
+  rollup,
+  loading,
+  error,
+}: {
+  rollup: GroundingRollup | null;
+  loading: boolean;
+  error: boolean;
+}) {
+  const line = rollup ? formatGroundingRollup(rollup) : "";
+  return (
+    <Bay density="narrative" className="grid gap-2">
+      <ReadoutLabel as="h2">Grounding</ReadoutLabel>
+      {error ? (
+        <p className="text-[13px] text-text-mute">Could not load grounding.</p>
+      ) : loading ? (
+        <span
+          aria-hidden
+          className="inline-block h-4 w-48 animate-pulse rounded-inset bg-text-faint/25"
+        />
+      ) : line ? (
+        <p className="text-[13px] leading-[1.5] text-text-soft">{line}</p>
+      ) : (
+        <p className="text-[13px] text-text-faint">No claims yet.</p>
+      )}
+    </Bay>
+  );
+}
+
 function InstrumentContext({
   threadTitle,
   branchName,

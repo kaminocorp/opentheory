@@ -2,6 +2,8 @@
 
 ## Index
 
+- `0.17.0` — **Phase 1 agent autonomy: human review becomes opt-in.** A completed pass's attributed checkpoints on the agent branch stand without a mandatory accept/reject/fork. The API serializes `requires_review: false` (computed, never stored) so a client cannot invent a gate; accept / reject / fork remain available as opt-in audit through the existing Validation and Branch write paths. Per-pass safety caps are unchanged; `0.12.5` project-budget metering is still deferred. Prod enablement remains the ops flip `AGENT_LOOP_ENABLED` + `OPENROUTER_API_KEY`. No schema, no migration.
+- `0.16.3` — **Thread-level grounding rollup.** Project overview and thread reads carry a derived `grounding_rollup` (`"3 claims at B, 1 ungrounded"`), aggregated from existing `ClaimGrounding` headlines. Surfaced on the thread list and the Overview tab. No schema, no migration.
 - `0.16.2` — **Post-review hardening on the grounding line (`0.16.0`–`0.16.1`).** No CRITICAL/HIGH; the matrix, the backward read, and the anti-injection posture all held. Closes one MEDIUM: a claim going `proven → refuted` — a proof overturned by an exact counterexample — scored `unchanged`, so the trace said *"no claim's grounding moved"* about the most consequential event the ledger can record. Also builds the history-row yield the summary schema already claimed, makes *never measured* distinguishable from *measured zero*, and stops a failed measurement from failing a pass that landed everything. No schema, no migration.
 - `0.16.1` — **Grounding into the planner + the yield measure.** The ladder stops being decorative: the planner now sees each open claim's rung plus a matrix-derived *"to raise, run one of…"* line (and a *settled* stop line it must not spend against), and every completed pass records what it actually moved. `Claims moved` sits beside `Runs`/`Tokens`, and a pass that minted checkpoints and climbed nothing says so in words. Migration `0014_agent_run_grounding_yield` (additive).
 - `0.16.0` — **Claim grounding — the evidence grade ladder.** A claim's confidence now has a second, evidence-derived axis beside the validation signal: a machine-checked `z3.prove` proof reads **proven** with zero validations, an exact counterexample reads **refuted** over any amount of support.
@@ -85,6 +87,78 @@
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
 
 ---
+
+## 0.17.0
+
+**Phase 1 agent autonomy: human review becomes opt-in.** The product default is now: humans
+configure the research question, which agents are deployed, and budget; agents research
+autonomously. A successful pass's attributed checkpoints on the agent branch **stand** — there is
+no `awaiting_review` lifecycle state, and `completed` is operator-done. Human accept / reject /
+fork stay available as opt-in audit (they reuse the shipped Validation and Branch write paths;
+they are not a second gate and they do not mint a parallel review object). **No schema, no
+migration, no new endpoint.** Per-pass safety caps (`agent_pass_max_runs`, recorded token cap)
+are unchanged. Full project-budget metering remains `0.12.5` (not this line).
+
+- **The API cannot invent a mandatory gate.** `AgentRunSummary` / `AgentRunRead` serialize
+  `requires_review: false` as a **computed** field (never a column). A client that sends
+  `requires_review: true` still reads `false`. `AgentRunStatus` stays `{running, completed,
+  failed}` — a regression test pins that there is no fourth `awaiting_review` value.
+- **The service contract matches.** `services/agent_runs.requires_review` is always `False`;
+  `_finalize(..., completed)` is documented as operator-done. The orchestrator still writes
+  only through `run_instrument` / `create_checkpoint` / `create_branch`. A completed
+  round-trip test asserts the landed checkpoint is already readable and the trace + list row
+  both carry `requires_review: false`.
+- **The frontend stopped lying.** A completed pass that landed on an agent line now reads
+  *"This pass stands on its line — no review required."* with an **Inspect its line** audit
+  link. The required-review copy (`Review on its line`) remains only if `requires_review` were
+  ever true — it is driven by the API so the surface cannot invent a gate the backend does not
+  assert.
+- **Prod enablement is still the same two ops flips**, documented in
+  `docs/operations/deploy.md`. Do not invent a second key or a second flag:
+  1. `fly secrets set OPENROUTER_API_KEY=…` (secret — never `fly.toml [env]`)
+  2. `fly secrets set AGENT_LOOP_ENABLED=true` (dark-launch flag; default remains `false`)
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 329 passed, 129 skipped (DB-gated)  [was 319 / 128]
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
+```
+
+**Not in this release:** continuous / scheduled loops, a multi-thread orchestrator, or
+`0.12.5` project-budget metering (the per-pass caps still bound blast radius). Account ≠ Actor
+and funder ≠ contributor ≠ validator are untouched — a completed pass does not auto-validate
+(that would conflate contributor and validator).
+
+**Unverified:** the new DB-gated assertions (completed-pass checkpoint stands;
+thread/overview rollup round-trip) skip without `TEST_DATABASE_URL`. No live agent
+pass and no pixel-level browser walk of the new copy.
+
+## 0.16.3
+
+**Thread-level grounding rollup.** The evidence ladder is now readable at thread and project
+scale, not only on each claim row. `"3 claims at B, 1 ungrounded"` is a client formatting of a
+derived `GroundingRollup` (`buckets` of non-zero headlines in ladder order + `total`). **No
+schema, no migration, no new endpoint**; `compute_grounding` and every matrix cell are
+untouched — this is the aggregation the roadmap said was cheap once the derivation existed.
+
+- **Read model.** `ThreadSummary.grounding_rollup` (thread list + `GET /threads/{id}`) and
+  `ProjectOverview.grounding_rollup`. Claims with no evidence links count as `ungrounded`
+  (the empty `ClaimGrounding` headline). An empty thread/project is `{total: 0, buckets: []}`
+  — not `"0 ungrounded"`, which would invent a measurement of nothing.
+- **One batched load.** Thread list does one `grounding_by_claim` for the whole project, then
+  groups; overview reuses the same helper. No N+1, no stored grade.
+- **Surface.** Thread list shows the quiet sentence under stage/status; Overview gets a
+  Grounding bay with the same words the claim chip already uses (letter rungs stay `at B`).
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 329 passed, 129 skipped (DB-gated)  [was 319 / 128]
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
+```
+
+**Unverified:** `test_thread_and_overview_grounding_rollup` is written but skipped
+without a test Postgres (same gate as the rest of `test_read_models.py`). No
+browser walk of the thread-list line or Overview bay.
 
 ## 0.16.2
 
