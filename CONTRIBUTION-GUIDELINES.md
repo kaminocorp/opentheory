@@ -282,7 +282,12 @@ uv run pytest tests/test_app.py::test_health_endpoint
   - `schemas/` — Pydantic models; use `ConfigDict(from_attributes=True)` for read models.
   - `api/router.py` — assembles the versioned router mounted at `settings.api_v1_prefix`.
 - **New settings** get a sensible, *safe* default. New capabilities land **dark** where
-  practical (see `agent_loop_enabled`) so deploying is a no-op until deliberately enabled.
+  practical so deploying is a no-op until deliberately enabled. The agent loop is the
+  pattern: it **ships dark**. The prod light-up step is **both**
+  `AGENT_LOOP_ENABLED=true` **and** an `OPENROUTER_API_KEY` Fly secret
+  (`fly secrets set`, never `fly.toml [env]`). Flag off ⇒ every agent route `404`s;
+  flag on without a key ⇒ a commissioned pass fails cleanly. One without the other
+  is not a launch. See [`docs/operations/deploy.md`](docs/operations/deploy.md).
 
 ### Writing a new instrument
 
@@ -411,8 +416,9 @@ tradeoffs, and the blast radius. Look at `git log` for the house style.
 - **A new Tier 0 instrument** — the adapter contract, code registry, and conformance
   harness make this the best-paved path. See
   [`docs/plans/toolbench-catalog.md`](docs/plans/toolbench-catalog.md) for the menu.
-  Tier 1 retrieval pins (Crossref / arXiv / OpenAlex) on the proven `source.pin` shape
-  are the current priority; a **Z3** instrument is next after that.
+  Tier 1 retrieval pins (Crossref / arXiv, and OpenAlex if the key is ready) on the
+  proven `source.pin` shape are the current Phase 1 priority. `z3.prove` already
+  shipped in `0.13.x`.
 - **Read-model surfaces** — the workspace has more ledger structure available than it
   currently shows.
 - **Tests** — particularly DB-free gate tests for security controls, and invariant

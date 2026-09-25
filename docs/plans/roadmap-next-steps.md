@@ -1,11 +1,16 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-08-02 · **Current release line:** `0.16.x` (claim grounding — the evidence
-> grade ladder, now consumed by the agent loop, and post-review hardened). For the per-phase ledger
-> see `docs/changelog.md`; for the two most recent lines see
+> **Last updated:** 2026-09-25 · **Current release line:** `0.16.x` (claim grounding — the evidence
+> grade ladder, now consumed by the agent loop, and post-review hardened through `0.16.2`). For the
+> per-phase ledger see `docs/changelog.md`; for the two most recent lines see
 > `docs/completions/grounding-yield-0.16.2.md` and `docs/completions/grounding-yield-0.16.1.md`.
 > The `0.14.x` plan (phases B–D still open) now lives at
 > `docs/archive/project-deepdive-tabs-0.14.md`.
+>
+> **In flight / next (Phase 1 overnight trains — not shipped):** (a) Tier 1 literature pin
+> instruments — Crossref / arXiv, and OpenAlex if the key/readiness is there — on the proven
+> `source.pin` shape; (b) agent human-review becoming opt-in, plus the `0.16.3` thread-level
+> grounding rollup. Unmerged work is not claimed as shipped.
 
 ## Where we are
 
@@ -93,6 +98,8 @@ migration, table, column, or endpoint; `compute_signal` untouched.
 - **`0.16.3` — thread-level rollup** (`"3 claims at B, 1 ungrounded"`). Cheap now that the
   aggregation exists, but it touches the project-overview read model. *(Was numbered `0.16.2`;
   shifted by the hardening pass, per the repo convention that a review pass takes the next patch.)*
+  **Phase 1 overnight train (b)** pairs this with making agent-pass human review **opt-in**
+  (today every landed pass waits on accept / reject / branch). In flight — not shipped.
 
 ### `0.15.x` — Design overhaul ✅ **shipped** (`0.15.0`, `edfbe18`) · browser pass owed
 
@@ -128,8 +135,11 @@ cheapest available frontend wins — full checklists in
 ### Tier 1 retrieval wave — literature pin instruments
 
 The highest-value *product* step from here: it directly widens what an agent pass can do.
+**Phase 1 overnight train (a) — in flight, not shipped.**
 
-- Crossref / arXiv / OpenAlex pin instruments (reuse the `source.pin` pattern from `oeis.search`).
+- Crossref / arXiv pin instruments first (reuse the `source.pin` pattern from `oeis.search`).
+- OpenAlex on the same shape **if** the API key / readiness is there (the polite-pool retired;
+  catalog notes a key is required as of Feb 2026).
 - See `docs/plans/toolbench-catalog.md` Tier 1 table.
 
 ### `0.12.x` — Thin agent loop ✅ **shipped** (`0.12.0`–`0.12.4`)
@@ -138,7 +148,9 @@ Delivered: a bounded pass (planner → capped instrument runs on a durable agent
 same chokepoint), a request-scoped `202` + background execution, the pollable `AgentRun` trace, and
 the workspace trigger/trace/review UI. **`0.12.5` (project-budget metering) deferred** — the
 per-pass safety caps (`agent_pass_max_runs`, token cap) bound blast radius, so the line demos without
-it. Prod enablement is a flag flip (`AGENT_LOOP_ENABLED=true`) + the `OPENROUTER_API_KEY` Fly secret.
+it. The prod light-up step is **both** `AGENT_LOOP_ENABLED=true` **and** the
+`OPENROUTER_API_KEY` Fly secret (`fly secrets set`, never `fly.toml [env]`) — one
+without the other is not a launch. Flag off ⇒ every agent route `404`s.
 
 **Natural follow-ons (pick per demand):** `0.12.5` project-budget metering (debit the project's
 compute budget per pass, honoring funder/contributor separation); an iterative plan→observe→replan
@@ -202,15 +214,17 @@ demo requirement.
    ✅ **applied to the live database** (2026-08-02); the **backend code deploy is outstanding** — the
    column exists and nothing reads it yet. Run the two DB-gated orchestrator round-trips when a test
    DB is available.
-9. **Tier 1 retrieval** — literature pin instruments (Crossref / arXiv / OpenAlex) on the proven
-   `source.pin` shape. Directly widens what an agent pass can *do*. (Each new instrument now also
-   needs a grade-matrix row — the harness will insist.)
+9. **Tier 1 retrieval** — literature pin instruments (Crossref / arXiv; OpenAlex if ready) on the
+   proven `source.pin` shape. Directly widens what an agent pass can *do*. (Each new instrument now
+   also needs a grade-matrix row — the harness will insist.) **Phase 1 overnight train (a).**
 10. **`0.14.1` Phase B** — CommandRail sync; retires the last two fakes (`#funding`, inert Agents
     zone). Small, self-contained, and removes visible dead affordances.
 11. **`0.12.5` project-budget metering** — debit the project's compute budget per pass (stretch; the
     per-pass safety caps already bound a single pass).
 12. **`0.14.2` Phase C** — tab badges, contested click-through, context-readout polish.
-13. **`0.16.3` thread-level grounding rollup** — cheap, but touches the overview read model.
+13. **`0.16.3` thread-level grounding rollup + agent human-review opt-in** — cheap rollup, but it
+    touches the overview read model; review-as-opt-in is the paired overnight slice. **Phase 1
+    overnight train (b).**
 14. **Bench 6 surfaces** — tables and Vega-Lite plots when a thread needs them.
 15. **Lean + full substrate** — Claim 5; only after the above.
 
@@ -233,15 +247,15 @@ demo requirement.
 
 ## Success criteria for the next milestone
 
-**`0.16.1` (grounding → planner + budget)** is successful when an agent pass can be judged on
-**yield rather than activity**: the planner receives each open claim's current rung, plans runs
-intended to *raise* it, and the pass reports how many claims climbed (D → C → B → A) versus how many
-checkpoints it merely minted. A pass that mints five checkpoints and raises nothing must be legible
-as such. That measure is also the stopping criterion continuous autonomy needs — without it, a
-budget meters spend with no notion of what the spend bought.
+`0.16.1` / `0.16.2` already closed the yield-measure line (planner sees each open claim's rung;
+a pass reports what it moved). The Phase 1 overnight trains are the next product step:
 
-**Tier 1 retrieval** (the next product step after) is successful when an agent pass (or a human) can
-pin a literature source (Crossref / arXiv / OpenAlex) as content-addressed Evidence via the same
-`source.pin` shape `oeis.search` proved — landing an attributed checkpoint through the chokepoint,
-with a reproducible citation (`url` + `retrieved_at` + `raw_response_hash`), and carrying its
+**Tier 1 retrieval** is successful when an agent pass (or a human) can pin a literature source
+(Crossref / arXiv, and OpenAlex if ready) as content-addressed Evidence via the same `source.pin`
+shape `oeis.search` proved — landing an attributed checkpoint through the chokepoint, with a
+reproducible citation (`url` + `retrieved_at` + `raw_response_hash`), and carrying its
 grade-matrix row (retrieval instruments are off-ladder: `cited`, never a letter).
+
+**Human-review opt-in + `0.16.3` rollup** is successful when a thread can show a one-line
+grounding summary (`"3 claims at B, 1 ungrounded"`) and human review of a landed agent pass is
+an explicit opt-in gate rather than the only path. Neither train is shipped until it merges.
