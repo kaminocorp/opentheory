@@ -248,6 +248,10 @@ async def _execute(
         reloaded = await db.get(ResearchCampaign, campaign_id)
         if reloaded is None:  # pragma: no cover
             raise ValueError(f"ResearchCampaign {campaign_id} disappeared")
+        # Refresh so a cancel committed from another session (the Stop route)
+        # is visible between cycles — ``get`` would otherwise return the
+        # identity-map copy.
+        await db.refresh(reloaded)
         return reloaded
 
     while True:

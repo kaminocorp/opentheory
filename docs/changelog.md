@@ -131,8 +131,9 @@ another human click each cycle. **Migration `0018_research_campaigns`
 
 ```bash
 cd backend && uv run ruff check .   # clean
-cd backend && uv run pytest -q      # (see verification in the completions doc)
+cd backend && uv run pytest -q      # 457 passed, 183 skipped (no TEST_DATABASE_URL)
 # With TEST_DATABASE_URL: tests/agent/test_campaigns*.py + migration/select
+#   18 passed (cycles, budget, no-work, cancel, error budget, dark 404, 409)
 cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
 ```
 

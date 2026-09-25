@@ -57,7 +57,14 @@ shipped `0.24.0` CommandRail.
 
 ## Verification
 
-Recorded in the changelog after the local ruff / pytest / frontend run.
+- `ruff check .` clean.
+- Default pytest (no `TEST_DATABASE_URL`): **457 passed, 183 skipped**.
+- With `TEST_DATABASE_URL` at a local throwaway Postgres: focused
+  `tests/agent/test_campaigns.py` + API **18 passed**, including
+  continue-across-cycles, budget-stop, empty/no-work, cancel-before and
+  cancel-mid, error-budget, ledger purity, dark-launch `404`, and in-flight
+  `409`. Orchestration regression (`test_orchestration*.py`) still green.
+- Frontend `typecheck` / `lint` / `build` clean.
 
 ## Unverified
 
