@@ -30,7 +30,7 @@ Nothing resets. Dead ends are recorded, not deleted.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-live-success)](https://opentheory.vercel.app)
-[![Version](https://img.shields.io/badge/version-0.27.0-crimson)](docs/changelog.md)
+[![Version](https://img.shields.io/badge/version-0.28.0-crimson)](docs/changelog.md)
 &nbsp;
 ![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
@@ -400,7 +400,7 @@ opentheory/
 ## Status
 
 **Live** (Vercel + Fly.io + Supabase), shipped in small, deployable phases tracked in
-[`docs/changelog.md`](docs/changelog.md). Currently `0.27.0`.
+[`docs/changelog.md`](docs/changelog.md). Currently `0.28.0`.
 
 **Shipped:**
 
@@ -426,6 +426,7 @@ opentheory/
 | `0.25.x` | Continuous research campaign — re-commission the orchestrator until the pot is empty |
 | `0.26.x` | `lean.prove` Mathlib opt-in — bounded offline `lake`; missing Mathlib is honest `undecided` |
 | `0.27.x` | Concurrent sub-passes under the shared project budget — reserved slices, no oversell |
+| `0.28.x` | Live OpenRouter price metering — `ComputeDebit` at prompt/completion rates, honest blended fallback |
 
 **Honest caveats:**
 
@@ -453,9 +454,10 @@ the still-owed browser eyeball pass, then `0.14.2` Phase C polish. CommandRail
 sync shipped in `0.24.0` (historical `0.14.1`). Continuous research under
 budget shipped in `0.25.0`. `lean.prove` shipped in `0.23.0` (optional
 toolchain, prelude/Init) and `0.26.0` (optional Mathlib / `lake`).
-Project-budget metering shipped in `0.19.0`; plan→observe→replan shipped in
-`0.20.0`; research-git merge + tag shipped in `0.21.0`; the multi-thread
-orchestrator shipped in `0.22.0`.
+Project-budget metering shipped in `0.19.0`; concurrent sub-passes in
+`0.27.0`; live OpenRouter prices in `0.28.0`; plan→observe→replan shipped
+in `0.20.0`; research-git merge + tag shipped in `0.21.0`; the
+multi-thread orchestrator shipped in `0.22.0`.
 
 ---
 

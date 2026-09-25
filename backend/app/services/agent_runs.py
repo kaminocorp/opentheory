@@ -39,6 +39,7 @@ from app.agent.llm import AgentLlmError, LlmClient, OpenRouterClient
 from app.agent.observe import Observation, summarize_observations
 from app.agent.planner import PlannedRun, PlanResult
 from app.agent.planner import plan as default_plan
+from app.agent.pricing import quote_model_price
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.models.actor import Actor
@@ -347,13 +348,17 @@ async def _execute(
         )
     agent_run.model = model
 
-    # 2b. Project ceiling (0.19.0 / 0.27.0). An injected BudgetPolicy replaces the
-    #     default so tests and the orchestrator can supply a reserved slice. The
-    #     default reserves against the live project pot and refuses *before* the
-    #     planner so an exhausted project never spends. A hold already on the row
-    #     (orchestrator reserved it) is reused, not stacked.
+    # 2b. Project ceiling (0.19.0 / 0.27.0 / 0.28.0). An injected BudgetPolicy
+    #     replaces the default so tests and the orchestrator can supply a reserved
+    #     slice. The default reserves against the live project pot and refuses
+    #     *before* the planner so an exhausted project never spends. A hold
+    #     already on the row (orchestrator reserved it) is reused, not stacked.
+    #     0.28.0: the rate comes from a live OpenRouter quote when the catalog
+    #     is reachable; otherwise the blended fallback. Same quote is reused on
+    #     the debit and on the reservation envelope.
+    price_quote = await quote_model_price(model)
     enforce_project_ceiling = budget_policy is None
-    rate = compute_service.rate_for_model(model)
+    rate = price_quote.effective_rate_per_1k
     if budget_policy is None:
         reserved = agent_run.reserved_amount
         if reserved is None or reserved <= 0:
@@ -417,6 +422,9 @@ async def _execute(
             agent_run_id=agent_run.id,
             tokens_used=agent_run.tokens_used,
             model=model,
+            prompt_tokens=getattr(exc, "prompt_tokens", None),
+            completion_tokens=getattr(exc, "completion_tokens", None),
+            quote=price_quote,
         )
         await compute_service.release_compute_reservation(db, agent_run)
         return await _finalize(
@@ -449,6 +457,9 @@ async def _execute(
         agent_run_id=agent_run.id,
         tokens_used=agent_run.tokens_used,
         model=model,
+        prompt_tokens=plan_result.prompt_tokens,
+        completion_tokens=plan_result.completion_tokens,
+        quote=price_quote,
     )
     # Convert the hold into the debit so ``available`` does not double-count
     # this pass (spent already includes it).

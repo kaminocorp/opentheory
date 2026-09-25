@@ -88,7 +88,8 @@ gate** — accept / reject / fork remain opt-in audit. The loop is still dark
 in production until `AGENT_LOOP_ENABLED` + `OPENROUTER_API_KEY` are flipped
 (see `docs/operations/deploy.md`). A durable job queue is not shipped (a lost
 worker is swept honestly). Project-budget metering shipped in `0.19.0`
-(historical alias `0.12.5`).
+(historical alias `0.12.5`); live OpenRouter prompt/completion rates
+shipped in `0.28.0` (blended fallback when the price catalog is down).
 
 **Once done — a continuous research engine:**
 

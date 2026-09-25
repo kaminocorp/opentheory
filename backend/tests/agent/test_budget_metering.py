@@ -25,6 +25,7 @@ from app.models.contribution import Contribution
 from app.models.enums import (
     AgentRunStatus,
     ComputeDebitKind,
+    ComputeDebitRateSource,
     FundingKind,
     FundingSource,
     FundingStatus,
@@ -197,6 +198,8 @@ async def test_available_drops_after_a_pass_by_the_metered_amount(
         assert debits[0].tokens_used == tokens
         assert debits[0].amount == expected
         assert debits[0].kind is ComputeDebitKind.PLANNING
+        assert debits[0].rate_source is ComputeDebitRateSource.BLENDED_FALLBACK
+        assert debits[0].notes is not None and "rate fallback:" in debits[0].notes
         assert str(debits[0].agent_run_id) == str(run_id)
         # The agent did not become a funder.
         funds = list(

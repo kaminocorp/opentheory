@@ -1,8 +1,15 @@
-"""Project compute metering (0.19.0 / 0.27.0) — tokens → cost → an append-only ``ComputeDebit``.
+"""Project compute metering (0.19.0 / 0.27.0 / 0.28.0).
+
+Tokens → cost → an append-only ``ComputeDebit``.
 
 Closes funding Decision #6 (historically sketched as deferred ``0.12.5``). The agent is a
 **contributor**: this service never writes a ``FundingAllocation`` and never records a
 ``fund`` contribution. Spend is a separate ledger so funder ≠ contributor stays structural.
+
+``0.28.0`` prefers live OpenRouter prompt/completion rates (cached, short-timeout)
+and falls back to the configured blended rate when the price API is unavailable.
+A fallback is snapshotted on the row — never presented as a live price, never
+skipped.
 
 Helper writers ``db.add`` / ``flush`` and **never commit** — the orchestrator owns the
 trace transaction this debit rides in.
@@ -18,11 +25,12 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agent.pricing import PriceQuote, quote_model_price, usage_to_cost
 from app.core.config import settings
 from app.core.openrouter_models import OPENROUTER_MODELS
 from app.models.agent_run import AgentRun
 from app.models.compute_debit import ComputeDebit
-from app.models.enums import ComputeDebitKind
+from app.models.enums import ComputeDebitKind, ComputeDebitRateSource
 from app.models.project import Project
 
 # Sub-cent quantum matching ``ComputeDebit.amount`` Numeric(12, 6).
@@ -37,7 +45,8 @@ def tokens_to_cost(tokens_used: int, rate_per_1k: Decimal) -> Decimal:
     """``tokens × rate / 1000``, quantized to the debit column.
 
     Zero or negative tokens cost nothing (and the writer will skip the row). The rate is
-    taken as given — callers snapshot it from :func:`rate_for_model`.
+    taken as given — callers snapshot it from :func:`rate_for_model` or a
+    :class:`~app.agent.pricing.PriceQuote`.
     """
     if tokens_used <= 0 or rate_per_1k <= 0:
         return Decimal("0")
@@ -46,17 +55,38 @@ def tokens_to_cost(tokens_used: int, rate_per_1k: Decimal) -> Decimal:
 
 
 def rate_for_model(model: str | None) -> Decimal:
-    """Per-1k USD rate for a model id, falling back to the settings default.
+    """Per-1k USD blended rate for a model id, falling back to the settings default.
 
-    A catalog entry may carry ``usd_per_1k``; most do not, on purpose — the operator
-    default is one number (``agent_token_rate_usd_per_1k``), and a per-model override
-    is metadata, not a second settings surface.
+    Used by ``ProjectBudgetPolicy`` when a live quote is not in hand, and as the
+    static half of :func:`app.agent.pricing.blended_fallback_quote`. A catalog
+    entry may carry ``usd_per_1k``; most do not, on purpose — the operator
+    default is one number (``agent_token_rate_usd_per_1k``), and a per-model
+    override is metadata, not a second settings surface.
     """
     if model:
         for option in OPENROUTER_MODELS:
             if option.id == model and option.usd_per_1k is not None:
                 return option.usd_per_1k
     return settings.agent_token_rate_usd_per_1k
+
+
+def _realized_rate_per_1k(tokens_used: int, amount: Decimal, quote: PriceQuote) -> Decimal:
+    """Effective per-1k snapshot. Live split billing uses the realized blend."""
+    if tokens_used > 0 and amount > 0:
+        raw = (amount * Decimal(1000)) / Decimal(tokens_used)
+        return raw.quantize(_AMOUNT_QUANTUM, rounding=ROUND_HALF_UP)
+    return quote.effective_rate_per_1k
+
+
+def _notes_with_fallback(notes: str | None, quote: PriceQuote) -> str | None:
+    if quote.source is ComputeDebitRateSource.OPENROUTER_LIVE:
+        if quote.stale:
+            suffix = "rate source: openrouter_live (stale cache; refresh failed)"
+            return f"{notes}; {suffix}" if notes else suffix
+        return notes
+    reason = quote.fallback_reason or "blended_fallback"
+    suffix = f"rate fallback: {reason}"
+    return f"{notes}; {suffix}" if notes else suffix
 
 
 class ProjectBudgetPolicy:
@@ -67,6 +97,10 @@ class ProjectBudgetPolicy:
     returns ``False`` once recorded tokens consume that remainder. No per-thread
     figure is ever consulted — the ceiling is the project pot (or a reserved
     slice of it).
+
+    ``rate_per_1k`` should be the same quote's ``effective_rate_per_1k`` the
+    debit will use (live mean or blended fallback) so the mid-pass estimate
+    and the 0.27.0 reservation envelope do not drift from the ledger.
     """
 
     def __init__(self, available: Decimal, *, rate_per_1k: Decimal) -> None:
@@ -89,11 +123,19 @@ async def record_compute_debit(
     model: str | None,
     kind: ComputeDebitKind = ComputeDebitKind.PLANNING,
     notes: str | None = None,
+    prompt_tokens: int | None = None,
+    completion_tokens: int | None = None,
+    quote: PriceQuote | None = None,
 ) -> ComputeDebit | None:
     """Idempotently record this pass's spend. ``None`` when there is nothing to bill.
 
     Re-recording the same ``agent_run_id`` returns the existing row (the unique index
     is the durable guard; this read is the happy-path short-circuit). Does not commit.
+
+    When ``quote`` is omitted the writer resolves one via :func:`quote_model_price`
+    (cached live catalog, or blended fallback). Tokens that actually moved are
+    always billed — a failed price fetch falls back; it never skips the row.
+    A true $0 live price still writes the row so the snapshot is auditable.
     """
     if tokens_used <= 0:
         return None
@@ -105,21 +147,31 @@ async def record_compute_debit(
     if already is not None:
         return already
 
-    rate = rate_for_model(model)
-    amount = tokens_to_cost(tokens_used, rate)
-    if amount <= 0:
-        return None
+    resolved = quote if quote is not None else await quote_model_price(model)
+    amount = usage_to_cost(
+        tokens_used=tokens_used,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        quote=resolved,
+    )
+    # A zero amount is still a debit when tokens moved (free-tier live price, or
+    # a quantized dust). Skipping would hide spend the provider recorded.
 
     debit = ComputeDebit(
         project_id=project_id,
         agent_run_id=agent_run_id,
         tokens_used=tokens_used,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
         amount=amount,
         currency="USD",
         model=model,
-        rate_per_1k=rate,
+        rate_per_1k=_realized_rate_per_1k(tokens_used, amount, resolved),
+        prompt_rate_per_1k=resolved.prompt_rate_per_1k,
+        completion_rate_per_1k=resolved.completion_rate_per_1k,
+        rate_source=resolved.source,
         kind=kind,
-        notes=notes,
+        notes=_notes_with_fallback(notes, resolved),
     )
     db.add(debit)
     await db.flush()

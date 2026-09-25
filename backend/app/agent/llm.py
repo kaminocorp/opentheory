@@ -17,7 +17,8 @@ first LLM client in the codebase. Settings live in ``core/config.py`` (the ``age
 ``openrouter_*`` group); the key is a Fly secret, never ``fly.toml [env]``.
 
 On token caps: ``agent_pass_max_tokens`` is a per-pass SAFETY ceiling (blast radius), recorded
-on each pass. The *project* ceiling is 0.19.0 metering (``ComputeDebit`` from recorded tokens).
+on each pass. The *project* ceiling is 0.19.0 metering (``ComputeDebit`` from recorded tokens),
+billed at live OpenRouter prompt/completion rates when 0.28.0 can fetch them.
 Each planning / replan call is also bounded by ``agent_llm_timeout_s`` and the planner's own
 completion cap. This client only sends ``max_tokens`` when a caller passes one explicitly;
 the planner picks a sane completion budget. It is also **not** the request's ``max_tokens``
@@ -44,9 +45,18 @@ class AgentLlmError(Exception):
     trace. It is ``0`` when nothing completed (a missing key, a timeout, a down provider).
     """
 
-    def __init__(self, message: str, *, tokens_used: int = 0) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        tokens_used: int = 0,
+        prompt_tokens: int | None = None,
+        completion_tokens: int | None = None,
+    ) -> None:
         super().__init__(message)
         self.tokens_used = tokens_used
+        self.prompt_tokens = prompt_tokens
+        self.completion_tokens = completion_tokens
 
 
 @dataclass(frozen=True)
@@ -56,6 +66,8 @@ class LlmResponse:
     text: str
     tokens_used: int
     model: str
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
 
 
 class LlmClient(Protocol):
@@ -141,11 +153,37 @@ class OpenRouterClient:
 
         try:
             text = data["choices"][0]["message"]["content"]
-            tokens_used = int(data.get("usage", {}).get("total_tokens", 0) or 0)
         except (KeyError, IndexError, TypeError) as exc:
             raise AgentLlmError("OpenRouter response missing choices[0].message.content") from exc
 
-        if not isinstance(text, str) or not text.strip():
-            raise AgentLlmError("OpenRouter returned empty content")
+        usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
+        prompt_tokens = _optional_int(usage.get("prompt_tokens"))
+        completion_tokens = _optional_int(usage.get("completion_tokens"))
+        tokens_used = int(usage.get("total_tokens", 0) or 0)
+        if tokens_used <= 0 and prompt_tokens is not None:
+            tokens_used = prompt_tokens + (completion_tokens or 0)
 
-        return LlmResponse(text=text, tokens_used=tokens_used, model=model)
+        if not isinstance(text, str) or not text.strip():
+            raise AgentLlmError(
+                "OpenRouter returned empty content",
+                tokens_used=tokens_used,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+            )
+
+        return LlmResponse(
+            text=text,
+            tokens_used=tokens_used,
+            model=model,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+        )
+
+
+def _optional_int(value: object) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None

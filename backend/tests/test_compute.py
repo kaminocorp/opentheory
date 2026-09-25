@@ -4,8 +4,10 @@ from decimal import Decimal
 
 import pytest
 
+from app.agent.pricing import PriceQuote, live_quote, parse_models_catalog, usage_to_cost
 from app.core.config import settings
 from app.core.openrouter_models import ModelOption
+from app.models.enums import ComputeDebitRateSource
 from app.services.compute import (
     ProjectBudgetPolicy,
     pass_reserve_amount,
@@ -66,3 +68,35 @@ def test_pass_reserve_amount_clamps_to_available_and_the_safety_cap(
     assert pass_reserve_amount(Decimal("5.00"), rate_per_1k=Decimal("1.00")) == Decimal("1.000000")
     assert pass_reserve_amount(Decimal("0.25"), rate_per_1k=Decimal("1.00")) == Decimal("0.25")
     assert pass_reserve_amount(Decimal("0"), rate_per_1k=Decimal("1.00")) == Decimal("0")
+
+
+def test_usage_to_cost_live_split_does_not_use_the_blended_default() -> None:
+    catalog = parse_models_catalog(
+        {
+            "data": [
+                {
+                    "id": "anthropic/claude-sonnet-4",
+                    "pricing": {"prompt": "0.000003", "completion": "0.000015"},
+                }
+            ]
+        }
+    )
+    quote = live_quote("anthropic/claude-sonnet-4", catalog["anthropic/claude-sonnet-4"])
+    # Distinct from the $0.005 blended default: 500 prompt + 500 completion.
+    assert usage_to_cost(
+        tokens_used=1000,
+        prompt_tokens=500,
+        completion_tokens=500,
+        quote=quote,
+    ) == Decimal("0.009000")
+    fallback = PriceQuote(
+        source=ComputeDebitRateSource.BLENDED_FALLBACK,
+        effective_rate_per_1k=Decimal("0.005"),
+        fallback_reason="openrouter_api_key_missing",
+    )
+    assert usage_to_cost(
+        tokens_used=1000,
+        prompt_tokens=500,
+        completion_tokens=500,
+        quote=fallback,
+    ) == Decimal("0.005000")

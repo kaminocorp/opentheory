@@ -266,6 +266,33 @@ the pot. The 0.25.0 continuous campaign (`Start` on Overview) reuses that flag
 and that pot; `CAMPAIGN_MAX_CYCLES` (default 8) and `CAMPAIGN_ERROR_BUDGET`
 (default 3) are safety caps, not a second dark-launch switch.
 
+### Live OpenRouter price metering (`0.28.0`)
+
+Agent-pass `ComputeDebit` rows prefer the model's **live** OpenRouter prompt /
+completion prices (`GET /models`) over the blended
+`AGENT_TOKEN_RATE_USD_PER_1K` default. A missing key, a timed-out catalog, a
+failed fetch, or a model the catalog does not list falls back to that blended
+rate (or a catalog `usd_per_1k` override) and **records the fallback on the
+debit** — metering is never skipped, and a fallback is never labelled as a live
+price.
+
+These are ops knobs, not a second dark-launch flag. The same
+`OPENROUTER_API_KEY` is reused; do not invent a second key.
+
+| Env | Default | Role |
+|---|---|---|
+| `OPENROUTER_LIVE_PRICES` | `true` | Off = always use the blended fallback (still meters) |
+| `OPENROUTER_PRICE_CACHE_TTL_S` | `3600` | Process-local catalog cache. One `GET /models` per TTL. |
+| `OPENROUTER_PRICE_TIMEOUT_S` | `2` | Hard cap on one catalog fetch. Keep tiny vs `AGENT_LLM_TIMEOUT_S` so a slow `/models` cannot stall a pass. |
+| `AGENT_TOKEN_RATE_USD_PER_1K` | `0.005` | Blended fallback when live prices are unavailable. |
+
+The cache is **in-process** (not Redis). A new Fly machine starts empty and
+refreshes on the first pass. A refresh that fails after a successful fetch
+keeps the stale catalog (still a live price, just older) rather than flipping
+every subsequent debit to the blended default. Set
+`OPENROUTER_LIVE_PRICES=false` only if `/models` is unhealthy and you want a
+deterministic blended rate.
+
 ## Operating notes
 
 - **Always-warm:** `fly.toml` sets `min_machines_running = 1`, so one machine stays running and
