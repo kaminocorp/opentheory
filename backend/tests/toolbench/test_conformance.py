@@ -120,6 +120,11 @@ def test_production_registry_holds_the_tier0_instruments() -> None:
         "z3.prove",
         "z3.satisfy",
         "lean.prove",
+        "table.create",
+        "table.derive_column",
+        "table.render",
+        "plot.function",
+        "plot.points",
     } <= names
     catalog = build_catalog()
     assert len(catalog) == len(registry)

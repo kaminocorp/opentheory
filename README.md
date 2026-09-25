@@ -30,7 +30,7 @@ Nothing resets. Dead ends are recorded, not deleted.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-live-success)](https://opentheory.vercel.app)
-[![Version](https://img.shields.io/badge/version-0.32.0-crimson)](docs/changelog.md)
+[![Version](https://img.shields.io/badge/version-0.34.0-crimson)](docs/changelog.md)
 &nbsp;
 ![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
@@ -105,7 +105,7 @@ checkpoints themselves, so provenance and attribution can't be skipped.
 
 ### The toolbench: results, not vibes
 
-Claims are tested with **deterministic instruments**, not model assertions. Eleven
+Claims are tested with **deterministic instruments**, not model assertions. Sixteen
 ship today, each landing an attributed checkpoint through the same chokepoint:
 
 | Instrument | Does |
@@ -119,6 +119,8 @@ ship today, each landing an attributed checkpoint through the same chokepoint:
 | `z3.satisfy` | machine-checked model-finding — exact assignment, unsat / no model, or honest `undecided` |
 | `lean.prove` | Lean 4 kernel check — Grade A only on a real proof; optional Lean + optional Mathlib / `lake` |
 | `crossref.lookup` / `arxiv.lookup` / `openalex.lookup` | Tier-1 literature pins |
+| `table.create` / `table.derive_column` / `table.render` | typed falsification grid; derived columns are exact compute |
+| `plot.function` / `plot.points` | Vega-Lite spec (not a raster) — visualization only, never evidence |
 
 Every instrument answers with the same three-outcome contract:
 
@@ -401,7 +403,7 @@ opentheory/
 ## Status
 
 **Live** (Vercel + Fly.io + Supabase), shipped in small, deployable phases tracked in
-[`docs/changelog.md`](docs/changelog.md). Currently `0.33.0`.
+[`docs/changelog.md`](docs/changelog.md). Currently `0.34.0`.
 
 **Shipped:**
 
@@ -433,6 +435,7 @@ opentheory/
 | `0.31.x` | Deepdive Phase D — shareable Research `?thread=` / `?branch=`, cross-tab live cue, rail-only nav |
 | `0.32.x` | Concurrent campaign cycles under the shared project budget — reserved slices, no oversell |
 | `0.33.x` | `z3.satisfy` — model-finding (sat assignment / unsat no-model / honest undecided) |
+| `0.34.x` | Bench 6 tables & plots — typed grids, derived columns, Vega-Lite specs |
 
 **Honest caveats:**
 

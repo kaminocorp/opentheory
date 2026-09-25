@@ -74,6 +74,8 @@ const NO_ASSUMPTIONS = new Set([
   "crossref.lookup",
   "arxiv.lookup",
   "openalex.lookup",
+  "table.render",
+  "plot.points",
 ]);
 
 export function instrumentAcceptsAssumptions(instrumentName: string): boolean {

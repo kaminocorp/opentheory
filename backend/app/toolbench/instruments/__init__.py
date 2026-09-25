@@ -17,6 +17,11 @@ from app.toolbench.instruments.geometry_measure import COORDINATE_MEASURE
 from app.toolbench.instruments.lean_prove import LEAN_PROVE
 from app.toolbench.instruments.oeis_search import OEIS_SEARCH
 from app.toolbench.instruments.openalex_lookup import OPENALEX_LOOKUP
+from app.toolbench.instruments.plot_function import PLOT_FUNCTION
+from app.toolbench.instruments.plot_points import PLOT_POINTS
+from app.toolbench.instruments.table_create import TABLE_CREATE
+from app.toolbench.instruments.table_derive_column import TABLE_DERIVE_COLUMN
+from app.toolbench.instruments.table_render import TABLE_RENDER
 from app.toolbench.instruments.z3_prove import Z3_PROVE
 from app.toolbench.instruments.z3_satisfy import Z3_SATISFY
 from app.toolbench.registry import registry
@@ -32,6 +37,11 @@ INSTRUMENTS = (
     LEAN_PROVE,
     OEIS_SEARCH,
     OPENALEX_LOOKUP,
+    PLOT_FUNCTION,
+    PLOT_POINTS,
+    TABLE_CREATE,
+    TABLE_DERIVE_COLUMN,
+    TABLE_RENDER,
     Z3_PROVE,
     Z3_SATISFY,
 )
@@ -49,6 +59,11 @@ __all__ = [
     "LEAN_PROVE",
     "OEIS_SEARCH",
     "OPENALEX_LOOKUP",
+    "PLOT_FUNCTION",
+    "PLOT_POINTS",
+    "TABLE_CREATE",
+    "TABLE_DERIVE_COLUMN",
+    "TABLE_RENDER",
     "Z3_PROVE",
     "Z3_SATISFY",
     "INSTRUMENTS",

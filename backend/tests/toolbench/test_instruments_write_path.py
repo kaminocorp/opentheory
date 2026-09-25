@@ -31,6 +31,9 @@ from app.toolbench.instruments import (
     COORDINATE_MEASURE,
     COUNTEREXAMPLE_SEARCH,
     LEAN_PROVE,
+    PLOT_FUNCTION,
+    TABLE_CREATE,
+    TABLE_DERIVE_COLUMN,
     Z3_PROVE,
     Z3_SATISFY,
 )
@@ -843,3 +846,108 @@ async def test_lean_prove_mathlib_proof_lands_through_chokepoint_when_sandbox_in
     assert entry["output"]["proven"] is True
     assert entry["output"]["certificate"] == "lean-kernel+mathlib"
     assert entry["output"]["mathlib"] is True
+
+
+# --- 0.34.0: Bench 6 tables / plots through the chokepoint ---------------------------------------
+
+
+_TRIPLES = {
+    "columns": ["a", "b", "d"],
+    "rows": [{"a": 3, "b": 4, "d": 5}, {"a": 5, "b": 12, "d": 13}],
+    "title": "integer triples",
+}
+
+
+async def test_table_create_lands_a_table_artifact(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    actor_id = await _actor(client)
+    project_id = await _project(client, "instr-table-create")
+    pid = UUID(project_id)
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        run = await run_instrument(session, pid, TABLE_CREATE, actor, inputs=_TRIPLES)
+
+    assert run.status is ResultStatus.RESULT
+    async with session_factory() as session:
+        artifact = await session.get(Artifact, run.artifact_id)
+        assert artifact.kind == "table"
+    entry = run.checkpoint.tool_invocations[0]
+    assert entry["instrument"] == "table.create"
+    assert entry["engine"] == "sympy"
+    assert entry["engine_version"] == ENGINE_VERSION
+    assert entry["output"]["n_rows"] == 2
+    assert entry["output"]["exact"] is True
+
+
+async def test_table_derive_column_refute_weakens_the_claim(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """d == a+b is false on 3-4-5 — exact witness through the chokepoint."""
+    actor_id = await _actor(client)
+    project_id = await _project(client, "instr-table-derive")
+    thread_id = await _thread(client, project_id, actor_id)
+    claim_id = await _claim(client, thread_id, actor_id, "d equals a plus b")
+    pid = UUID(project_id)
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        run = await run_instrument(
+            session,
+            pid,
+            TABLE_DERIVE_COLUMN,
+            actor,
+            inputs={**_TRIPLES, "name": "sum_legs", "expression": "d == a + b"},
+            claim_id=UUID(claim_id),
+        )
+
+    assert run.status is ResultStatus.REFUTED
+    assert run.evidence_id is not None
+    async with session_factory() as session:
+        artifact = await session.get(Artifact, run.artifact_id)
+        assert artifact.kind == "counterexample"
+        link = (
+            await session.execute(
+                select(ClaimEvidenceLink).where(ClaimEvidenceLink.evidence_id == run.evidence_id)
+            )
+        ).scalar_one()
+        assert link.relation_kind == "weaken"
+    entry = run.checkpoint.tool_invocations[0]
+    assert entry["instrument"] == "table.derive_column"
+    assert entry["output"]["witness"]["d"] == "5"
+    assert entry["output"]["witness"]["sum_legs"] == "false"
+
+
+async def test_plot_function_lands_a_plot_artifact(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    actor_id = await _actor(client)
+    project_id = await _project(client, "instr-plot-fn")
+    pid = UUID(project_id)
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        run = await run_instrument(
+            session,
+            pid,
+            PLOT_FUNCTION,
+            actor,
+            inputs={
+                "expression": "x**2",
+                "variable": "x",
+                "domain_min": "-3",
+                "domain_max": "3",
+                "n_samples": 7,
+            },
+        )
+
+    assert run.status is ResultStatus.RESULT
+    async with session_factory() as session:
+        artifact = await session.get(Artifact, run.artifact_id)
+        assert artifact.kind == "plot"
+    entry = run.checkpoint.tool_invocations[0]
+    assert entry["instrument"] == "plot.function"
+    assert entry["output"]["approximate"] is True
+    assert entry["output"]["spec"]["$schema"].startswith("https://vega.github.io")
+    assert entry["output"]["n_plotted"] == 7

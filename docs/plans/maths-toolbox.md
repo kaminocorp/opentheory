@@ -7,7 +7,7 @@
 > rendered artifact, a pinned source — **always recorded against the instrument that
 > derived it.**
 
-> **Status — working spec (2026-06-30), partially shipped (`0.9.x`–`0.33.0`).** The
+> **Status — working spec (2026-06-30), partially shipped (`0.9.x`–`0.34.0`).** The
 > *agreed scope* for the first toolbox, math-first. Third doc in the toolbench set and
 > the one that fixes the list:
 > - `agent-research-tools.md` — *why* the bench exists; the four families
@@ -29,11 +29,12 @@
 >   records"* below.
 > - **Interval arithmetic (Arb) is in** the agreed core (not yet shipped — optional `0.10.6+`).
 > - **Z3 (`z3.prove`) shipped in `0.13.x`.** **`z3.satisfy` shipped in `0.33.0`.**
+>   **Bench 6 tables/plots shipped in `0.34.0`.**
 >   **Lean (`lean.prove`) shipped in `0.23.0`**
 >   (optional toolchain, prelude/Init) and **`0.26.0`** (optional Mathlib / offline
 >   `lake`). Physics-specific tools remain deferred.
 
-## Shipped in production (`0.9.x`–`0.33.x`)
+## Shipped in production (`0.9.x`–`0.34.x`)
 
 These instruments are registered, conformance-tested, membership-gated on the run route,
 and have workspace drive/show surfaces (KaTeX where `*_latex` companions exist):
@@ -47,6 +48,11 @@ and have workspace drive/show surfaces (KaTeX where `*_latex` companions exist):
 | `counterexample.search` | Falsify & discover | `0.10.1` | Integer grid falsifier; weak-support honesty in UI |
 | `z3.prove` | Verify | `0.13.1` | Machine-checked validity — `proof` / counter-model / undecided |
 | `z3.satisfy` | Verify | `0.33.0` | Machine-checked model-finding — assignment / unsat / undecided |
+| `table.create` | See & record | `0.34.0` | Typed table artifact — exact cells or labels; floats rejected |
+| `table.derive_column` | See & record | `0.34.0` | Computed column — exact, blamable; relation may refute |
+| `table.render` | See & record | `0.34.0` | Display/serialize a table (markdown + structured grid) |
+| `plot.function` | See & record | `0.34.0` | `y = f(x)` → Vega-Lite spec; approximate viz, never evidence |
+| `plot.points` | See & record | `0.34.0` | Scatter/line → Vega-Lite spec; approximate viz, never evidence |
 | `lean.prove` | Verify | `0.23.0` / `0.26.0` | Lean 4 kernel check — Grade A only on a real proof; optional `lean` + optional Mathlib / `lake` |
 | `crossref.lookup` | Falsify & discover | `0.18.0` | DOI / bibliographic pin via Crossref |
 | `arxiv.lookup` | Falsify & discover | `0.18.0` | Versioned arXiv id pin via export API |
@@ -59,7 +65,7 @@ Evidence/Artifact (`0.9.1` migration `0012_toolbench_provenance`), AST-gated Sym
 (`0.13.0`).
 
 **Not shipped as standalone instruments:** `expr.parse`, `formula.render` (UI need met by
-`*_latex` + KaTeX), `sample.grid`, `pattern.find_relation`, `table.*`, `plot.*`,
+`*_latex` + KaTeX — do not reintroduce), `sample.grid`, `pattern.find_relation`,
 `interval.eval`. Lean REPL / LeanDojo remain later. Boolean connectives / quantifiers on Z3 remain later.
 
 ## The picture
@@ -300,7 +306,8 @@ through the *same* API.
   list but **unshipped**; grades & stamped result-kind stay **out** (derived from the
   recorded instrument).
 - **Next instrument candidates** — see `docs/plans/roadmap-next-steps.md`:
-  `interval.eval` (optional), bool connectives / quantifiers, Bench 6 tables/plots. Lean REPL / LeanDojo later.
+  `interval.eval` (optional), bool connectives / quantifiers. Lean REPL / LeanDojo later.
+  Bench 6 tables/plots shipped in `0.34.0`.
   Tier 1 literature pins shipped in `0.18.0`.
 
 ## Build infrastructure (done — `0.9.x`)

@@ -1,7 +1,8 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-09-25 · **Current release line:** `0.33.0`
-> (`z3.satisfy` model-finding), sitting on shipped `0.32.0`
+> **Last updated:** 2026-09-25 · **Current release line:** `0.34.0`
+> (Bench 6 tables & Vega-Lite plots), sitting on `0.33.0`
+> (`z3.satisfy` model-finding) and shipped `0.32.0`
 > (concurrent campaign cycles under project budget), `0.31.0` (deepdive Phase D — shareable Research deep links), `0.30.0`
 > (Phase C polish — historical alias `0.14.2`), `0.29.0`
 > (semantic git diff), `0.28.0` (live OpenRouter price metering),
@@ -14,12 +15,13 @@
 > (project-budget metering), `0.18.0` (Tier-1 literature pins), `0.17.0`
 > (review is opt-in) and `0.16.3` (thread/project grounding rollup). For the
 > per-phase ledger see `docs/changelog.md`; for the line just closed see
-> `docs/completions/z3-satisfy-0.33.0.md`. The deepdive line
+> `docs/completions/bench-6-tables-plots-0.34.0.md`. The deepdive line
 > (A–D) is closed; the archive plan is at
 > `docs/archive/project-deepdive-tabs-0.14.md`.
 >
 > **Next after this line:** the still-owed browser eyeball pass. Unmerged
 > work is not claimed as shipped. Lean REPL / LeanDojo remain later.
+> `0.33.0` may still be unmerged (#18); this line is stacked on it.
 
 ## Where we are
 
@@ -52,11 +54,13 @@ A signed-in member can today:
 1. Own or collaborate on a project; invite others; assign Research crew models (UI only).
 2. Decompose work into threads; add claims; attach evidence; record checkpoints.
 3. Fork, merge, and close branches; pin tags; record validations; read contradiction signals.
-4. Run **eleven** production instruments from the workspace — with KaTeX-readable math and bounded
+4. Run **sixteen** production instruments from the workspace — with KaTeX-readable math and bounded
    execution (subprocess isolation, wall-clock/memory caps, concurrency limit):
    `calc.eval`, `expr.compare`, `geometry.coordinate_measure`, `oeis.search`,
    `counterexample.search`, **`z3.prove`**, **`z3.satisfy`**, **`lean.prove`**, plus the literature pins
-   **`crossref.lookup`**, **`arxiv.lookup`**, **`openalex.lookup`** — each landing an
+   **`crossref.lookup`**, **`arxiv.lookup`**, **`openalex.lookup`**, plus Bench 6
+   **`table.create`**, **`table.derive_column`**, **`table.render`**, **`plot.function`**,
+   **`plot.points`** — each landing an
    attributed checkpoint through the chokepoint.
 5. Do all of it from a **five-tab deepdive** (`research` · `instruments` · `crew` · `funding` ·
    `overview`) under a persistent header, deep-linkable via `?tab=`. Research and Instruments
@@ -427,7 +431,7 @@ demo requirement.
 |---|---|
 | **`0.5.0` demo seeding** | Plan doc since removed; team preference is **no seed data** — projects start from scratch. Revisit only if empty-state UX becomes a product problem. |
 | **`formula.render` instrument** | Superseded for v1 by additive `*_latex` + KaTeX in `formula.tsx` (`0.10.4`–`0.10.5`). |
-| **Tables / plots (`table.*`, `plot.*`)** | Bench 6; after core agent loop or when a demo needs tabular falsification grids. |
+| **Tables / plots (`table.*`, `plot.*`)** | ~~Bench 6~~ ✅ shipped as `0.34.0`. Plots remain optional viz, never Grade A. |
 | **Real funding / settlement** | `FundingAllocation` is recorded; Stripe etc. remain future. |
 | **Reputation / influence** | Vision doc; no data model yet. |
 | **Object storage for large artifacts** | Blobs stay off Postgres; upload path not built. |
@@ -477,7 +481,9 @@ demo requirement.
 14. ~~**`0.31.0` Phase D**~~ ✅ shipped — shareable Research deep links,
     cross-tab live cue, rail-only nav (no sidecar). See
     `docs/completions/deepdive-phase-d-0.31.0.md`.
-15. **Bench 6 surfaces** — tables and Vega-Lite plots when a thread needs them.
+15. ~~**Bench 6 surfaces**~~ ✅ shipped as `0.34.0` — `table.create` /
+    `table.derive_column` / `table.render` / `plot.function` / `plot.points`.
+    Plots are optional viz; tables are the falsification grid.
 16. ~~**Lean Grade-A path**~~ ✅ shipped as `0.23.0` (`lean.prove`, optional
     toolchain, prelude/Init) and `0.26.0` (Mathlib / offline `lake` opt-in).
     **REPL / LeanDojo** remain later.
@@ -518,6 +524,7 @@ demo requirement.
 | `0.31.x` | Deepdive Phase D — shareable Research `?thread=` / `?branch=`, cross-tab live cue, rail-only nav |
 | `0.32.x` | Concurrent campaign cycles under the shared project budget — reserved slices, no oversell |
 | `0.33.x` | `z3.satisfy` — model-finding (sat assignment / unsat no-model / honest undecided) |
+| `0.34.x` | Bench 6 tables & plots — typed grids, derived columns, Vega-Lite specs (not rasters) |
 
 ## Success criteria for the next milestone
 
@@ -589,5 +596,11 @@ instrument. `sat` lands a concrete model; `unsat` is an honest no-model
 (`refuted`); timeout / `unknown` is `undecided`. No boolean connectives
 or quantifiers. Lean REPL / LeanDojo remain later.
 
+**`0.34.0` (Bench 6 tables & plots)** is shipped: typed tables, a computed
+column with calc-spine honesty, a render artifact, and Vega-Lite specs
+for `y = f(x)` and point lists. Plots are optional viz and never Grade A.
+`formula.render` is not reintroduced. No migration. Sits on `0.33.0`.
+
 **Next product step:** the still-owed browser eyeball pass. Blame-as-an-op
 remains later. Boolean connectives / quantifiers on Z3 remain later.
+`interval.eval` remains optional.
