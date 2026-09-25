@@ -123,11 +123,11 @@ orchestrator. **No schema, no migration.**
   `z3.prove` automatically — no prompt rewrite.
 
 ```bash
-cd backend && uv run ruff check .
-cd backend && uv run pytest -q
-# Real-lean tests skip unless `lean` is on PATH.
-# With TEST_DATABASE_URL: write-path sorry + in-thread mocked proof.
-cd frontend && npm run typecheck && npm run lint && npm run build
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 447 passed, 169 skipped (no TEST_DATABASE_URL)
+# tests/toolbench/test_lean_prove.py: 24 passed, 2 skipped (real `lean` not on PATH)
+# With TEST_DATABASE_URL: write-path sorry + in-thread mocked proof (unrun here).
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
 ```
 
 See `docs/completions/lean-prove-0.23.0.md`.

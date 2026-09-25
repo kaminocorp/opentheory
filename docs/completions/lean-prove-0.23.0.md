@@ -60,11 +60,20 @@ in Lean — we still reject it.
 
 ## Verification
 
-Filled in after the test run on this branch.
+- `ruff check .` clean.
+- Default pytest (no `TEST_DATABASE_URL`): **447 passed, 169 skipped**.
+- `tests/toolbench/test_lean_prove.py`: **24 passed, 2 skipped** (the two
+  skipped need a real `lean` binary — not installed in this environment or
+  in CI).
+- Frontend `typecheck` / `lint` / `build` clean.
 
 ## Unverified
 
 - No Lean binary in this environment — the real-`lean` tests stayed skipped.
+  The proved path is covered by a fake `lean` that exits 0, plus the
+  banned-construct scan that would reject `sorry` even if that fake ran.
+- DB-gated write-path tests (`sorry` through `run_instrument`; in-thread
+  mocked proof) were not run — no `TEST_DATABASE_URL`.
 - No Fly image rebuild with `INSTALL_LEAN=1` was performed here.
 - No pixel-level browser walk of the drive form (no signed-in session against
   a live backend in this environment).
