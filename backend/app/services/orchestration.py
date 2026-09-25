@@ -1,18 +1,19 @@
-"""Thin multi-thread orchestrator (0.22.0) — allocate project budget across sub-passes.
+"""Thin multi-thread orchestrator (0.22.0 / 0.27.0) — allocate project budget across sub-passes.
 
 ``run_orchestration`` is contributor infrastructure: it selects open threads with
 raisable claims, commissions capped ``run_agent_pass`` calls against the shared
 ``ComputeDebit`` / project-budget ceiling, and stops when the pot is empty, no
-raisable work remains, or the per-orchestration pass cap is hit.
+raisable work remains, the per-orchestration pass cap is hit, or a member cancels.
 
 It invents **no** ledger mechanics. Each sub-pass goes through the existing
 ``start_agent_pass`` → ``run_agent_pass`` path (plan → observe → replan, 0.20.0).
 This file never writes a ``Validation`` or a ``FundingAllocation``.
 
-v1 is **sequential**. Concurrent sub-passes would race ``project_budget.available``
-(the same class of race 0.19.0 already records for concurrent first-passes). The
-``BudgetPolicy`` seam stays on each sub-pass; this loop only decides *whether* to
-commission the next one.
+0.27.0 runs up to ``orchestration_concurrency`` sub-passes at once (default 2;
+``1`` is the sequential fallback). Before a pass starts, a short critical
+section locks the project row and holds a slice of ``available`` on the
+``AgentRun``. Debit stays after tokens; the hold cannot oversell the pot.
+The ``BudgetPolicy`` seam is the reserved slice.
 
 Optional merge/tag after a landed pass is a no-op hook here — `0.21.0`
 merge/tag stay human/API operations. See :data:`after_pass_hook`.
@@ -20,6 +21,7 @@ merge/tag stay human/API operations. See :data:`after_pass_hook`.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -51,9 +53,10 @@ from app.models.research_campaign import ResearchCampaign
 from app.models.thread import Thread
 from app.schemas.claim import SETTLED_HEADLINES, ClaimGrounding
 from app.services import agent_runs as agent_run_service
+from app.services import compute as compute_service
 from app.services import funding as funding_service
 from app.services.agent_runs import PlannerFn
-from app.services.compute import BUDGET_EXHAUSTED
+from app.services.compute import BUDGET_EXHAUSTED, ProjectBudgetPolicy
 from app.services.grounding import grounding_by_claim
 
 logger = logging.getLogger(__name__)
@@ -68,11 +71,16 @@ SKIP_THREAD_NOT_OPEN = "thread_not_open"
 SKIP_PASS_IN_FLIGHT = "pass_in_flight"
 SKIP_BUDGET_EXHAUSTED = "budget_exhausted"
 SKIP_MAX_PASSES = "max_passes"
+SKIP_CANCELLED = "cancelled"
 
 STOP_BUDGET_EXHAUSTED = "budget_exhausted"
 STOP_NO_OPEN_WORK = "no_open_work"
 STOP_MAX_PASSES = "max_passes"
+STOP_CANCELLED = "cancelled"
 STOP_ERROR = "error"
+
+# Safety clamp so a typo in ORCHESTRATION_CONCURRENCY cannot fan out a process.
+ORCHESTRATION_CONCURRENCY_HARD_CAP = 8
 
 # Optional hook after a landed sub-pass. v1 never self-merges and never
 # self-validates; the hook is a no-op unless a test injects one.
@@ -84,6 +92,15 @@ def claim_is_raisable(headline: str) -> bool:
     return headline not in SETTLED_HEADLINES
 
 
+def resolve_concurrency(requested: int | None = None) -> int:
+    """Clamp concurrency to ``[1, min(settings, hard cap)]``. ``1`` is sequential."""
+    configured = max(1, int(settings.orchestration_concurrency))
+    cap = min(configured, ORCHESTRATION_CONCURRENCY_HARD_CAP)
+    if requested is None:
+        return cap
+    return min(max(1, int(requested)), cap)
+
+
 def _decision(
     thread: Thread,
     *,
@@ -91,6 +108,8 @@ def _decision(
     reason: str | None,
     agent_run: AgentRun | None = None,
     budget_remaining: Decimal | None = None,
+    wave: int | None = None,
+    parallel_with: list[str] | None = None,
 ) -> dict[str, Any]:
     return {
         "thread_id": str(thread.id),
@@ -102,6 +121,8 @@ def _decision(
         "tokens_used": agent_run.tokens_used if agent_run is not None else None,
         "ran_count": agent_run.ran_count if agent_run is not None else None,
         "budget_remaining": str(budget_remaining) if budget_remaining is not None else None,
+        "wave": wave,
+        "parallel_with": list(parallel_with) if parallel_with is not None else [],
     }
 
 
@@ -250,8 +271,24 @@ async def start_orchestration(
         role=role,
         status=OrchestrationRunStatus.RUNNING,
         max_passes=settings.orchestration_max_passes,
+        concurrency=resolve_concurrency(),
     )
     db.add(run)
+    await db.commit()
+    return run
+
+
+async def request_cancel(db: AsyncSession, orchestration_id: UUID) -> OrchestrationRun:
+    """Ask a running orchestration to stop after the current wave. Idempotent while running."""
+    run = await db.get(OrchestrationRun, orchestration_id)
+    if run is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Orchestration not found")
+    if run.status is not OrchestrationRunStatus.RUNNING:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Orchestration is not running",
+        )
+    run.cancel_requested = True
     await db.commit()
     return run
 
@@ -321,113 +358,154 @@ async def _execute(
     await db.commit()
 
     classified = await classify_project_threads(db, run.project_id)
-    remaining = opening.available
+    pending: list[ThreadEligibility] = []
     stop_reason: str | None = None
     hit_budget = False
     hit_cap = False
+    cancelled = False
     run_id = run.id
+    pass_planner = planner if planner is not None else default_plan
 
     async def _reload() -> OrchestrationRun:
         reloaded = await db.get(OrchestrationRun, run_id)
         if reloaded is None:  # pragma: no cover
             raise ValueError(f"OrchestrationRun {run_id} disappeared")
+        # Refresh so a cancel committed from another session is visible between waves.
+        await db.refresh(reloaded)
         return reloaded
 
-    for eligibility in classified:
-        thread = eligibility.thread
+    async def _skip_all(rows: list[ThreadEligibility], reason: str) -> None:
+        nonlocal run
         run = await _reload()
-        if not eligibility.eligible:
-            decisions.append(_decision(thread, action="skipped", reason=eligibility.skip_reason))
-            run.passes_skipped += 1
-            run.decisions = list(decisions)
-            await db.commit()
-            continue
-
-        if run.passes_commissioned >= run.max_passes:
-            decisions.append(_decision(thread, action="skipped", reason=SKIP_MAX_PASSES))
-            run.passes_skipped += 1
-            run.decisions = list(decisions)
-            await db.commit()
-            hit_cap = True
-            continue
-
         live = await funding_service.project_budget(db, run.project_id)
-        remaining = live.available
-        run.budget_available_end = remaining
-        if remaining <= 0:
+        run.budget_available_end = live.available
+        for eligibility in rows:
             decisions.append(
                 _decision(
-                    thread,
+                    eligibility.thread,
                     action="skipped",
-                    reason=SKIP_BUDGET_EXHAUSTED,
-                    budget_remaining=remaining,
+                    reason=reason,
+                    budget_remaining=live.available,
                 )
             )
             run.passes_skipped += 1
-            run.decisions = list(decisions)
-            await db.commit()
-            hit_budget = True
-            continue
-
-        agent_run = await agent_run_service.start_agent_pass(
-            db, run.project_id, thread.id, triggered_by=actor, role=run.role
-        )
-        run = await _reload()
-        run.passes_commissioned += 1
         run.decisions = list(decisions)
         await db.commit()
 
-        pass_planner = planner if planner is not None else default_plan
-        finished = await agent_run_service.run_agent_pass(
-            db, agent_run.id, llm=llm, planner=pass_planner
+    for eligibility in classified:
+        if eligibility.eligible:
+            pending.append(eligibility)
+            continue
+        decisions.append(
+            _decision(eligibility.thread, action="skipped", reason=eligibility.skip_reason)
         )
+        run.passes_skipped += 1
+        run.decisions = list(decisions)
+        await db.commit()
+
+    wave_n = 0
+    while pending:
+        run = await _reload()
+        if run.cancel_requested:
+            await _skip_all(pending, SKIP_CANCELLED)
+            cancelled = True
+            break
+        if run.passes_commissioned >= run.max_passes:
+            await _skip_all(pending, SKIP_MAX_PASSES)
+            hit_cap = True
+            break
+
+        live = await funding_service.project_budget(db, run.project_id)
+        run.budget_available_end = live.available
+        await db.commit()
+        if live.available <= 0:
+            await _skip_all(pending, SKIP_BUDGET_EXHAUSTED)
+            hit_budget = True
+            break
+
+        slots = min(run.concurrency, run.max_passes - run.passes_commissioned, len(pending))
+        wave: list[tuple[ThreadEligibility, AgentRun]] = []
+        leftover: list[ThreadEligibility] = []
+        for index, eligibility in enumerate(pending):
+            if len(wave) >= slots:
+                leftover.extend(pending[index:])
+                break
+            commissioned = await _commission_reserved_pass(db, run, actor, eligibility.thread)
+            if commissioned is None:
+                leftover.extend(pending[index:])
+                break
+            wave.append((eligibility, commissioned))
+            run = await _reload()
+        pending = leftover
+
+        if not wave:
+            await _skip_all(pending, SKIP_BUDGET_EXHAUSTED)
+            hit_budget = True
+            break
+
+        wave_n += 1
+        wave_thread_ids = [str(eligibility.thread.id) for eligibility, _ in wave]
+        finished_runs = await _run_wave(
+            db,
+            [started.id for _, started in wave],
+            planner=pass_planner,
+            llm=llm,
+        )
+
         live = await funding_service.project_budget(db, run.project_id)
         remaining = live.available
         run = await _reload()
         run.budget_available_end = remaining
+        hook = after_pass if after_pass is not None else after_pass_hook
 
-        if finished.status is AgentRunStatus.COMPLETED:
-            run.passes_completed += 1
-            reason = "completed"
-        else:
-            run.passes_failed += 1
-            reason = (
-                SKIP_BUDGET_EXHAUSTED
-                if finished.error == BUDGET_EXHAUSTED
-                else (finished.error or "failed")
+        for (eligibility, _started), finished in zip(wave, finished_runs, strict=True):
+            if finished.status is AgentRunStatus.COMPLETED:
+                run.passes_completed += 1
+                reason = "completed"
+            else:
+                run.passes_failed += 1
+                reason = (
+                    SKIP_BUDGET_EXHAUSTED
+                    if finished.error == BUDGET_EXHAUSTED
+                    else (finished.error or "failed")
+                )
+                if finished.error == BUDGET_EXHAUSTED:
+                    hit_budget = True
+            peer_ids = [tid for tid in wave_thread_ids if tid != str(eligibility.thread.id)]
+            decisions.append(
+                _decision(
+                    eligibility.thread,
+                    action="commissioned",
+                    reason=reason,
+                    agent_run=finished,
+                    budget_remaining=remaining,
+                    wave=wave_n,
+                    parallel_with=peer_ids,
+                )
             )
-            if finished.error == BUDGET_EXHAUSTED:
-                hit_budget = True
+            logger.info(
+                "orchestration_pass orchestration_id=%s thread_id=%s agent_run_id=%s "
+                "status=%s wave=%s budget_remaining=%s",
+                run.id,
+                eligibility.thread.id,
+                finished.id,
+                finished.status.value,
+                wave_n,
+                remaining,
+            )
+            if hook is not None:
+                local = await db.get(AgentRun, finished.id)
+                if local is not None:
+                    await hook(db, run, local)
 
-        decisions.append(
-            _decision(
-                thread,
-                action="commissioned",
-                reason=reason,
-                agent_run=finished,
-                budget_remaining=remaining,
-            )
-        )
         run.decisions = list(decisions)
         await db.commit()
-        logger.info(
-            "orchestration_pass orchestration_id=%s thread_id=%s agent_run_id=%s "
-            "status=%s budget_remaining=%s",
-            run.id,
-            thread.id,
-            finished.id,
-            finished.status.value,
-            remaining,
-        )
-
-        hook = after_pass if after_pass is not None else after_pass_hook
-        if hook is not None:
-            await hook(db, run, finished)
-
         if remaining <= 0:
             hit_budget = True
 
-    if hit_budget:
+    if cancelled:
+        stop_reason = STOP_CANCELLED
+    elif hit_budget:
         stop_reason = STOP_BUDGET_EXHAUSTED
     elif hit_cap:
         stop_reason = STOP_MAX_PASSES
@@ -442,6 +520,99 @@ async def _execute(
         stop_reason=stop_reason,
         budget_end=final.available,
     )
+
+
+def _policy_from_reservation(agent_run: AgentRun) -> ProjectBudgetPolicy | None:
+    if agent_run.reserved_amount is None or agent_run.reserved_amount <= 0:
+        return None
+    return ProjectBudgetPolicy(
+        Decimal(agent_run.reserved_amount),
+        rate_per_1k=compute_service.rate_for_model(agent_run.model),
+    )
+
+
+async def _commission_reserved_pass(
+    db: AsyncSession,
+    run: OrchestrationRun,
+    actor: Actor,
+    thread: Thread,
+) -> AgentRun | None:
+    """Lock the project, hold a slice, mint the running pass. ``None`` if the pot is gone."""
+    project = (
+        await db.execute(select(Project).where(Project.id == run.project_id).with_for_update())
+    ).scalar_one_or_none()
+    if project is None:
+        return None
+    live = await funding_service.project_budget(db, run.project_id)
+    if live.available <= 0:
+        return None
+    model = (project.agent_models or {}).get(run.role)
+    rate = compute_service.rate_for_model(model)
+    amount = compute_service.pass_reserve_amount(live.available, rate_per_1k=rate)
+    if amount <= 0:
+        return None
+    agent_run = await agent_run_service.start_agent_pass(
+        db, run.project_id, thread.id, triggered_by=actor, role=run.role, commit=False
+    )
+    agent_run.reserved_amount = amount
+    live_run = await db.get(OrchestrationRun, run.id)
+    if live_run is not None:
+        live_run.passes_commissioned += 1
+    await db.commit()
+    return agent_run
+
+
+async def _run_wave(
+    db: AsyncSession,
+    agent_run_ids: list[UUID],
+    *,
+    planner: PlannerFn,
+    llm: Any | None,
+) -> list[AgentRun]:
+    """Run one wave. ``concurrency=1`` (or a singleton wave) stays on the caller session."""
+    if len(agent_run_ids) == 1:
+        row = await db.get(AgentRun, agent_run_ids[0])
+        policy = _policy_from_reservation(row) if row is not None else None
+        finished = await agent_run_service.run_agent_pass(
+            db, agent_run_ids[0], llm=llm, planner=planner, budget_policy=policy
+        )
+        return [finished]
+
+    factory = async_sessionmaker(db.get_bind(), expire_on_commit=False)
+
+    async def _one(agent_run_id: UUID) -> AgentRun:
+        async with factory() as session:
+            row = await session.get(AgentRun, agent_run_id)
+            policy = _policy_from_reservation(row) if row is not None else None
+            return await agent_run_service.run_agent_pass(
+                session, agent_run_id, llm=llm, planner=planner, budget_policy=policy
+            )
+
+    gathered = await asyncio.gather(
+        *[_one(agent_run_id) for agent_run_id in agent_run_ids],
+        return_exceptions=True,
+    )
+    finished: list[AgentRun] = []
+    for agent_run_id, result in zip(agent_run_ids, gathered, strict=True):
+        if isinstance(result, BaseException):
+            logger.warning(
+                "orchestration_wave_pass_error agent_run_id=%s error=%s",
+                agent_run_id,
+                result,
+            )
+            async with factory() as session:
+                row = await session.get(AgentRun, agent_run_id)
+                if row is not None and row.status is AgentRunStatus.RUNNING:
+                    await compute_service.release_compute_reservation(session, row)
+                    row.status = AgentRunStatus.FAILED
+                    row.error = str(result)[:2000]
+                    await session.commit()
+                if row is None:  # pragma: no cover
+                    raise result
+                finished.append(row)
+        else:
+            finished.append(result)
+    return finished
 
 
 @dataclass

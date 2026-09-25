@@ -119,9 +119,13 @@ class Settings(BaseSettings):
     # loop over the 0.22.0 orchestrator; they reuse this gate.
     agent_loop_enabled: bool = False
     # Hard cap on how many ``run_agent_pass`` calls one orchestration may commission.
-    # Sequential in v1 (shared project pot — concurrent passes race ``available``).
     # Per-pass safety caps and the 0.19.0 project ceiling still bind each sub-pass.
     orchestration_max_passes: int = 4
+    # How many of those sub-passes may run at once (0.27.0). Default 2; ``1`` is the
+    # sequential fallback. Clamped to ``ORCHESTRATION_CONCURRENCY_HARD_CAP`` (8) so
+    # a typo cannot fan out a process. Each concurrent pass reserves a slice of
+    # ``project_budget.available`` before it starts so they cannot oversell the pot.
+    orchestration_concurrency: int = 2
     # Hard cap on how many 0.22.0 orchestrations one continuous campaign may
     # commission. Safety, not a second dark-launch flag. Default 8.
     campaign_max_cycles: int = 8

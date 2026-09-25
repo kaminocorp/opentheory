@@ -1,11 +1,12 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Play } from "lucide-react";
+import { Play, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import {
   Action,
+  ActionGhost,
   AwaitingState,
   Bay,
   Icon,
@@ -16,6 +17,7 @@ import {
   type StateTone,
 } from "@/components/console";
 import {
+  cancelOrchestration,
   getOrchestration,
   isAgentLoopDisabled,
   listCampaigns,
@@ -44,14 +46,30 @@ const STOP_COPY: Record<string, string> = {
   budget_exhausted: "Stopped — project budget exhausted.",
   no_open_work: "Stopped — no open raisable work.",
   max_passes: "Stopped — pass cap reached.",
+  cancelled: "Stopped — cancelled.",
   error: "Stopped — the loop failed.",
 };
 
 function stopLine(run: OrchestrationRunRead): string {
-  if (run.status === "running") return "Allocating passes across open threads…";
+  if (run.status === "running") {
+    if (run.cancel_requested) return "Stopping after the current wave…";
+    if (run.concurrency > 1) {
+      return `Allocating up to ${run.concurrency} passes at a time across open threads…`;
+    }
+    return "Allocating passes across open threads…";
+  }
   if (run.stop_reason && STOP_COPY[run.stop_reason]) return STOP_COPY[run.stop_reason];
   if (run.error) return run.error;
   return "Finished.";
+}
+
+function decisionAside(decision: OrchestrationRunRead["decisions"][number]): string {
+  const parts = [decision.action];
+  if (decision.reason) parts.push(decision.reason);
+  if (decision.action === "commissioned" && decision.parallel_with?.length) {
+    parts.push("in parallel");
+  }
+  return parts.join(" · ");
 }
 
 /**
@@ -124,8 +142,17 @@ export function RunResearchBay({
       queryClient.invalidateQueries({ queryKey: queryKeys.orchestrations(projectId) });
     },
   });
+  const cancel = useMutation({
+    mutationFn: () => cancelOrchestration(run?.id as string),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKeys.orchestration(updated.id), updated);
+      queryClient.invalidateQueries({ queryKey: queryKeys.orchestrations(projectId) });
+    },
+  });
 
-  const inFlight = run?.status === "running" || trigger.isPending;
+  const running = run?.status === "running";
+  const inFlight = running || trigger.isPending;
+  const stoppable = canRun && running && !run?.cancel_requested;
   const runnable =
     canRun && Boolean(roleModel) && !featureDisabled && !inFlight && !campaignRunning;
 
@@ -152,7 +179,7 @@ export function RunResearchBay({
       </div>
       <p className="text-[13px] leading-[1.5] text-text-mute">
         Commission bounded agent passes across open threads, against the project budget.
-        The loop never validates its own work.
+        Open threads can run a few at a time. The loop never validates its own work.
       </p>
 
       {listQuery.isLoading ? (
@@ -183,20 +210,38 @@ export function RunResearchBay({
                 })}
               </Select>
             </label>
-            <Action
-              type="button"
-              onClick={() => runnable && trigger.mutate()}
-              disabled={!runnable}
-              pending={trigger.isPending}
-            >
-              <Icon icon={Play} size={15} />
-              {trigger.isPending ? "Starting…" : "Run research"}
-            </Action>
+            <div className="flex flex-wrap items-center gap-2">
+              <Action
+                type="button"
+                onClick={() => runnable && trigger.mutate()}
+                disabled={!runnable}
+                pending={trigger.isPending}
+              >
+                <Icon icon={Play} size={15} />
+                {trigger.isPending ? "Starting…" : "Run research"}
+              </Action>
+              {running ? (
+                <ActionGhost
+                  type="button"
+                  onClick={() => stoppable && cancel.mutate()}
+                  disabled={!stoppable}
+                  pending={cancel.isPending}
+                >
+                  <Icon icon={Square} size={13} />
+                  {run?.cancel_requested || cancel.isPending ? "Stopping…" : "Stop"}
+                </ActionGhost>
+              ) : null}
+            </div>
           </div>
           {gateHint && hydrated ? <p className="text-[12px] text-state-warn">{gateHint}</p> : null}
           {trigger.isError ? (
             <p role="alert" className="text-[12px] text-state-fail">
               {(trigger.error as Error).message}
+            </p>
+          ) : null}
+          {cancel.isError ? (
+            <p role="alert" className="text-[12px] text-state-fail">
+              {(cancel.error as Error).message}
             </p>
           ) : null}
 
@@ -206,6 +251,7 @@ export function RunResearchBay({
               <p className="font-mono text-[11px] tabular-nums text-text-faint">
                 {run.passes_completed}/{run.passes_commissioned} passes
                 {run.passes_skipped ? ` · ${run.passes_skipped} skipped` : ""}
+                {run.concurrency > 1 ? ` · ${run.concurrency} at a time` : ""}
                 {run.budget_available_end != null
                   ? ` · ${run.budget_available_end} remaining`
                   : ""}
@@ -221,8 +267,7 @@ export function RunResearchBay({
                         {decision.thread_title || decision.thread_id.slice(0, 8)}
                       </span>
                       <span className="font-mono text-[11px] text-text-faint">
-                        {decision.action}
-                        {decision.reason ? ` · ${decision.reason}` : ""}
+                        {decisionAside(decision)}
                       </span>
                     </li>
                   ))}

@@ -42,6 +42,11 @@ def test_dark_launch_get_is_404_when_disabled(dbfree_client: TestClient) -> None
     assert resp.status_code == 404, resp.text
 
 
+def test_dark_launch_cancel_is_404_when_disabled(dbfree_client: TestClient) -> None:
+    resp = dbfree_client.post(f"/api/v1/orchestrations/{_BOGUS}/cancel")
+    assert resp.status_code == 404, resp.text
+
+
 def test_unauthenticated_post_is_401_when_enabled(
     dbfree_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:

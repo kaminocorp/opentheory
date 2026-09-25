@@ -20,19 +20,22 @@ Decision JSON shape (each entry in ``decisions``)::
      "reason": str | None,
      "agent_run_id": str | None, "agent_run_status": str | None,
      "tokens_used": int | None, "ran_count": int | None,
-     "budget_remaining": str | None}
+     "budget_remaining": str | None,
+     "wave": int | None, "parallel_with": list[str]}
 
 ``status="skipped"`` reasons include ``no_open_claims``, ``no_raisable_claims``,
 ``thread_not_open``, ``pass_in_flight``, ``already_commissioned``,
-``budget_exhausted``, ``max_passes``. A commissioned row's ``reason`` is the
-sub-pass terminal (``completed``, ``failed``, ``budget_exhausted``).
+``budget_exhausted``, ``max_passes``, ``cancelled``. A commissioned row's
+``reason`` is the sub-pass terminal (``completed``, ``failed``,
+``budget_exhausted``). ``wave`` / ``parallel_with`` record which threads ran
+together (0.27.0); a sequential run is ``wave`` with an empty ``parallel_with``.
 """
 
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import JSON, Enum, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import JSON, Boolean, Enum, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -66,7 +69,7 @@ class OrchestrationRun(IdMixin, TimestampMixin, Base):
     # Per-thread decisions (see the module docstring). Reassign on every update —
     # the column is plain JSON, so an in-place ``.append`` is invisible to SQLAlchemy.
     decisions: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list, nullable=False)
-    # Why the loop stopped: budget_exhausted | no_open_work | max_passes | error.
+    # Why the loop stopped: budget_exhausted | no_open_work | max_passes | cancelled | error.
     # Null while ``running``.
     stop_reason: Mapped[str | None] = mapped_column(String(40), nullable=True)
     passes_commissioned: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -79,6 +82,11 @@ class OrchestrationRun(IdMixin, TimestampMixin, Base):
     # The bound this run used (copied from settings so a later default change never
     # rewrites history).
     max_passes: Mapped[int] = mapped_column(Integer, nullable=False)
+    # How many sub-passes this run may execute at once (0.27.0). Copied from
+    # settings at commission; ``1`` is sequential.
+    concurrency: Mapped[int] = mapped_column(Integer, default=2, nullable=False)
+    # Honoured between waves (in-flight passes finish). Campaign Stop also sets this.
+    cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     project = relationship("Project", back_populates="orchestration_runs")

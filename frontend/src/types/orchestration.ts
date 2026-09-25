@@ -12,6 +12,7 @@ export type OrchestrationStopReason =
   | "budget_exhausted"
   | "no_open_work"
   | "max_passes"
+  | "cancelled"
   | "error";
 
 export type OrchestrationDecisionAction = "commissioned" | "skipped";
@@ -26,6 +27,8 @@ export type OrchestrationDecision = {
   tokens_used: number | null;
   ran_count: number | null;
   budget_remaining: string | null;
+  wave?: number | null;
+  parallel_with?: string[];
 };
 
 export type OrchestrationRunSummary = {
@@ -42,6 +45,8 @@ export type OrchestrationRunSummary = {
   budget_available_start: string | null;
   budget_available_end: string | null;
   max_passes: number;
+  concurrency: number;
+  cancel_requested: boolean;
   error: string | null;
   created_at: string;
   updated_at: string;

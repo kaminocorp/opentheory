@@ -1,7 +1,8 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-09-25 · **Current release line:** `0.26.0` (Mathlib /
-> lake Grade-A path on `lean.prove`), sitting on shipped `0.25.0` (continuous
+> **Last updated:** 2026-09-25 · **Current release line:** `0.27.0` (concurrent
+> sub-passes under project budget), sitting on shipped `0.26.0` (Mathlib /
+> lake Grade-A path on `lean.prove`), `0.25.0` (continuous
 > research under budget), `0.24.0` (CommandRail sync — historically the
 > deferred deepdive Phase B / `0.14.1`), `0.23.0` (Lean 4 Grade-A path —
 > prelude `lean.prove`), `0.22.0` (thin multi-thread orchestrator), `0.21.0`
@@ -9,7 +10,7 @@
 > (project-budget metering), `0.18.0` (Tier-1 literature pins), `0.17.0`
 > (review is opt-in) and `0.16.3` (thread/project grounding rollup). For the
 > per-phase ledger see `docs/changelog.md`; for the line just closed see
-> `docs/completions/lean-mathlib-0.26.0.md`. The remaining `0.14.x` phases
+> `docs/completions/concurrent-subpasses-0.27.0.md`. The remaining `0.14.x` phases
 > (C–D) still live at `docs/archive/project-deepdive-tabs-0.14.md`.
 >
 > **Next after this line:** the still-owed browser eyeball pass; then `0.14.2`
@@ -73,10 +74,11 @@ The agent Actor lands attributed checkpoints on a durable agent branch through t
 **same** `run_instrument` chokepoint humans use — a full `AgentRun` trace shows each
 plan version, why it replanned, and what landed. **Human review is opt-in audit** (accept
 a claim, reject the line as a dead end, or fork further) — it is not required before the
-pass is done for the operator. **A project-level orchestrator shipped in `0.22.0`:**
-**Run research** commissions sequential capped passes across open threads against
-the shared project pot, and stops when the budget is exhausted or no raisable
-claims remain. **A continuous campaign shipped in `0.25.0`:** Start on Overview
+pass is done for the operator. **A project-level orchestrator shipped in `0.22.0` / `0.27.0`:**
+**Run research** commissions capped passes across open threads against
+the shared project pot — up to `orchestration_concurrency` at a time, each
+holding a reserved slice so they cannot oversell — and stops when the budget
+is exhausted, no raisable claims remain, or a member cancels. **A continuous campaign shipped in `0.25.0`:** Start on Overview
 re-commissions that orchestrator until the pot is empty, no raisable work
 remains, the cycle cap is hit, or a member stops it. Still an in-process
 BackgroundTask (a lost worker is swept honestly; not a durable queue).
@@ -95,6 +97,22 @@ who changed it, and what evidence or artifacts were involved — then extend it 
 bypassing the checkpoint chokepoint or conflating funder / contributor / validator roles.
 
 ## Recommended next releases
+
+### `0.27.x` — Concurrent sub-passes under project budget ✅ **shipped** (`0.27.0`)
+
+Delivered: the `0.22.0` orchestrator (and therefore each `0.25.0` campaign cycle)
+can run a small number of `run_agent_pass` calls at once
+(`orchestration_concurrency`, default 2; `1` is sequential). Before a pass
+starts, a short critical section locks the project row and holds a slice of
+`available` on the `AgentRun`. Debit stays after tokens; the hold cannot
+oversell the pot. The trace records which threads ran in the same wave, skips,
+and the stop reason (including cancel). Same `AGENT_LOOP_ENABLED` gate. Never
+auto-validates, auto-funds, or auto-merges. Quiet concurrency status + Stop on
+Overview. Migration `0019_concurrent_subpasses` (additive). See
+`docs/completions/concurrent-subpasses-0.27.0.md`.
+
+**Not in this release:** concurrent *campaign cycles*; a durable job queue;
+auto-merge / auto-validate; Mathlib expansion.
 
 ### `0.26.x` — Mathlib / lake Grade-A path ✅ **shipped** (`0.26.0`)
 
@@ -147,9 +165,9 @@ why others were skipped. Orchestrator never self-validates. Quiet **Run research
 on Overview. Migration `0017_orchestration_runs`. See
 `docs/completions/multi-thread-orchestrator-0.22.0.md`.
 
-**Not in this release:** concurrent sub-passes; auto-merge / auto-tag after a
-landed pass (`0.21.0` merge/tag stay human/API ops). Continuous re-commission
-shipped as `0.25.0`.
+**Not in this release (0.22.0):** concurrent sub-passes (shipped later as
+`0.27.0`); auto-merge / auto-tag after a landed pass (`0.21.0` merge/tag stay
+human/API ops). Continuous re-commission shipped as `0.25.0`.
 
 ### `0.21.x` — Research-git merge + tag ✅ **shipped** (`0.21.0`)
 
@@ -393,6 +411,7 @@ demo requirement.
 | `0.24.x` | CommandRail sync — rail zones are live `?tab=` links; `#funding` + inert Agents retired (historical `0.14.1`) |
 | `0.25.x` | Continuous research campaign — re-commission the 0.22.0 orchestrator under the project pot |
 | `0.26.x` | `lean.prove` Mathlib opt-in — bounded offline `lake`; Grade A only on a real kernel + allow-list success |
+| `0.27.x` | Concurrent sub-passes under the shared project budget — reserved slices, no oversell |
 
 ## Success criteria for the next milestone
 
@@ -427,6 +446,12 @@ raisable work remains, the cycle cap is hit, or a member cancels. Same
 **`0.26.0` (Mathlib / lake Grade-A path)** is shipped: `lean.prove` can raise
 a claim to Grade A with Mathlib when the optional `lake` cache is present.
 Missing Mathlib is honest `undecided`. REPL / LeanDojo are not in this release.
+
+**`0.27.0` (concurrent sub-passes)** is shipped: the orchestrator can run a
+capped number of `run_agent_pass` calls at once against the shared
+`ComputeDebit` pot. A reservation hold prevents oversell; debit stays after
+tokens. `concurrency=1` is sequential. Campaigns inherit the inner
+concurrency. Never auto-validates or auto-funds.
 
 **Next product step:** the still-owed browser eyeball pass; then `0.14.2`
 Phase C polish.

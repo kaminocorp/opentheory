@@ -19,7 +19,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.models.enums import OrchestrationRunStatus
 from app.schemas.project import AGENT_ROLE_FIELDS
 
-OrchestrationStopReason = Literal["budget_exhausted", "no_open_work", "max_passes", "error"]
+OrchestrationStopReason = Literal[
+    "budget_exhausted", "no_open_work", "max_passes", "cancelled", "error"
+]
 OrchestrationDecisionAction = Literal["commissioned", "skipped"]
 
 
@@ -53,6 +55,8 @@ class OrchestrationDecision(BaseModel):
     tokens_used: int | None = None
     ran_count: int | None = None
     budget_remaining: Decimal | None = None
+    wave: int | None = None
+    parallel_with: list[UUID] = Field(default_factory=list)
 
 
 class OrchestrationRunSummary(BaseModel):
@@ -73,6 +77,8 @@ class OrchestrationRunSummary(BaseModel):
     budget_available_start: Decimal | None
     budget_available_end: Decimal | None
     max_passes: int
+    concurrency: int = 1
+    cancel_requested: bool = False
     error: str | None
     created_at: datetime
     updated_at: datetime
