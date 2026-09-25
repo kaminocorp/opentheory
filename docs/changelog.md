@@ -135,9 +135,10 @@ stay).
   Assumptions gated off.
 
 ```bash
-cd backend && uv run ruff check .
-cd backend && uv run pytest -q
-cd frontend && npm run typecheck && npm run lint && npm run build
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 538 passed, 206 skipped (no TEST_DATABASE_URL)
+# Write-path sat/unsat round-trips are DB-gated (skip without Postgres)
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
 ```
 
 See `docs/completions/z3-satisfy-0.33.0.md`.

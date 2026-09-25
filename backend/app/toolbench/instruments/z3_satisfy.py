@@ -116,7 +116,7 @@ class Z3SatisfyOutput(BaseModel):
 
 
 class Z3Satisfy:
-    """Machine-checked model-finding over quantifier-free linear (and honest nonlinear) arithmetic."""
+    """Machine-checked model-finding over quantifier-free linear (honest nonlinear) arithmetic."""
 
     name = "z3.satisfy"
     namespace = "z3"

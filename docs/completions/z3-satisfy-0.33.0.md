@@ -79,7 +79,15 @@ card. Sits on shipped `0.32.0`. **No schema, no migration.**
 
 ## Verification
 
-Recorded in the PR after the verification pass.
+- `ruff check .` clean.
+- Default pytest (no `TEST_DATABASE_URL`): **538 passed, 206 skipped**.
+  Includes sat model, unsat / no-model, timeout honesty, translator
+  safety, killable-subprocess round-trip, grade-matrix / planner raise
+  path, and the existing `z3.prove` suite.
+- Write-path sat/unsat `run_instrument` tests are written and skip
+  without Postgres (same gate as `z3.prove`).
+- Frontend `typecheck` / `lint` / `build` clean (9/9 static pages).
+  `npm test` **18 passed**.
 
 ## Unverified
 
