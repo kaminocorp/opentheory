@@ -51,19 +51,19 @@ export function ComparePanel({ projectId, selectedBranchId }: ComparePanelProps)
     queryFn: () => listTags(projectId),
   });
 
-  const checkpoints = checkpointsQuery.data ?? [];
-  const branches = branchesQuery.data ?? [];
-  const tags = tagsQuery.data ?? [];
+  const checkpoints = checkpointsQuery.data;
+  const branches = branchesQuery.data;
+  const tags = tagsQuery.data;
 
   const options = useMemo<RefOption[]>(() => {
     const rows: RefOption[] = [{ value: "main", label: optionLabel("main", "tip") }];
-    for (const branch of branches) {
+    for (const branch of branches ?? []) {
       rows.push({ value: branch.id, label: optionLabel("line", branch.name) });
     }
-    for (const tag of tags) {
+    for (const tag of tags ?? []) {
       rows.push({ value: tag.name, label: optionLabel("tag", tag.name) });
     }
-    for (const checkpoint of checkpoints) {
+    for (const checkpoint of checkpoints ?? []) {
       const summary = checkpoint.summary.slice(0, 48);
       rows.push({
         value: checkpoint.id,
@@ -75,13 +75,14 @@ export function ComparePanel({ projectId, selectedBranchId }: ComparePanelProps)
 
   const defaultTo = selectedBranchId ?? "main";
   const defaultFrom = useMemo(() => {
+    const list = checkpoints ?? [];
     if (selectedBranchId) {
-      const onLine = checkpoints.filter((c) => c.branch_id === selectedBranchId);
+      const onLine = list.filter((c) => c.branch_id === selectedBranchId);
       const tip = onLine[0];
       const parent = tip?.parent_ids[0];
       return parent ?? "main";
     }
-    const mainLine = checkpoints.filter((c) => c.branch_id == null);
+    const mainLine = list.filter((c) => c.branch_id == null);
     if (mainLine.length >= 2) return mainLine[1].id;
     if (mainLine.length === 1) return mainLine[0].id;
     return "main";
@@ -125,7 +126,7 @@ export function ComparePanel({ projectId, selectedBranchId }: ComparePanelProps)
           <PanelLoading label="Loading tips" />
         ) : checkpointsQuery.isError ? (
           <PanelError label="Could not load checkpoints" />
-        ) : checkpoints.length === 0 ? (
+        ) : (checkpoints ?? []).length === 0 ? (
           <PanelEmpty>No checkpoints yet. A compare needs two tips on the ledger.</PanelEmpty>
         ) : (
           <form

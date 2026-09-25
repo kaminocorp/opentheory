@@ -80,5 +80,19 @@ special-case "instrument that never mints" that breaks the
 
 ## Verification
 
-Recorded in `docs/changelog.md` after the local lint / pytest /
-frontend run on this branch.
+- `ruff check .` clean.
+- Default pytest (no `TEST_DATABASE_URL`): **491 passed, 200 skipped**.
+- With `TEST_DATABASE_URL` at a local throwaway Postgres:
+  `tests/test_diff.py` + `tests/test_diff_schema.py` **20 passed**,
+  including empty same-tip and idle-pair deltas, claim signal
+  `none → validated`, grounding `ungrounded → D`, `calc.eval` on the
+  interval, unknown ref `404` with unchanged checkpoint count,
+  deterministic repeat, `main` / branch / tag resolution, and reverse
+  direction.
+- Frontend `typecheck` / `lint` / `build` clean.
+
+## Unverified
+
+- No pixel-level browser walk of the Compare bay (same owed eyeball
+  pass as `0.14.0`–`0.16.0`). The app was not signed in against a live
+  backend in this environment.

@@ -5,11 +5,16 @@ nothing, deterministic repeat, branch/tag resolution, reverse direction.
 Skip when no database is configured (see conftest.py).
 """
 
+from uuid import UUID
+
 from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from app.models.actor import Actor
 from app.models.checkpoint import Checkpoint
+from app.services.tool_runs import run_instrument
+from app.toolbench.instruments import CALC_EVAL
 
 MISSING_ID = "00000000-0000-0000-0000-000000000000"
 
@@ -285,17 +290,26 @@ async def test_resolves_main_branch_and_tag_names(client: AsyncClient) -> None:
     assert by_main_body["to_ref"]["checkpoint_id"] == head["id"]
 
 
-async def test_instrument_outcome_between_tips(client: AsyncClient) -> None:
+async def test_instrument_outcome_between_tips(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
     project_id, actor_id = await _project(client, slug="instrument-delta")
     thread_id = await _thread(client, project_id, actor_id)
-    before = await _checkpoint(client, project_id, actor_id, summary="before run", thread_id=thread_id)
-    run = await client.post(
-        f"/api/v1/projects/{project_id}/instruments/calc.eval/run",
-        json={"inputs": {"expression": "1 + 1"}, "thread_id": thread_id},
-        headers={"X-Dev-Actor-Id": actor_id},
+    before = await _checkpoint(
+        client, project_id, actor_id, summary="before run", thread_id=thread_id
     )
-    assert run.status_code == 201, run.text
-    after_id = run.json()["checkpoint"]["id"]
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        assert actor is not None
+        result = await run_instrument(
+            session,
+            UUID(project_id),
+            CALC_EVAL,
+            actor,
+            inputs={"expression": "1 + 1"},
+            thread_id=UUID(thread_id),
+        )
+    after_id = str(result.checkpoint.id)
     resp = await _diff(client, project_id, before["id"], after_id)
     assert resp.status_code == 200, resp.text
     body = resp.json()

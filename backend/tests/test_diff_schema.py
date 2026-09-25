@@ -4,7 +4,7 @@ OpenAPI surface, pure graph helpers, claim classification, instrument collection
 The HTTP round-trips that need a ledger live in ``test_diff.py``.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from app.main import create_app
@@ -66,7 +66,7 @@ def test_lowest_common_ancestor_on_a_diamond() -> None:
         right: [root],
         root: [],
     }
-    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    now = datetime(2026, 1, 1, tzinfo=UTC)
     created = {
         root: now,
         left: now.replace(day=2),
@@ -81,8 +81,8 @@ def test_lowest_common_ancestor_on_a_diamond() -> None:
 def test_sort_checkpoint_ids_is_stable() -> None:
     older, newer = uuid4(), uuid4()
     created = {
-        older: datetime(2026, 1, 1, tzinfo=timezone.utc),
-        newer: datetime(2026, 1, 2, tzinfo=timezone.utc),
+        older: datetime(2026, 1, 1, tzinfo=UTC),
+        newer: datetime(2026, 1, 2, tzinfo=UTC),
     }
     assert sort_checkpoint_ids({newer, older}, created) == [older, newer]
 
@@ -149,8 +149,8 @@ class _Ckpt:
 def test_collect_instrument_outcomes_skips_malformed_and_sorts() -> None:
     first = uuid4()
     second = uuid4()
-    t0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
-    t1 = datetime(2026, 1, 2, tzinfo=timezone.utc)
+    t0 = datetime(2026, 1, 1, tzinfo=UTC)
+    t1 = datetime(2026, 1, 2, tzinfo=UTC)
     claim = uuid4()
     checkpoints = {
         first: _Ckpt(
