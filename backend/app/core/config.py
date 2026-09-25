@@ -1,3 +1,4 @@
+from decimal import Decimal
 from functools import lru_cache
 from typing import Annotated
 
@@ -73,22 +74,26 @@ class Settings(BaseSettings):
     # branch, through the same chokepoint humans use.
     #
     # NOTE on caps: `agent_pass_max_runs` / `agent_pass_max_tokens` are SAFETY limits (they bound
-    # a single pass's blast radius), NOT budget. Real budget is a *project-level* concern wired in
-    # 0.12.5 (never per-thread) — still deferred; these caps remain the blast-radius bound.
-    # Prod enablement is an ops flip, not a code change: `OPENROUTER_API_KEY` is a Fly **secret**
-    # (`fly secrets set`), never `fly.toml [env]`; `AGENT_LOOP_ENABLED` is the dark-launch flag
-    # production sets when the key is in place (see docs/operations/deploy.md). Do not invent
-    # a second key or a second flag.
+    # a single pass's blast radius), NOT budget. Real budget is a *project-level* ceiling
+    # (0.19.0, historically `0.12.5`) — never per-thread. These caps remain the blast-radius
+    # bound on top of that ceiling. Prod enablement is an ops flip, not a code change:
+    # `OPENROUTER_API_KEY` is a Fly **secret** (`fly secrets set`), never `fly.toml [env]`;
+    # `AGENT_LOOP_ENABLED` is the dark-launch flag production sets when the key is in place
+    # (see docs/operations/deploy.md). Do not invent a second key or a second flag.
     openrouter_api_key: str | None = None
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     # Wall-clock cap for the single planning call (the one LLM round-trip per pass).
     agent_llm_timeout_s: float = 60.0
     # Max instrument runs a single pass may execute (safety, not budget).
     agent_pass_max_runs: int = 5
-    # Token ceiling for a pass's planning call — recorded today, NOT yet enforced (the single
-    # planning call is already bounded by agent_llm_timeout_s + the planner's own completion cap; a
-    # real comparison against recorded usage lands with the project budget in 0.12.5).
+    # Token ceiling for a pass's planning call — still a SAFETY cap (blast radius), recorded
+    # on the trace. The project ceiling that turns those tokens into spend is
+    # ``agent_token_rate_usd_per_1k`` × tokens, debited in 0.19.0.
     agent_pass_max_tokens: int = 200_000
+    # Default blended USD per 1 000 planning tokens. A catalog ``ModelOption.usd_per_1k``
+    # overrides this per model when set. Snapshot onto each ``ComputeDebit`` so a later
+    # rate change never rewrites history.
+    agent_token_rate_usd_per_1k: Decimal = Decimal("0.005")
     # Dark-launch flag: when False the agent-run routes 404 (indistinguishable from "not a route").
     agent_loop_enabled: bool = False
 

@@ -30,7 +30,7 @@ Nothing resets. Dead ends are recorded, not deleted.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-live-success)](https://opentheory.vercel.app)
-[![Version](https://img.shields.io/badge/version-0.18.0-crimson)](docs/changelog.md)
+[![Version](https://img.shields.io/badge/version-0.19.0-crimson)](docs/changelog.md)
 &nbsp;
 ![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
@@ -393,7 +393,7 @@ opentheory/
 ## Status
 
 **Live** (Vercel + Fly.io + Supabase), shipped in small, deployable phases tracked in
-[`docs/changelog.md`](docs/changelog.md). Currently `0.18.0`.
+[`docs/changelog.md`](docs/changelog.md). Currently `0.19.0`.
 
 **Shipped:**
 
@@ -410,6 +410,7 @@ opentheory/
 | `0.16.x` | Claim grounding — evidence grade ladder, planner yield measure, post-review hardening, thread/project rollup (`0.16.3`) |
 | `0.17.x` | Phase 1 agent autonomy — a completed pass stands; human accept/reject/fork is opt-in audit |
 | `0.18.x` | Tier-1 literature pins — `crossref.lookup`, `arxiv.lookup`, `openalex.lookup` |
+| `0.19.x` | Project-budget metering — agent passes debit `ComputeDebit`; funding spent/available are real |
 
 **Honest caveats:**
 
@@ -418,8 +419,9 @@ opentheory/
   (`fly secrets set`, never `fly.toml [env]`). Flag off ⇒ every agent route
   `404`s; flag on without a key ⇒ a commissioned pass fails cleanly. One
   without the other is not a launch.
-- **Token budgets bound nothing yet.** Per-pass safety caps limit blast radius;
-  project-budget metering (`0.12.5`) is deferred.
+- **Project budget is metered (`0.19.0`).** Agent passes debit recorded tokens
+  against funded `available`. Per-pass safety caps still limit blast radius on
+  top. An unfunded project (`available = 0`) will not start a pass.
 - **Funding is recorded, not settled.** `FundingAllocation` is a real append-only
   concern; payment rails are future work.
 - **Reputation/influence, merge/blame/tag ops, and object storage for large
@@ -427,7 +429,7 @@ opentheory/
 
 **Next up** (see [`docs/plans/roadmap-next-steps.md`](docs/plans/roadmap-next-steps.md)):
 the still-owed browser eyeball pass, then `0.14.1` CommandRail sync. Lean 4 + Mathlib
-comes after. Tier 1 literature pins shipped in `0.18.0`.
+comes after. Project-budget metering shipped in `0.19.0`.
 
 ---
 

@@ -1,13 +1,12 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-09-25 · **Current release line:** `0.18.x` (Tier-1 literature pins —
-> Crossref / arXiv / OpenAlex on the proven `source.pin` shape), sitting on shipped `0.17.0`
-> (Phase 1 agent autonomy — review is opt-in) and `0.16.3` (thread/project grounding rollup).
-> For the per-phase ledger see `docs/changelog.md`; for the lines just closed see
-> `docs/completions/literature-pin-instruments-0.18.0.md`,
-> `docs/completions/agent-autonomy-0.17.0.md`, and
-> `docs/completions/grounding-rollup-0.16.3.md`. The `0.14.x` plan (phases B–D still open)
-> now lives at `docs/archive/project-deepdive-tabs-0.14.md`.
+> **Last updated:** 2026-09-25 · **Current release line:** `0.19.x` (project-budget metering
+> for agent passes — historically sketched as deferred `0.12.5`), sitting on shipped
+> `0.18.0` (Tier-1 literature pins), `0.17.0` (Phase 1 agent autonomy — review is opt-in)
+> and `0.16.3` (thread/project grounding rollup). For the per-phase ledger see
+> `docs/changelog.md`; for the line just closed see
+> `docs/completions/project-budget-metering-0.19.0.md`. The `0.14.x` plan (phases B–D
+> still open) now lives at `docs/archive/project-deepdive-tabs-0.14.md`.
 >
 > **Next after this line:** the still-owed browser eyeball pass, then `0.14.1` CommandRail
 > sync. Unmerged work is not claimed as shipped.
@@ -66,10 +65,12 @@ on a durable agent branch through the **same** `run_instrument` chokepoint human
 `AgentRun` trace shows what it tried and what landed. **Human review is opt-in audit** (accept a
 claim, reject the line as a dead end, or fork further) — it is not required before the pass is
 done for the operator. Still bounded, not continuous: no scheduled loop, no multi-thread
-orchestrator, no project-budget metering yet (`0.12.5`, deferred — per-pass safety caps bound
-blast radius). Prod enablement is still the ops flip `AGENT_LOOP_ENABLED=true` + the
-`OPENROUTER_API_KEY` Fly secret. The guiding constraint held throughout: every capability was
-human-usable through the API *first*, so the agent simply uses what humans already could.
+orchestrator. **Project-budget metering shipped in `0.19.0`** (historical alias `0.12.5`):
+agent passes debit an append-only `ComputeDebit` ledger; `available` is a real ceiling;
+per-pass safety caps still bound blast radius on top. Prod enablement is still the ops
+flip `AGENT_LOOP_ENABLED=true` + the `OPENROUTER_API_KEY` Fly secret. The guiding
+constraint held throughout: every capability was human-usable through the API *first*, so
+the agent simply uses what humans already could.
 
 ## Guiding principle (unchanged)
 
@@ -79,16 +80,30 @@ bypassing the checkpoint chokepoint or conflating funder / contributor / validat
 
 ## Recommended next releases
 
+### `0.19.x` — Project-budget metering ✅ **shipped** (`0.19.0`)
+
+Delivered: agent passes debit an append-only `ComputeDebit` ledger from recorded
+planning tokens; `project_budget.spent` is the sum; `available` is a real ceiling.
+Refuse to start when exhausted; skip remaining instrument runs mid-pass with
+`budget_exhausted`. The agent never funds and never self-validates. Per-pass safety
+caps unchanged. Migration `0015_compute_debits` (additive). Historical alias
+`0.12.5`. See `docs/completions/project-budget-metering-0.19.0.md`.
+
+**Natural follow-ons:** an iterative plan→observe→replan within a pass; the
+orchestrator that allocates project budget across subagents; live OpenRouter prices
+instead of the blended `agent_token_rate_usd_per_1k` default.
+
 ### `0.17.x` — Phase 1 agent autonomy ✅ **shipped** (`0.17.0`)
 
 Delivered: a completed pass's attributed checkpoints stand without a mandatory human gate.
 `requires_review` is a computed `false` on the `AgentRun` read model; `AgentRunStatus` has no
 `awaiting_review`; the trace copy is driven by that field. Accept / reject / fork remain the
-shipped Validation and Branch write paths. **No schema, no migration.** Safety caps unchanged;
-`0.12.5` budget metering still deferred. See `docs/completions/agent-autonomy-0.17.0.md`.
+shipped Validation and Branch write paths. **No schema, no migration.** Safety caps unchanged.
+See `docs/completions/agent-autonomy-0.17.0.md`.
 
-**Natural follow-ons:** `0.12.5` project-budget metering; an iterative plan→observe→replan
-within a pass; eventually the orchestrator that allocates project budget across subagents.
+**Natural follow-ons:** ~~`0.12.5` / `0.19.0` project-budget metering~~ ✅ shipped; an
+iterative plan→observe→replan within a pass; eventually the orchestrator that allocates
+project budget across subagents.
 
 ### `0.16.x` — Claim grounding ✅ **shipped and hardened** (`0.16.0`–`0.16.3`)
 
@@ -102,8 +117,8 @@ migration, table, column, or endpoint; `compute_signal` untouched.
 - ~~**`0.16.1` — grounding into the planner + budget**~~ ✅ **shipped**. The planner now receives
   each open claim's rung plus a matrix-derived raise path (and a *settled* stop line), and every
   completed pass records what it moved (`AgentRun.grounding_yield`, migration `0014`). The loop is
-  judged on yield, not activity. **`BudgetPolicy` was deliberately left unchanged** — no implementer
-  until `0.12.5` — but the recorded measure is what metering will read.
+  judged on yield, not activity. **`BudgetPolicy` now has its implementer in `0.19.0`**
+  (historical `0.12.5`); the recorded yield is what metering reads beside the debit.
 - ~~**`0.16.2` — post-review hardening**~~ ✅ **shipped**. The review pass over `0.16.0`–`0.16.1`.
   No CRITICAL/HIGH; closes one MEDIUM (a `proven → refuted` transition — a proof overturned by an
   exact counterexample — scored `unchanged`, so the trace reported no movement on the most
@@ -162,16 +177,15 @@ polite-pool `mailto` was retired Feb 2026; a key is the real quota). See
 
 Delivered: a bounded pass (planner → capped instrument runs on a durable agent branch through the
 same chokepoint), a request-scoped `202` + background execution, the pollable `AgentRun` trace, and
-the workspace trigger/trace UI, and **`0.17.0` made review opt-in**. **`0.12.5` (project-budget
-metering) deferred** — the per-pass safety caps (`agent_pass_max_runs`, token cap) bound blast
-radius, so the line demos without it. The prod light-up step is **both**
-`AGENT_LOOP_ENABLED=true` **and** the `OPENROUTER_API_KEY` Fly secret
-(`fly secrets set`, never `fly.toml [env]`) — one without the other is not a launch.
-Flag off ⇒ every agent route `404`s.
+the workspace trigger/trace UI, and **`0.17.0` made review opt-in**. **`0.19.0` (historical
+`0.12.5`) shipped project-budget metering** — agent passes debit `ComputeDebit`; the
+per-pass safety caps (`agent_pass_max_runs`, token cap) still bound blast radius on top.
+The prod light-up step is **both** `AGENT_LOOP_ENABLED=true` **and** the
+`OPENROUTER_API_KEY` Fly secret (`fly secrets set`, never `fly.toml [env]`) — one without
+the other is not a launch. Flag off ⇒ every agent route `404`s.
 
-**Natural follow-ons (pick per demand):** `0.12.5` project-budget metering (debit the project's
-compute budget per pass, honoring funder/contributor separation); an iterative plan→observe→replan
-within a pass; and eventually the orchestrator agent that allocates project budget across subagents.
+**Natural follow-ons (pick per demand):** an iterative plan→observe→replan within a pass;
+and eventually the orchestrator agent that allocates project budget across subagents.
 
 ### `0.13.x` — Z3 (`z3.prove`) ✅ **shipped and hardened** (`0.13.0`–`0.13.5`)
 
@@ -237,9 +251,9 @@ demo requirement.
     shipped in `0.18.0` on the proven `source.pin` shape. OpenAlex degrades without a key.
 11. **`0.14.1` Phase B** — CommandRail sync; retires the last two fakes (`#funding`, inert Agents
     zone). Small, self-contained, and removes visible dead affordances.
-12. **`0.12.5` project-budget metering** — debit the project's compute budget per pass (stretch; the
-    per-pass safety caps already bound a single pass). The yield measure (`0.16.1`) is what
-    metering will read.
+12. ~~**`0.12.5` / `0.19.0` project-budget metering**~~ ✅ shipped — debit the project's
+    compute budget per pass. Per-pass safety caps still bound a single pass. See
+    `docs/completions/project-budget-metering-0.19.0.md`.
 13. **`0.14.2` Phase C** — tab badges, contested click-through, context-readout polish.
 14. **Bench 6 surfaces** — tables and Vega-Lite plots when a thread needs them.
 15. **Lean + full substrate** — Claim 5; only after the above.
@@ -262,15 +276,12 @@ demo requirement.
 | `0.16.x` | Claim grounding — the evidence grade ladder, derived beside the validation signal, consumed by the planner as a yield measure, post-review hardened, and rolled up at thread/project scale (`0.16.3`) |
 | `0.17.x` | Phase 1 agent autonomy — a completed pass stands; human accept/reject/fork is opt-in audit |
 | `0.18.x` | Tier-1 literature pins — `crossref.lookup`, `arxiv.lookup`, `openalex.lookup` on `source.pin` |
+| `0.19.x` | Project-budget metering — `ComputeDebit` from agent-pass tokens; funding `spent`/`available` are real (historical `0.12.5`) |
 
 ## Success criteria for the next milestone
 
-**`0.17.0` (review → opt-in)** and **`0.16.3` (thread-level rollup)** are shipped. **Tier 1
-retrieval (`0.18.0`) is shipped:** an agent pass (or a human) can pin a literature source
-(Crossref / arXiv / OpenAlex) as content-addressed Evidence via the same `source.pin` shape
-`oeis.search` proved — landing an attributed checkpoint through the chokepoint, with a
-reproducible citation (`url` + `source_url` + `retrieved_at` + `raw_response_hash`), off-ladder
-as `cited`. OpenAlex degrades without `OPENALEX_API_KEY` (demo pool; mint-nothing on auth
-failure).
+**`0.19.0` (project-budget metering)** is shipped: agent passes debit an append-only
+`ComputeDebit` ledger; `project_budget.spent` / `available` are real; an exhausted
+project refuses to start. Historical alias `0.12.5`. Per-pass safety caps unchanged.
 
 **Next product step:** the still-owed browser eyeball pass, then `0.14.1` CommandRail sync.

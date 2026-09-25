@@ -92,8 +92,8 @@ Two sub-rules that are easy to miss:
 ### 2. Append-only is enforced, not requested
 
 `models/append_only.py` registers `before_update` / `before_delete` mapper guards on
-`Checkpoint`, `CheckpointRef`, `FundingAllocation`, and `Validation`, raising
-`AppendOnlyError` — so the invariant holds even if the route layer is bypassed.
+`Checkpoint`, `CheckpointRef`, `FundingAllocation`, `Validation`, and `ComputeDebit`,
+raising `AppendOnlyError` — so the invariant holds even if the route layer is bypassed.
 
 **Corrections, reversals, and retractions are *new* records.** A re-assessment is a new
 `Validation` row, never an edit to the old one. A dead end is a *closed branch*, not a
@@ -149,7 +149,7 @@ change.
 | ✅ **Do** | Compose new write flows through `create_checkpoint` with `extra_refs` + `contribution_action`. |
 | ❌ **Don't** | Instantiate `Checkpoint(...)` anywhere but `services/checkpoints.py`. |
 | ✅ **Do** | Record a correction as a new row. |
-| ❌ **Don't** | Update or delete a `Checkpoint`, `CheckpointRef`, `FundingAllocation`, or `Validation` — the ORM will raise `AppendOnlyError`, and if it doesn't, you've found a bug worth reporting. |
+| ❌ **Don't** | Update or delete a `Checkpoint`, `CheckpointRef`, `FundingAllocation`, `Validation`, or `ComputeDebit` — the ORM will raise `AppendOnlyError`, and if it doesn't, you've found a bug worth reporting. |
 | ✅ **Do** | `db.add(...)` in helper writers and let the chokepoint commit. |
 | ❌ **Don't** | `await db.commit()` inside a helper or composing service — it breaks transaction atomicity. |
 | ✅ **Do** | Validate client-supplied refs. |

@@ -37,8 +37,8 @@ from app.toolbench.registry import InstrumentRegistry
 from app.toolbench.registry import registry as _production_registry
 
 # A sane completion budget for the planning call — a plan of a few runs is a few KB. This is the
-# request's max OUTPUT tokens; the pass-level token ceiling (agent_pass_max_tokens) is only recorded
-# today, not enforced — real budget enforcement lands in 0.12.5 (see agent/llm.py).
+# request's max OUTPUT tokens. The pass-level token ceiling (agent_pass_max_tokens) is a
+# safety cap; project-budget enforcement is 0.19.0 metering (see services/compute.py).
 PLAN_COMPLETION_MAX_TOKENS = 4096
 
 # The JSON response format hint for providers that honour it (OpenRouter passes it through).

@@ -119,9 +119,10 @@ the frontend or route layer is bypassed:
 
 - **Append-only** (`models/append_only.py`): ORM `before_update` / `before_delete`
   guards raise `AppendOnlyError` on `Checkpoint`, `CheckpointRef`,
-  `FundingAllocation`, and `Validation`. Corrections, reversals, and retractions
-  are **new records**, never edits. (Caveat: the guards fire on the ORM
-  unit-of-work only; bulk Core `UPDATE`/`DELETE` and DDL bypass them by design.)
+  `FundingAllocation`, `Validation`, and `ComputeDebit`. Corrections, reversals,
+  and retractions are **new records**, never edits. (Caveat: the guards fire on
+  the ORM unit-of-work only; bulk Core `UPDATE`/`DELETE` and DDL bypass them by
+  design.)
 
 - **The checkpoint chokepoint** (`services/checkpoints.py`): `create_checkpoint`
   is the **only** code path that writes a `Checkpoint`. Composing flows

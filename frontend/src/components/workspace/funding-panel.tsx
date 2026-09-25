@@ -118,16 +118,15 @@ export function FundingPanel({ projectId }: { projectId: string }) {
         />
         <MetricReadout
           label="Spent"
-          title="Compute spend begins when agents execute (0.7.0)"
-          valueClassName="text-text-mute"
+          title="Σ agent-pass compute debits (tokens × per-1k rate). Funding itself is not spend."
           value={budget ? formatMoney(budget.spent, budget.currency) : "—"}
         />
       </dl>
 
       {/* Role separation: funding is a budget action, distinct from contributing or validating. */}
       <p className="text-[11px] leading-5 text-text-mute">
-        Funding grants budget only — it confers no authorship or validation. Compute spend begins when
-        agents execute.
+        Funding grants budget only — it confers no authorship or validation. Agent passes debit
+        spent from recorded tokens; an exhausted project will not start another pass.
       </p>
 
       {funding && isInternal ? (

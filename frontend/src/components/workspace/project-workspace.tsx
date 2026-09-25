@@ -15,7 +15,7 @@ import { cn } from "@/lib/cn";
 import { queryKeys } from "@/lib/query-keys";
 import { useActingIdentity } from "@/lib/use-identity";
 import { useProjectTab, type ProjectTabId } from "@/lib/use-project-tab";
-import type { GroundingRollup, ProjectCounts } from "@/types/research";
+import type { GroundingRollup, ProjectBudget, ProjectCounts } from "@/types/research";
 
 import { AgentPassPanel } from "./agent-pass/agent-pass-panel";
 import { BranchBar } from "./branch-bar";
@@ -131,6 +131,7 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
   const contradictions = overviewQuery.data?.contradictions ?? [];
   const counts = overviewQuery.data?.counts ?? null;
   const groundingRollup = overviewQuery.data?.grounding_rollup ?? null;
+  const budget = overviewQuery.data?.budget ?? null;
 
   // The toggle lives in the header (visible on every tab) but the form renders on
   // Overview — so opening it has to bring Overview with it.
@@ -283,6 +284,12 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
           loading={!groundingRollup && !overviewQuery.isError}
           error={overviewQuery.isError}
         />
+
+        <BudgetOverviewBay
+          budget={budget}
+          loading={!budget && !overviewQuery.isError}
+          error={overviewQuery.isError}
+        />
       </TabPanel>
     </div>
   );
@@ -357,6 +364,58 @@ function GroundingRollupBay({
         <p className="text-[13px] leading-[1.5] text-text-soft">{line}</p>
       ) : (
         <p className="text-[13px] text-text-faint">No claims yet.</p>
+      )}
+    </Bay>
+  );
+}
+
+function formatBudgetMoney(amount: string, currency: string): string {
+  const value = Number(amount);
+  if (Number.isNaN(value)) return `${amount} ${currency}`;
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(value);
+  } catch {
+    return `${value.toFixed(2)} ${currency}`;
+  }
+}
+
+function BudgetOverviewBay({
+  budget,
+  loading,
+  error,
+}: {
+  budget: ProjectBudget | null;
+  loading: boolean;
+  error: boolean;
+}) {
+  return (
+    <Bay density="narrative" className="grid gap-3">
+      <ReadoutLabel as="h2">Budget</ReadoutLabel>
+      {error ? (
+        <p className="text-[13px] text-text-mute">Could not load budget.</p>
+      ) : loading ? (
+        <span
+          aria-hidden
+          className="inline-block h-5 w-48 animate-pulse rounded-inset bg-text-faint/25"
+        />
+      ) : budget ? (
+        <dl className="grid grid-cols-3 gap-3">
+          <MetricReadout
+            label="Funded"
+            value={formatBudgetMoney(budget.funded, budget.currency)}
+          />
+          <MetricReadout
+            label="Spent"
+            title="Σ agent-pass compute debits"
+            value={formatBudgetMoney(budget.spent, budget.currency)}
+          />
+          <MetricReadout
+            label="Available"
+            value={formatBudgetMoney(budget.available, budget.currency)}
+          />
+        </dl>
+      ) : (
+        <p className="text-[13px] text-text-faint">No budget yet.</p>
       )}
     </Bay>
   );

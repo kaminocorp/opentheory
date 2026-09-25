@@ -71,6 +71,28 @@ Possible `status` values:
 - `failed`
 - `refunded`
 
+## ComputeDebit
+
+An append-only compute-spend row against a project's funded budget (`0.19.0`).
+
+Agent passes convert recorded `AgentRun.tokens_used` into a debit at a per-1k-token
+rate. This is **not** a `FundingAllocation`: the agent is a contributor and never
+funds. `project_budget.spent` is the sum of these rows; `available = funded − spent`.
+A pass on an exhausted project (`available <= 0`) refuses to start. A pass that
+exhausts the remainder after planning stops the instrument loop; the trace records
+`budget_exhausted`.
+
+Typical fields:
+
+- `id`
+- `project_id`
+- `agent_run_id` — the pass that incurred the spend (one debit per pass)
+- `tokens_used`
+- `amount` / `currency` — snapshot of the billed cost (USD)
+- `model` / `rate_per_1k` — the rate used, so a later change never rewrites history
+- `kind` — `planning` (v1) or `execution` (reserved)
+- `created_at`
+
 ## Thread
 
 A focused line of inquiry inside a project.
