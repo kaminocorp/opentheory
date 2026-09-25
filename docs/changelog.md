@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.26.0` — **Mathlib / lake Grade-A path.** `lean.prove` grows an explicit `mathlib` opt-in: a closed Mathlib import set typechecks through a bounded offline `lake` project. Grade A only on a real kernel success. Missing Mathlib/`lake`, timeout, `sorry`/axiom/IO, and disallowed imports are honest `undecided` — never a fake proof. Optional image path (`INSTALL_MATHLIB=1`); CI stays green without it. Quiet frontend checkbox. No schema, no migration. Does not rewrite the orchestrator or campaigns.
 - `0.25.0` — **Continuous research under budget.** A `ResearchCampaign` repeatedly commissions the shipped `0.22.0` orchestrator until the project `ComputeDebit` pot is empty, no raisable work remains, the cycle cap is hit, a member cancels, or consecutive cycle failures exhaust the error budget. Same `AGENT_LOOP_ENABLED` dark-launch flag — no second switch. Persistence is a mutable campaign row (cycles, stop reason, budget remainder) so a lost worker is swept honestly rather than looking still-live. Orchestrator stays contributor infrastructure: never funds, never self-validates, never auto-merges. Frontend: quiet Start / Stop on Overview. Migration `0018_research_campaigns` (additive). Sits on shipped `0.24.0` CommandRail.
 - `0.24.0` — **CommandRail sync.** The left rail's project zones are live `?tab=` links (research · instruments · crew · funding · overview); active state comes from the URL, same source as the in-page strip. Retires the `#funding` hash target and the inert Agents hatch — the agent surface is Instruments. Historically the deferred deepdive Phase B (`0.14.1`). Frontend-only — no backend, schema, or migration.
 - `0.23.0` — **Lean 4 Grade-A path (`lean.prove`).** A bounded Lean 4 snippet can raise a claim to Grade A / `proven` when the optional `lean` binary typechecks it with no `sorry`/`axiom`/import/IO. Missing toolchain, soft timeout, and a failed check are honest `undecided` (failed ≠ refuted). Crash / sandbox kill mints nothing. Lands only through `run_instrument`. No Mathlib / `lake` project in v1. No schema, no migration.
@@ -93,6 +94,52 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.26.0
+
+**Mathlib / lake Grade-A path.** Prelude-only `lean.prove` (`0.23.0`) is too thin
+for real research. This release lets a claim reach Grade A using **Mathlib**
+through a bounded offline `lake` project — still honest, still optional, still
+only through `run_instrument` → the checkpoint chokepoint. **No schema, no
+migration.** Does not rewrite the orchestrator or campaigns. Rebased onto
+shipped `0.25.0` continuous research.
+
+- **Same instrument, explicit opt-in.** `lean.prove` gains `mathlib: bool`
+  (default `false`). Off: prelude / `Init` only, `import` still rejected. On:
+  `import Mathlib` / `Mathlib.*` / `Init` / `Init.*` are allowed; every other
+  import is rejected. `sorry`, `admit`, `axiom`, `opaque`, `unsafe`, `#eval`,
+  `IO.`, `initialize`, and network-shaped constructs still cannot earn a proof.
+- **Bounded `lake` path.** Mathlib mode runs `lake --offline env lean` on an
+  overlay of a pre-built project (lakefile + `.lake` cache). `lake` is never
+  allowed to fetch at check time. Soft timeout
+  `toolbench_lean_mathlib_timeout_ms` (default 20000) stays under the sandbox
+  wall. Crash / sandbox kill still mints nothing.
+- **Honesty contract held.** Kernel success + allow-list → `result` +
+  `artifact_kind="proof"` + certificate `lean-kernel+mathlib`. Failed typecheck,
+  banned constructs, missing Mathlib/`lake`, and timeout → `undecided` (failed ≠
+  refuted). Missing toolchain never becomes Grade A.
+- **Optional image.** CI does **not** install Mathlib. Production enablement is
+  `INSTALL_LEAN=1` + `INSTALL_MATHLIB=1` (see `docs/operations/deploy.md`). The
+  default Fly/CI image stays slim; the catalog still lists `lean.prove`.
+- **Frontend.** Quiet "Allow Mathlib imports" checkbox; proof / failed /
+  undecided cards mention Mathlib when it was requested. Assumptions still gated
+  off.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 473 passed, 187 skipped (no TEST_DATABASE_URL)
+# tests/toolbench/test_lean_prove.py: 40 passed, 4 skipped
+#   (2 real `lean`, 2 real Mathlib/lake — neither installed here or in CI)
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
+```
+
+See `docs/completions/lean-mathlib-0.26.0.md`.
+
+**Not in this release:** Lean REPL / LeanDojo tactics, a default-on Mathlib
+image, rewriting the orchestrator or campaigns, `z3.satisfy`. A missing
+Mathlib cache is not a fake proof.
 
 ---
 

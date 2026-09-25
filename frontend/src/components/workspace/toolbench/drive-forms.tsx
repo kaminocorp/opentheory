@@ -764,18 +764,23 @@ const LEAN_DEMO = "example : 1 + 1 = 2 := rfl";
 
 function LeanProveForm({ onInputs, disabled }: FormProps) {
   const [source, setSource] = useState(LEAN_DEMO);
+  const [mathlib, setMathlib] = useState(false);
   const emit = useEmit(onInputs);
 
   useEffect(() => {
     const text = source.trim();
-    emit.current(text ? { source: text } : null);
-  }, [source, emit]);
+    emit.current(text ? { source: text, mathlib } : null);
+  }, [source, mathlib, emit]);
 
   return (
     <div className="grid gap-3">
       <Field
         label="Lean snippet"
-        hint="Prelude / Init only. No imports, no Mathlib, no sorry or axiom. A supporting result is Grade A only when lean typechecks this file."
+        hint={
+          mathlib
+            ? "Mathlib imports from the closed allow-list (Mathlib / Mathlib.* / Init). Still no sorry, axiom, or IO. Missing lake/Mathlib is undecided, never Grade A."
+            : "Prelude / Init only. No imports unless Mathlib is enabled. No sorry or axiom. A supporting result is Grade A only when lean typechecks this file."
+        }
       >
         <Textarea
           mono
@@ -786,6 +791,16 @@ function LeanProveForm({ onInputs, disabled }: FormProps) {
           disabled={disabled}
         />
       </Field>
+      <label className="flex items-center gap-2 text-[12px] text-text-soft">
+        <input
+          type="checkbox"
+          checked={mathlib}
+          onChange={(event) => setMathlib(event.target.checked)}
+          className="accent-[rgb(var(--signal))]"
+          disabled={disabled}
+        />
+        Allow Mathlib imports
+      </label>
     </div>
   );
 }

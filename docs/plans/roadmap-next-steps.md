@@ -1,20 +1,20 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-09-25 · **Current release line:** `0.25.0` (continuous
-> research under budget), sitting on shipped `0.24.0` (CommandRail sync —
-> historically the deferred deepdive Phase B / `0.14.1`), `0.23.0` (Lean 4
-> Grade-A path — `lean.prove`), `0.22.0` (thin multi-thread orchestrator),
-> `0.21.0` (research-git merge + tag), `0.20.0` (plan → observe → replan),
-> `0.19.0` (project-budget metering), `0.18.0` (Tier-1 literature pins),
-> `0.17.0` (review is opt-in) and `0.16.3` (thread/project grounding rollup).
-> For the per-phase ledger see `docs/changelog.md`; for the line just closed
-> see `docs/completions/continuous-research-0.25.0.md`. The remaining
-> `0.14.x` phases (C–D) still live at
-> `docs/archive/project-deepdive-tabs-0.14.md`.
+> **Last updated:** 2026-09-25 · **Current release line:** `0.26.0` (Mathlib /
+> lake Grade-A path on `lean.prove`), sitting on shipped `0.25.0` (continuous
+> research under budget), `0.24.0` (CommandRail sync — historically the
+> deferred deepdive Phase B / `0.14.1`), `0.23.0` (Lean 4 Grade-A path —
+> prelude `lean.prove`), `0.22.0` (thin multi-thread orchestrator), `0.21.0`
+> (research-git merge + tag), `0.20.0` (plan → observe → replan), `0.19.0`
+> (project-budget metering), `0.18.0` (Tier-1 literature pins), `0.17.0`
+> (review is opt-in) and `0.16.3` (thread/project grounding rollup). For the
+> per-phase ledger see `docs/changelog.md`; for the line just closed see
+> `docs/completions/lean-mathlib-0.26.0.md`. The remaining `0.14.x` phases
+> (C–D) still live at `docs/archive/project-deepdive-tabs-0.14.md`.
 >
 > **Next after this line:** the still-owed browser eyeball pass; then `0.14.2`
-> Phase C polish. Unmerged work is not claimed as shipped. Mathlib / `lake`
-> remain out of scope until a later verifier-wave slice.
+> Phase C polish. Unmerged work is not claimed as shipped. Lean REPL /
+> LeanDojo remain later.
 
 ## Where we are
 
@@ -61,8 +61,9 @@ A signed-in member can today:
    (`"3 claims at B, 1 ungrounded"`).
 
 The flagship *measuring across a corner* thread (claims 1–4) is walkthrough-ready with
-shipped instruments. Claim 5 has a **thin Grade-A path** (`lean.prove`, `0.23.0`) for
-prelude / `Init` snippets when `lean` is installed; Mathlib / `lake` are not shipped.
+shipped instruments. Claim 5 has a **Grade-A path** (`lean.prove`, `0.23.0` prelude / `0.26.0`
+Mathlib opt-in) when the optional toolchain is installed; missing Lean or
+Mathlib is honest `undecided`.
 
 **Agents are now bounded operators, and a successful pass stands.** A member commissions a
 **Run agent pass** on a thread (`0.12.x` + `0.17.0` + `0.19.0` + `0.20.0`): the assigned
@@ -95,6 +96,17 @@ bypassing the checkpoint chokepoint or conflating funder / contributor / validat
 
 ## Recommended next releases
 
+### `0.26.x` — Mathlib / lake Grade-A path ✅ **shipped** (`0.26.0`)
+
+Delivered: `lean.prove` `mathlib=true` — a closed Mathlib import set typechecked
+through a bounded offline `lake` project on the existing sandbox. Grade A /
+`proven` only on kernel success. Missing Mathlib/`lake`, timeout, and banned
+constructs are honest `undecided`. Optional image (`INSTALL_MATHLIB=1`); CI
+does not install Mathlib. **No schema, no migration.** See
+`docs/completions/lean-mathlib-0.26.0.md`.
+
+**Not in this release:** Lean REPL / LeanDojo; a default-on Mathlib image.
+
 ### `0.25.x` — Continuous research under budget ✅ **shipped** (`0.25.0`)
 
 Delivered: a `ResearchCampaign` repeatedly commissions the 0.22.0 orchestrator
@@ -104,8 +116,8 @@ records each cycle and why the campaign stopped. Never self-validates or
 auto-merges. Quiet Start / Stop on Overview. Migration
 `0018_research_campaigns`. See `docs/completions/continuous-research-0.25.0.md`.
 
-**Not in this release:** a durable job queue; concurrent cycles; auto-merge;
-Mathlib / `lake`. CommandRail shipped separately as `0.24.0`.
+**Not in this release:** a durable job queue; concurrent cycles; auto-merge.
+Mathlib / `lake` shipped separately as `0.26.0`. CommandRail shipped as `0.24.0`.
 
 ### `0.24.x` — CommandRail sync ✅ **shipped** (`0.24.0`)
 
@@ -291,9 +303,9 @@ no false-proof path exists.
 - `z3.satisfy` — model-finding as the primary output.
 - Boolean connectives / `bool` sort (needs a parser beyond `split_relation`).
 - Quantifiers; full replayable proof terms (out of scope for v1).
-- **Lean + Mathlib** (Tier 2 remainder) — `lean.prove` shipped in `0.23.0` for
-  prelude / `Init` only. Mathlib import graph, `lake` project, and REPL / LeanDojo
-  are still later.
+- **Lean + Mathlib** (Tier 2 remainder) — `lean.prove` shipped in `0.23.0`
+  (prelude / `Init`) and `0.26.0` (optional Mathlib / offline `lake`). REPL /
+  LeanDojo are still later.
 
 ### `0.10.6+` (optional stretch) — `interval.eval`
 
@@ -352,7 +364,8 @@ demo requirement.
 13. **`0.14.2` Phase C** — tab badges, contested click-through, context-readout polish.
 14. **Bench 6 surfaces** — tables and Vega-Lite plots when a thread needs them.
 15. ~~**Lean Grade-A path**~~ ✅ shipped as `0.23.0` (`lean.prove`, optional
-    toolchain, prelude/Init only). **Mathlib / `lake` / REPL** remain later.
+    toolchain, prelude/Init) and `0.26.0` (Mathlib / offline `lake` opt-in).
+    **REPL / LeanDojo** remain later.
 
 ## Shipped milestones (reference)
 
@@ -376,9 +389,10 @@ demo requirement.
 | `0.20.x` | Bounded plan → observe → replan inside one agent pass |
 | `0.21.x` | Research-git merge + tag — multi-parent synthesis and named immutable pointers |
 | `0.22.x` | Thin multi-thread orchestrator — allocate project budget across sequential sub-passes |
-| `0.23.x` | `lean.prove` — optional Lean 4 kernel check; Grade A only on a real proof (no Mathlib) |
+| `0.23.x` | `lean.prove` — optional Lean 4 kernel check; Grade A only on a real proof (prelude / Init) |
 | `0.24.x` | CommandRail sync — rail zones are live `?tab=` links; `#funding` + inert Agents retired (historical `0.14.1`) |
 | `0.25.x` | Continuous research campaign — re-commission the 0.22.0 orchestrator under the project pot |
+| `0.26.x` | `lean.prove` Mathlib opt-in — bounded offline `lake`; Grade A only on a real kernel + allow-list success |
 
 ## Success criteria for the next milestone
 
@@ -410,5 +424,9 @@ re-commissions the 0.22.0 orchestrator until the project pot is empty, no
 raisable work remains, the cycle cap is hit, or a member cancels. Same
 `AGENT_LOOP_ENABLED` flag. Merge / tag stay human.
 
+**`0.26.0` (Mathlib / lake Grade-A path)** is shipped: `lean.prove` can raise
+a claim to Grade A with Mathlib when the optional `lake` cache is present.
+Missing Mathlib is honest `undecided`. REPL / LeanDojo are not in this release.
+
 **Next product step:** the still-owed browser eyeball pass; then `0.14.2`
-Phase C polish. Mathlib / `lake` only when a thread actually needs them.
+Phase C polish.

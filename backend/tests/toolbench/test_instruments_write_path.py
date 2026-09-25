@@ -630,7 +630,7 @@ async def test_lean_prove_proof_lands_through_chokepoint_when_sandbox_in_thread(
     monkeypatch.setattr(settings, "toolbench_subprocess_sandbox_enabled", False)
     monkeypatch.setattr(
         "app.toolbench.instruments.lean_prove.check_source",
-        lambda source, timeout_s, lean_bin=None: LeanCheck(
+        lambda source, timeout_s, **_kwargs: LeanCheck(
             kind="proved",
             lean_version="4.14.0",
         ),
@@ -668,3 +668,92 @@ async def test_lean_prove_proof_lands_through_chokepoint_when_sandbox_in_thread(
     assert entry["output"]["proven"] is True
     assert entry["output"]["outcome"] == "proved"
     assert entry["output"]["certificate"] == "lean-kernel"
+
+
+async def test_lean_prove_mathlib_import_without_opt_in_lands_undecided(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """Mathlib import without the opt-in is a recorded failed check — never Grade A."""
+    actor_id = await _actor(client)
+    project_id = await _project(client, "instr-lean-mathlib-import")
+    pid = UUID(project_id)
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        run = await run_instrument(
+            session,
+            pid,
+            LEAN_PROVE,
+            actor,
+            inputs={
+                "source": "import Mathlib\nexample : True := trivial",
+                "mathlib": False,
+            },
+        )
+
+    assert run.status is ResultStatus.UNDECIDED
+    async with session_factory() as session:
+        artifact = await session.get(Artifact, run.artifact_id)
+        assert artifact.kind == "derivation"
+    entry = run.checkpoint.tool_invocations[0]
+    assert entry["output"]["proven"] is False
+    assert entry["output"]["outcome"] == "failed"
+    assert entry["output"]["status_reason"] == "rejected_constructs"
+
+
+async def test_lean_prove_mathlib_proof_lands_through_chokepoint_when_sandbox_in_thread(
+    client: AsyncClient,
+    session_factory: async_sessionmaker,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A Mathlib kernel proof composes through ``run_instrument`` — Grade A only on this status."""
+    monkeypatch.setattr(settings, "toolbench_subprocess_sandbox_enabled", False)
+    monkeypatch.setattr(
+        "app.toolbench.instruments.lean_prove.check_source",
+        lambda source, timeout_s, **_kwargs: LeanCheck(
+            kind="proved",
+            lean_version="4.14.0",
+            mathlib=True,
+            lake_used=True,
+            mathlib_rev="v4.14.0",
+        ),
+    )
+    actor_id = await _actor(client)
+    project_id = await _project(client, "instr-lean-mathlib-proof")
+    thread_id = await _thread(client, project_id, actor_id)
+    claim_id = await _claim(client, thread_id, actor_id, "(2 : ℝ) + 2 = 4")
+    pid = UUID(project_id)
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        run = await run_instrument(
+            session,
+            pid,
+            LEAN_PROVE,
+            actor,
+            inputs={
+                "source": (
+                    "import Mathlib.Data.Real.Basic\n"
+                    "import Mathlib.Tactic.NormNum\n"
+                    "example : (2 : ℝ) + 2 = 4 := by norm_num"
+                ),
+                "mathlib": True,
+            },
+            claim_id=UUID(claim_id),
+        )
+
+    assert run.status is ResultStatus.RESULT
+    async with session_factory() as session:
+        artifact = await session.get(Artifact, run.artifact_id)
+        assert artifact.kind == "proof"
+        link = (
+            await session.execute(
+                select(ClaimEvidenceLink).where(ClaimEvidenceLink.evidence_id == run.evidence_id)
+            )
+        ).scalar_one()
+        assert link.relation_kind == "support"
+    entry = run.checkpoint.tool_invocations[0]
+    assert entry["instrument"] == "lean.prove"
+    assert entry["output"]["proven"] is True
+    assert entry["output"]["certificate"] == "lean-kernel+mathlib"
+    assert entry["output"]["mathlib"] is True

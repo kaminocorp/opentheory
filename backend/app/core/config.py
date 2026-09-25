@@ -64,6 +64,14 @@ class Settings(BaseSettings):
     # than a sandbox kill that mints nothing. Lean is optional: a missing binary
     # is undecided/unavailable, not a boot failure.
     toolbench_lean_timeout_ms: int = 8_000
+    # Soft timeout for ``lean.prove`` with mathlib=true (ms). Mathlib oleans load
+    # is slower than prelude; still clamped under the wall. Missing lake/Mathlib
+    # is undecided/mathlib_unavailable, not a boot failure.
+    toolbench_lean_mathlib_timeout_ms: int = 20_000
+    # Optional path to a pre-built Mathlib lake project (lakefile + .lake cache).
+    # Empty → conventional /opt/opentheory/lean-mathlib or OPENTHEORY_MATHLIB_LAKE.
+    # Do not point this at a skeleton without oleans — that cannot earn Grade A.
+    toolbench_mathlib_lake: str | None = None
     # Contact address embedded in the outbound User-Agent for Crossref's polite pool (and
     # as courtesy on arXiv / OpenAlex). Not a secret. Empty → UA without mailto.
     toolbench_retrieval_mailto: str | None = None

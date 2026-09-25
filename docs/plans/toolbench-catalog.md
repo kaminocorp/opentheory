@@ -10,12 +10,13 @@
 > **Shipped:** Tier 0 SymPy instruments (`calc.eval`, `expr.compare`,
 > `geometry.coordinate_measure`, `counterexample.search`) + Tier 0 **`z3.prove`** (`0.13.x`)
 > + Tier 1 `oeis.search` + Tier 1 literature pins (`crossref.lookup`, `arxiv.lookup`,
-> `openalex.lookup`, `0.18.0`) + Tier 2-lite **`lean.prove`** (`0.23.0`, optional `lean`,
-> prelude/Init only); adapter registry, write path, provenance spine, workspace UI,
-> KaTeX render, execution sandbox. See `docs/plans/maths-toolbox.md` §Shipped in production.
+> `openalex.lookup`, `0.18.0`) + Tier 2 **`lean.prove`** (`0.23.0` prelude/Init;
+> `0.26.0` optional Mathlib / offline `lake`); adapter registry, write path,
+> provenance spine, workspace UI, KaTeX render, execution sandbox. See
+> `docs/plans/maths-toolbox.md` §Shipped in production.
 >
-> **Not shipped:** Arb/`interval.eval`, Mathlib / `lake`, visualization instruments
-> (Vega-Lite tables/plots), `z3.satisfy` / boolean connectives.
+> **Not shipped:** Arb/`interval.eval`, Lean REPL / LeanDojo, visualization
+> instruments (Vega-Lite tables/plots), `z3.satisfy` / boolean connectives.
 
 ## The organizing principle
 
@@ -155,7 +156,8 @@ The original starter kit argued for SymPy + Z3 + OEIS. **As of `0.23.0` we shipp
 (four instruments) + OEIS + `z3.prove` + literature pins + a thin `lean.prove`.**
 That covers the flagship demo (`agent-research-tools.md` §5) **claims 1–4** with readable
 KaTeX *and* two machine-checked proof paths *and* a citable literature retrieve path.
-Claim 5 has a prelude/Init Grade-A path; Mathlib is still later.
+Claim 5 has a prelude/Init Grade-A path (`0.23.0`) and an optional Mathlib
+path (`0.26.0`) when the image is rebuilt with `INSTALL_MATHLIB=1`.
 
 ```text
 Shipped (0.9.x–0.23.0):
@@ -163,16 +165,17 @@ Shipped (0.9.x–0.23.0):
   OEIS      — oeis.search (Tier 1, pinned retrieval)
   Z3        — z3.prove (validity: proof / counter-model / undecided)
   Literature — crossref.lookup, arxiv.lookup, openalex.lookup (0.18.0)
-  Lean      — lean.prove (0.23.0; optional lean; prelude/Init; no Mathlib)
+  Lean      — lean.prove (0.23.0 prelude/Init; 0.26.0 optional Mathlib / lake)
 
 Next adds:
   Arb     — interval.eval (optional 0.10.6+ stretch)
   z3.satisfy / bool connectives / quantifiers — verifier-wave follow-ons
-  Mathlib / lake / REPL — only if a thread actually needs them
+  Lean REPL / LeanDojo — only if a thread actually needs tactic interaction
 ```
 
-**Mathlib** remains the piece that would force a heavier image (oleans cache,
-`lake` project). `lean.prove` v1 deliberately does not.
+**Mathlib** is the heavier optional image (`INSTALL_MATHLIB=1`, oleans cache,
+`lake` project). Default CI / Fly images stay slim; missing Mathlib is honest
+`undecided`.
 
 ---
 
@@ -186,8 +189,9 @@ Next adds:
 - **Resolved (`0.23.0`):** `lean.prove` on the existing sandbox — optional `lean`
   binary, prelude/Init only, Grade A only on a real kernel check. Missing Lean is
   honest `undecided`.
-- **Lean / Mathlib hosting** — still open if a later slice wants Mathlib oleans +
-  `lake`. Not required for the `1 + 1 = 2` demo. Sandbox policy (`0.11.x`) is the
-  v1 substrate.
+- **Resolved (`0.26.0`):** Mathlib via `lean.prove` `mathlib=true` and a bounded
+  offline `lake` project. Optional image (`INSTALL_MATHLIB=1`). Missing Mathlib
+  is honest `undecided`. REPL / LeanDojo remain later. Sandbox policy (`0.11.x`)
+  is still the substrate.
 - **Resolved:** first build width (SymPy + OEIS + flagship instruments);
   adapter interface (`0.9.2`); provenance spine (`0.9.1`); Z3 as Tier-0 verifier (`0.13.x`).

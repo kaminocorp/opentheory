@@ -151,8 +151,8 @@ unit tests, plus a fake-binary "proved" path. Tests that invoke a real `lean`
 binary are `@pytest.mark.skipif` and stay skipped.
 
 **What production needs for a real Grade A proof:** the `lean` binary on the
-Fly machine PATH (elan wrapper is fine). `lake` / Mathlib are **not** used in
-v1 — prelude / `Init` only.
+Fly machine PATH (elan wrapper is fine). Prelude / `Init` only unless the
+Mathlib image path below is enabled.
 
 Exact install path — rebuild the backend image with the optional Dockerfile
 arg (do not put this in the default CI image):
@@ -177,8 +177,51 @@ lands attributed checkpoints: a missing binary is recorded as
 `TOOLBENCH_WALL_TIMEOUT_S` so a slow typecheck is citable undecided rather
 than a sandbox kill that mints nothing.
 
-v1 does **not** ship a Mathlib oleans cache or a `lake` project. A snippet
-that `import`s anything is rejected before `lean` runs.
+v1 (`0.23.0`) does **not** ship a Mathlib oleans cache or a `lake` project.
+A snippet that `import`s anything without the Mathlib opt-in is rejected
+before `lean` runs.
+
+## Mathlib / lake (optional, `0.26.0`)
+
+`lean.prove` `mathlib=true` needs a pre-built lake project with a Mathlib
+oleans cache. **Do not install Mathlib in CI.** Missing cache is
+`undecided` / `mathlib_unavailable`, never Grade A.
+
+**What CI runs:** allow-list / banned-construct / missing-cache / fake-`lake`
+prove-fail-timeout tests. Tests that invoke a real Mathlib cache are
+`@pytest.mark.skipif`.
+
+**What production needs for a Mathlib Grade A proof:** `lean` + `lake` on
+PATH and `/opt/opentheory/lean-mathlib/.lake/packages/mathlib` present.
+Rebuild with both optional args (Mathlib requires Lean):
+
+```bash
+cd backend
+fly deploy --build-arg INSTALL_LEAN=1 --build-arg INSTALL_MATHLIB=1 \
+  --build-arg LEAN_TOOLCHAIN=leanprover/lean4:v4.14.0 \
+  --build-arg MATHLIB_REV=v4.14.0
+```
+
+That pins the toolchain, `lake update`s Mathlib at `MATHLIB_REV`, pulls the
+community oleans cache (`lake exe cache get`), and `lake build`s the
+scaffold at `backend/lean-mathlib/`. The image is **several GB** — do not
+turn this on for the default CI image. Confirm:
+
+```bash
+fly ssh console -C 'lean --version'
+fly ssh console -C 'lake --version'
+fly ssh console -C 'test -d /opt/opentheory/lean-mathlib/.lake/packages/mathlib && echo mathlib-ok'
+```
+
+Runtime checks are `lake --offline env lean` on an overlay of that project.
+`lake` must not fetch at check time. Keep
+`TOOLBENCH_LEAN_MATHLIB_TIMEOUT_MS` (default 20000) strictly below
+`TOOLBENCH_WALL_TIMEOUT_S` so a slow import is citable undecided rather
+than a sandbox kill that mints nothing.
+
+If the Mathlib rebuild is skipped, `mathlib=true` still records an
+attributed checkpoint: `undecided` / `mathlib_unavailable`. Prelude
+`lean.prove` is unchanged.
 
 ## Agent loop prod light-up (`0.12.x` / Phase 1 autonomy)
 
