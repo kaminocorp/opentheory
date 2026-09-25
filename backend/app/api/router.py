@@ -14,7 +14,9 @@ from app.api.routes import (
     instruments,
     invitations,
     me,
+    merges,
     projects,
+    tags,
     threads,
     validations,
 )
@@ -33,6 +35,8 @@ api_router.include_router(evidence.router)
 api_router.include_router(checkpoints.router)
 api_router.include_router(validations.router)
 api_router.include_router(branches.router)
+api_router.include_router(merges.router)
+api_router.include_router(tags.router)
 api_router.include_router(funding.router)
 # Invitations span /projects/{id}/invitations and /me/invitations + /invitations/{id}/…, so the
 # router mounts at the root and declares full paths itself (like threads/funding).

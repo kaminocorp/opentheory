@@ -27,11 +27,15 @@ import type {
   FundingCreate,
   InvitationCreate,
   Me,
+  MergeCreate,
+  MergeRead,
   ProjectBudget,
   ProjectInvitation,
   ProjectMember,
   ProjectOverview,
   ProjectRole,
+  ResearchTag,
+  TagCreate,
   Thread,
   ThreadCreate,
   ThreadSummary,
@@ -290,6 +294,18 @@ export function createBranch(projectId: string, payload: BranchCreate): Promise<
 
 export function closeBranch(branchId: string, payload: BranchClose): Promise<Branch> {
   return request<Branch>(`/branches/${branchId}/close`, writeInit(payload));
+}
+
+export function mergeBranches(projectId: string, payload: MergeCreate): Promise<MergeRead> {
+  return request<MergeRead>(`/projects/${projectId}/merges`, writeInit(payload));
+}
+
+export function listTags(projectId: string): Promise<ResearchTag[]> {
+  return request<ResearchTag[]>(`/projects/${projectId}/tags`);
+}
+
+export function createTag(projectId: string, payload: TagCreate): Promise<ResearchTag> {
+  return request<ResearchTag>(`/projects/${projectId}/tags`, writeInit(payload));
 }
 
 // --- Funding (0.6.3) --------------------------------------------------------

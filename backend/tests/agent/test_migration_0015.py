@@ -26,14 +26,14 @@ def test_revision_linkage() -> None:
     assert mod.down_revision == "0014_agent_run_grounding_yield"
 
 
-def test_it_is_the_only_head() -> None:
-    """Nothing revises 0015 — a second head makes ``alembic upgrade head`` ambiguous on deploy."""
+def test_it_is_revised_by_0016() -> None:
+    """0016 is the current head; 0015 must remain in the single linear chain."""
     down_revisions = {
         match.group(1)
         for path in _VERSIONS.glob("*.py")
         if (match := re.search(r'down_revision[^=]*=\s*"([^"]+)"', path.read_text()))
     }
-    assert _REVISION not in down_revisions
+    assert _REVISION in down_revisions
 
 
 def test_the_table_the_model_declares_is_the_table_the_migration_adds() -> None:

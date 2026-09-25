@@ -16,7 +16,7 @@ The product is currently a *human-operable* research ledger. Agents are explicit
   - `docs/blueprints/techstack.md` — stack choices and the rationale/boundaries behind them.
   - `docs/blueprints/design-system.md` — the OpenTheory Console design language.
 - **`docs/vision/`** — *target* state and design intent. **Do not read as current build.** Each doc carries a status banner saying what is and isn't shipped.
-  - `docs/vision/research-git.md` — target git-for-research ledger semantics; operations are annotated *(built)* / *(planned)* (commit/branch/log are built; merge, tag, blame, semantic diff are not).
+  - `docs/vision/research-git.md` — target git-for-research ledger semantics; operations are annotated *(built)* / *(planned)* (commit/branch/merge/tag/log are built; blame and semantic diff are not).
   - `docs/vision/research-flow.md` — the stage skeleton for the future agent-execution layer; **not** the current build.
   - `docs/vision/product-vision.md` — product vision and example research domains (the physics/Millennium examples convey ambition, they are not a build target).
 - **`docs/operations/`** — runbooks for deploying and operating the live system.
@@ -54,10 +54,10 @@ Requests flow `api/routes/` → `services/` → `models/`. Keep route handlers t
 
 The core graph (see `docs/blueprints/primitives.md` for full relationships):
 
-`Project` → has many `Thread`, `Claim`, `Artifact`, `Evidence`, `Checkpoint`, `Branch`, `Validation`, `Contribution`, `FundingAllocation`. `Actor` performs actions (`human` | `agent` | `system`) and authors `Checkpoint`s, makes `Contribution`s, performs `Validation`s, and creates `FundingAllocation`s.
+`Project` → has many `Thread`, `Claim`, `Artifact`, `Evidence`, `Checkpoint`, `Branch`, `Validation`, `Contribution`, `FundingAllocation`, `Tag`. `Actor` performs actions (`human` | `agent` | `system`) and authors `Checkpoint`s, makes `Contribution`s, performs `Validation`s, and creates `FundingAllocation`s.
 
 Invariants that must be preserved in code:
-- **Append-only is ORM-enforced, not just convention.** `models/append_only.py` registers `before_update`/`before_delete` mapper guards on `Checkpoint`, `CheckpointRef`, `FundingAllocation`, `Validation`, and `ComputeDebit`, raising `AppendOnlyError` so the invariant holds even if the route layer is bypassed. Corrections, reversals, and retractions are *new* records (a re-assessment is a new `Validation` row, never an edit). Caveat: the guards fire on the ORM unit-of-work only — bulk Core `UPDATE`/`DELETE` and DDL (`drop_all` in tests) bypass them by design.
+- **Append-only is ORM-enforced, not just convention.** `models/append_only.py` registers `before_update`/`before_delete` mapper guards on `Checkpoint`, `CheckpointRef`, `FundingAllocation`, `Validation`, `ComputeDebit`, and `Tag`, raising `AppendOnlyError` so the invariant holds even if the route layer is bypassed. Corrections, reversals, and retractions are *new* records (a re-assessment is a new `Validation` row, never an edit). Caveat: the guards fire on the ORM unit-of-work only — bulk Core `UPDATE`/`DELETE` and DDL (`drop_all` in tests) bypass them by design.
 - `Claim` is first-class; confidence is explainable through evidence/validation history, not a naked score.
 - `Evidence` and `Artifact` are separately addressable and content-addressed where possible (pin external evidence with URI + retrieval timestamp + hash).
 - Branches preserve parallel exploration and dead ends — abandonment is *recorded*, not deleted.

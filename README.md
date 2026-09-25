@@ -30,7 +30,7 @@ Nothing resets. Dead ends are recorded, not deleted.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-live-success)](https://opentheory.vercel.app)
-[![Version](https://img.shields.io/badge/version-0.20.0-crimson)](docs/changelog.md)
+[![Version](https://img.shields.io/badge/version-0.21.0-crimson)](docs/changelog.md)
 &nbsp;
 ![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
@@ -88,8 +88,8 @@ meaningful state change is committed as an immutable **checkpoint** carrying *wh
 | branch | a parallel line of exploration; dead ends preserved | ✅ built |
 | log / show | the checkpoint timeline and its detail | ✅ built |
 | blame | provenance — who contributed what, on what evidence | 🟡 *recorded* (every checkpoint carries its blame tuple); the semantic `blame` op is planned |
-| merge / diff | integrating or comparing research lines | ⬜ planned |
-| tag | a marked, citable result | ⬜ planned |
+| merge / diff | integrating or comparing research lines | ✅ merge built (`0.21.0`); semantic `diff` planned |
+| tag | a marked, citable result | ✅ built (`0.21.0`) |
 
 Two mechanisms make this real rather than cosmetic:
 
@@ -394,7 +394,7 @@ opentheory/
 ## Status
 
 **Live** (Vercel + Fly.io + Supabase), shipped in small, deployable phases tracked in
-[`docs/changelog.md`](docs/changelog.md). Currently `0.20.0`.
+[`docs/changelog.md`](docs/changelog.md). Currently `0.21.0`.
 
 **Shipped:**
 
@@ -413,6 +413,7 @@ opentheory/
 | `0.18.x` | Tier-1 literature pins — `crossref.lookup`, `arxiv.lookup`, `openalex.lookup` |
 | `0.19.x` | Project-budget metering — agent passes debit `ComputeDebit`; funding spent/available are real |
 | `0.20.x` | Bounded plan → observe → replan inside one agent pass |
+| `0.21.x` | Research-git merge + tag — multi-parent synthesis and named immutable pointers |
 
 **Honest caveats:**
 
@@ -427,13 +428,14 @@ opentheory/
   (`available = 0`) will not start a pass.
 - **Funding is recorded, not settled.** `FundingAllocation` is a real append-only
   concern; payment rails are future work.
-- **Reputation/influence, merge/blame/tag ops, and object storage for large
-  artifacts** are described in the docs but not built.
+- **Reputation/influence, semantic blame/diff, and object storage for large
+  artifacts** are described in the docs but not built. Merge and tag shipped in
+  `0.21.0`.
 
 **Next up** (see [`docs/plans/roadmap-next-steps.md`](docs/plans/roadmap-next-steps.md)):
 the still-owed browser eyeball pass, then `0.14.1` CommandRail sync. Lean 4 + Mathlib
 comes after. Project-budget metering shipped in `0.19.0`; plan→observe→replan shipped
-in `0.20.0`.
+in `0.20.0`; research-git merge + tag shipped in `0.21.0`.
 
 ---
 

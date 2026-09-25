@@ -192,6 +192,26 @@ Key relationships:
 
 Dead-end branches should remain visible. Negative results are useful because they prevent repeated work.
 
+A merge (`0.21.0`) is a new checkpoint with multiple parents — the head of each
+source branch plus the head of the target line. Source branches are marked
+`merged` (recorded, not deleted) and cannot receive further checkpoints. A
+conflicted merge must carry an explicit rationale; coexist means *not merging*.
+
+## Tag
+
+A named, immutable pointer at a checkpoint (`0.21.0`).
+
+Tags mark milestones, validated results, and retractions without rewriting the
+commit they name. A colliding name on the same project is a conflict, never a
+silent retarget. Corrections are new tags.
+
+Key relationships:
+
+- belongs to `Project`
+- points at a `Checkpoint`
+- is recorded through `Checkpoint`
+- creates `Contribution`
+
 ## Validation
 
 A structured review of a claim, artifact, checkpoint, branch, or result.
@@ -227,6 +247,7 @@ Examples:
 - validated a result
 - challenged a claim
 - merged a branch
+- tagged a checkpoint
 - funded a project
 
 Key relationships:
@@ -294,6 +315,7 @@ Project
   ├── Evidence
   ├── Checkpoint
   ├── Validation
+  ├── Tag
   └── Contribution
 
 Account                       (auth principal — owns Actors)

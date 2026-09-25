@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { GitBranch, GitFork, Plus, X } from "lucide-react";
+import { GitBranch, GitFork, GitMerge, Plus, X } from "lucide-react";
 import { useState } from "react";
 
 import {
@@ -16,11 +16,11 @@ import {
   STATE_META,
   type StateTone,
 } from "@/components/console";
-import { closeBranch, createBranch, listBranches, listCheckpoints } from "@/lib/api";
+import { closeBranch, createBranch, listBranches, listCheckpoints, mergeBranches } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import { useActingIdentity } from "@/lib/use-identity";
 import { cn } from "@/lib/cn";
-import type { BranchCloseOutcome, BranchStatus } from "@/types/research";
+import type { BranchCloseOutcome, BranchStatus, MergeResolution } from "@/types/research";
 
 // Branch status → a state tone + label. dead_end also keeps a strike-through (below)
 // as the honest "recorded, not deleted" mark — meaning survives grayscale via glyph +
@@ -53,6 +53,7 @@ export function BranchBar({ projectId, selectedBranchId, onSelectBranch }: Branc
   const queryClient = useQueryClient();
   const [forking, setForking] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [merging, setMerging] = useState(false);
 
   const branchesQuery = useQuery({
     queryKey: queryKeys.branches(projectId),
@@ -60,6 +61,7 @@ export function BranchBar({ projectId, selectedBranchId, onSelectBranch }: Branc
   });
   const branches = branchesQuery.data ?? [];
   const selectedBranch = branches.find((b) => b.id === selectedBranchId) ?? null;
+  const openBranches = branches.filter((b) => b.status === "open");
 
   function invalidateAfterBranchWrite() {
     queryClient.invalidateQueries({ queryKey: queryKeys.branches(projectId) });
@@ -121,6 +123,7 @@ export function BranchBar({ projectId, selectedBranchId, onSelectBranch }: Branc
               onClick={() => {
                 setForking((v) => !v);
                 setClosing(false);
+                setMerging(false);
               }}
               className="h-7"
             >
@@ -128,12 +131,28 @@ export function BranchBar({ projectId, selectedBranchId, onSelectBranch }: Branc
               {forking ? "Cancel" : "Fork"}
             </ActionGhost>
 
+            {openBranches.length > 0 ? (
+              <ActionGhost
+                size="sm"
+                onClick={() => {
+                  setMerging((v) => !v);
+                  setForking(false);
+                  setClosing(false);
+                }}
+                className="h-7"
+              >
+                <Icon icon={merging ? X : GitMerge} size={14} />
+                {merging ? "Cancel" : "Merge"}
+              </ActionGhost>
+            ) : null}
+
             {selectedBranch && selectedBranch.status === "open" ? (
               <button
                 type="button"
                 onClick={() => {
                   setClosing((v) => !v);
                   setForking(false);
+                  setMerging(false);
                 }}
                 className="inline-flex h-7 items-center rounded-full px-3 text-[12px] font-medium text-text-mute transition-colors hover:text-state-fail"
                 style={{ border: "1px solid var(--hairline)" }}
@@ -159,7 +178,12 @@ export function BranchBar({ projectId, selectedBranchId, onSelectBranch }: Branc
               </span>
             </>
           ) : null}
-          . {selectedBranch.status === "open" ? "New checkpoints record on this branch." : "This line is closed."}
+          .{" "}
+          {selectedBranch.status === "open"
+            ? "New checkpoints record on this branch."
+            : selectedBranch.status === "merged"
+              ? "This line is merged — preserved, not extended."
+              : "This line is closed."}
         </p>
       ) : (
         <p className="text-[12px] text-text-faint">
@@ -185,6 +209,19 @@ export function BranchBar({ projectId, selectedBranchId, onSelectBranch }: Branc
           onClosed={() => {
             invalidateAfterBranchWrite();
             setClosing(false);
+          }}
+        />
+      ) : null}
+
+      {merging ? (
+        <MergeBranchesForm
+          projectId={projectId}
+          openBranches={openBranches}
+          selectedBranchId={selectedBranchId}
+          onMerged={(targetBranchId) => {
+            invalidateAfterBranchWrite();
+            onSelectBranch(targetBranchId);
+            setMerging(false);
           }}
         />
       ) : null}
@@ -381,6 +418,127 @@ function CloseBranchForm({
       >
         {mutation.isPending ? "Closing…" : "Close branch"}
       </ActionDestructive>
+    </form>
+  );
+}
+
+function MergeBranchesForm({
+  projectId,
+  openBranches,
+  selectedBranchId,
+  onMerged,
+}: {
+  projectId: string;
+  openBranches: { id: string; name: string }[];
+  selectedBranchId: string | null;
+  onMerged: (targetBranchId: string | null) => void;
+}) {
+  const { canWrite } = useActingIdentity();
+  const defaultSource =
+    selectedBranchId && openBranches.some((b) => b.id === selectedBranchId)
+      ? selectedBranchId
+      : (openBranches[0]?.id ?? "");
+  const [sourceIds, setSourceIds] = useState<string[]>(defaultSource ? [defaultSource] : []);
+  const [targetId, setTargetId] = useState("");
+  const [resolution, setResolution] = useState<MergeResolution>("clean");
+  const [rationale, setRationale] = useState("");
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      mergeBranches(projectId, {
+        source_branch_ids: sourceIds,
+        target_branch_id: targetId || null,
+        resolution,
+        rationale: rationale.trim() || null,
+      }),
+    onSuccess: (result) => {
+      onMerged(result.target_branch_id);
+    },
+  });
+
+  const targetIsSource = Boolean(targetId) && sourceIds.includes(targetId);
+  const needsRationale = resolution === "resolved";
+  const canSubmit =
+    canWrite &&
+    sourceIds.length > 0 &&
+    !targetIsSource &&
+    (!needsRationale || rationale.trim().length > 0);
+
+  function toggleSource(id: string) {
+    setSourceIds((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+    );
+  }
+
+  return (
+    <form
+      className="grid gap-2 rounded-built bg-panel-2 p-3"
+      style={{ border: "1px solid var(--hairline)" }}
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (canSubmit && !mutation.isPending) mutation.mutate();
+      }}
+    >
+      <p className="text-[12px] leading-5 text-text-mute">
+        Combine open lines into one checkpoint with multiple parents. Source lines are marked
+        merged and kept — history is not rewritten.
+      </p>
+      <fieldset className="grid gap-1.5">
+        <legend className="text-[11px] text-text-faint">Source lines</legend>
+        {openBranches.map((branch) => (
+          <label key={branch.id} className="flex items-center gap-2 text-[12px] text-text-soft">
+            <input
+              type="checkbox"
+              checked={sourceIds.includes(branch.id)}
+              onChange={() => toggleSource(branch.id)}
+              className="accent-[rgb(var(--signal))]"
+            />
+            {branch.name}
+          </label>
+        ))}
+      </fieldset>
+      <Select
+        aria-label="Merge into"
+        value={targetId}
+        onChange={(event) => setTargetId(event.target.value)}
+      >
+        <option value="">into: main line</option>
+        {openBranches
+          .filter((branch) => !sourceIds.includes(branch.id))
+          .map((branch) => (
+            <option key={branch.id} value={branch.id}>
+              into: {branch.name}
+            </option>
+          ))}
+      </Select>
+      <Select
+        aria-label="Merge resolution"
+        value={resolution}
+        onChange={(event) => setResolution(event.target.value as MergeResolution)}
+      >
+        <option value="clean">clean — the lines agree</option>
+        <option value="resolved">resolved — record the decision</option>
+      </Select>
+      <Input
+        value={rationale}
+        onChange={(event) => setRationale(event.target.value)}
+        placeholder={needsRationale ? "Rationale (required)" : "Rationale (optional)"}
+      />
+      {targetIsSource ? (
+        <p className="text-[12px] text-state-fail">A source line cannot also be the target.</p>
+      ) : null}
+      {mutation.isError ? (
+        <p className="text-[12px] text-state-fail">{(mutation.error as Error).message}</p>
+      ) : null}
+      <Action
+        type="submit"
+        disabled={!canSubmit || mutation.isPending}
+        pending={mutation.isPending}
+        className="w-full"
+      >
+        <Icon icon={GitMerge} size={16} />
+        {mutation.isPending ? "Merging…" : "Merge lines"}
+      </Action>
     </form>
   );
 }

@@ -27,6 +27,8 @@ ACTION_CLOSE_BRANCH = "close_branch"  # 0.4.2: closing a branch as dead-end/supe
 ACTION_FUND = "fund"  # 0.6.3: a funding allocation (contribution-only — NOT through a checkpoint)
 ACTION_CREATE_PROJECT = "create_project"  # 0.8.1: originating a project (intellectual origination)
 ACTION_TOOL_RUN = "tool_run"  # 0.9.2: producing a result with a toolbench instrument
+ACTION_MERGE = "merge"  # 0.21.0: synthesizing parallel lines into a multi-parent checkpoint
+ACTION_TAG = "tag"  # 0.21.0: pinning a named pointer at a checkpoint
 
 
 def record_contribution(

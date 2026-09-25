@@ -110,6 +110,39 @@ class BranchStatus(StrEnum):
     DEAD_END = "dead_end"
 
 
+class MergeResolution(StrEnum):
+    """How a merge combined parallel lines (0.21.0) — recorded on the merge checkpoint.
+
+    Not a Postgres enum: it lives in ``Checkpoint.content`` JSON (like ``ResultStatus``), so
+    the vocabulary can evolve without a migration. ``coexist`` is deliberately absent — that
+    outcome is *not merging* (siblings stay open until evidence breaks the tie).
+
+    - ``clean`` — the lines agree; their claims are unified.
+    - ``resolved`` — the lines disagreed; an explicit rationale records the decision.
+      A resolved merge without a rationale is rejected (honesty: no silent overwrite).
+    """
+
+    CLEAN = "clean"
+    RESOLVED = "resolved"
+
+
+class TagKind(StrEnum):
+    """Why a named pointer was pinned to a checkpoint (0.21.0).
+
+    A tag is a lightweight immutable annotation, not a rewrite of the commit it names.
+    ``name=`` is the Postgres type (``tag_kind``); labels follow this DB's convention
+    (StrEnum **member names**).
+
+    - ``milestone`` — a funding- or attribution-relevant moment.
+    - ``validated`` — a result the project considers established.
+    - ``retraction`` — the last-good commit before a bad result was integrated.
+    """
+
+    MILESTONE = "milestone"
+    VALIDATED = "validated"
+    RETRACTION = "retraction"
+
+
 class ValidationOutcome(StrEnum):
     PASSED = "passed"
     FAILED = "failed"

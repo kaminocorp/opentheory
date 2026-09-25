@@ -8,7 +8,8 @@ reproduction, dead-end). Per the 0.4.0 plan (sub-phase 0.4.2):
   with ``branch_id`` — with a ``create_branch`` contribution.
 - ``close_branch`` transitions an open branch to ``dead_end`` (abandoned) or ``closed``
   (superseded), recording the reason. Abandonment is *recorded, never deleted*
-  (primitives.md). ``merged`` is reserved for a later release.
+  (primitives.md). ``merged`` is written only by ``services/merges.merge_branches``
+  (0.21.0) — close cannot claim a merge that did not happen.
 
 A branch is the one sanctioned mutable ledger object (its ``status`` moves, like a git ref);
 its lifecycle *events* are append-only because they are checkpoints. As with validations,

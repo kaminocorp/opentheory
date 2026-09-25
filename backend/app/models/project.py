@@ -72,3 +72,10 @@ class Project(IdMixin, TimestampMixin, Base):
         back_populates="project",
         cascade="all, delete-orphan",
     )
+    # Named pointers at checkpoints (0.21.0). Cascade-delete is DB-level only; the ORM
+    # append-only guard refuses an in-session delete, same as Checkpoint / Validation.
+    tags = relationship(
+        "Tag",
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )

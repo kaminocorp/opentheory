@@ -149,11 +149,12 @@ class ProjectCounts(BaseModel):
 
 
 class BranchStatusCounts(BaseModel):
-    """Branches broken down by lifecycle status (0.4.4)."""
+    """Branches broken down by lifecycle status (0.4.4; ``merged`` added in 0.21.0)."""
 
     open: int = 0
     dead_end: int = 0
     closed: int = 0
+    merged: int = 0
 
 
 class ContradictionItem(BaseModel):

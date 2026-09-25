@@ -5,7 +5,7 @@ import { AlertTriangle, GitCommitHorizontal, Plus, ShieldCheck, X } from "lucide
 import { useState } from "react";
 
 import { Action, Bay, BayHeader, Icon, Input, Textarea } from "@/components/console";
-import { createCheckpoint, listCheckpoints } from "@/lib/api";
+import { createCheckpoint, listCheckpoints, listTags } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import { useActingIdentity } from "@/lib/use-identity";
 
@@ -54,6 +54,16 @@ export function CheckpointTimelinePanel({
     queryKey: queryKeys.checkpoints(projectId),
     queryFn: () => listCheckpoints(projectId),
   });
+  const tagsQuery = useQuery({
+    queryKey: queryKeys.tags(projectId),
+    queryFn: () => listTags(projectId),
+  });
+  const tagsByCheckpoint = new Map<string, string[]>();
+  for (const tag of tagsQuery.data ?? []) {
+    const names = tagsByCheckpoint.get(tag.checkpoint_id) ?? [];
+    names.push(tag.name);
+    tagsByCheckpoint.set(tag.checkpoint_id, names);
+  }
 
   // Scope the timeline to the selected line: a checkpoint is on the main line when its
   // branch_id is null, otherwise on its branch (0.4.3).
@@ -191,6 +201,19 @@ export function CheckpointTimelinePanel({
                   <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-text-soft">
                     {checkpoint.notes}
                   </p>
+                ) : null}
+                {(tagsByCheckpoint.get(checkpoint.id) ?? []).length > 0 ? (
+                  <ul className="mt-2 flex flex-wrap gap-1.5">
+                    {(tagsByCheckpoint.get(checkpoint.id) ?? []).map((name) => (
+                      <li
+                        key={name}
+                        className="rounded-full bg-panel px-2 py-0.5 font-mono text-[11px] text-text-mute"
+                        style={{ border: "1px solid var(--hairline)" }}
+                      >
+                        {name}
+                      </li>
+                    ))}
+                  </ul>
                 ) : null}
 
                 {checkpoint.refs.length > 0 ? (

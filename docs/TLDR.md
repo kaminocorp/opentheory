@@ -25,9 +25,9 @@ The ledger borrows git's shape (see `docs/vision/research-git.md`):
 | -------------- | ------------------------------------------------------- |
 | commit         | **checkpoint** — an immutable, attributed state change  |
 | branch         | a parallel line of exploration (dead ends preserved)    |
-| merge / diff   | integrating or comparing research lines                 |
+| merge / diff   | integrating research lines (`0.21.0`); semantic diff planned |
 | blame          | provenance — who contributed what, and on what evidence |
-| tag            | a marked, citable result                                |
+| tag            | a marked, citable result (`0.21.0`)                     |
 
 **Append-only is enforced in code, not by convention.** Corrections, reversals,
 and retractions are *new* records — a re-assessment is a new validation row,
@@ -55,7 +55,7 @@ meaningful while still allowing broad participation.
 ## Domain primitives
 
 `Project` → `Thread`, `Claim`, `Artifact`, `Evidence`, `Checkpoint`, `Branch`,
-`Validation`, `Contribution`, `FundingAllocation`. An **`Actor`** (`human` |
+`Validation`, `Contribution`, `FundingAllocation`, `Tag`. An **`Actor`** (`human` |
 `agent` | `system`) performs every action — authoring checkpoints, making
 contributions, performing validations, allocating funding. (Full relationships
 and invariants live in `docs/blueprints/primitives.md`.)
@@ -65,8 +65,8 @@ and invariants live in `docs/blueprints/primitives.md`.)
 **Today — a human-operable research ledger (shipped, live):**
 
 - The full ledger write path is real: open projects and threads, add claims,
-  attach evidence, record immutable checkpoints, fork/close branches, and record
-  validations — all through the enforced chokepoint, all attributed.
+  attach evidence, record immutable checkpoints, fork/close/merge branches, pin
+  tags, and record validations — all through the enforced chokepoint, all attributed.
 - Identity is real: verified auth provisions actors; funding allocations are
   recorded as a separate, source-aware concern.
 - It runs as a split Next.js frontend + FastAPI backend + Postgres, deployed
