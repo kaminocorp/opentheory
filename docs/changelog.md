@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.31.0` — **Deepdive Phase D.** Shareable Research deep links (`?tab=research&thread=<id>&branch=<id>`) restore selection via `router.replace`. A quiet "Pass running" cue on the strip and CommandRail lights from the existing keep-alive newest-run flag — no new fetch — and clears when idle. Rail-only nav recorded; no sidecar. Historically the optional deepdive Phase D (after `0.14.0` / `0.24.0` / `0.30.0`). Sits on shipped `0.30.0`. Frontend-only — no backend, schema, or migration.
 - `0.30.0` — **Deepdive Phase C polish.** Compact header metric line finalized; Overview keeps the full grid as reference. Contested header items switch to Research and focus that claim. Tab badges reuse existing reads (contested count, member/invite count, running-pass `LiveDot`). Instruments context readout is honest for sealed / no-thread. Historically the deferred deepdive Phase C (`0.14.2`). Sits on shipped `0.29.0`. Frontend-only — no backend, schema, or migration.
 - `0.29.0` — **Semantic git diff.** A derived ledger read compares two checkpoint / branch / tag / `main` tips and returns a structured research-space delta: claims opened or left a line, validation-signal changes, grounding-rung moves, and instrument outcomes on `from..to`. Deterministic — same two tips, same payload. No LLM prose. Mints nothing. Public GET, always-on. Quiet Compare bay on Research. **No schema, no migration.** Sits on shipped `0.28.0`. Does not claim live OpenRouter prices (`0.28.0`).
 - `0.28.0` — **Live OpenRouter price metering.** Agent-pass `ComputeDebit` rows bill at the model's live prompt/completion rates when `GET /models` is reachable (process cache, short timeout). Missing key, timeout, fetch failure, or unknown model falls back to the configured blended `agent_token_rate_usd_per_1k` (or catalog `usd_per_1k`) and records that fallback on the row — never skips metering, never labels a fallback as live. Snapshot columns for the split and `rate_source`. Migration `0020_compute_debit_live_rates` (additive). Rebased after shipped `0.27.0` (does not claim it).
@@ -98,6 +99,43 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.31.0
+
+**Deepdive Phase D.** Phase A (`0.14.0`) put Research first; Phase B
+(`0.24.0`) synced the CommandRail; Phase C (`0.30.0`) added badges and
+contested click-through. This optional stretch makes a Research view
+shareable and shows an in-flight pass across tabs — the visible payoff
+of keep-alive. **Frontend-only — no backend, schema, API, or
+migration.** Sits on shipped `0.30.0`. Does not reopen `0.14.x` as the
+changelog head.
+
+- **D1 — Shareable Research deep links.** `?thread=` / `?branch=` restore
+  the selected thread and line. `useProjectView` extends the `?tab=`
+  hook; all writes use `router.replace` + `{ scroll: false }`. Unknown or
+  malformed ids are ignored and the workspace stays on defaults — never
+  a 500. Flipping tabs keeps the selection params.
+- **D2 — Cross-tab live cue.** The same newest-run / keep-alive
+  `passRunning` flag already used for the Instruments badge lights a
+  strip-level "Pass running" line and a CommandRail Instruments
+  `LiveDot`. No new fetch. Gone when idle. Active nav still reads from
+  weight + edge tick, not colour.
+- **D3 — Rail-only.** No in-page sidecar. Phase B already gives
+  project-context nav; a third surface waits for a sixth zone.
+
+```bash
+cd frontend && npm test && npm run typecheck && npm run lint && npm run build
+# test 18 passed · typecheck clean · lint clean · build clean (9/9 pages;
+# /projects/[projectId] stays ƒ — Suspense / useSearchParams held)
+```
+
+See `docs/completions/deepdive-phase-d-0.31.0.md`.
+
+**Not in this release:** a project-wide running light (other threads,
+orchestrations, campaigns); an in-page sidecar; blame-as-an-op. No
+schema, no migration. Phase C remains `0.30.0`.
 
 ---
 

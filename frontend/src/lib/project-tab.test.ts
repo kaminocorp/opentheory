@@ -7,10 +7,14 @@ import {
   PROJECT_TAB_LABELS,
   buildCommandRailZones,
   isProjectPathname,
+  normalizeProjectRefId,
   normalizeProjectTab,
   projectTabFromSearch,
   projectTabHref,
-} from "./project-tab";
+  projectViewHref,
+  resolveProjectRefId,
+  sanitizeProjectViewSearch,
+} from "./project-tab.ts";
 
 const PROJECT = "/projects/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 
@@ -57,9 +61,10 @@ describe("projectTabHref / projectTabFromSearch", () => {
   });
 
   it("preserves sibling query params when flipping tabs", () => {
+    const thread = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
     assert.equal(
-      projectTabHref(PROJECT, "funding", "tab=research&thread=t1"),
-      `${PROJECT}?tab=funding&thread=t1`,
+      projectTabHref(PROJECT, "funding", `tab=research&thread=${thread}`),
+      `${PROJECT}?tab=funding&thread=${thread}`,
     );
   });
 
@@ -110,7 +115,7 @@ describe("buildCommandRailZones", () => {
     const zones = buildCommandRailZones(PROJECT, "");
     const research = zones.find((z) => z.key === "research");
     assert.equal(research?.active, true);
-    assert.equal(
+    assert.deepEqual(
       zones.filter((z) => z.active).map((z) => z.key),
       ["research"],
     );
@@ -145,5 +150,77 @@ describe("buildCommandRailZones", () => {
         false,
       );
     }
+  });
+
+  it("preserves thread / branch when flipping rail tabs", () => {
+    const thread = "11111111-1111-4111-8111-111111111111";
+    const zones = buildCommandRailZones(PROJECT, `tab=research&thread=${thread}`);
+    const instruments = zones.find((z) => z.key === "instruments");
+    assert.equal(instruments?.href, `${PROJECT}?tab=instruments&thread=${thread}`);
+  });
+});
+
+describe("project view deep links (0.31.0)", () => {
+  const thread = "11111111-1111-4111-8111-111111111111";
+  const branch = "22222222-2222-4222-8222-222222222222";
+
+  it("accepts UUID thread / branch ids and rejects junk", () => {
+    assert.equal(normalizeProjectRefId(thread), thread);
+    assert.equal(normalizeProjectRefId(thread.toUpperCase()), thread);
+    assert.equal(normalizeProjectRefId("main"), null);
+    assert.equal(normalizeProjectRefId("not-a-uuid"), null);
+    assert.equal(normalizeProjectRefId(""), null);
+    assert.equal(normalizeProjectRefId(null), null);
+  });
+
+  it("resolves a known id and ignores an unknown one", () => {
+    assert.equal(resolveProjectRefId(thread, [thread, branch]), thread);
+    assert.equal(resolveProjectRefId(thread.toUpperCase(), [thread]), thread);
+    assert.equal(resolveProjectRefId(thread, [branch]), null);
+    assert.equal(resolveProjectRefId("nope", [thread]), null);
+    assert.equal(resolveProjectRefId(thread, null), null);
+  });
+
+  it("writes shareable Research deep links with replace-friendly hrefs", () => {
+    assert.equal(
+      projectViewHref(PROJECT, { tab: "research", thread, branch }),
+      `${PROJECT}?tab=research&thread=${thread}&branch=${branch}`,
+    );
+    assert.equal(
+      projectViewHref(PROJECT, { tab: "instruments", thread }, `tab=research&branch=${branch}`),
+      `${PROJECT}?tab=instruments&branch=${branch}&thread=${thread}`,
+    );
+  });
+
+  it("clears thread / branch back to defaults without dropping tab", () => {
+    assert.equal(
+      projectViewHref(
+        PROJECT,
+        { thread: null, branch: null },
+        `tab=research&thread=${thread}&branch=${branch}`,
+      ),
+      `${PROJECT}?tab=research`,
+    );
+  });
+
+  it("drops malformed ids immediately and unknown ids only after the list loads", () => {
+    const junk = sanitizeProjectViewSearch(`tab=research&thread=not-a-uuid&branch=main`);
+    assert.equal(junk.get("tab"), "research");
+    assert.equal(junk.get("thread"), null);
+    assert.equal(junk.get("branch"), null);
+
+    const pending = sanitizeProjectViewSearch(`tab=research&thread=${thread}&branch=${branch}`, {
+      threadIds: null,
+      branchIds: null,
+    });
+    assert.equal(pending.get("thread"), thread);
+    assert.equal(pending.get("branch"), branch);
+
+    const known = sanitizeProjectViewSearch(`tab=research&thread=${thread}&branch=${branch}`, {
+      threadIds: [thread],
+      branchIds: [],
+    });
+    assert.equal(known.get("thread"), thread);
+    assert.equal(known.get("branch"), null);
   });
 });

@@ -24,6 +24,8 @@ type ProjectTabsProps = {
   onSelect: (tab: ProjectTabId) => void;
   /** Counts rendered beside a label; derived from queries the orchestrator already holds. */
   badges?: ProjectTabBadges;
+  /** Keep-alive newest-run is `running` — visible on every tab, gone when idle. */
+  passRunning?: boolean;
   className?: string;
 };
 
@@ -38,7 +40,13 @@ type ProjectTabsProps = {
  * URL update is a side effect of `onSelect` (the CommandRail uses `<Link>` to the
  * same `?tab=`, so both converge on one source of truth — 0.24.0).
  */
-export function ProjectTabs({ active, onSelect, badges, className }: ProjectTabsProps) {
+export function ProjectTabs({
+  active,
+  onSelect,
+  badges,
+  passRunning = false,
+  className,
+}: ProjectTabsProps) {
   const tabRefs = useRef(new Map<ProjectTabId, HTMLButtonElement | null>());
 
   // Roving tabindex: only the active tab is in the sequential tab order, and
@@ -62,66 +70,79 @@ export function ProjectTabs({ active, onSelect, badges, className }: ProjectTabs
 
   return (
     <div
-      role="tablist"
-      aria-label="Project sections"
-      onKeyDown={handleKeyDown}
-      // Scrolls horizontally rather than wrapping or collapsing to a menu — five
-      // short labels fit every viewport worth supporting.
-      className={cn("flex items-stretch gap-1 overflow-x-auto", className)}
+      className={cn("flex items-stretch", className)}
       style={{ borderBottom: "1px solid var(--hairline)" }}
     >
-      {PROJECT_TAB_IDS.map((tab) => {
+      <div
+        role="tablist"
+        aria-label="Project sections"
+        onKeyDown={handleKeyDown}
+        // Scrolls horizontally rather than wrapping or collapsing to a menu — five
+        // short labels fit every viewport worth supporting.
+        className="flex min-w-0 flex-1 items-stretch gap-1 overflow-x-auto"
+      >
+        {PROJECT_TAB_IDS.map((tab) => {
         const isActive = tab === active;
         const badge = badges?.[tab];
         const count = badge?.count ?? 0;
         const live = Boolean(badge?.live);
         const label = PROJECT_TAB_LABELS[tab];
-        const announced =
-          live && count > 0
-            ? `${label}, ${count}, pass running`
-            : live
-              ? `${label}, pass running`
-              : count > 0
-                ? `${label}, ${count}`
-                : undefined;
+          const announced =
+            live && count > 0
+              ? `${label}, ${count}, pass running`
+              : live
+                ? `${label}, pass running`
+                : count > 0
+                  ? `${label}, ${count}`
+                  : undefined;
 
-        return (
-          <button
-            key={tab}
-            ref={(node) => {
-              tabRefs.current.set(tab, node);
-            }}
-            id={projectTabDomId(tab)}
-            type="button"
-            role="tab"
-            aria-label={announced}
-            aria-selected={isActive}
-            aria-controls={projectPanelDomId(tab)}
-            tabIndex={isActive ? 0 : -1}
-            onClick={() => onSelect(tab)}
-            className={cn(
-              "relative shrink-0 whitespace-nowrap px-3 py-2.5 text-[13px] font-medium transition-colors",
-              isActive ? "text-text" : "text-text-mute hover:text-text",
-            )}
-          >
-            {label}
-            {count > 0 ? (
-              <span
-                className={cn(
-                  "ml-1.5 tabular-nums",
-                  badge?.tone === "fail" ? "text-state-fail" : "text-text-faint",
-                )}
-              >
-                {count}
-              </span>
-            ) : null}
-            {live ? <LiveDot tone="signal" pulse className="ml-1.5 align-middle" /> : null}
-            {isActive ? (
-              <span aria-hidden className="absolute inset-x-2 bottom-0 h-0.5 bg-signal" />
-            ) : null}
-          </button>
-        );
-      })}
+          return (
+            <button
+              key={tab}
+              ref={(node) => {
+                tabRefs.current.set(tab, node);
+              }}
+              id={projectTabDomId(tab)}
+              type="button"
+              role="tab"
+              aria-label={announced}
+              aria-selected={isActive}
+              aria-controls={projectPanelDomId(tab)}
+              tabIndex={isActive ? 0 : -1}
+              onClick={() => onSelect(tab)}
+              className={cn(
+                "relative shrink-0 whitespace-nowrap px-3 py-2.5 text-[13px] font-medium transition-colors",
+                isActive ? "text-text" : "text-text-mute hover:text-text",
+              )}
+            >
+              {label}
+              {count > 0 ? (
+                <span
+                  className={cn(
+                    "ml-1.5 tabular-nums",
+                    badge?.tone === "fail" ? "text-state-fail" : "text-text-faint",
+                  )}
+                >
+                  {count}
+                </span>
+              ) : null}
+              {live ? <LiveDot tone="signal" pulse className="ml-1.5 align-middle" /> : null}
+              {isActive ? (
+                <span aria-hidden className="absolute inset-x-2 bottom-0 h-0.5 bg-signal" />
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+      {passRunning ? (
+        <p
+          className="flex shrink-0 items-center gap-1.5 self-center px-3 text-[12px] text-text-mute"
+          aria-live="polite"
+        >
+          <LiveDot tone="signal" pulse />
+          Pass running
+        </p>
+      ) : null}
     </div>
   );
 }

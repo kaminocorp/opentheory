@@ -13,8 +13,9 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
 
-import { Icon } from "@/components/console";
+import { Icon, LiveDot } from "@/components/console";
 import { cn } from "@/lib/cn";
+import { useProjectPassRunning } from "@/lib/project-live-state";
 import {
   PROJECT_TAB_IDS,
   buildCommandRailZones,
@@ -65,11 +66,17 @@ function CommandRailInner() {
   const pathname = usePathname() ?? "/";
   const searchParams = useSearchParams();
   const zones = buildCommandRailZones(pathname, searchParams.toString());
+  // Same newest-run flag the workspace already polls — no second fetch.
+  const passRunning = useProjectPassRunning();
 
   return (
     <RailFrame>
       {zones.map((zone) => (
-        <RailItem key={zone.key} zone={zone} />
+        <RailItem
+          key={zone.key}
+          zone={zone}
+          live={zone.key === "instruments" && passRunning}
+        />
       ))}
     </RailFrame>
   );
@@ -86,7 +93,7 @@ function RailFrame({ children }: { children?: ReactNode }) {
   );
 }
 
-function RailItem({ zone }: { zone: CommandRailZone }) {
+function RailItem({ zone, live = false }: { zone: CommandRailZone; live?: boolean }) {
   const tone = zone.active
     ? "bg-white/[0.07] text-text"
     : zone.disabled
@@ -96,7 +103,11 @@ function RailItem({ zone }: { zone: CommandRailZone }) {
   // The accessible name lives on the focusable wrapper (Link, or the
   // contextual-off span), not the decorative icon. Unavailable zones fold
   // the reason in — the `title` tooltip is sighted-hover only.
-  const accessibleLabel = zone.disabled ? `${zone.label}, open a project first` : zone.label;
+  const accessibleLabel = zone.disabled
+    ? `${zone.label}, open a project first`
+    : live
+      ? `${zone.label}, pass running`
+      : zone.label;
 
   const glyph = (
     <span
@@ -106,6 +117,9 @@ function RailItem({ zone }: { zone: CommandRailZone }) {
       )}
     >
       <Icon icon={zoneIcon(zone.key)} size={18} />
+      {live ? (
+        <LiveDot tone="signal" pulse size={6} className="absolute right-1.5 top-1.5" />
+      ) : null}
     </span>
   );
 

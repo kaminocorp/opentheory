@@ -1,14 +1,15 @@
 # Project deepdive — sectioned tab workspace (implementation)
 
 > **Status — Phase A shipped as `0.14.0`; Phase B shipped as `0.24.0` (historical
-> alias `0.14.1`); Phase C shipped as `0.30.0` (historical alias `0.14.2`).**
-> Phase D remains optional. Frontend layout / information-architecture only.
-> **No backend, schema, API, or migration.** Implements the proposal
-> `docs/plans/project-deepdive-tab-redesign.md`; read it first for the *why*. This doc is
-> the *how* — decisions locked, phases, tasks, and the file map to follow methodically.
+> alias `0.14.1`); Phase C shipped as `0.30.0` (historical alias `0.14.2`);
+> Phase D shipped as `0.31.0`.** The deepdive line is closed. Frontend layout /
+> information-architecture only. **No backend, schema, API, or migration.**
+> Implements the proposal `docs/plans/project-deepdive-tab-redesign.md`; read it
+> first for the *why*. This doc is the *how* — decisions locked, phases, tasks,
+> and the file map to follow methodically.
 >
 > **Shipped release numbers:** Phase A as `0.14.0`, Phase B as `0.24.0`, Phase C
-> as `0.30.0`. Do not reopen `0.14.x` as the changelog head.
+> as `0.30.0`, Phase D as `0.31.0`. Do not reopen `0.14.x` as the changelog head.
 
 ---
 
@@ -28,7 +29,7 @@ implementation is unambiguous:
 
 | # | Decision | Choice | Rationale |
 |---|---|---|---|
-| D1 | Chrome (proposal §4) | **Option 3 Hybrid, phased**: horizontal tab strip in P0 (Phase A); CommandRail sync in P1 (Phase B). No in-page sidecar. | Smallest structural change first; rail becomes the *only* second nav surface, never a third. |
+| D1 | Chrome (proposal §4) | **Option 3 Hybrid, phased**: horizontal tab strip in P0 (Phase A); CommandRail sync in P1 (Phase B). **No in-page sidecar (locked in Phase D / `0.31.0`).** | Smallest structural change first; rail is the *only* second nav surface, never a third. A sidecar waits for a real sixth zone. |
 | D2 | Agent pass placement (§3.3) | **Option A — Instruments tab**, below the toolbench. | Same "run something that lands on the ledger" family; keeps Research clean. |
 | D3 | Header metrics (§14.3) | **Compact** `n threads · n claims · n checkpoints` mono line in the persistent header; **full six-metric grid moves to Overview**. | Identity + honesty stay above the fold; the full grid is reference, not focus. |
 | D4 | Background essay (§14.4) | **Overview-only.** Not a collapsible on Research. | Research stays operational; context-heavy prose doesn't push the ledger down. |
@@ -243,15 +244,15 @@ Each phase is independently shippable. **Phase A is the demoable declutter and c
       `LiveDot` on Instruments (derive "running" from the newest `AgentRun.status`).
 - [x] **C4** Sticky Instruments context readout refinement (sealed-line note, no-thread copy).
 
-### Phase D — Deep-link selection + nav finalization (P3, optional) · risk: med
+### Phase D — Deep-link selection + nav finalization (P3, optional) · shipped `0.31.0`
 
-- [ ] **D1** `?thread=` / `?branch=` query params for shareable Research deep links (extend
-      `useProjectTab` into a small `useProjectView` or sibling hook; keep `replace`).
-- [ ] **D2** Agent in-flight indicator that persists across tabs (rail/strip live-dot while a poll
+- [x] **D1** `?thread=` / `?branch=` query params for shareable Research deep links (extend
+      `useProjectTab` into `useProjectView`; keep `replace`).
+- [x] **D2** Agent in-flight indicator that persists across tabs (rail/strip live-dot while a poll
       is active) — the visible payoff of the §5.2 keep-alive decision.
-- [ ] **D3** Sidecar decision: **recommend rail-only** (skip the in-page sidecar; Phase B already
-      gives a project-context nav). Record the decision; only build a sidecar if nav genuinely
-      needs > 5 zones.
+- [x] **D3** Sidecar decision: **rail-only** (no in-page sidecar; Phase B already gives a
+      project-context nav). Recorded in `docs/completions/deepdive-phase-d-0.31.0.md`. A sidecar
+      waits until nav genuinely needs > 5 zones.
 
 ---
 
@@ -261,7 +262,10 @@ Each phase is independently shippable. **Phase A is the demoable declutter and c
 |---|---|---|
 | **new** | `frontend/src/components/workspace/project-header.tsx` | persistent chrome (§3.1) |
 | **new** | `frontend/src/components/workspace/project-tabs.tsx` | tablist + a11y (§4); local for v1 |
-| **new** | `frontend/src/lib/use-project-tab.ts` | `?tab=` state + `ProjectTabId` union (§5.1) |
+| **new** | `frontend/src/lib/use-project-tab.ts` | `?tab=` state + `ProjectTabId` union (§5.1); `useProjectView` + `?thread=` / `?branch=` in `0.31.0` |
+| **edit (Phase D)** | `frontend/src/lib/project-tab.ts` | view href / sanitize helpers for shareable selection |
+| **new (Phase D)** | `frontend/src/lib/project-live-state.ts` | keep-alive `passRunning` republished for the rail |
+| **edit (Phase D)** | `frontend/src/components/shell/command-rail.tsx` | Instruments live tick while a pass runs |
 | **edit** | `frontend/src/components/workspace/project-workspace.tsx` | → thin orchestrator; keep queries + state, regroup children |
 | **edit** | `frontend/src/app/projects/[projectId]/page.tsx` | wrap `<ProjectWorkspace>` in `<Suspense>` (§5.1) |
 | **edit (Phase B)** | `frontend/src/components/shell/command-rail.tsx` | live project zones → `?tab=`; retire `#funding` + inert Agents |
@@ -287,6 +291,8 @@ A signed-in member opening a mid-size project:
 6. [ ] Grayscale: active tab obvious from **edge tick + weight**, not colour.
 7. [ ] `?tab=funding` deep-links straight to Funding; legacy `#funding` normalizes to it.
 8. [ ] `npm run build` passes (Suspense boundary correct — no `useSearchParams` deopt).
+9. [x] `?tab=research&thread=<id>&branch=<id>` restores selection (`0.31.0`); unknown ids stay on defaults.
+10. [x] A running pass shows a strip + rail live cue; idle clears it (`0.31.0`). No sidecar.
 
 ---
 
