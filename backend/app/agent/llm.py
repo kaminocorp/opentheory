@@ -1,7 +1,8 @@
 """OpenRouter chat-completions client for the thin agent loop (0.12.0).
 
-The planner (0.12.1) needs exactly one thing from an LLM: turn a prompt into text (a JSON plan),
-with token usage recorded. This module isolates that single outbound call behind a small
+The planner (0.12.1 / 0.20.0) needs exactly one thing from an LLM: turn a prompt into text
+(a JSON plan), with token usage recorded. A pass may make this call more than once (initial
+plan, then a capped replan). This module isolates that outbound call behind a small
 :class:`OpenRouterClient`, deliberately mirroring the retrieval
 :class:`~app.toolbench.retrieval.Fetcher` posture:
 
@@ -17,7 +18,7 @@ first LLM client in the codebase. Settings live in ``core/config.py`` (the ``age
 
 On token caps: ``agent_pass_max_tokens`` is a per-pass SAFETY ceiling (blast radius), recorded
 on each pass. The *project* ceiling is 0.19.0 metering (``ComputeDebit`` from recorded tokens).
-The single planning call is also bounded by ``agent_llm_timeout_s`` and the planner's own
+Each planning / replan call is also bounded by ``agent_llm_timeout_s`` and the planner's own
 completion cap. This client only sends ``max_tokens`` when a caller passes one explicitly;
 the planner picks a sane completion budget. It is also **not** the request's ``max_tokens``
 (200k completion tokens would be rejected by most providers).

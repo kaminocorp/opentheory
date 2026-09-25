@@ -1,8 +1,10 @@
-"""The planner (0.12.1) — (thread + open claims + catalog) → a validated, bounded plan.
+"""The planner (0.12.1 / 0.20.0) — (thread + open claims + catalog [+ observations]) → a plan.
 
 The one place an LLM decides anything in the loop. It is deliberately **pure and injectable**: it
 takes an ``llm`` (the :class:`~app.agent.llm.LlmClient` protocol — a ``StubLlm`` in tests) and does
 **no** database writes, so it is fully testable with a canned model response and no network/DB.
+A pass may call it more than once (initial plan, then a capped replan after observing); each call
+is still one completion, still held to the fixed instrument catalog.
 
 Two-stage validation is the safety spine (mirroring ``run_instrument``'s own guards, applied
 *before* execution so a bad step mints nothing):
@@ -27,6 +29,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.agent.llm import AgentLlmError, LlmClient
+from app.agent.observe import Observation
 from app.agent.prompts import build_messages
 from app.models.claim import Claim
 from app.models.thread import Thread
@@ -133,26 +136,31 @@ async def plan(
     llm: LlmClient,
     max_runs: int,
     grounding: dict[UUID, ClaimGrounding] | None = None,
+    observations: list[Observation] | None = None,
     registry: InstrumentRegistry | None = None,
     timeout: float | None = None,
 ) -> PlanResult:
-    """Plan a bounded sequence of instrument runs for ``thread``. The single LLM call of a pass.
+    """Plan a bounded sequence of instrument runs for ``thread``. One LLM call (initial or replan).
 
     ``catalog`` feeds the prompt (the tool menu); ``registry`` (defaults to the production one)
     resolves each proposed instrument for validation — pass a matching pair in tests. ``max_runs``
-    is the per-pass safety cap the runnable list is truncated to.
+    is the cap the runnable list is truncated to (the orchestrator passes the remaining
+    per-version batch budget, not a free-form limit).
 
     ``grounding`` (0.16.1) is each open claim's evidence rung, so the model plans to *raise* one
-    rather than to look busy. It is **optional and read-only context**: omitting it degrades the
-    plan's quality (every claim reads ``ungrounded``) but changes no validation rule, and nothing
-    the model returns can set a grade — grounding remains derived from what actually runs.
+    rather than to look busy. ``observations`` (0.20.0) are server-derived outcomes from earlier
+    batches in this pass. Both are **optional and read-only context**: omitting them degrades the
+    plan's quality but changes no validation rule, and nothing the model returns can set a grade
+    — grounding remains derived from what actually runs.
     """
     reg = registry if registry is not None else _production_registry
     open_claim_ids = {claim.id for claim in open_claims}
 
     response = await llm.complete(
         model=model,
-        messages=build_messages(thread, open_claims, catalog, grounding),
+        messages=build_messages(
+            thread, open_claims, catalog, grounding, observations=observations
+        ),
         response_format=_JSON_RESPONSE_FORMAT,
         timeout=timeout,
         max_tokens=PLAN_COMPLETION_MAX_TOKENS,

@@ -30,7 +30,7 @@ Nothing resets. Dead ends are recorded, not deleted.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-live-success)](https://opentheory.vercel.app)
-[![Version](https://img.shields.io/badge/version-0.19.0-crimson)](docs/changelog.md)
+[![Version](https://img.shields.io/badge/version-0.20.0-crimson)](docs/changelog.md)
 &nbsp;
 ![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
@@ -165,11 +165,12 @@ advertise an instrument the runtime lacks.
 ### Agents are bounded operators, not oracles
 
 A member commissions a **Run agent pass** on a thread. The assigned model plans a
-capped sequence of *existing* instrument runs; the agent `Actor` lands attributed
+short batch of *existing* instrument runs, observes outcomes and grounding yield,
+and may replan inside the same pass (`0.20.0`); the agent `Actor` lands attributed
 checkpoints on a durable agent branch through the **same** `run_instrument`
-chokepoint a human uses. A live trace shows what it tried and what landed. A
-successful pass **stands** (`0.17.0`) — human accept / reject / fork is opt-in
-audit, not a required gate.
+chokepoint a human uses. A live trace shows each plan version, why it replanned,
+and what landed. A successful pass **stands** (`0.17.0`) — human accept / reject /
+fork is opt-in audit, not a required gate.
 
 Bounded, deliberately: per-pass safety caps, no continuous loop, no multi-thread
 orchestrator. The agent has no capability a human doesn't have through the API.
@@ -393,7 +394,7 @@ opentheory/
 ## Status
 
 **Live** (Vercel + Fly.io + Supabase), shipped in small, deployable phases tracked in
-[`docs/changelog.md`](docs/changelog.md). Currently `0.19.0`.
+[`docs/changelog.md`](docs/changelog.md). Currently `0.20.0`.
 
 **Shipped:**
 
@@ -411,6 +412,7 @@ opentheory/
 | `0.17.x` | Phase 1 agent autonomy — a completed pass stands; human accept/reject/fork is opt-in audit |
 | `0.18.x` | Tier-1 literature pins — `crossref.lookup`, `arxiv.lookup`, `openalex.lookup` |
 | `0.19.x` | Project-budget metering — agent passes debit `ComputeDebit`; funding spent/available are real |
+| `0.20.x` | Bounded plan → observe → replan inside one agent pass |
 
 **Honest caveats:**
 
@@ -420,8 +422,9 @@ opentheory/
   `404`s; flag on without a key ⇒ a commissioned pass fails cleanly. One
   without the other is not a launch.
 - **Project budget is metered (`0.19.0`).** Agent passes debit recorded tokens
-  against funded `available`. Per-pass safety caps still limit blast radius on
-  top. An unfunded project (`available = 0`) will not start a pass.
+  against funded `available`. Per-pass safety caps (including replan / batch
+  caps in `0.20.0`) still limit blast radius on top. An unfunded project
+  (`available = 0`) will not start a pass.
 - **Funding is recorded, not settled.** `FundingAllocation` is a real append-only
   concern; payment rails are future work.
 - **Reputation/influence, merge/blame/tag ops, and object storage for large
@@ -429,7 +432,8 @@ opentheory/
 
 **Next up** (see [`docs/plans/roadmap-next-steps.md`](docs/plans/roadmap-next-steps.md)):
 the still-owed browser eyeball pass, then `0.14.1` CommandRail sync. Lean 4 + Mathlib
-comes after. Project-budget metering shipped in `0.19.0`.
+comes after. Project-budget metering shipped in `0.19.0`; plan→observe→replan shipped
+in `0.20.0`.
 
 ---
 

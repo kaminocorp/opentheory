@@ -13,15 +13,23 @@ export type AgentRunStatus = "running" | "completed" | "failed";
 
 // A step's disposition. `landed` minted a checkpoint; `failed` reached the instrument but errored
 // (mints nothing — the failure split); `dropped_invalid` never ran (the planner rejected it before
-// execution); `skipped` was cut by a budget stop. Kept lenient (`| string`) — a future status must
-// never crash a trace render.
-export type AgentRunStepStatus = "landed" | "failed" | "dropped_invalid" | "skipped";
+// execution); `skipped` was cut by a budget / max-replan stop; `plan` / `replan` are narrative
+// rows for each plan version (0.20.0). Kept lenient (`| string`) — a future status must never
+// crash a trace render.
+export type AgentRunStepStatus =
+  | "landed"
+  | "failed"
+  | "dropped_invalid"
+  | "skipped"
+  | "plan"
+  | "replan";
 
 // One entry in the `steps` narrative. `outcome` is the instrument's honest ResultStatus on a landed
 // step (else null); `reason` carries a drop/skip cause (e.g. `unknown_instrument`, `max_runs`,
-// `budget_exhausted`); `error` carries a failed step's message.
+// `budget_exhausted`, `max_replans`); `error` carries a failed step's message. `plan` / `replan`
+// rows carry `observe_summary` (why this version exists) and `plan_version`.
 export type AgentRunStep = {
-  index: number;
+  index: number | null;
   instrument: string;
   inputs: Record<string, unknown>;
   claim_id: string | null;
@@ -33,6 +41,20 @@ export type AgentRunStep = {
   outcome: ResultStatus | string | null;
   error: string | null;
   reason: string | null;
+  plan_version?: number | null;
+  observe_summary?: string | null;
+  planned_runs?: number | null;
+};
+
+// One recorded plan version (0.20.0). Lives on `AgentRunRead.plan.versions` when present;
+// pre-0.20.0 traces have only `plan.runs`.
+export type AgentPlanVersion = {
+  version: number;
+  runs: Record<string, unknown>[];
+  reason: string;
+  observe_summary: string | null;
+  tokens_used: number;
+  proposed_count: number;
 };
 
 // What a pass did to one claim's evidence axis (0.16.1). Three-way rather than up/down, because
@@ -95,7 +117,10 @@ export type AgentRunSummary = {
 
 // The poll target: the summary plus the validated plan and the per-step outcomes.
 export type AgentRunRead = AgentRunSummary & {
-  plan: Record<string, unknown>;
+  plan: {
+    runs?: Record<string, unknown>[];
+    versions?: AgentPlanVersion[];
+  } & Record<string, unknown>;
   steps: AgentRunStep[];
 };
 

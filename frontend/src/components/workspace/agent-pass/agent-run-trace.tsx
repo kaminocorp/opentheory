@@ -196,12 +196,45 @@ function PassYieldReadout({ measure, ranCount }: { measure: PassYield; ranCount:
   );
 }
 
+/**
+ * A plan / replan narrative row (0.20.0). Shows the version and, on a replan, the observe
+ * summary that caused it — the pass is not a black box. Mints nothing.
+ */
+function PlanVersionStep({ step }: { step: AgentRunStep }) {
+  const version = step.plan_version ?? 0;
+  const label = step.status === "replan" ? `Plan v${version} · replan` : `Plan v${version}`;
+  return (
+    <div className="grid gap-1 rounded-built bg-panel p-2.5" style={{ border: "1px solid var(--hairline)" }}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[12px] font-medium text-text">{label}</span>
+        {step.planned_runs != null ? (
+          <span className="font-mono text-[11px] text-text-faint">{step.planned_runs} run{step.planned_runs === 1 ? "" : "s"}</span>
+        ) : null}
+        {step.reason && step.reason !== "initial" && step.reason !== "replan" ? (
+          <span className="text-[11px] text-text-faint">{step.reason}</span>
+        ) : null}
+      </div>
+      {step.observe_summary ? (
+        <p className="text-[12px] leading-[1.5] text-text-soft">
+          Replanned because: {step.observe_summary}
+        </p>
+      ) : step.status === "plan" ? (
+        <p className="text-[11px] text-text-faint">Initial plan</p>
+      ) : null}
+      {step.error ? <p className="text-[12px] leading-[1.5] text-state-fail">{step.error}</p> : null}
+    </div>
+  );
+}
+
 function StepRow({ step }: { step: AgentRunStep }) {
   switch (step.status) {
     case "landed":
       return <LandedStep step={step} />;
     case "failed":
       return <FailedStep step={step} />;
+    case "plan":
+    case "replan":
+      return <PlanVersionStep step={step} />;
     case "skipped":
       return <InertStep step={step} label="skipped" />;
     default:
@@ -212,9 +245,10 @@ function StepRow({ step }: { step: AgentRunStep }) {
 
 /**
  * One agent pass's trace. Polls `GET /agent-runs/{id}` while `running` (stopping on
- * `completed`/`failed`), renders the plan's per-step outcomes with the honest toolbench vocabulary,
- * and — once a pass settles on a branch — offers an *opt-in* route to that line (0.17.0).
- * The pass stands without a human gate; accept / reject / fork remain available as audit.
+ * `completed`/`failed`), renders each plan version and its per-step outcomes with the honest
+ * toolbench vocabulary (0.20.0), and — once a pass settles on a branch — offers an *opt-in*
+ * route to that line (0.17.0). The pass stands without a human gate; accept / reject / fork
+ * remain available as audit.
  * On the `running → terminal` transition it refreshes the ledger surfaces the pass touched.
  */
 export function AgentRunTrace({
