@@ -1,6 +1,6 @@
 # Toolbench Catalog — The Buildable Tool List, Sorted by Integration Cost
 
-> **Status — working catalog (updated 2026-09-25), partially shipped (`0.9.x`–`0.17.x`).** A
+> **Status — working catalog (updated 2026-09-25), partially shipped (`0.9.x`–`0.18.x`).** A
 > concrete, buildable companion to the design proposal in
 > `docs/plans/agent-research-tools.md`. That doc argues *why* the bench exists and *what
 > each tool is for* (the four families: Compute / Verify / Retrieve / Visualize). This doc
@@ -10,7 +10,7 @@
 > **Shipped:** Tier 0 SymPy instruments (`calc.eval`, `expr.compare`,
 > `geometry.coordinate_measure`, `counterexample.search`) + Tier 0 **`z3.prove`** (`0.13.x`)
 > + Tier 1 `oeis.search` + Tier 1 literature pins (`crossref.lookup`, `arxiv.lookup`,
-> `openalex.lookup`, `0.17.0`); adapter registry, write path, provenance spine, workspace UI,
+> `openalex.lookup`, `0.18.0`); adapter registry, write path, provenance spine, workspace UI,
 > KaTeX render, execution sandbox. See `docs/plans/maths-toolbox.md` §Shipped in production.
 >
 > **Not shipped:** Arb/`interval.eval`, Lean, visualization instruments (Vega-Lite
@@ -150,18 +150,18 @@ coincide, which is convenient for sequencing.
 
 ## Recommended starter kit
 
-The original starter kit argued for SymPy + Z3 + OEIS. **As of `0.17.0` we shipped SymPy
+The original starter kit argued for SymPy + Z3 + OEIS. **As of `0.18.0` we shipped SymPy
 (four instruments) + OEIS + `z3.prove` + Crossref / arXiv / OpenAlex literature pins.**
 That covers the flagship demo (`agent-research-tools.md` §5) **claims 1–4** with readable
 KaTeX *and* a machine-checked proof path *and* a citable literature retrieve path. Claim 5
 (Lean proof) still needs a heavier execution substrate.
 
 ```text
-Shipped (0.9.x–0.17.x):
+Shipped (0.9.x–0.18.x):
   SymPy     — calc.eval, expr.compare, geometry.coordinate_measure, counterexample.search
   OEIS      — oeis.search (Tier 1, pinned retrieval)
   Z3        — z3.prove (validity: proof / counter-model / undecided)
-  Literature — crossref.lookup, arxiv.lookup, openalex.lookup (0.17.0)
+  Literature — crossref.lookup, arxiv.lookup, openalex.lookup (0.18.0)
 
 Next in-process adds (no Lean infra):
   Arb     — interval.eval (optional 0.10.6+ stretch)

@@ -337,7 +337,7 @@ async def test_oeis_search_lands_a_pinned_external_evidence(
     assert pin["retrieved_at"] and pin["raw_response_hash"]
 
 
-# --- 0.17.0: literature pins through the same chokepoint -----------------------------------------
+# --- 0.18.0: literature pins through the same chokepoint -----------------------------------------
 
 _CROSSREF_RAW = json.dumps(
     {

@@ -71,7 +71,7 @@ class TextFetcher(Protocol):
 def polite_user_agent() -> str:
     """User-Agent for outbound retrieval. Includes mailto when configured (Crossref polite pool)."""
     mailto = (settings.toolbench_retrieval_mailto or "").strip()
-    base = "OpenTheory/0.17 (https://github.com/kaminocorp/opentheory)"
+    base = "OpenTheory/0.18 (https://github.com/kaminocorp/opentheory)"
     return f"{base}; mailto:{mailto}" if mailto else base
 
 

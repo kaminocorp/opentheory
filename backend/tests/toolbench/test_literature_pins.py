@@ -1,4 +1,4 @@
-"""0.17.0 — Tier-1 literature pin instruments: Crossref, arXiv, OpenAlex.
+"""0.18.0 — Tier-1 literature pin instruments: Crossref, arXiv, OpenAlex.
 
 Pure in-process, **no live network**: ``RetrievalClient`` is exercised through an
 ``httpx.MockTransport`` and the instruments through fake fetchers returning canned JSON / Atom.
