@@ -1,15 +1,16 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-09-25 · **Current release line:** `0.24.0` (CommandRail
-> sync — historically the deferred deepdive Phase B / `0.14.1`), sitting on
-> shipped `0.23.0` (Lean 4 Grade-A path — `lean.prove`), `0.22.0` (thin
-> multi-thread orchestrator), `0.21.0` (research-git merge + tag), `0.20.0`
-> (plan → observe → replan), `0.19.0` (project-budget metering), `0.18.0`
-> (Tier-1 literature pins), `0.17.0` (review is opt-in) and `0.16.3`
-> (thread/project grounding rollup). For the per-phase ledger see
-> `docs/changelog.md`; for the line just closed see
-> `docs/completions/commandrail-sync-0.24.0.md`. The remaining `0.14.x` phases
-> (C–D) still live at `docs/archive/project-deepdive-tabs-0.14.md`.
+> **Last updated:** 2026-09-25 · **Current release line:** `0.25.0` (continuous
+> research under budget), sitting on shipped `0.24.0` (CommandRail sync —
+> historically the deferred deepdive Phase B / `0.14.1`), `0.23.0` (Lean 4
+> Grade-A path — `lean.prove`), `0.22.0` (thin multi-thread orchestrator),
+> `0.21.0` (research-git merge + tag), `0.20.0` (plan → observe → replan),
+> `0.19.0` (project-budget metering), `0.18.0` (Tier-1 literature pins),
+> `0.17.0` (review is opt-in) and `0.16.3` (thread/project grounding rollup).
+> For the per-phase ledger see `docs/changelog.md`; for the line just closed
+> see `docs/completions/continuous-research-0.25.0.md`. The remaining
+> `0.14.x` phases (C–D) still live at
+> `docs/archive/project-deepdive-tabs-0.14.md`.
 >
 > **Next after this line:** the still-owed browser eyeball pass; then `0.14.2`
 > Phase C polish. Unmerged work is not claimed as shipped. Mathlib / `lake`
@@ -74,11 +75,15 @@ a claim, reject the line as a dead end, or fork further) — it is not required 
 pass is done for the operator. **A project-level orchestrator shipped in `0.22.0`:**
 **Run research** commissions sequential capped passes across open threads against
 the shared project pot, and stops when the budget is exhausted or no raisable
-claims remain. Still not a scheduled/continuous daemon. **Project-budget metering
-shipped in `0.19.0`** (historical alias `0.12.5`): agent passes debit an append-only
-`ComputeDebit` ledger; `available` is a real ceiling; per-pass safety caps still
-bound blast radius on top. Prod enablement is still the ops flip
-`AGENT_LOOP_ENABLED=true` + the `OPENROUTER_API_KEY` Fly secret.
+claims remain. **A continuous campaign shipped in `0.25.0`:** Start on Overview
+re-commissions that orchestrator until the pot is empty, no raisable work
+remains, the cycle cap is hit, or a member stops it. Still an in-process
+BackgroundTask (a lost worker is swept honestly; not a durable queue).
+**Project-budget metering shipped in `0.19.0`** (historical alias `0.12.5`):
+agent passes debit an append-only `ComputeDebit` ledger; `available` is a real
+ceiling; per-pass safety caps still bound blast radius on top. Prod enablement
+is still the ops flip `AGENT_LOOP_ENABLED=true` + the `OPENROUTER_API_KEY`
+Fly secret.
 The guiding constraint held throughout: every capability was human-usable through the
 API *first*, so the agent simply uses what humans already could.
 
@@ -89,6 +94,18 @@ who changed it, and what evidence or artifacts were involved — then extend it 
 bypassing the checkpoint chokepoint or conflating funder / contributor / validator roles.
 
 ## Recommended next releases
+
+### `0.25.x` — Continuous research under budget ✅ **shipped** (`0.25.0`)
+
+Delivered: a `ResearchCampaign` repeatedly commissions the 0.22.0 orchestrator
+against the shared `ComputeDebit` ceiling until budget / no-work / max cycles /
+cancel / error budget. Same `AGENT_LOOP_ENABLED` dark-launch flag. Trace
+records each cycle and why the campaign stopped. Never self-validates or
+auto-merges. Quiet Start / Stop on Overview. Migration
+`0018_research_campaigns`. See `docs/completions/continuous-research-0.25.0.md`.
+
+**Not in this release:** a durable job queue; concurrent cycles; auto-merge;
+Mathlib / `lake`. CommandRail shipped separately as `0.24.0`.
 
 ### `0.24.x` — CommandRail sync ✅ **shipped** (`0.24.0`)
 
@@ -118,8 +135,9 @@ why others were skipped. Orchestrator never self-validates. Quiet **Run research
 on Overview. Migration `0017_orchestration_runs`. See
 `docs/completions/multi-thread-orchestrator-0.22.0.md`.
 
-**Not in this release:** concurrent sub-passes; scheduled/continuous loops;
-auto-merge / auto-tag after a landed pass (`0.21.0` merge/tag stay human/API ops).
+**Not in this release:** concurrent sub-passes; auto-merge / auto-tag after a
+landed pass (`0.21.0` merge/tag stay human/API ops). Continuous re-commission
+shipped as `0.25.0`.
 
 ### `0.21.x` — Research-git merge + tag ✅ **shipped** (`0.21.0`)
 
@@ -329,6 +347,8 @@ demo requirement.
     ~~**`0.21.0` research-git merge/tag**~~ ✅ shipped.
     ~~**`0.22.0` multi-thread orchestrator**~~ ✅ shipped — sequential sub-passes
     under the shared project pot.
+    ~~**`0.25.0` continuous research under budget**~~ ✅ shipped — re-commission
+    the orchestrator until the pot is empty or no raisable work remains.
 13. **`0.14.2` Phase C** — tab badges, contested click-through, context-readout polish.
 14. **Bench 6 surfaces** — tables and Vega-Lite plots when a thread needs them.
 15. ~~**Lean Grade-A path**~~ ✅ shipped as `0.23.0` (`lean.prove`, optional
@@ -358,6 +378,7 @@ demo requirement.
 | `0.22.x` | Thin multi-thread orchestrator — allocate project budget across sequential sub-passes |
 | `0.23.x` | `lean.prove` — optional Lean 4 kernel check; Grade A only on a real proof (no Mathlib) |
 | `0.24.x` | CommandRail sync — rail zones are live `?tab=` links; `#funding` + inert Agents retired (historical `0.14.1`) |
+| `0.25.x` | Continuous research campaign — re-commission the 0.22.0 orchestrator under the project pot |
 
 ## Success criteria for the next milestone
 
@@ -383,6 +404,11 @@ Lean is honest `undecided`. Mathlib is not in this release.
 **`0.24.0` (CommandRail sync)** is shipped: project rail zones navigate via
 `?tab=` and share active state with the in-page strip. Historical alias
 `0.14.1`. The `#funding` hash and the inert Agents hatch are gone.
+
+**`0.25.0` (continuous research under budget)** is shipped: a campaign
+re-commissions the 0.22.0 orchestrator until the project pot is empty, no
+raisable work remains, the cycle cap is hit, or a member cancels. Same
+`AGENT_LOOP_ENABLED` flag. Merge / tag stay human.
 
 **Next product step:** the still-owed browser eyeball pass; then `0.14.2`
 Phase C polish. Mathlib / `lake` only when a thread actually needs them.

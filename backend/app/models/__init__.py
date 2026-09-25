@@ -15,6 +15,7 @@ from app.models.orchestration_run import OrchestrationRun
 from app.models.project import Project
 from app.models.project_invitation import ProjectInvitation
 from app.models.project_member import ProjectMember
+from app.models.research_campaign import ResearchCampaign
 from app.models.tag import Tag
 from app.models.thread import Thread
 from app.models.validation import Validation
@@ -39,6 +40,7 @@ __all__ = [
     "Project",
     "ProjectInvitation",
     "ProjectMember",
+    "ResearchCampaign",
     "Tag",
     "Thread",
     "Validation",

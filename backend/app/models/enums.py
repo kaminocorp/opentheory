@@ -166,6 +166,21 @@ class OrchestrationRunStatus(StrEnum):
     FAILED = "failed"
 
 
+class ResearchCampaignStatus(StrEnum):
+    """Lifecycle of one continuous research campaign (0.25.0).
+
+    Mutable like ``OrchestrationRun`` — not a ledger primitive, not append-only. The
+    campaign repeatedly commissions existing orchestrations; ledger writes stay on
+    those sub-passes. ``completed`` + a stop reason is the honest terminal (budget,
+    no work, max cycles, cancel, error budget). ``failed`` is reserved for a lost
+    worker or an unexpected outer error.
+    """
+
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 class AgentRunStatus(StrEnum):
     """Lifecycle of one thin-agent pass (0.12.x) — a **mutable** live trace, not a ledger primitive.
 

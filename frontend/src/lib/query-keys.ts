@@ -29,4 +29,7 @@ export const queryKeys = {
   // Project-level research orchestrations (0.22.0).
   orchestrations: (projectId: string) => ["orchestrations", projectId] as const,
   orchestration: (orchestrationId: string) => ["orchestration", orchestrationId] as const,
+  // Continuous research campaigns (0.25.0) — outer loop over orchestrations.
+  campaigns: (projectId: string) => ["campaigns", projectId] as const,
+  campaign: (campaignId: string) => ["campaign", campaignId] as const,
 };

@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.25.0` — **Continuous research under budget.** A `ResearchCampaign` repeatedly commissions the shipped `0.22.0` orchestrator until the project `ComputeDebit` pot is empty, no raisable work remains, the cycle cap is hit, a member cancels, or consecutive cycle failures exhaust the error budget. Same `AGENT_LOOP_ENABLED` dark-launch flag — no second switch. Persistence is a mutable campaign row (cycles, stop reason, budget remainder) so a lost worker is swept honestly rather than looking still-live. Orchestrator stays contributor infrastructure: never funds, never self-validates, never auto-merges. Frontend: quiet Start / Stop on Overview. Migration `0018_research_campaigns` (additive). Sits on shipped `0.24.0` CommandRail.
 - `0.24.0` — **CommandRail sync.** The left rail's project zones are live `?tab=` links (research · instruments · crew · funding · overview); active state comes from the URL, same source as the in-page strip. Retires the `#funding` hash target and the inert Agents hatch — the agent surface is Instruments. Historically the deferred deepdive Phase B (`0.14.1`). Frontend-only — no backend, schema, or migration.
 - `0.23.0` — **Lean 4 Grade-A path (`lean.prove`).** A bounded Lean 4 snippet can raise a claim to Grade A / `proven` when the optional `lean` binary typechecks it with no `sorry`/`axiom`/import/IO. Missing toolchain, soft timeout, and a failed check are honest `undecided` (failed ≠ refuted). Crash / sandbox kill mints nothing. Lands only through `run_instrument`. No Mathlib / `lake` project in v1. No schema, no migration.
 - `0.22.0` — **Thin multi-thread orchestrator.** A project-level loop selects open threads with raisable claims, commissions capped sequential `run_agent_pass` calls against the shared `ComputeDebit` / project-budget ceiling, and stops when the pot is empty, no raisable work remains, or `orchestration_max_passes` is hit. Same `AGENT_LOOP_ENABLED` dark-launch flag as a single pass — no second flag. Trace records which threads were commissioned or skipped and why. Orchestrator is contributor infrastructure: never writes `Validation` or `FundingAllocation`. Frontend: quiet **Run research** on Overview. Migration `0017_orchestration_runs` (additive). Sits on shipped `0.21.0` research-git merge/tag.
@@ -92,6 +93,55 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.25.0
+
+**Continuous research under budget.** Humans set the research question, the
+agent roster, and a project pot — then leave. `0.22.0` already runs a
+multi-thread orchestrator for one click. This release makes research
+**continue** until that pot is empty or no raisable work remains, without
+another human click each cycle. **Migration `0018_research_campaigns`
+(additive).** Sits on shipped `0.24.0` CommandRail.
+
+- **Same write path.** Each cycle is one `start_orchestration` →
+  `run_orchestration`. No second agent stack. Per-pass safety caps and the
+  `0.19.0` `ComputeDebit` ceiling still bind every commissioned pass.
+- **Persistent campaign.** A mutable `ResearchCampaign` row records each
+  cycle (linked `OrchestrationRun` id, stop reason, budget remainder). A lost
+  in-process worker is swept to `failed` on read — the row does not keep
+  pretending it is live. Start begins a new campaign; history stays on the
+  previous row.
+- **Stop conditions.** `budget_exhausted`, `no_open_work`, `max_cycles`
+  (default 8, clamped to `campaign_max_cycles`), `cancelled` (honoured
+  between cycles), `error_budget` (default 3 consecutive failed cycles).
+  An orchestration that hits `max_passes` is *not* a campaign stop — the
+  next cycle re-classifies and continues.
+- **Dark launch.** Same `AGENT_LOOP_ENABLED` flag as agent-run and
+  orchestration routes. Off ⇒ every campaign route `404`s before auth. One
+  flag for the whole agent family — `CAMPAIGN_MAX_CYCLES` /
+  `CAMPAIGN_ERROR_BUDGET` are safety caps, not a sibling switch.
+- **Contributor only.** The campaign never writes a `Validation` or a
+  `FundingAllocation`, and it does not auto-merge. `0.21.0` merge / tag stay
+  human/API. The reserved `after_pass` hook on the orchestrator remains unused.
+- **Frontend.** Quiet **Start** / **Stop** on Overview (cycle N, budget
+  remaining, last stop reason). A running campaign blocks a one-shot
+  **Run research** (`409` on the API).
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # (see verification in the completions doc)
+# With TEST_DATABASE_URL: tests/agent/test_campaigns*.py + migration/select
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
+```
+
+See `docs/completions/continuous-research-0.25.0.md`.
+
+**Not in this release:** a durable job queue (BackgroundTasks still die with
+the process — the row is what makes that honest); concurrent cycles;
+auto-merge / auto-validate; Mathlib / `lake`. CommandRail shipped separately
+as `0.24.0`.
 
 ---
 

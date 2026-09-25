@@ -9,7 +9,8 @@
 > `lean.prove` (`0.23.0`, optional Lean, prelude/Init — not Mathlib). See
 > `docs/plans/maths-toolbox.md` §Shipped in production.
 >
-> **Still not built:** continuous/scheduled agent loops, Mathlib / `lake` / Lean REPL,
+> **Still not built:** a durable job queue (in-process continuous campaigns shipped
+> in `0.25.0`), Mathlib / `lake` / Lean REPL,
 > Arb/`interval.eval`, and the roadmap's original **"Agent-Ready Execution
 > Surface"** label (`docs/plans/roadmap-next-steps.md` §0.7.0 — that version number was
 > taken by the `0.7.x` auth-principal refactor). Depends on `docs/blueprints/primitives.md`,

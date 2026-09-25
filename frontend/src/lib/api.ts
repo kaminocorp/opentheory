@@ -4,6 +4,11 @@ import type {
   AgentRunTrigger,
 } from "@/types/agent-run";
 import type {
+  CampaignTrigger,
+  ResearchCampaignRead,
+  ResearchCampaignSummary,
+} from "@/types/campaign";
+import type {
   OrchestrationRunRead,
   OrchestrationRunSummary,
   OrchestrationTrigger,
@@ -405,4 +410,27 @@ export function listOrchestrations(projectId: string): Promise<OrchestrationRunS
 
 export function getOrchestration(orchestrationId: string): Promise<OrchestrationRunRead> {
   return request<OrchestrationRunRead>(`/orchestrations/${orchestrationId}`);
+}
+
+// --- Campaigns (0.25.0 — continuous research under the project budget) -------
+
+export function triggerCampaign(
+  projectId: string,
+  payload: CampaignTrigger,
+): Promise<ResearchCampaignRead> {
+  return request<ResearchCampaignRead>(`/projects/${projectId}/campaigns`, writeInit(payload));
+}
+
+export function listCampaigns(projectId: string): Promise<ResearchCampaignSummary[]> {
+  return request<ResearchCampaignSummary[]>(`/projects/${projectId}/campaigns`);
+}
+
+export function getCampaign(campaignId: string): Promise<ResearchCampaignRead> {
+  return request<ResearchCampaignRead>(`/campaigns/${campaignId}`);
+}
+
+export function cancelCampaign(campaignId: string): Promise<ResearchCampaignRead> {
+  return request<ResearchCampaignRead>(`/campaigns/${campaignId}/cancel`, {
+    method: "POST",
+  });
 }

@@ -116,6 +116,30 @@ Typical fields:
 - `budget_available_start` / `budget_available_end`
 - `max_passes`
 
+## ResearchCampaign
+
+A mutable project-level trace of one continuous research campaign (`0.25.0`).
+
+Not a ledger primitive and not append-only (same posture as `OrchestrationRun`).
+The row narrates which 0.22.0 orchestrations each cycle commissioned and why
+the campaign stopped. Ledger writes stay on those sub-passes. The campaign is
+contributor infrastructure: it never writes a `Validation` or a
+`FundingAllocation`, and it never auto-merges.
+
+Typical fields:
+
+- `id`
+- `project_id`
+- `triggered_by_actor_id`
+- `role` — the Research-crew role each cycle's orchestration runs as
+- `status` — `running` / `completed` / `failed`
+- `cycles` — per-cycle orchestration narrative
+- `stop_reason` — `budget_exhausted` / `no_open_work` / `max_cycles` / `cancelled` / `error_budget` / `error`
+- `current_cycle` / `cycles_completed` / `consecutive_errors`
+- `cancel_requested`
+- `budget_available_start` / `budget_available_end`
+- `max_cycles` / `error_budget`
+
 ## Thread
 
 A focused line of inquiry inside a project.

@@ -6,6 +6,7 @@ from app.api.routes import (
     agent_models,
     agent_runs,
     branches,
+    campaigns,
     checkpoints,
     claims,
     evidence,
@@ -54,3 +55,6 @@ api_router.include_router(agent_runs.router)
 # Orchestrations span /projects/{id}/orchestrations + the poll target /orchestrations/{id}.
 # Same dark-launch gate as agent runs (AGENT_LOOP_ENABLED) — one flag, not a second.
 api_router.include_router(orchestrations.router)
+# Campaigns span /projects/{id}/campaigns + /campaigns/{id} (+ cancel). Same flag —
+# the continuous loop is the same dark-launch family, not a sibling switch.
+api_router.include_router(campaigns.router)

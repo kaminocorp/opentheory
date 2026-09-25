@@ -42,10 +42,12 @@ from app.models.enums import (
     AgentRunStatus,
     ClaimStatus,
     OrchestrationRunStatus,
+    ResearchCampaignStatus,
     ThreadStatus,
 )
 from app.models.orchestration_run import OrchestrationRun
 from app.models.project import Project
+from app.models.research_campaign import ResearchCampaign
 from app.models.thread import Thread
 from app.schemas.claim import SETTLED_HEADLINES, ClaimGrounding
 from app.services import agent_runs as agent_run_service
@@ -199,13 +201,19 @@ async def start_orchestration(
     *,
     triggered_by: Actor,
     role: str,
+    for_campaign: bool = False,
 ) -> OrchestrationRun:
     """Mint the ``running`` trace in the request session. One in-flight loop per project.
 
     A second concurrent commission is ``409`` — two loops racing the shared pot is the
-    failure mode 0.19.0 already named. ``role`` validity is enforced upstream.
+    failure mode 0.19.0 already named. A running continuous campaign also blocks a
+    standalone orchestration (they share the pot); the campaign itself passes
+    ``for_campaign=True`` so it can commission its own cycles. ``role`` validity is
+    enforced upstream.
     """
-    project = await db.get(Project, project_id)
+    project = (
+        await db.execute(select(Project).where(Project.id == project_id).with_for_update())
+    ).scalar_one_or_none()
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
@@ -222,6 +230,19 @@ async def start_orchestration(
             status_code=status.HTTP_409_CONFLICT,
             detail="An orchestration is already running on this project",
         )
+
+    if not for_campaign:
+        running_campaign = await db.execute(
+            select(ResearchCampaign.id).where(
+                ResearchCampaign.project_id == project_id,
+                ResearchCampaign.status == ResearchCampaignStatus.RUNNING,
+            )
+        )
+        if running_campaign.scalar_one_or_none() is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="A continuous research campaign is already running on this project",
+            )
 
     run = OrchestrationRun(
         project_id=project_id,

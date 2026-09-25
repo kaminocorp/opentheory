@@ -443,7 +443,7 @@ the reasoning is in [`docs/plans/roadmap-next-steps.md`](docs/plans/roadmap-next
 | **Real funding / settlement (Stripe, …)** | `FundingAllocation` is recorded; payment rails are future work. |
 | **Reputation / influence** | In the vision doc; no data model yet — needs design, not code. |
 | **Lean 4 / Mathlib** | Tier 2; forces a heavier execution substrate. Not until the sandbox and agent loop are stable. |
-| **Continuous / scheduled agent loops** | The loop is deliberately bounded. Autonomy expands only behind budgets and human review. |
+| **Durable / scheduled agent queues** | In-process continuous campaigns shipped in `0.25.0`. A durable job queue (survive-restart resume) is not built. Autonomy still expands only behind budgets. |
 | **Object storage for large artifacts** | Planned; upload path not built. |
 
 ---

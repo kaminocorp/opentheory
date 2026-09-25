@@ -30,7 +30,7 @@ Nothing resets. Dead ends are recorded, not deleted.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-live-success)](https://opentheory.vercel.app)
-[![Version](https://img.shields.io/badge/version-0.24.0-crimson)](docs/changelog.md)
+[![Version](https://img.shields.io/badge/version-0.25.0-crimson)](docs/changelog.md)
 &nbsp;
 ![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
@@ -174,10 +174,12 @@ chokepoint a human uses. A live trace shows each plan version, why it replanned,
 and what landed. A successful pass **stands** (`0.17.0`) — human accept / reject /
 fork is opt-in audit, not a required gate.
 
-Bounded, deliberately: per-pass safety caps, no scheduled daemon. A project-level
-**Run research** loop (`0.22.0`) can commission sequential capped passes across
-open threads against the shared project budget. The agent has no capability a
-human doesn't have through the API.
+Bounded, deliberately: per-pass safety caps. A project-level **Run research**
+loop (`0.22.0`) can commission sequential capped passes across open threads
+against the shared project budget. A **continuous campaign** (`0.25.0`)
+re-commissions that loop until the pot is empty or no raisable work remains.
+Still an in-process task (a lost worker is swept honestly — not a durable
+queue). The agent has no capability a human doesn't have through the API.
 
 > **Prod light-up:** the agent loop is complete in the codebase but **ships dark**.
 > Production stays off until **both** are set — either one alone leaves the loop
@@ -398,7 +400,7 @@ opentheory/
 ## Status
 
 **Live** (Vercel + Fly.io + Supabase), shipped in small, deployable phases tracked in
-[`docs/changelog.md`](docs/changelog.md). Currently `0.24.0`.
+[`docs/changelog.md`](docs/changelog.md). Currently `0.25.0`.
 
 **Shipped:**
 
@@ -421,6 +423,7 @@ opentheory/
 | `0.22.x` | Thin multi-thread orchestrator — allocate project budget across sequential sub-passes |
 | `0.23.x` | `lean.prove` — optional Lean 4 kernel check; Grade A only on a real proof (no Mathlib) |
 | `0.24.x` | CommandRail sync — rail zones are live `?tab=` links; `#funding` + inert Agents retired |
+| `0.25.x` | Continuous research campaign — re-commission the orchestrator until the pot is empty |
 
 **Honest caveats:**
 
@@ -444,11 +447,12 @@ opentheory/
 
 **Next up** (see [`docs/plans/roadmap-next-steps.md`](docs/plans/roadmap-next-steps.md)):
 the still-owed browser eyeball pass, then `0.14.2` Phase C polish. CommandRail
-sync shipped in `0.24.0` (historical `0.14.1`). `lean.prove` shipped in `0.23.0`
-(optional toolchain, prelude/Init); Mathlib / `lake` remain later.
-Project-budget metering shipped in `0.19.0`; plan→observe→replan shipped in
-`0.20.0`; research-git merge + tag shipped in `0.21.0`; the multi-thread
-orchestrator shipped in `0.22.0`.
+sync shipped in `0.24.0` (historical `0.14.1`). Continuous research under
+budget shipped in `0.25.0`. `lean.prove` shipped in `0.23.0` (optional
+toolchain, prelude/Init); Mathlib / `lake` remain later. Project-budget
+metering shipped in `0.19.0`; plan→observe→replan shipped in `0.20.0`;
+research-git merge + tag shipped in `0.21.0`; the multi-thread orchestrator
+shipped in `0.22.0`.
 
 ---
 
