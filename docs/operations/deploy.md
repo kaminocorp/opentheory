@@ -140,6 +140,33 @@ machine. Set these secrets alongside the DB URLs (tune after observing `resource
 Leave `TOOLBENCH_SUBPROCESS_SANDBOX_ENABLED=true` in production. Local dev defaults
 `TOOLBENCH_MEMORY_LIMIT_MB=0` because `RLIMIT_AS` is unreliable on macOS.
 
+## Agent loop prod light-up (`0.12.x`)
+
+The thin agent loop is **complete in the codebase and ships dark**. Lighting it up
+in production is exactly two settings — **both required**; either one alone leaves
+the loop unusable.
+
+1. Set the OpenRouter key as a Fly **secret** (never `fly.toml [env]`):
+
+   ```bash
+   fly secrets set OPENROUTER_API_KEY='…'
+   ```
+
+2. Flip the dark-launch flag:
+
+   ```bash
+   fly secrets set AGENT_LOOP_ENABLED=true
+   ```
+
+| State | What operators see |
+| --- | --- |
+| `AGENT_LOOP_ENABLED` unset / `false` (the default) | Every agent route `404`s, before auth |
+| Flag `true`, no `OPENROUTER_API_KEY` | A commissioned pass fails cleanly (`422`/`503`), never a `500` |
+| Flag `true` **and** the key set | The loop is live |
+
+Leave `AGENT_LOOP_ENABLED=false` until you intend to take live agent traffic. Local
+dev copies the same pair from `backend/.env.example`.
+
 ## Operating notes
 
 - **Always-warm:** `fly.toml` sets `min_machines_running = 1`, so one machine stays running and

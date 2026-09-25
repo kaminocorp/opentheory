@@ -30,7 +30,7 @@ Nothing resets. Dead ends are recorded, not deleted.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-live-success)](https://opentheory.vercel.app)
-[![Version](https://img.shields.io/badge/version-0.12.8-crimson)](docs/changelog.md)
+[![Version](https://img.shields.io/badge/version-0.16.2-crimson)](docs/changelog.md)
 &nbsp;
 ![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
@@ -105,7 +105,7 @@ checkpoints themselves, so provenance and attribution can't be skipped.
 
 ### The toolbench: results, not vibes
 
-Claims are tested with **deterministic instruments**, not model assertions. Five ship
+Claims are tested with **deterministic instruments**, not model assertions. Six ship
 today, each landing an attributed checkpoint through the same chokepoint:
 
 | Instrument | Does |
@@ -115,6 +115,7 @@ today, each landing an attributed checkpoint through the same chokepoint:
 | `geometry.coordinate_measure` | exact coordinate geometry (distances, angles) |
 | `counterexample.search` | deterministic grid search for a falsifying witness |
 | `oeis.search` | identify an integer sequence — lands a *pinned* citation |
+| `z3.prove` | machine-checked validity — proof, exact counter-model, or honest `undecided` |
 
 Every instrument answers with the same three-outcome contract:
 
@@ -172,9 +173,16 @@ human accepts, rejects (dead-end), or branches.
 Bounded, deliberately: per-pass safety caps, no continuous loop, no multi-thread
 orchestrator. The agent has no capability a human doesn't have through the API.
 
-> **Note:** the agent loop is complete in the codebase but **ships dark** —
-> `AGENT_LOOP_ENABLED=false` means every agent route `404`s. Enabling it is a flag
-> flip plus an `OPENROUTER_API_KEY`. See [Status](#status).
+> **Prod light-up:** the agent loop is complete in the codebase but **ships dark**.
+> Production stays off until **both** are set — either one alone leaves the loop
+> unusable:
+>
+> 1. `OPENROUTER_API_KEY` as a Fly **secret** (`fly secrets set`, never `fly.toml [env]`)
+> 2. `AGENT_LOOP_ENABLED=true`
+>
+> Flag off → every agent route `404`s. Flag on without a key → a commissioned pass
+> fails cleanly. See [Status](#status) and
+> [`docs/operations/deploy.md`](docs/operations/deploy.md).
 
 ---
 
@@ -384,7 +392,7 @@ opentheory/
 ## Status
 
 **Live** (Vercel + Fly.io + Supabase), shipped in small, deployable phases tracked in
-[`docs/changelog.md`](docs/changelog.md). Currently `0.12.8`.
+[`docs/changelog.md`](docs/changelog.md). Currently `0.16.2`.
 
 **Shipped:**
 
@@ -396,11 +404,17 @@ opentheory/
 | `0.9.x`–`0.10.x` | Toolbench spine, five instruments, KaTeX math, drive/show UI |
 | `0.11.x` | Execution sandbox — killable subprocess, wall-clock/memory caps, concurrency limit |
 | `0.12.x` | Thin agent loop — planner, bounded orchestrator, background API, workspace UI |
+| `0.13.x` | `z3.prove` — machine-checked validity (proof / counter-model / undecided) |
+| `0.14.x`–`0.15.x` | Five-tab project deepdive; quiet-minimalist Console re-skin |
+| `0.16.x` | Claim grounding — evidence grade ladder, planner yield measure, post-review hardening |
 
 **Honest caveats:**
 
-- The **agent loop ships dark** in production (`AGENT_LOOP_ENABLED=false` ⇒ agent
-  routes `404`). Enabling it is a flag flip plus an `OPENROUTER_API_KEY`.
+- The **agent loop ships dark** in production. The prod light-up step is
+  **both** `AGENT_LOOP_ENABLED=true` **and** an `OPENROUTER_API_KEY` Fly secret
+  (`fly secrets set`, never `fly.toml [env]`). Flag off ⇒ every agent route
+  `404`s; flag on without a key ⇒ a commissioned pass fails cleanly. One
+  without the other is not a launch.
 - **Token budgets bound nothing yet.** Per-pass safety caps limit blast radius;
   project-budget metering (`0.12.5`) is deferred.
 - **Funding is recorded, not settled.** `FundingAllocation` is a real append-only
@@ -409,9 +423,10 @@ opentheory/
   artifacts** are described in the docs but not built.
 
 **Next up** (see [`docs/plans/roadmap-next-steps.md`](docs/plans/roadmap-next-steps.md)):
-Tier 1 retrieval instruments (Crossref / arXiv / OpenAlex literature pins on the
-proven `source.pin` shape), then a **Z3** instrument for machine-checked falsification
-— both directly widen what an agent pass can *do*. Lean 4 + Mathlib comes after.
+Phase 1 overnight trains — **in flight, not shipped** — (a) Tier 1 literature pin
+instruments (Crossref / arXiv, and OpenAlex if the key is ready) on the proven
+`source.pin` shape, and (b) agent human-review becoming opt-in plus the `0.16.3`
+thread-level grounding rollup. Lean 4 + Mathlib comes after.
 
 ---
 
