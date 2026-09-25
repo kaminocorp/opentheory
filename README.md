@@ -30,7 +30,7 @@ Nothing resets. Dead ends are recorded, not deleted.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-live-success)](https://opentheory.vercel.app)
-[![Version](https://img.shields.io/badge/version-0.30.0-crimson)](docs/changelog.md)
+[![Version](https://img.shields.io/badge/version-0.31.0-crimson)](docs/changelog.md)
 &nbsp;
 ![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
@@ -400,7 +400,7 @@ opentheory/
 ## Status
 
 **Live** (Vercel + Fly.io + Supabase), shipped in small, deployable phases tracked in
-[`docs/changelog.md`](docs/changelog.md). Currently `0.30.0`.
+[`docs/changelog.md`](docs/changelog.md). Currently `0.31.0`.
 
 **Shipped:**
 
@@ -429,6 +429,7 @@ opentheory/
 | `0.28.x` | Live OpenRouter price metering — `ComputeDebit` at prompt/completion rates, honest blended fallback |
 | `0.29.x` | Semantic git diff — structured claim / grounding / instrument delta between two tips |
 | `0.30.x` | Deepdive Phase C polish — contested click-through, tab badges, compact metric line (historical `0.14.2`) |
+| `0.31.x` | Deepdive Phase D — shareable Research `?thread=` / `?branch=`, cross-tab live cue, rail-only nav |
 
 **Honest caveats:**
 
@@ -452,9 +453,10 @@ opentheory/
   `undecided` / `mathlib_unavailable`. See `docs/operations/deploy.md`.
 
 **Next up** (see [`docs/plans/roadmap-next-steps.md`](docs/plans/roadmap-next-steps.md)):
-the still-owed browser eyeball pass, then optional Phase D (`?thread=` /
-`?branch=`). Deepdive Phase C polish shipped in `0.30.0` (historical
-`0.14.2`). CommandRail sync shipped in `0.24.0` (historical `0.14.1`).
+the still-owed browser eyeball pass. Deepdive Phase D shipped in `0.31.0`
+(shareable Research deep links; no sidecar). Deepdive Phase C polish shipped
+in `0.30.0` (historical `0.14.2`). CommandRail sync shipped in `0.24.0`
+(historical `0.14.1`).
 Continuous research under budget shipped in `0.25.0`. `lean.prove` shipped
 in `0.23.0` (optional toolchain, prelude/Init) and `0.26.0` (optional
 Mathlib / `lake`). Project-budget metering shipped in `0.19.0`; concurrent

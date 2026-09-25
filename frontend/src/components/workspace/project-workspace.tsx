@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { AwaitingState, Bay, MetricReadout, ReadoutLabel } from "@/components/console";
 import {
@@ -17,8 +17,9 @@ import {
 import { cn } from "@/lib/cn";
 import { queryKeys } from "@/lib/query-keys";
 import { useActingIdentity } from "@/lib/use-identity";
-import { KEEP_ALIVE_TABS, type ProjectTabId } from "@/lib/project-tab";
-import { useProjectTab } from "@/lib/use-project-tab";
+import { setProjectPassRunning } from "@/lib/project-live-state";
+import { KEEP_ALIVE_TABS, resolveProjectRefId, type ProjectTabId } from "@/lib/project-tab";
+import { useProjectView } from "@/lib/use-project-tab";
 import type { GroundingRollup, ProjectBudget, ProjectCounts } from "@/types/research";
 
 import { AgentPassPanel } from "./agent-pass/agent-pass-panel";
@@ -61,20 +62,15 @@ const COUNT_LABELS: { key: keyof ProjectCounts; label: string }[] = [
  * collaborators, budget, and the whole toolbench sat *above* the ledger, so the work
  * the page exists for started below the fold. Nothing was rewritten to fix that: the
  * panels are unchanged and simply regrouped, and this component stays what it already
- * was — the owner of the shared queries and the thread/branch selection everything
- * else reads.
+ * was — the owner of the shared queries. Thread/branch selection is URL state
+ * from 0.31.0 (`?thread=` / `?branch=`), still resolved here so every panel
+ * reads the same validated ids.
  */
 export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
-  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
-  // null = the project main line; a branch id scopes the checkpoint timeline + new
-  // checkpoints to that line (0.4.2/0.4.3).
-  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   // Project stewardship (0.8.1): the metadata edit form, which renders on Overview.
   const [editing, setEditing] = useState(false);
   // Contested-strip click-through (0.30.0): which claim the Research list should land on.
   const [focusClaimId, setFocusClaimId] = useState<string | null>(null);
-
-  const { tab, setTab } = useProjectTab();
   const { isAuthed, me } = useActingIdentity();
 
   const projectQuery = useQuery({
@@ -102,8 +98,6 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
     queryKey: queryKeys.branches(projectId),
     queryFn: () => listBranches(projectId),
   });
-  const selectedBranch = branchesQuery.data?.find((b) => b.id === selectedBranchId) ?? null;
-  const lineSealed = selectedBranch !== null && selectedBranch.status !== "open";
 
   // Same query key as ThreadListPanel, so TanStack serves both from one cache entry
   // and one request — this exists only to name the selected thread in the Instruments
@@ -112,7 +106,20 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
     queryKey: queryKeys.threads(projectId),
     queryFn: () => listThreads(projectId),
   });
+
+  const threadIds = threadsQuery.data?.map((t) => t.id) ?? null;
+  const branchIds = branchesQuery.data?.map((b) => b.id) ?? null;
+  const { tab, setTab, threadParam, branchParam, replaceView } = useProjectView({
+    threadIds,
+    branchIds,
+  });
+  // URL ids apply only once the matching list confirms them. Unknown / junk
+  // stay at the workspace defaults (no thread; main line) — never an error.
+  const selectedThreadId = resolveProjectRefId(threadParam, threadIds);
+  const selectedBranchId = resolveProjectRefId(branchParam, branchIds);
   const selectedThread = threadsQuery.data?.find((t) => t.id === selectedThreadId) ?? null;
+  const selectedBranch = branchesQuery.data?.find((b) => b.id === selectedBranchId) ?? null;
+  const lineSealed = selectedBranch !== null && selectedBranch.status !== "open";
 
   // Same key Collaborators already uses. Stewards get one shared request (not a
   // second fetch); visitors never hit the steward-only invitations read.
@@ -139,6 +146,13 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
   });
   const passRunning =
     (newestRunQuery.data?.status ?? newestRun?.status) === "running";
+
+  // Republish the keep-alive newest-run flag so the CommandRail can show the
+  // same live tick without a second fetch. Clear on unmount / idle.
+  useEffect(() => {
+    setProjectPassRunning(passRunning);
+    return () => setProjectPassRunning(false);
+  }, [passRunning]);
 
   // Cold tabs mount on first activation and then stay mounted. Research and
   // Instruments start mounted because they are the hot path and share selection
@@ -192,15 +206,16 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
           setTab("research");
         }}
         onFocusClaim={(item) => {
-          if (item.thread_id) setSelectedThreadId(item.thread_id);
+          if (item.thread_id) replaceView({ tab: "research", thread: item.thread_id });
+          else setTab("research");
           setFocusClaimId(item.claim_id);
-          setTab("research");
         }}
       />
 
       <ProjectTabs
         active={tab}
         onSelect={setTab}
+        passRunning={passRunning}
         badges={{
           research: contradictions.length ? { count: contradictions.length, tone: "fail" } : null,
           crew:
@@ -219,14 +234,14 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
         <BranchBar
           projectId={projectId}
           selectedBranchId={selectedBranchId}
-          onSelectBranch={setSelectedBranchId}
+          onSelectBranch={(branchId) => replaceView({ branch: branchId })}
         />
         <div className="enter-stagger grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)_340px]">
           <ThreadListPanel
             projectId={projectId}
             selectedThreadId={selectedThreadId}
             onSelectThread={(threadId) => {
-              setSelectedThreadId(threadId);
+              replaceView({ thread: threadId });
               setFocusClaimId(null);
             }}
           />
@@ -274,8 +289,7 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
           canRun={canManageProject}
           agentModels={project.agent_models}
           onSelectBranch={(branchId) => {
-            setSelectedBranchId(branchId);
-            setTab("research");
+            replaceView({ tab: "research", branch: branchId });
           }}
         />
       </TabPanel>
