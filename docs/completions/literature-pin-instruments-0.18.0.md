@@ -58,6 +58,6 @@ as `oeis.search`. A live pin still raises a claim to `cited` via `Evidence.sourc
 - DB-gated write-path tests in `test_instruments_write_path.py` skip without
   `TEST_DATABASE_URL`. They are written (Crossref / arXiv / OpenAlex through
   `run_instrument`) and should be run the next time a test database is available.
-  The default suite was **369 passed, 131 skipped**.
+  The default suite was **379 passed, 132 skipped** after rebase onto `0.17.0`.
 - No pixel-level browser walk of the new drive forms / pin cards (same gap as
   `0.14.0`–`0.16.0`). Typecheck / lint / build are the frontend gate.

@@ -125,7 +125,7 @@ Snippets only (title, authors, year, container) — never a bulk copy of license
 
 ```bash
 cd backend && uv run ruff check .   # clean
-cd backend && uv run pytest -q      # 369 passed, 131 skipped (DB-gated)  [was 329 / 129]
+cd backend && uv run pytest -q      # 379 passed, 132 skipped (DB-gated)  [was 329 / 129]
 cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
 ```
 
