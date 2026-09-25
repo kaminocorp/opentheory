@@ -27,7 +27,7 @@ def test_revision_linkage() -> None:
 
 
 def test_it_is_revised_by_0016() -> None:
-    """0016 is the current head; 0015 must remain in the single linear chain."""
+    """0016 (research-git) revises 0015; 0017 (orchestrator) then revises 0016."""
     down_revisions = {
         match.group(1)
         for path in _VERSIONS.glob("*.py")

@@ -30,7 +30,7 @@ Nothing resets. Dead ends are recorded, not deleted.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-live-success)](https://opentheory.vercel.app)
-[![Version](https://img.shields.io/badge/version-0.21.0-crimson)](docs/changelog.md)
+[![Version](https://img.shields.io/badge/version-0.22.0-crimson)](docs/changelog.md)
 &nbsp;
 ![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
@@ -172,8 +172,10 @@ chokepoint a human uses. A live trace shows each plan version, why it replanned,
 and what landed. A successful pass **stands** (`0.17.0`) — human accept / reject /
 fork is opt-in audit, not a required gate.
 
-Bounded, deliberately: per-pass safety caps, no continuous loop, no multi-thread
-orchestrator. The agent has no capability a human doesn't have through the API.
+Bounded, deliberately: per-pass safety caps, no scheduled daemon. A project-level
+**Run research** loop (`0.22.0`) can commission sequential capped passes across
+open threads against the shared project budget. The agent has no capability a
+human doesn't have through the API.
 
 > **Prod light-up:** the agent loop is complete in the codebase but **ships dark**.
 > Production stays off until **both** are set — either one alone leaves the loop
@@ -394,7 +396,7 @@ opentheory/
 ## Status
 
 **Live** (Vercel + Fly.io + Supabase), shipped in small, deployable phases tracked in
-[`docs/changelog.md`](docs/changelog.md). Currently `0.21.0`.
+[`docs/changelog.md`](docs/changelog.md). Currently `0.22.0`.
 
 **Shipped:**
 
@@ -414,6 +416,7 @@ opentheory/
 | `0.19.x` | Project-budget metering — agent passes debit `ComputeDebit`; funding spent/available are real |
 | `0.20.x` | Bounded plan → observe → replan inside one agent pass |
 | `0.21.x` | Research-git merge + tag — multi-parent synthesis and named immutable pointers |
+| `0.22.x` | Thin multi-thread orchestrator — allocate project budget across sequential sub-passes |
 
 **Honest caveats:**
 
@@ -435,7 +438,8 @@ opentheory/
 **Next up** (see [`docs/plans/roadmap-next-steps.md`](docs/plans/roadmap-next-steps.md)):
 the still-owed browser eyeball pass, then `0.14.1` CommandRail sync. Lean 4 + Mathlib
 comes after. Project-budget metering shipped in `0.19.0`; plan→observe→replan shipped
-in `0.20.0`; research-git merge + tag shipped in `0.21.0`.
+in `0.20.0`; research-git merge + tag shipped in `0.21.0`; the multi-thread
+orchestrator shipped in `0.22.0`.
 
 ---
 

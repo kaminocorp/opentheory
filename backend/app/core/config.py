@@ -100,8 +100,13 @@ class Settings(BaseSettings):
     # overrides this per model when set. Snapshot onto each ``ComputeDebit`` so a later
     # rate change never rewrites history.
     agent_token_rate_usd_per_1k: Decimal = Decimal("0.005")
-    # Dark-launch flag: when False the agent-run routes 404 (indistinguishable from "not a route").
+    # Dark-launch flag: when False the agent-run *and* orchestration routes 404
+    # (indistinguishable from "not a route"). One flag — do not invent a second.
     agent_loop_enabled: bool = False
+    # Hard cap on how many ``run_agent_pass`` calls one orchestration may commission.
+    # Sequential in v1 (shared project pot — concurrent passes race ``available``).
+    # Per-pass safety caps and the 0.19.0 project ceiling still bind each sub-pass.
+    orchestration_max_passes: int = 4
 
     @field_validator("backend_cors_origins", mode="before")
     @classmethod

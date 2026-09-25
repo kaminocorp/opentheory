@@ -4,6 +4,11 @@ import type {
   AgentRunTrigger,
 } from "@/types/agent-run";
 import type {
+  OrchestrationRunRead,
+  OrchestrationRunSummary,
+  OrchestrationTrigger,
+} from "@/types/orchestration";
+import type {
   AgentModels,
   ModelOption,
   Project,
@@ -380,4 +385,24 @@ export function getAgentRun(agentRunId: string): Promise<AgentRunRead> {
 // handler runs). Used to disable the trigger rather than surface an error.
 export function isAgentLoopDisabled(error: unknown): boolean {
   return error instanceof Error && /^404\b/.test(error.message);
+}
+
+// --- Orchestrations (0.22.0 — project-level multi-thread research loop) ------
+
+export function triggerOrchestration(
+  projectId: string,
+  payload: OrchestrationTrigger,
+): Promise<OrchestrationRunRead> {
+  return request<OrchestrationRunRead>(
+    `/projects/${projectId}/orchestrations`,
+    writeInit(payload),
+  );
+}
+
+export function listOrchestrations(projectId: string): Promise<OrchestrationRunSummary[]> {
+  return request<OrchestrationRunSummary[]>(`/projects/${projectId}/orchestrations`);
+}
+
+export function getOrchestration(orchestrationId: string): Promise<OrchestrationRunRead> {
+  return request<OrchestrationRunRead>(`/orchestrations/${orchestrationId}`);
 }

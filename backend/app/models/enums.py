@@ -152,6 +152,20 @@ class ValidationOutcome(StrEnum):
     RETRACT = "retract"
 
 
+class OrchestrationRunStatus(StrEnum):
+    """Lifecycle of one project-level research orchestration (0.22.0).
+
+    Mutable like ``AgentRun`` — not a ledger primitive, not append-only. The sub-passes it
+    commissions write the ledger through ``run_agent_pass``; this row only narrates which
+    threads were selected, skipped, and why the loop stopped. There is no
+    ``awaiting_review`` and the orchestrator never self-validates.
+    """
+
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 class AgentRunStatus(StrEnum):
     """Lifecycle of one thin-agent pass (0.12.x) — a **mutable** live trace, not a ledger primitive.
 

@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.22.0` — **Thin multi-thread orchestrator.** A project-level loop selects open threads with raisable claims, commissions capped sequential `run_agent_pass` calls against the shared `ComputeDebit` / project-budget ceiling, and stops when the pot is empty, no raisable work remains, or `orchestration_max_passes` is hit. Same `AGENT_LOOP_ENABLED` dark-launch flag as a single pass — no second flag. Trace records which threads were commissioned or skipped and why. Orchestrator is contributor infrastructure: never writes `Validation` or `FundingAllocation`. Frontend: quiet **Run research** on Overview. Migration `0017_orchestration_runs` (additive). Sits on shipped `0.21.0` research-git merge/tag.
 - `0.21.0` — **Research-git merge + tag.** Parallel exploration lines can converge without rewriting history: a merge is a new multi-parent checkpoint that records which branches (and optionally claims) were combined and marks sources `merged`. A tag is a named immutable pointer at a checkpoint (`milestone` / `validated` / `retraction`); a colliding name is `409`, never a silent overwrite. Workspace: Merge on the line bar, a Tags bay on Research. Migration `0016_research_git_merge_tag` (additive).
 - `0.20.0` — **Bounded plan → observe → replan inside one agent pass.** After each instrument batch the pass feeds observations (outcomes, whether anything minted, grounding deltas) into a capped replan. Hard bounds: `agent_pass_max_replans` (default 2), `agent_pass_max_batch_runs` (default 2), existing `agent_pass_max_runs` / token recording. `BudgetPolicy.check` is the shipped `0.19.0` project ceiling (`ProjectBudgetPolicy` / `record_compute_debit` / refuse-to-start / skip-remaining-on-exhaust; no replan after a budget stop). Trace shows each plan version and why it replanned. Failed/empty steps still mint nothing. Planner stays on the fixed catalog. Human review stays opt-in (`0.17.0`). No schema, no migration.
 - `0.19.0` — **Project-budget metering for agent passes.** Recorded `AgentRun` tokens debit an append-only `ComputeDebit` ledger (not a `FundingAllocation` — the agent is a contributor, never a funder). `project_budget.spent` is the sum of those rows; `available` drops by the metered amount. An exhausted project refuses to start (`failed`, `error="project budget exhausted"`, mints nothing); a pass that burns the remainder mid-way skips remaining instrument runs with `budget_exhausted`. Per-pass safety caps are unchanged. Historically sketched as deferred `0.12.5`. Migration `0015_compute_debits` (additive).
@@ -92,6 +93,48 @@
 
 ---
 
+## 0.22.0
+
+**Thin multi-thread orchestrator.** One pass on one thread is no longer the
+ceiling. Humans still set the research question, the agent roster, and a project
+budget — then leave. A project-level loop selects open threads that still have
+raisable claims, commissions capped sequential `run_agent_pass` calls (each still
+the 0.20.0 plan → observe → replan loop), and stops when the shared
+`ComputeDebit` pot is empty, no raisable work remains, or
+`orchestration_max_passes` (default 4) is hit. Sits on shipped `0.21.0`
+research-git merge + tag.
+
+- **Same write path.** Every sub-pass goes through `start_agent_pass` →
+  `run_agent_pass`. The orchestrator invents no ledger mechanics and never
+  writes a `Validation` or a `FundingAllocation`. Funder ≠ contributor ≠
+  validator stays structural.
+- **Hard bounds.** Sequential in v1 (concurrent sub-passes would race
+  `available` — the same class of race 0.19.0 already records). Per-pass safety
+  caps and the 0.19.0 project ceiling still bind each commissioned pass.
+- **Trace.** A mutable `OrchestrationRun` row records each thread's fate
+  (commissioned / skipped, and why: `no_open_claims`, `no_raisable_claims`,
+  `thread_not_open`, `pass_in_flight`, `budget_exhausted`, `max_passes`) plus
+  budget remaining. One in-flight orchestration per project (`409` on overlap).
+- **Dark launch.** Same `AGENT_LOOP_ENABLED` flag as agent-run routes — no
+  second flag. Off ⇒ every orchestration route `404`s before auth.
+- **Frontend.** Quiet **Run research** on Overview, next to the budget. Polls
+  the decision trace. Feature-detected via the same 404 as a single pass.
+- **Does not auto-merge.** `0.21.0` merge / tag are human (and API) operations.
+  An optional `after_pass` hook is reserved and unused — this loop does not
+  merge or tag.
+
+Migration `0017_orchestration_runs` (additive).
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # (see completions doc)
+cd frontend && npm run typecheck && npm run lint && npm run build
+```
+
+See `docs/completions/multi-thread-orchestrator-0.22.0.md`.
+
+---
+
 ## 0.21.0
 
 **Research-git merge + tag.** The ledger already had commit (`Checkpoint`) and
@@ -129,6 +172,7 @@ cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
 ```
 
 See `docs/completions/research-git-merge-tag-0.21.0.md`.
+
 
 ## 0.20.0
 

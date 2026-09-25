@@ -208,3 +208,15 @@ def require_internal(actor: ActingActor) -> Actor:
 
 
 InternalActor = Annotated[Actor, Depends(require_internal)]
+
+
+async def require_agent_loop_enabled() -> None:
+    """Dark-launch gate: while ``agent_loop_enabled`` is off, agent surfaces ``404``.
+
+    Shared by the agent-run and orchestration routers so there is **one** flag
+    (``AGENT_LOOP_ENABLED``). Declared as a router-level dependency so it runs
+    *before* ``ActingActor``: an unauthenticated request still sees ``404``, not
+    ``401``. The route is indistinguishable from one that is not registered yet.
+    """
+    if not settings.agent_loop_enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")

@@ -29,6 +29,7 @@ import { ProjectEditForm } from "./project-edit-form";
 import { ProjectHeader } from "./project-header";
 import { ProjectTabs, projectPanelDomId, projectTabDomId } from "./project-tabs";
 import { ResearchCrewPanel } from "./research-crew-panel";
+import { RunResearchBay } from "./run-research-bay";
 import { TagPanel } from "./tag-panel";
 import { ThreadListPanel } from "./thread-list-panel";
 import { ToolbenchPanel } from "./toolbench/toolbench-panel";
@@ -291,6 +292,12 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
           budget={budget}
           loading={!budget && !overviewQuery.isError}
           error={overviewQuery.isError}
+        />
+
+        <RunResearchBay
+          projectId={projectId}
+          canRun={canManageProject}
+          agentModels={project.agent_models}
         />
       </TabPanel>
     </div>

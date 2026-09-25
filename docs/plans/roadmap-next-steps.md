@@ -1,17 +1,16 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-09-25 · **Current release line:** `0.21.0` (research-git merge +
-> tag), sitting on shipped `0.20.0` (bounded plan → observe → replan), `0.19.0`
-> (project-budget metering — historically sketched as deferred `0.12.5`), `0.18.0`
-> (Tier-1 literature pins), `0.17.0` (Phase 1 agent autonomy — review is opt-in) and
-> `0.16.3` (thread/project grounding rollup). For the per-phase ledger see
-> `docs/changelog.md`; for the line just closed see
-> `docs/completions/research-git-merge-tag-0.21.0.md`. The `0.14.x` plan (phases B–D
-> still open) now lives at `docs/archive/project-deepdive-tabs-0.14.md`.
+> **Last updated:** 2026-09-25 · **Current release line:** `0.22.0` (thin multi-thread
+> orchestrator — allocate project budget across sequential sub-passes), sitting on
+> shipped `0.21.0` (research-git merge + tag), `0.20.0` (plan → observe → replan),
+> `0.19.0` (project-budget metering), `0.18.0` (Tier-1 literature pins), `0.17.0`
+> (review is opt-in) and `0.16.3` (thread/project grounding rollup). For the
+> per-phase ledger see `docs/changelog.md`; for the line just closed see
+> `docs/completions/multi-thread-orchestrator-0.22.0.md`. The `0.14.x` plan
+> (phases B–D still open) now lives at `docs/archive/project-deepdive-tabs-0.14.md`.
 >
 > **Next after this line:** the still-owed browser eyeball pass; then `0.14.1`
-> CommandRail sync. A multi-thread orchestrator is a separate line — not this
-> release. Unmerged work is not claimed as shipped.
+> CommandRail sync. Unmerged work is not claimed as shipped.
 
 ## Where we are
 
@@ -68,11 +67,14 @@ The agent Actor lands attributed checkpoints on a durable agent branch through t
 **same** `run_instrument` chokepoint humans use — a full `AgentRun` trace shows each
 plan version, why it replanned, and what landed. **Human review is opt-in audit** (accept
 a claim, reject the line as a dead end, or fork further) — it is not required before the
-pass is done for the operator. Still bounded, not continuous: no scheduled loop, no
-multi-thread orchestrator. **Project-budget metering shipped in `0.19.0`** (historical
-alias `0.12.5`): agent passes debit an append-only `ComputeDebit` ledger; `available` is
-a real ceiling; per-pass safety caps still bound blast radius on top. Prod enablement
-is still the ops flip `AGENT_LOOP_ENABLED=true` + the `OPENROUTER_API_KEY` Fly secret.
+pass is done for the operator. **A project-level orchestrator shipped in `0.22.0`:**
+**Run research** commissions sequential capped passes across open threads against
+the shared project pot, and stops when the budget is exhausted or no raisable
+claims remain. Still not a scheduled/continuous daemon. **Project-budget metering
+shipped in `0.19.0`** (historical alias `0.12.5`): agent passes debit an append-only
+`ComputeDebit` ledger; `available` is a real ceiling; per-pass safety caps still
+bound blast radius on top. Prod enablement is still the ops flip
+`AGENT_LOOP_ENABLED=true` + the `OPENROUTER_API_KEY` Fly secret.
 The guiding constraint held throughout: every capability was human-usable through the
 API *first*, so the agent simply uses what humans already could.
 
@@ -84,6 +86,19 @@ bypassing the checkpoint chokepoint or conflating funder / contributor / validat
 
 ## Recommended next releases
 
+### `0.22.x` — Thin multi-thread orchestrator ✅ **shipped** (`0.22.0`)
+
+Delivered: a project-level loop selects open threads with raisable claims,
+commissions capped sequential `run_agent_pass` calls against the shared
+`ComputeDebit` ceiling, and stops on budget / no-work / `orchestration_max_passes`.
+Same `AGENT_LOOP_ENABLED` dark-launch flag. Trace records which threads ran and
+why others were skipped. Orchestrator never self-validates. Quiet **Run research**
+on Overview. Migration `0017_orchestration_runs`. See
+`docs/completions/multi-thread-orchestrator-0.22.0.md`.
+
+**Not in this release:** concurrent sub-passes; scheduled/continuous loops;
+auto-merge / auto-tag after a landed pass (`0.21.0` merge/tag stay human/API ops).
+
 ### `0.21.x` — Research-git merge + tag ✅ **shipped** (`0.21.0`)
 
 Delivered: parallel exploration lines can converge without rewriting history. A
@@ -94,8 +109,8 @@ name is `409`, never a silent overwrite. Workspace: Merge on the line bar, a
 Tags bay on Research. Migration `0016_research_git_merge_tag` (additive). See
 `docs/completions/research-git-merge-tag-0.21.0.md`.
 
-**Not in this line:** semantic diff, blame-as-an-op, a multi-thread orchestrator,
-Lean / Mathlib.
+**Not in this line:** semantic diff, blame-as-an-op, Lean / Mathlib. The
+multi-thread orchestrator shipped as `0.22.0`.
 
 ### `0.20.x` — Plan → observe → replan ✅ **shipped** (`0.20.0`)
 
@@ -116,8 +131,8 @@ Refuse to start when exhausted; skip remaining instrument runs mid-pass with
 caps unchanged. Migration `0015_compute_debits` (additive). Historical alias
 `0.12.5`. See `docs/completions/project-budget-metering-0.19.0.md`.
 
-**Natural follow-ons:** the orchestrator that allocates project budget across
-subagents; live OpenRouter prices instead of the blended
+**Natural follow-ons:** ~~the orchestrator that allocates project budget across
+subagents~~ ✅ shipped as `0.22.0`; live OpenRouter prices instead of the blended
 `agent_token_rate_usd_per_1k` default. Plan→observe→replan shipped in `0.20.0`.
 
 ### `0.17.x` — Phase 1 agent autonomy ✅ **shipped** (`0.17.0`)
@@ -129,8 +144,8 @@ shipped Validation and Branch write paths. **No schema, no migration.** Safety c
 See `docs/completions/agent-autonomy-0.17.0.md`.
 
 **Natural follow-ons:** ~~`0.12.5` / `0.19.0` project-budget metering~~ ✅ shipped;
-~~plan→observe→replan within a pass~~ ✅ shipped as `0.20.0`; eventually the
-orchestrator that allocates project budget across subagents.
+~~plan→observe→replan within a pass~~ ✅ shipped as `0.20.0`; ~~the orchestrator
+that allocates project budget across subagents~~ ✅ shipped as `0.22.0`.
 
 ### `0.16.x` — Claim grounding ✅ **shipped and hardened** (`0.16.0`–`0.16.3`)
 
@@ -213,7 +228,8 @@ the other is not a launch. Flag off ⇒ every agent route `404`s.
 
 **Natural follow-ons (pick per demand):** ~~project-budget metering~~ ✅ shipped as
 `0.19.0`; ~~an iterative plan→observe→replan within a pass~~ ✅ shipped as `0.20.0`;
-and eventually the orchestrator agent that allocates project budget across subagents.
+~~the orchestrator that allocates project budget across subagents~~ ✅ shipped as
+`0.22.0`.
 
 ### `0.13.x` — Z3 (`z3.prove`) ✅ **shipped and hardened** (`0.13.0`–`0.13.5`)
 
@@ -283,6 +299,9 @@ demo requirement.
     compute budget per pass. Per-pass safety caps still bound a single pass. See
     `docs/completions/project-budget-metering-0.19.0.md`.
     ~~**`0.20.0` plan → observe → replan**~~ ✅ shipped on the same loop.
+    ~~**`0.21.0` research-git merge/tag**~~ ✅ shipped.
+    ~~**`0.22.0` multi-thread orchestrator**~~ ✅ shipped — sequential sub-passes
+    under the shared project pot.
 13. **`0.14.2` Phase C** — tab badges, contested click-through, context-readout polish.
 14. **Bench 6 surfaces** — tables and Vega-Lite plots when a thread needs them.
 15. **Lean + full substrate** — Claim 5; only after the above.
@@ -308,6 +327,7 @@ demo requirement.
 | `0.19.x` | Project-budget metering — `ComputeDebit` from agent-pass tokens; funding `spent`/`available` are real (historical `0.12.5`) |
 | `0.20.x` | Bounded plan → observe → replan inside one agent pass |
 | `0.21.x` | Research-git merge + tag — multi-parent synthesis and named immutable pointers |
+| `0.22.x` | Thin multi-thread orchestrator — allocate project budget across sequential sub-passes |
 
 ## Success criteria for the next milestone
 
@@ -322,5 +342,9 @@ and grounding yield, under hard caps, with each plan version visible on the trac
 checkpoint that marks sources `merged`; a tag is a named immutable pointer;
 neither rewrites history.
 
+**`0.22.0` (multi-thread orchestrator)** is shipped: a project-level loop commissions
+capped sequential passes across open threads against the shared `ComputeDebit`
+ceiling, and stops when the pot is empty or no raisable work remains.
+
 **Next product step:** the still-owed browser eyeball pass; then `0.14.1` CommandRail
-sync. A multi-thread orchestrator is a separate line.
+sync.

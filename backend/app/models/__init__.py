@@ -11,6 +11,7 @@ from app.models.contribution import Contribution
 from app.models.evidence import Evidence
 from app.models.funding import FundingAllocation
 from app.models.links import CheckpointRef, ClaimEvidenceLink, EvidenceArtifactLink
+from app.models.orchestration_run import OrchestrationRun
 from app.models.project import Project
 from app.models.project_invitation import ProjectInvitation
 from app.models.project_member import ProjectMember
@@ -34,6 +35,7 @@ __all__ = [
     "Evidence",
     "EvidenceArtifactLink",
     "FundingAllocation",
+    "OrchestrationRun",
     "Project",
     "ProjectInvitation",
     "ProjectMember",

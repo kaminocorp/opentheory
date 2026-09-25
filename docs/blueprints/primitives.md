@@ -93,6 +93,29 @@ Typical fields:
 - `kind` — `planning` (v1) or `execution` (reserved)
 - `created_at`
 
+## OrchestrationRun
+
+A mutable project-level trace of one bounded multi-thread research loop (`0.22.0`).
+
+Not a ledger primitive and not append-only (same posture as `AgentRun`). The row
+narrates which threads were selected, skipped, and why the loop stopped. Each
+commissioned sub-pass writes the ledger through `run_agent_pass`. The
+orchestrator is contributor infrastructure: it never writes a `Validation` or a
+`FundingAllocation`.
+
+Typical fields:
+
+- `id`
+- `project_id`
+- `triggered_by_actor_id`
+- `role` — the Research-crew role each sub-pass runs as
+- `status` — `running` / `completed` / `failed`
+- `decisions` — per-thread commissioned / skipped narrative
+- `stop_reason` — `budget_exhausted` / `no_open_work` / `max_passes` / `error`
+- `passes_commissioned` / `passes_completed` / `passes_failed` / `passes_skipped`
+- `budget_available_start` / `budget_available_end`
+- `max_passes`
+
 ## Thread
 
 A focused line of inquiry inside a project.
