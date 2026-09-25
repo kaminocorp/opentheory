@@ -37,6 +37,9 @@ def test_instruments_catalog_is_public(dbfree_client: TestClient) -> None:
         "expr.compare",
         "geometry.coordinate_measure",
         "oeis.search",
+        "crossref.lookup",
+        "arxiv.lookup",
+        "openalex.lookup",
         "z3.prove",
     } <= names
     # every descriptor carries the universal three-outcome contract

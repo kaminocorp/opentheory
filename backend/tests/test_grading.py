@@ -20,7 +20,7 @@ from app.toolbench.grading import (
 )
 from app.toolbench.registry import registry
 
-# The six production instruments, for the exhaustive sweeps below.
+# The production instruments, for the exhaustive sweeps below.
 INSTRUMENTS = (
     "z3.prove",
     "expr.compare",
@@ -28,6 +28,9 @@ INSTRUMENTS = (
     "geometry.coordinate_measure",
     "counterexample.search",
     "oeis.search",
+    "crossref.lookup",
+    "arxiv.lookup",
+    "openalex.lookup",
 )
 
 # --- every cell of the §3 matrix ------------------------------------------------------------------
@@ -53,6 +56,15 @@ MATRIX_CELLS = [
     ("oeis.search", ResultStatus.RESULT, None),  # off-ladder (D7)
     ("oeis.search", ResultStatus.REFUTED, None),
     ("oeis.search", ResultStatus.UNDECIDED, None),
+    ("crossref.lookup", ResultStatus.RESULT, None),
+    ("crossref.lookup", ResultStatus.REFUTED, None),
+    ("crossref.lookup", ResultStatus.UNDECIDED, None),
+    ("arxiv.lookup", ResultStatus.RESULT, None),
+    ("arxiv.lookup", ResultStatus.REFUTED, None),
+    ("arxiv.lookup", ResultStatus.UNDECIDED, None),
+    ("openalex.lookup", ResultStatus.RESULT, None),
+    ("openalex.lookup", ResultStatus.REFUTED, None),
+    ("openalex.lookup", ResultStatus.UNDECIDED, None),
 ]
 
 
@@ -115,13 +127,17 @@ def test_strongest_of_nothing_is_none() -> None:
 
 
 @pytest.mark.parametrize("status", list(ResultStatus))
-def test_retrieval_never_earns_a_letter(status: ResultStatus) -> None:
-    """``oeis.search`` is graded by source authority, not computation — it reads ``cited``.
+@pytest.mark.parametrize(
+    "instrument",
+    ("oeis.search", "crossref.lookup", "arxiv.lookup", "openalex.lookup"),
+)
+def test_retrieval_never_earns_a_letter(status: ResultStatus, instrument: str) -> None:
+    """Retrieval is graded by source authority, not computation — it reads ``cited``.
 
     The letter is withheld here *and* the read model gates ``cited`` on ``Evidence.source_type``;
     both point the same way, so a pin can never be mistaken for a computed result.
     """
-    assert grade_for("oeis.search", status) is None
+    assert grade_for(instrument, status) is None
 
 
 # --- the conservative fallback --------------------------------------------------------------------
@@ -191,7 +207,11 @@ def test_retrieval_is_never_a_way_to_raise_a_rung() -> None:
     """Off-ladder in the matrix ⇒ off-ladder in the advice. A pin is a citation, not a rung."""
     for grade in EvidenceGrade:
         assert "oeis.search" not in instruments_reaching(grade)
+        assert "crossref.lookup" not in instruments_reaching(grade)
+        assert "arxiv.lookup" not in instruments_reaching(grade)
+        assert "openalex.lookup" not in instruments_reaching(grade)
     assert "oeis.search" not in raise_path(None)
+    assert "crossref.lookup" not in raise_path(None)
 
 
 def test_raise_path_from_b_is_the_a_capable_set() -> None:

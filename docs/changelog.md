@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.18.0` — **Tier-1 literature pin instruments.** `crossref.lookup`, `arxiv.lookup`, and `openalex.lookup` reuse the `source.pin` shape `oeis.search` proved: DOI / versioned arXiv id / OpenAlex id land as attributed checkpoints through `run_instrument`, with `url` + `source_url` + `retrieved_at` + `raw_response_hash`. Network failures mint nothing; a successful empty match is honest `undecided`. OpenAlex does not hard-require a prod secret — optional `OPENALEX_API_KEY`, demo-pool degrade when absent. Backend + frontend + docs — no schema, no migration.
 - `0.17.0` — **Phase 1 agent autonomy: human review becomes opt-in.** A completed pass's attributed checkpoints on the agent branch stand without a mandatory accept/reject/fork. The API serializes `requires_review: false` (computed, never stored) so a client cannot invent a gate; accept / reject / fork remain available as opt-in audit through the existing Validation and Branch write paths. Per-pass safety caps are unchanged; `0.12.5` project-budget metering is still deferred. Prod enablement remains the ops flip `AGENT_LOOP_ENABLED` + `OPENROUTER_API_KEY`. No schema, no migration.
 - `0.16.3` — **Thread-level grounding rollup.** Project overview and thread reads carry a derived `grounding_rollup` (`"3 claims at B, 1 ungrounded"`), aggregated from existing `ClaimGrounding` headlines. Surfaced on the thread list and the Overview tab. No schema, no migration.
 - `0.16.2` — **Post-review hardening on the grounding line (`0.16.0`–`0.16.1`).** No CRITICAL/HIGH; the matrix, the backward read, and the anti-injection posture all held. Closes one MEDIUM: a claim going `proven → refuted` — a proof overturned by an exact counterexample — scored `unchanged`, so the trace said *"no claim's grounding moved"* about the most consequential event the ledger can record. Also builds the history-row yield the summary schema already claimed, makes *never measured* distinguishable from *measured zero*, and stops a failed measurement from failing a pass that landed everything. No schema, no migration.
@@ -85,6 +86,50 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.18.0
+
+**Tier-1 literature pin instruments.** The retrieve family stops being OEIS-only. Three new
+instruments — `crossref.lookup`, `arxiv.lookup`, `openalex.lookup` — look up a work by DOI /
+versioned arXiv id / OpenAlex id (or a bibliographic query) and land a *pinned* citation on the
+ledger through the same `run_instrument` → `create_checkpoint` chokepoint every other instrument
+uses. The pin is the `source.pin` shape `oeis.search` proved in `0.9.4`: `url` (the human citation)
++ `source_url` (the exact API URL whose bytes were hashed) + `retrieved_at` + `raw_response_hash`.
+Snippets only (title, authors, year, container) — never a bulk copy of licensed full text.
+
+- **`crossref.lookup`** — DOI identity lookup via `GET /works/{doi}`, or a bibliographic
+  `query.bibliographic` search when no DOI is given. A confirmed work with a DOI is `result`;
+  HTTP 404 or an empty item list is `undecided` (escalate, never a fake paper). User-Agent carries
+  `TOOLBENCH_RETRIEVAL_MAILTO` when set (Crossref polite pool).
+- **`arxiv.lookup`** — arXiv export API (Atom XML; there is no JSON works endpoint). Prefers a
+  versioned `vN` id; an unversioned request pins whatever version the API actually returned.
+  Empty feed → `undecided`.
+- **`openalex.lookup`** — DOI / `W…` id / search via the works API. **Does not hard-require a
+  prod secret.** `OPENALEX_API_KEY` is optional: when set it is sent as a request param and
+  *never* written into `source_url` (the pin records the public URL). When absent the instrument
+  uses the public demo pool (tiny daily budget — fine for a human lookup, not for an agent loop).
+  As of Feb 2026 the polite-pool `mailto` param is ignored; the key is the real quota. A 401/403/409
+  from a spent pool is `RetrievalError` (mint nothing), not a fake no-match.
+- **Honesty contract held.** Network / unexpected non-2xx → `RetrievalError` → mint nothing.
+  HTTP 404 is a successful empty match (`undecided`), not a failed fetch. Tests inject
+  `httpx.MockTransport` / a fake `Fetcher` — CI never hits the live network.
+- **Catalog / registry / conformance / grading.** All three register beside `oeis.search`, pick
+  up the auto-coverage harness, and sit **off-ladder** in every matrix cell (D7) — a pin reads
+  `cited`, never a letter, and never appears on a raise path.
+- **Frontend.** Drive forms (DOI / arXiv id / OpenAlex id + bibliographic fallback) and pin
+  result cards in the toolbench, sharing the citation footer with OEIS (url, retrieved_at,
+  source_url, sha256, license note). Assumptions editor hidden — retrieval ignores them.
+- **No schema, no migration.** Additive instruments only.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 379 passed, 132 skipped (DB-gated)  [was 329 / 129]
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
+```
+
+See `docs/completions/literature-pin-instruments-0.18.0.md`.
 
 ---
 

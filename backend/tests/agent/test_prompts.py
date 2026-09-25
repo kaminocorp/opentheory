@@ -96,6 +96,9 @@ def test_an_ungrounded_claim_is_offered_every_graded_instrument() -> None:
     # Retrieval can never be *the* way to raise a rung — it is off-ladder in the matrix.
     raise_line = next(line for line in text.splitlines() if "to raise:" in line)
     assert "oeis.search" not in raise_line
+    assert "crossref.lookup" not in raise_line
+    assert "arxiv.lookup" not in raise_line
+    assert "openalex.lookup" not in raise_line
 
 
 # --- the system prompt states the new contract ----------------------------------------------------

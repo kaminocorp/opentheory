@@ -457,16 +457,48 @@ function Z3ProveBody({
   );
 }
 
-// --- oeis.search (the citation card) ----------------------------------------
+// --- pinned retrieval (OEIS + literature) -----------------------------------
+
+function PinFooter({ pin }: { pin: Record<string, unknown> }) {
+  const url = asString(pin.url);
+  const sourceUrl = asString(pin.source_url);
+  const hash = asString(pin.raw_response_hash);
+  return (
+    <div className="grid gap-1 pt-1 font-mono text-[11px] text-text-faint">
+      {url ? (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex w-fit items-center gap-1 text-text-mute transition-colors hover:text-signal"
+        >
+          {url}
+          <Icon icon={ExternalLink} size={11} />
+        </a>
+      ) : null}
+      {pin.retrieved_at ? <span>retrieved {asString(pin.retrieved_at)}</span> : null}
+      {sourceUrl && sourceUrl !== url ? (
+        <span className="break-all" title="the URL whose response was hashed">
+          source {sourceUrl}
+        </span>
+      ) : null}
+      {hash ? (
+        <span title={hash}>
+          sha256 {short(hash, 16)}…
+        </span>
+      ) : null}
+      {pin.license_note ? (
+        <span className="not-italic text-text-faint">{asString(pin.license_note)}</span>
+      ) : null}
+    </div>
+  );
+}
 
 function OeisBody({ output }: { output: Record<string, unknown> }) {
   const found = Boolean(output.found);
   const matchCount = typeof output.match_count === "number" ? output.match_count : null;
   const pin = (output.pin ?? {}) as Record<string, unknown>;
-  const url = asString(pin.url);
-  const sourceUrl = asString(pin.source_url);
   const identifier = asString(pin.identifier);
-  const hash = asString(pin.raw_response_hash);
 
   return (
     <div className="grid gap-2 rounded-built bg-panel p-3" style={{ border: "1px solid var(--hairline)" }}>
@@ -474,8 +506,6 @@ function OeisBody({ output }: { output: Record<string, unknown> }) {
         <KeyValue k="Sequence">
           <Formula expr={identifier} className="text-[15px] text-text" />
           {pin.name ? <span className="text-[13px] text-text-soft">{asString(pin.name)}</span> : null}
-          {/* How many sequences OEIS matched — the ambiguity signal, so a confident A-number is
-              read against how many candidates contained these terms. */}
           {matchCount != null ? (
             <span className="text-[12px] text-text-faint">
               {matchCount === 1 ? "sole OEIS match" : `1 of ${matchCount} OEIS matches`}
@@ -492,37 +522,44 @@ function OeisBody({ output }: { output: Record<string, unknown> }) {
           <Formula expr={asString(pin.formula)} className="text-[12px]" />
         </KeyValue>
       ) : null}
-      {/* The pin — what makes this citable, not flimsy: the citation url, the source actually hashed,
-          when it was retrieved, and a fingerprint of the exact bytes. */}
-      <div className="grid gap-1 pt-1 font-mono text-[11px] text-text-faint">
-        {url ? (
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex w-fit items-center gap-1 text-text-mute transition-colors hover:text-signal"
-          >
-            {url}
-            <Icon icon={ExternalLink} size={11} />
-          </a>
-        ) : null}
-        {pin.retrieved_at ? <span>retrieved {asString(pin.retrieved_at)}</span> : null}
-        {/* The URL whose response the hash fingerprints — shown when it differs from the citation, so
-            a verifier knows to fetch *this* to recompute the sha256. */}
-        {sourceUrl && sourceUrl !== url ? (
-          <span className="break-all" title="the URL whose response was hashed">
-            source {sourceUrl}
-          </span>
-        ) : null}
-        {hash ? (
-          <span title={hash}>
-            sha256 {short(hash, 16)}…
-          </span>
-        ) : null}
-        {pin.license_note ? (
-          <span className="not-italic text-text-faint">{asString(pin.license_note)}</span>
-        ) : null}
-      </div>
+      <PinFooter pin={pin} />
+    </div>
+  );
+}
+
+function LiteraturePinBody({
+  output,
+  kindLabel,
+  missing,
+}: {
+  output: Record<string, unknown>;
+  kindLabel: string;
+  missing: string;
+}) {
+  const found = Boolean(output.found);
+  const matchCount = typeof output.match_count === "number" ? output.match_count : null;
+  const pin = (output.pin ?? {}) as Record<string, unknown>;
+  const identifier = asString(pin.identifier);
+
+  return (
+    <div className="grid gap-2 rounded-built bg-panel p-3" style={{ border: "1px solid var(--hairline)" }}>
+      {found ? (
+        <KeyValue k={kindLabel}>
+          <span className="font-mono text-[15px] text-text">{identifier}</span>
+          {pin.name ? <span className="text-[13px] text-text-soft">{asString(pin.name)}</span> : null}
+          {matchCount != null && matchCount > 1 ? (
+            <span className="text-[12px] text-text-faint">1 of {matchCount} matches</span>
+          ) : null}
+        </KeyValue>
+      ) : (
+        <p className="text-[13px] text-text-soft">{missing}</p>
+      )}
+      {found && pin.formula ? (
+        <KeyValue k="Cited">
+          <span className="text-[13px] text-text-soft">{asString(pin.formula)}</span>
+        </KeyValue>
+      ) : null}
+      <PinFooter pin={pin} />
     </div>
   );
 }
@@ -592,6 +629,30 @@ function ResultBody({
       return <GeometryBody output={output} />;
     case "oeis.search":
       return <OeisBody output={output} />;
+    case "crossref.lookup":
+      return (
+        <LiteraturePinBody
+          output={output}
+          kindLabel="Work"
+          missing="Crossref did not identify this work — escalate; never recorded as a missing-paper claim."
+        />
+      );
+    case "arxiv.lookup":
+      return (
+        <LiteraturePinBody
+          output={output}
+          kindLabel="e-print"
+          missing="arXiv did not identify this e-print — escalate; never recorded as a missing-paper claim."
+        />
+      );
+    case "openalex.lookup":
+      return (
+        <LiteraturePinBody
+          output={output}
+          kindLabel="Work"
+          missing="OpenAlex did not identify this work — escalate; never recorded as a missing-paper claim."
+        />
+      );
     case "counterexample.search":
       return <CounterexampleSearchBody output={output} status={status} />;
     case "z3.prove":
