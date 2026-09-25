@@ -25,7 +25,10 @@ agent stack. Sits on shipped `0.31.0`.
   orchestration_max_passes))`. A second cycle starts only when one
   orchestration's pass cap would otherwise leave threads waiting. After
   a wave, unused reservation returns to the pot and the next wave may
-  proceed.
+  proceed. The per-project agent Actor is minted once on the coordinator
+  before a wave so concurrent cycles do not race
+  `uq_actors_one_agent_per_project` (same reason `0.27.0` mints it
+  before a sub-pass wave).
 - **Reservation hold reused.** Concurrent cycle starts cannot both take
   the last dollar. A peer cycle that finds a thread already running
   skips it (`pass_in_flight`) and tries the next; an empty pot aborts
@@ -68,7 +71,16 @@ agent stack. Sits on shipped `0.31.0`.
 
 ## Verification
 
-Filled in after the test run for this release.
+- `ruff check .` clean.
+- Default pytest (no `TEST_DATABASE_URL`): **516 passed, 204 skipped**.
+- With `TEST_DATABASE_URL` at a local throwaway Postgres: focused
+  `tests/agent/test_campaigns*.py` + `test_orchestration*.py` + budget
+  metering **65 passed**, including sequential cycle fallback, parallel
+  cycle-wave overlap, two-cycle reserve race (`available >= 0`, one
+  commissioned pass), cancel after the current wave, existing
+  empty/no-work, budget-stop, error-budget, ledger purity, dark-launch
+  `404`, and in-flight `409`.
+- Frontend `typecheck` / `lint` / `build` clean. `npm test` **18 passed**.
 
 ## Unverified
 

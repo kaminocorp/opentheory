@@ -145,8 +145,14 @@ deepdive Phase D. Does not expand Mathlib.
 
 ```bash
 cd backend && uv run ruff check .   # clean
-cd backend && uv run pytest -q      # (see verification)
-cd frontend && npm run typecheck && npm run lint && npm run build
+cd backend && uv run pytest -q      # 516 passed, 204 skipped (no TEST_DATABASE_URL)
+# With TEST_DATABASE_URL at a local throwaway Postgres:
+#   tests/agent/test_campaigns*.py + test_orchestration*.py + compute/prices
+#   65 passed (sequential fallback, parallel cycle wave, budget race,
+#   cancel-after-wave, existing empty/no-work / budget-stop / error-budget /
+#   ledger purity / dark 404 / 409)
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
+# npm test 18 passed
 ```
 
 See `docs/completions/concurrent-campaign-cycles-0.32.0.md`.

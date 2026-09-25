@@ -8,6 +8,7 @@ no-work, honours cancel, and a failed cycle does not write Validation / funding.
 """
 
 import asyncio
+import time
 from decimal import Decimal
 from uuid import UUID
 
@@ -23,6 +24,7 @@ from app.models.enums import ResearchCampaignStatus
 from app.models.funding import FundingAllocation
 from app.models.project import Project
 from app.models.validation import Validation
+from app.services import funding as funding_service
 from app.services.campaigns import (
     STOP_BUDGET_EXHAUSTED,
     STOP_CANCELLED,
@@ -33,10 +35,9 @@ from app.services.campaigns import (
     run_campaign,
     start_campaign,
 )
-from app.services import funding as funding_service
 from app.services.compute import tokens_to_cost
 from app.services.orchestration import STOP_MAX_PASSES
-from tests.agent.test_orchestration import _one_calc, _sleeping_planner, _start, _waves_overlapped
+from tests.agent.test_orchestration import _one_calc, _start, _waves_overlapped
 from tests.agent.test_orchestrator import (
     _actor,
     _assign_model,
@@ -47,6 +48,26 @@ from tests.agent.test_orchestrator import (
     _thread,
     _thread_checkpoint,
 )
+
+
+def _per_call_sleeping_planner(*, hold: float):
+    """Record each initial plan so sequential cycles on the same oldest thread still mark twice."""
+    marks: dict[int, dict[str, float]] = {}
+    n = {"i": 0}
+
+    async def _planner(
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None
+    ):
+        if observations is not None:
+            return PlanResult(runnable=[], proposed_count=0, tokens_used=0)
+        n["i"] += 1
+        i = n["i"]
+        marks[i] = {"start": time.monotonic()}
+        await asyncio.sleep(hold)
+        marks[i]["end"] = time.monotonic()
+        return _one_calc()
+
+    return _planner, marks
 
 
 async def _per_pass_calc(
@@ -366,7 +387,7 @@ async def test_concurrency_one_preserves_sequential_cycles(
     await _thread_checkpoint(client, project_id, t2, actor_id)
     await _assign_model(session_factory, project_id)
     campaign_id = await _start_campaign(session_factory, project_id, actor_id, max_cycles=2)
-    planner, marks = _sleeping_planner(hold=0.08)
+    planner, marks = _per_call_sleeping_planner(hold=0.08)
 
     async with session_factory() as session:
         result = await run_campaign(session, campaign_id, planner=planner)
@@ -374,6 +395,7 @@ async def test_concurrency_one_preserves_sequential_cycles(
     assert result.concurrency == 1
     assert result.current_cycle == 2
     assert result.cycles_completed == 2
+    assert len(marks) == 2
     assert not _waves_overlapped(marks)
     assert all(row["wave"] == index + 1 for index, row in enumerate(result.cycles))
     assert all(row["parallel_with"] == [] for row in result.cycles)
@@ -395,7 +417,7 @@ async def test_concurrent_cycles_overlap_and_trace_the_wave(
     await _thread_checkpoint(client, project_id, t2, actor_id)
     await _assign_model(session_factory, project_id)
     campaign_id = await _start_campaign(session_factory, project_id, actor_id, max_cycles=2)
-    planner, marks = _sleeping_planner(hold=0.2)
+    planner, marks = _per_call_sleeping_planner(hold=0.2)
 
     async with session_factory() as session:
         result = await run_campaign(session, campaign_id, planner=planner)
@@ -404,6 +426,7 @@ async def test_concurrent_cycles_overlap_and_trace_the_wave(
     assert result.concurrency == 2
     assert result.current_cycle == 2
     assert result.cycles_completed == 2
+    assert len(marks) == 2
     assert _waves_overlapped(marks)
     assert all(row["wave"] == 1 for row in result.cycles)
     assert {row["cycle"] for row in result.cycles} == {1, 2}

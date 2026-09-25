@@ -49,6 +49,7 @@ from app.models.research_campaign import ResearchCampaign
 from app.services import agent_runs as agent_run_service
 from app.services import funding as funding_service
 from app.services import orchestration as orchestration_service
+from app.services.agent_actors import get_or_create_project_agent_actor
 from app.services.agent_runs import PlannerFn
 from app.services.orchestration import (
     STOP_BUDGET_EXHAUSTED,
@@ -443,6 +444,12 @@ async def _execute(
                 stop_reason=STOP_MAX_CYCLES,
                 budget_end=live.available,
             )
+
+        # Mint the per-project agent Actor once so concurrent cycles do not
+        # race ``uq_actors_one_agent_per_project`` on first use (same reason
+        # 0.27.0 mints it before a sub-pass wave).
+        await get_or_create_project_agent_actor(db, campaign.project_id)
+        await db.commit()
 
         wave_n += 1
         actor = await db.get(Actor, campaign.triggered_by_actor_id)
