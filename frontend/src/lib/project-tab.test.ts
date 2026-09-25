@@ -115,7 +115,7 @@ describe("buildCommandRailZones", () => {
     const zones = buildCommandRailZones(PROJECT, "");
     const research = zones.find((z) => z.key === "research");
     assert.equal(research?.active, true);
-    assert.equal(
+    assert.deepEqual(
       zones.filter((z) => z.active).map((z) => z.key),
       ["research"],
     );

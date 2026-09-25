@@ -71,11 +71,16 @@ five names. Skip it until a real sixth zone forces the question.
 ## Verification
 
 ```bash
-cd frontend && npm test            # project-tab contract, including 0.31.0 deep links
+cd frontend && npm test            # 18 passed (including 0.31.0 deep-link contract)
 cd frontend && npm run typecheck   # clean
 cd frontend && npm run lint        # clean
 cd frontend && npm run build       # clean — must catch a missing Suspense / useSearchParams deopt
 ```
+
+`npm test` now resolves: the Node ESM runner needs a `.ts` suffix on the
+local import, and `tsc` excludes `*.test.ts` so that suffix does not trip
+`allowImportingTsExtensions`. A pre-existing `assert.equal` on an array
+is `deepEqual`.
 
 `npm run build` is the meaningful gate: a missing `<Suspense>` around
 `useSearchParams` fails the Next 15 static-generation deopt. The

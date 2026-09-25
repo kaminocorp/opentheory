@@ -127,6 +127,8 @@ changelog head.
 
 ```bash
 cd frontend && npm test && npm run typecheck && npm run lint && npm run build
+# test 18 passed · typecheck clean · lint clean · build clean (9/9 pages;
+# /projects/[projectId] stays ƒ — Suspense / useSearchParams held)
 ```
 
 See `docs/completions/deepdive-phase-d-0.31.0.md`.
