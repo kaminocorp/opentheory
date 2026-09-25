@@ -30,7 +30,7 @@ Nothing resets. Dead ends are recorded, not deleted.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-live-success)](https://opentheory.vercel.app)
-[![Version](https://img.shields.io/badge/version-0.22.0-crimson)](docs/changelog.md)
+[![Version](https://img.shields.io/badge/version-0.24.0-crimson)](docs/changelog.md)
 &nbsp;
 ![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
@@ -398,7 +398,7 @@ opentheory/
 ## Status
 
 **Live** (Vercel + Fly.io + Supabase), shipped in small, deployable phases tracked in
-[`docs/changelog.md`](docs/changelog.md). Currently `0.23.0`.
+[`docs/changelog.md`](docs/changelog.md). Currently `0.24.0`.
 
 **Shipped:**
 
@@ -420,6 +420,7 @@ opentheory/
 | `0.21.x` | Research-git merge + tag — multi-parent synthesis and named immutable pointers |
 | `0.22.x` | Thin multi-thread orchestrator — allocate project budget across sequential sub-passes |
 | `0.23.x` | `lean.prove` — optional Lean 4 kernel check; Grade A only on a real proof (no Mathlib) |
+| `0.24.x` | CommandRail sync — rail zones are live `?tab=` links; `#funding` + inert Agents retired |
 
 **Honest caveats:**
 
@@ -442,10 +443,11 @@ opentheory/
   not in `0.23.0`. See `docs/operations/deploy.md` for the Fly install path.
 
 **Next up** (see [`docs/plans/roadmap-next-steps.md`](docs/plans/roadmap-next-steps.md)):
-the still-owed browser eyeball pass, then `0.14.1` CommandRail sync. `lean.prove`
-shipped in `0.23.0` (optional toolchain, prelude/Init); Mathlib / `lake` remain
-later. Project-budget metering shipped in `0.19.0`; plan→observe→replan shipped
-in `0.20.0`; research-git merge + tag shipped in `0.21.0`; the multi-thread
+the still-owed browser eyeball pass, then `0.14.2` Phase C polish. CommandRail
+sync shipped in `0.24.0` (historical `0.14.1`). `lean.prove` shipped in `0.23.0`
+(optional toolchain, prelude/Init); Mathlib / `lake` remain later.
+Project-budget metering shipped in `0.19.0`; plan→observe→replan shipped in
+`0.20.0`; research-git merge + tag shipped in `0.21.0`; the multi-thread
 orchestrator shipped in `0.22.0`.
 
 ---

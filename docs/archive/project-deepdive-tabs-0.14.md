@@ -1,6 +1,7 @@
 # Project deepdive — sectioned tab workspace (implementation)
 
-> **Status — executing (2026-07-22).** Frontend layout / information-architecture only.
+> **Status — Phase A shipped as `0.14.0`; Phase B shipped as `0.24.0` (historical
+> alias `0.14.1`).** Phases C–D remain open. Frontend layout / information-architecture only.
 > **No backend, schema, API, or migration.** Implements the proposal
 > `docs/plans/project-deepdive-tab-redesign.md`; read it first for the *why*. This doc is
 > the *how* — decisions locked, phases, tasks, and the file map to follow methodically.

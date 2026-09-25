@@ -1,16 +1,18 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-09-25 · **Current release line:** `0.23.0` (Lean 4 Grade-A
-> path — `lean.prove`), sitting on shipped `0.22.0` (thin multi-thread
-> orchestrator), `0.21.0` (research-git merge + tag), `0.20.0` (plan → observe →
-> replan), `0.19.0` (project-budget metering), `0.18.0` (Tier-1 literature pins),
-> `0.17.0` (review is opt-in) and `0.16.3` (thread/project grounding rollup). For
-> the per-phase ledger see `docs/changelog.md`; for the line just closed see
-> `docs/completions/lean-prove-0.23.0.md`. The `0.14.x` plan (phases B–D still
-> open) now lives at `docs/archive/project-deepdive-tabs-0.14.md`.
+> **Last updated:** 2026-09-25 · **Current release line:** `0.24.0` (CommandRail
+> sync — historically the deferred deepdive Phase B / `0.14.1`), sitting on
+> shipped `0.23.0` (Lean 4 Grade-A path — `lean.prove`), `0.22.0` (thin
+> multi-thread orchestrator), `0.21.0` (research-git merge + tag), `0.20.0`
+> (plan → observe → replan), `0.19.0` (project-budget metering), `0.18.0`
+> (Tier-1 literature pins), `0.17.0` (review is opt-in) and `0.16.3`
+> (thread/project grounding rollup). For the per-phase ledger see
+> `docs/changelog.md`; for the line just closed see
+> `docs/completions/commandrail-sync-0.24.0.md`. The remaining `0.14.x` phases
+> (C–D) still live at `docs/archive/project-deepdive-tabs-0.14.md`.
 >
-> **Next after this line:** the still-owed browser eyeball pass; then `0.14.1`
-> CommandRail sync. Unmerged work is not claimed as shipped. Mathlib / `lake`
+> **Next after this line:** the still-owed browser eyeball pass; then `0.14.2`
+> Phase C polish. Unmerged work is not claimed as shipped. Mathlib / `lake`
 > remain out of scope until a later verifier-wave slice.
 
 ## Where we are
@@ -87,6 +89,15 @@ who changed it, and what evidence or artifacts were involved — then extend it 
 bypassing the checkpoint chokepoint or conflating funder / contributor / validator roles.
 
 ## Recommended next releases
+
+### `0.24.x` — CommandRail sync ✅ **shipped** (`0.24.0`)
+
+Delivered: the left rail's project zones are live `?tab=` links for the five
+deepdive tabs; active state is derived from the URL, the same source as the
+in-page strip. The `#funding` hash target and the inert Agents hatch are gone
+(Agents mapped to no distinct surface — the agent pass is Instruments).
+Historically the deferred Phase B (`0.14.1`). **No schema, no migration.** See
+`docs/completions/commandrail-sync-0.24.0.md`.
 
 ### `0.23.x` — Lean 4 Grade-A path ✅ **shipped** (`0.23.0`)
 
@@ -200,17 +211,18 @@ over intact.
 emulation), the deepdive's five tabs, a toolbench result card, and the sign-in dropdown. No
 pixel-level browser walk has been possible since `0.14.0` (no connected browser extension).
 
-### `0.14.x` — Project deepdive tabs ✅ **Phase A shipped** (`0.14.0`); B–D outstanding
+### `0.14.x` / `0.24.0` — Project deepdive tabs ✅ **Phase A + B shipped**; C–D outstanding
 
-Delivered: the five-tab shell with `?tab=` as the single source of truth, the persistent header,
-keep-alive Research/Instruments mounting (load-bearing for the agent poll), the WAI-ARIA tabs
-pattern, and the `<Suspense>` boundary. **The plan's later phases did not ship** and remain the
-cheapest available frontend wins — full checklists in
-`docs/executing/project-deepdive-tabs-0.14.md` §6:
+Delivered in `0.14.0`: the five-tab shell with `?tab=` as the single source of truth, the
+persistent header, keep-alive Research/Instruments mounting (load-bearing for the agent poll),
+the WAI-ARIA tabs pattern, and the `<Suspense>` boundary.
 
-- **Phase B (`0.14.1`, low–med risk)** — CommandRail sync: real zone links → `?tab=<id>` with
-  active state derived from the URL; retire the legacy `#funding` hash target and the **inert
-  Agents zone** (no rail zone should stay permanently dead).
+Delivered in `0.24.0` (historical alias `0.14.1`): CommandRail sync. Project zones are live
+`?tab=` links; active state is derived from the URL; the `#funding` hash target and the inert
+Agents hatch are gone. See `docs/completions/commandrail-sync-0.24.0.md`. Remaining checklist
+in `docs/archive/project-deepdive-tabs-0.14.md` §6:
+
+- ~~**Phase B (`0.14.1` / `0.24.0`)**~~ ✅ **shipped** — rail ↔ strip sync via `?tab=`.
 - **Phase C (`0.14.2`, polish)** — contested-claim click-through into `ClaimListPanel`, tab badges
   (contested count, member count, a running-pass `LiveDot` derived from the newest `AgentRun`),
   and the Instruments context-readout refinement.
@@ -290,7 +302,8 @@ demo requirement.
 2. ~~**Thin agent loop** (`0.12.x`)~~ ✅ shipped — Research crew is now a bounded operator.
 3. ~~**Z3 instrument** (`0.13.x`)~~ ✅ shipped — first machine-checked proof path (`z3.prove`).
 4. ~~**Z3 write-path tests**~~ ✅ closed in `0.13.5` alongside the review-pass hardening.
-5. ~~**Deepdive tab shell** (`0.14.0`)~~ ✅ shipped — Phase A; B–D still open (item 8).
+5. ~~**Deepdive tab shell** (`0.14.0`)~~ ✅ shipped — Phase A; ~~Phase B~~ ✅ shipped as
+   `0.24.0` (item 11). C–D still open.
 6. ~~**Design overhaul** (`0.15.0`)~~ ✅ shipped — but the **browser eyeball pass** is still owed
    (`/styleguide` with grayscale emulation **including the `0.16.0` grade chip**, the five tabs, a
    toolbench result card, the sign-in dropdown). Cheapest item on the list, and the only check the
@@ -307,8 +320,8 @@ demo requirement.
     (same branch).
 10. ~~**Tier 1 retrieval** — literature pin instruments (Crossref / arXiv / OpenAlex)~~ ✅
     shipped in `0.18.0` on the proven `source.pin` shape. OpenAlex degrades without a key.
-11. **`0.14.1` Phase B** — CommandRail sync; retires the last two fakes (`#funding`, inert Agents
-    zone). Small, self-contained, and removes visible dead affordances.
+11. ~~**`0.14.1` / `0.24.0` Phase B** — CommandRail sync~~ ✅ shipped — live `?tab=`
+    zones; `#funding` and the inert Agents hatch retired.
 12. ~~**`0.12.5` / `0.19.0` project-budget metering**~~ ✅ shipped — debit the project's
     compute budget per pass. Per-pass safety caps still bound a single pass. See
     `docs/completions/project-budget-metering-0.19.0.md`.
@@ -334,7 +347,7 @@ demo requirement.
 | `0.11.x` | Execution sandbox — killable subprocess, wall-clock/memory caps, concurrency limit |
 | `0.12.x` | Thin agent loop — planner, bounded orchestrator, `202`+background API, workspace UI |
 | `0.13.x` | `z3.prove` — machine-checked validity (proof / counter-model / undecided) + hardening |
-| `0.14.x` | Project deepdive — persistent header + five `?tab=` tabs, keep-alive agent trace |
+| `0.14.x` | Project deepdive — persistent header + five `?tab=` tabs, keep-alive agent trace; CommandRail sync shipped as `0.24.0` |
 | `0.15.x` | Quiet-minimalist re-skin — neutral near-black system, ornament retired |
 | `0.16.x` | Claim grounding — the evidence grade ladder, derived beside the validation signal, consumed by the planner as a yield measure, post-review hardened, and rolled up at thread/project scale (`0.16.3`) |
 | `0.17.x` | Phase 1 agent autonomy — a completed pass stands; human accept/reject/fork is opt-in audit |
@@ -344,6 +357,7 @@ demo requirement.
 | `0.21.x` | Research-git merge + tag — multi-parent synthesis and named immutable pointers |
 | `0.22.x` | Thin multi-thread orchestrator — allocate project budget across sequential sub-passes |
 | `0.23.x` | `lean.prove` — optional Lean 4 kernel check; Grade A only on a real proof (no Mathlib) |
+| `0.24.x` | CommandRail sync — rail zones are live `?tab=` links; `#funding` + inert Agents retired (historical `0.14.1`) |
 
 ## Success criteria for the next milestone
 
@@ -366,5 +380,9 @@ ceiling, and stops when the pot is empty or no raisable work remains.
 Grade A when the optional `lean` binary typechecks a prelude snippet. Missing
 Lean is honest `undecided`. Mathlib is not in this release.
 
-**Next product step:** the still-owed browser eyeball pass; then `0.14.1` CommandRail
-sync. Mathlib / `lake` only when a thread actually needs them.
+**`0.24.0` (CommandRail sync)** is shipped: project rail zones navigate via
+`?tab=` and share active state with the in-page strip. Historical alias
+`0.14.1`. The `#funding` hash and the inert Agents hatch are gone.
+
+**Next product step:** the still-owed browser eyeball pass; then `0.14.2`
+Phase C polish. Mathlib / `lake` only when a thread actually needs them.

@@ -94,8 +94,7 @@ export function FundingPanel({ projectId }: { projectId: string }) {
   const canFund = canWrite && isInternal && Number(amount) > 0;
 
   return (
-    // id="funding" is the target of the command rail's Funding zone (D2).
-    <Bay id="funding" density="narrative" className="grid gap-3">
+    <Bay density="narrative" className="grid gap-3">
       <header className="flex items-center justify-between">
         <span className="flex items-center gap-2 text-text-mute">
           <Icon icon={Wallet} size={16} />

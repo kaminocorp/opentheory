@@ -10,8 +10,8 @@ interface BayOwnProps {
   className?: string;
 }
 
-// Forward arbitrary element props (id, onSubmit, …) so a Bay can be a <form>, or
-// carry an anchor id like `#funding`. The own props win where names collide.
+// Forward arbitrary element props (id, onSubmit, …) so a Bay can be a <form>.
+// The own props win where names collide.
 type BayProps = BayOwnProps & Omit<ComponentPropsWithoutRef<"div">, keyof BayOwnProps>;
 
 const DENSITY_PAD: Record<NonNullable<BayProps["density"]>, string> = {

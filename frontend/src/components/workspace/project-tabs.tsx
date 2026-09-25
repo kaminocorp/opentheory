@@ -3,15 +3,7 @@
 import { useRef } from "react";
 
 import { cn } from "@/lib/cn";
-import { PROJECT_TAB_IDS, type ProjectTabId } from "@/lib/use-project-tab";
-
-const TAB_LABELS: Record<ProjectTabId, string> = {
-  research: "Research",
-  instruments: "Instruments",
-  crew: "Crew",
-  funding: "Funding",
-  overview: "Overview",
-};
+import { PROJECT_TAB_IDS, PROJECT_TAB_LABELS, type ProjectTabId } from "@/lib/project-tab";
 
 /** Stable ids so each tab and its panel can point at each other (ARIA). */
 export const projectTabDomId = (tab: ProjectTabId) => `project-tab-${tab}`;
@@ -38,7 +30,7 @@ type ProjectTabsProps = {
  *
  * Tabs are buttons, not links: the ARIA tab pattern owns the interaction and the
  * URL update is a side effect of `onSelect` (the CommandRail uses `<Link>` to the
- * same `?tab=`, so both converge on one source of truth).
+ * same `?tab=`, so both converge on one source of truth — 0.24.0).
  */
 export function ProjectTabs({ active, onSelect, badges, className }: ProjectTabsProps) {
   const tabRefs = useRef(new Map<ProjectTabId, HTMLButtonElement | null>());
@@ -94,7 +86,7 @@ export function ProjectTabs({ active, onSelect, badges, className }: ProjectTabs
               isActive ? "text-text" : "text-text-mute hover:text-text",
             )}
           >
-            {TAB_LABELS[tab]}
+            {PROJECT_TAB_LABELS[tab]}
             {badge && badge.count > 0 ? (
               <span
                 className={cn(
