@@ -105,7 +105,7 @@ checkpoints themselves, so provenance and attribution can't be skipped.
 
 ### The toolbench: results, not vibes
 
-Claims are tested with **deterministic instruments**, not model assertions. Sixteen
+Claims are tested with **deterministic instruments**, not model assertions. Seventeen
 ship today, each landing an attributed checkpoint through the same chokepoint:
 
 | Instrument | Does |
@@ -121,6 +121,7 @@ ship today, each landing an attributed checkpoint through the same chokepoint:
 | `crossref.lookup` / `arxiv.lookup` / `openalex.lookup` | Tier-1 literature pins |
 | `table.create` / `table.derive_column` / `table.render` | typed falsification grid; derived columns are exact compute |
 | `plot.function` / `plot.points` | Vega-Lite spec (not a raster) — visualization only, never evidence |
+| `interval.eval` | proven numeric enclosure (Arb / mpmath.iv) — a bound, not a proof |
 
 Every instrument answers with the same three-outcome contract:
 

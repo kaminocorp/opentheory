@@ -125,6 +125,7 @@ def test_production_registry_holds_the_tier0_instruments() -> None:
         "table.render",
         "plot.function",
         "plot.points",
+        "interval.eval",
     } <= names
     catalog = build_catalog()
     assert len(catalog) == len(registry)

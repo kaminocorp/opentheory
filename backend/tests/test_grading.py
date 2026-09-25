@@ -38,6 +38,7 @@ INSTRUMENTS = (
     "table.render",
     "plot.function",
     "plot.points",
+    "interval.eval",
 )
 
 # --- every cell of the §3 matrix ------------------------------------------------------------------
@@ -93,6 +94,9 @@ MATRIX_CELLS = [
     ("plot.points", ResultStatus.RESULT, None),
     ("plot.points", ResultStatus.REFUTED, None),
     ("plot.points", ResultStatus.UNDECIDED, None),
+    ("interval.eval", ResultStatus.RESULT, EvidenceGrade.C),
+    ("interval.eval", ResultStatus.REFUTED, EvidenceGrade.B),
+    ("interval.eval", ResultStatus.UNDECIDED, None),
 ]
 
 
@@ -268,6 +272,7 @@ def test_raise_path_from_nothing_offers_every_graded_instrument() -> None:
         "geometry.coordinate_measure",
         "counterexample.search",
         "table.derive_column",
+        "interval.eval",
     }
 
 
@@ -282,6 +287,11 @@ def test_raise_path_is_strictly_stronger_than_the_current_rung() -> None:
     assert "table.derive_column" in instruments_reaching(EvidenceGrade.C)
     assert "table.derive_column" in raise_path(EvidenceGrade.C)  # can still reach B
     assert "table.derive_column" not in raise_path(EvidenceGrade.B)
+    # interval.eval tops out at B via refuted; result is only C — never A.
+    assert "interval.eval" in instruments_reaching(EvidenceGrade.C)
+    assert "interval.eval" in raise_path(EvidenceGrade.C)
+    assert "interval.eval" not in raise_path(EvidenceGrade.B)
+    assert "interval.eval" not in instruments_reaching(EvidenceGrade.A)
     # geometry tops out at B, so it is a way up from C but not from B.
     assert "geometry.coordinate_measure" in raise_path(EvidenceGrade.C)
     assert "geometry.coordinate_measure" not in raise_path(EvidenceGrade.B)

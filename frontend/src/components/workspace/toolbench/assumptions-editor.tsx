@@ -76,6 +76,7 @@ const NO_ASSUMPTIONS = new Set([
   "openalex.lookup",
   "table.render",
   "plot.points",
+  "interval.eval",
 ]);
 
 export function instrumentAcceptsAssumptions(instrumentName: string): boolean {

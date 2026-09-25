@@ -1,18 +1,18 @@
 # Agent Research Tools — The Deterministic Instrument Bench
 
-> **Status — design proposal (2026-06-29), partially implemented (`0.9.x`–`0.34.0`).**
+> **Status — design proposal (2026-06-29), partially implemented (`0.9.x`–`0.35.0`).**
 > This doc argues for the *tool surface* an `Actor` (human now, agent later) uses to
 > produce ground-truth research results. The **instrument bench spine** is shipped:
 > adapter protocol, registry, conformance harness, chokepoint-composed write path,
 > membership-gated `POST …/instruments/{name}/run`, workspace drive/show UI, execution
 > sandbox (`0.11.x`), `z3.prove` (`0.13.x`), `z3.satisfy` (`0.33.0`), Bench 6
-> tables/plots (`0.34.0`), literature pins (`0.18.0`), and
+> tables/plots (`0.34.0`), `interval.eval` (`0.35.0`), literature pins (`0.18.0`), and
 > `lean.prove` (`0.23.0` prelude/Init; `0.26.0` optional Mathlib / offline `lake`).
 > See `docs/plans/maths-toolbox.md` §Shipped in production.
 >
 > **Still not built:** a durable job queue (in-process continuous campaigns shipped
 > in `0.25.0`), Lean REPL / LeanDojo,
-> Arb/`interval.eval`, and the roadmap's original **"Agent-Ready Execution
+> and the roadmap's original **"Agent-Ready Execution
 > Surface"** label (`docs/plans/roadmap-next-steps.md` §0.7.0 — that version number was
 > taken by the `0.7.x` auth-principal refactor). Depends on `docs/blueprints/primitives.md`,
 > `docs/vision/research-git.md`, and `docs/vision/research-flow.md`.

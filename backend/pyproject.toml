@@ -12,6 +12,7 @@ dependencies = [
     "httpx>=0.28.1",
     "pydantic-settings>=2.6.0",
     "pyjwt[crypto]>=2.9.0",
+    "python-flint>=0.9.0",
     "sqlalchemy[asyncio]>=2.0.36",
     "sympy>=1.13",
     "z3-solver>=5.0.0.0",

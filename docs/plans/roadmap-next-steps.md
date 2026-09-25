@@ -1,7 +1,8 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-09-25 · **Current release line:** `0.34.0`
-> (Bench 6 tables & Vega-Lite plots), sitting on shipped `0.33.0`
+> **Last updated:** 2026-09-25 · **Current release line:** `0.35.0`
+> (`interval.eval` proven enclosures), sitting on `0.34.0`
+> (Bench 6 tables & Vega-Lite plots — #19, not on `main`), shipped `0.33.0`
 > (`z3.satisfy` model-finding, `e3a07ea`) and shipped `0.32.0`
 > (concurrent campaign cycles under project budget), `0.31.0` (deepdive Phase D — shareable Research deep links), `0.30.0`
 > (Phase C polish — historical alias `0.14.2`), `0.29.0`
@@ -15,13 +16,14 @@
 > (project-budget metering), `0.18.0` (Tier-1 literature pins), `0.17.0`
 > (review is opt-in) and `0.16.3` (thread/project grounding rollup). For the
 > per-phase ledger see `docs/changelog.md`; for the line just closed see
-> `docs/completions/bench-6-tables-plots-0.34.0.md`. The deepdive line
+> `docs/completions/interval-eval-0.35.0.md`. The deepdive line
 > (A–D) is closed; the archive plan is at
 > `docs/archive/project-deepdive-tabs-0.14.md`.
 >
 > **Next after this line:** the still-owed browser eyeball pass. Unmerged
-> work is not claimed as shipped (`0.34.0` is this branch, not `main`).
-> Lean REPL / LeanDojo remain later. `0.33.0` is on `main`.
+> work is not claimed as shipped (`0.35.0` / `0.34.0` are this stack, not
+> `main`). Lean REPL / LeanDojo remain later. Blame-as-an-op remains later.
+> `0.33.0` is on `main`. #19 may still be unmerged.
 
 ## Where we are
 
@@ -54,13 +56,13 @@ A signed-in member can today:
 1. Own or collaborate on a project; invite others; assign Research crew models (UI only).
 2. Decompose work into threads; add claims; attach evidence; record checkpoints.
 3. Fork, merge, and close branches; pin tags; record validations; read contradiction signals.
-4. Run **sixteen** production instruments from the workspace — with KaTeX-readable math and bounded
+4. Run **seventeen** production instruments from the workspace — with KaTeX-readable math and bounded
    execution (subprocess isolation, wall-clock/memory caps, concurrency limit):
    `calc.eval`, `expr.compare`, `geometry.coordinate_measure`, `oeis.search`,
    `counterexample.search`, **`z3.prove`**, **`z3.satisfy`**, **`lean.prove`**, plus the literature pins
    **`crossref.lookup`**, **`arxiv.lookup`**, **`openalex.lookup`**, plus Bench 6
    **`table.create`**, **`table.derive_column`**, **`table.render`**, **`plot.function`**,
-   **`plot.points`** — each landing an
+   **`plot.points`**, plus **`interval.eval`** — each landing an
    attributed checkpoint through the chokepoint.
 5. Do all of it from a **five-tab deepdive** (`research` · `instruments` · `crew` · `funding` ·
    `overview`) under a persistent header, deep-linkable via `?tab=`. Research and Instruments
@@ -417,13 +419,18 @@ no false-proof path exists.
   (prelude / `Init`) and `0.26.0` (optional Mathlib / offline `lake`). REPL /
   LeanDojo are still later.
 
-### `0.10.6+` (optional stretch) — `interval.eval`
+### `0.35.x` — `interval.eval` ✅ **shipped** (`0.35.0`)
 
-Proven numeric enclosures via `python-flint` / Arb — originally Appendix B of the
-`falsify-and-render-0.10` plan, **which no longer exists in the repo**, so this would need
-re-specifying before it could be picked up. Not required for flagship claims 1–4, and `z3.prove`
-now covers the symbolic-validity need — worth reviving only if *numeric* interval bounds become a
-demo requirement.
+Delivered: proven numeric enclosures via `python-flint` / Arb (mpmath.iv
+fallback). `result` is Grade C (a bound, not a proof); a definitive miss
+is `refuted` / B; overlap / timeout / domain is honest `undecided`.
+Never Grade A from an interval alone. Re-spec'd from `maths-toolbox.md`
+after the old falsify-and-render appendix B was removed. **No schema, no
+migration.** Sits on `0.34.0`. See
+`docs/completions/interval-eval-0.35.0.md`.
+
+**Not in this release:** merging #19; Lean REPL / LeanDojo;
+boolean Z3 parser; blame-as-an-op; browser eyeball.
 
 ### Deferred / deprioritized
 
@@ -490,6 +497,9 @@ demo requirement.
 17. ~~**`z3.satisfy` model-finding**~~ ✅ shipped as `0.33.0` — sat → concrete
     model; unsat → honest no-model; unknown/timeout → undecided. Boolean
     connectives / quantifiers remain later.
+18. ~~**`interval.eval` proven enclosures**~~ ✅ shipped as `0.35.0` — Arb
+    ball / mpmath.iv fallback; Grade C support, B on a definitive miss;
+    never A. Overlap is honest `undecided`.
 
 ## Shipped milestones (reference)
 
@@ -525,6 +535,7 @@ demo requirement.
 | `0.32.x` | Concurrent campaign cycles under the shared project budget — reserved slices, no oversell |
 | `0.33.x` | `z3.satisfy` — model-finding (sat assignment / unsat no-model / honest undecided) |
 | `0.34.x` | Bench 6 tables & plots — typed grids, derived columns, Vega-Lite specs (not rasters) |
+| `0.35.x` | `interval.eval` — proven numeric enclosures (Arb / mpmath.iv; never Grade A alone) |
 
 ## Success criteria for the next milestone
 
@@ -601,6 +612,11 @@ column with calc-spine honesty, a render artifact, and Vega-Lite specs
 for `y = f(x)` and point lists. Plots are optional viz and never Grade A.
 `formula.render` is not reintroduced. No migration. Sits on `0.33.0`.
 
+**`0.35.0` (`interval.eval`)** is shipped: a closed-form real expression
+evaluates to a proven `[lo, hi]`. Supporting enclosure is Grade C;
+a definitive miss is `refuted` / B; overlap / timeout is `undecided`.
+Never Grade A from an interval alone. Sits on `0.34.0`.
+
 **Next product step:** the still-owed browser eyeball pass. Blame-as-an-op
 remains later. Boolean connectives / quantifiers on Z3 remain later.
-`interval.eval` remains optional.
+Lean REPL / LeanDojo remain later.

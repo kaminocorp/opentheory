@@ -420,8 +420,9 @@ tradeoffs, and the blast radius. Look at `git log` for the house style.
   Tier 1 retrieval pins (Crossref / arXiv / OpenAlex) shipped in `0.18.0` on the
   proven `source.pin` shape. `z3.prove` shipped in `0.13.x`. `z3.satisfy` shipped
   in `0.33.0`. Bench 6 `table.*` / `plot.*` shipped in `0.34.0`. `lean.prove` shipped
-  in `0.23.0` (optional Lean, prelude/Init only). Next cheap adds: `interval.eval`,
-  boolean connectives on Z3. Mathlib / `lake` are not a first contribution.
+  in `0.23.0` (optional Lean, prelude/Init only). `interval.eval` shipped in
+  `0.35.0`. Next cheap adds: boolean connectives on Z3. Mathlib / `lake` are
+  not a first contribution.
 - **Read-model surfaces** — the workspace has more ledger structure available than it
   currently shows.
 - **Tests** — particularly DB-free gate tests for security controls, and invariant

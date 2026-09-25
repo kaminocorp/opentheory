@@ -30,6 +30,7 @@ from app.toolbench.instruments import (
     CALC_EVAL,
     COORDINATE_MEASURE,
     COUNTEREXAMPLE_SEARCH,
+    INTERVAL_EVAL,
     LEAN_PROVE,
     PLOT_FUNCTION,
     TABLE_CREATE,
@@ -951,3 +952,73 @@ async def test_plot_function_lands_a_plot_artifact(
     assert entry["output"]["approximate"] is True
     assert entry["output"]["spec"]["$schema"].startswith("https://vega.github.io")
     assert entry["output"]["n_plotted"] == 7
+
+
+# --- 0.35.0: interval.eval through the chokepoint ------------------------------------------------
+
+
+async def test_interval_eval_lands_an_enclosure_with_the_engine_pinned(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    from app.toolbench.instruments._interval_support import ENGINE as INTERVAL_ENGINE
+    from app.toolbench.instruments._interval_support import ENGINE_VERSION as INTERVAL_VERSION
+
+    actor_id = await _actor(client)
+    project_id = await _project(client, "instr-interval-enc")
+    pid = UUID(project_id)
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        run = await run_instrument(
+            session, pid, INTERVAL_EVAL, actor, inputs={"expression": "sqrt(2)"}
+        )
+
+    assert run.status is ResultStatus.RESULT
+    async with session_factory() as session:
+        artifact = await session.get(Artifact, run.artifact_id)
+        assert artifact.kind == "derivation"
+    entry = run.checkpoint.tool_invocations[0]
+    assert entry["instrument"] == "interval.eval"
+    assert entry["engine"] == INTERVAL_ENGINE
+    assert entry["engine_version"] == INTERVAL_VERSION
+    assert entry["output"]["lo"] is not None
+    assert entry["output"]["hi"] is not None
+    assert entry["output"]["method"] in {"arb", "mpmath.iv"}
+    assert not any(isinstance(v, float) for v in entry["output"].values())
+
+
+async def test_interval_eval_refute_weakens_the_claim(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """sqrt(2) == 2 is entirely off — proven miss through the chokepoint."""
+    actor_id = await _actor(client)
+    project_id = await _project(client, "instr-interval-refute")
+    thread_id = await _thread(client, project_id, actor_id)
+    claim_id = await _claim(client, thread_id, actor_id, "sqrt(2) equals 2")
+    pid = UUID(project_id)
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        run = await run_instrument(
+            session,
+            pid,
+            INTERVAL_EVAL,
+            actor,
+            inputs={"expression": "sqrt(2) == 2"},
+            claim_id=UUID(claim_id),
+        )
+
+    assert run.status is ResultStatus.REFUTED
+    assert run.evidence_id is not None
+    async with session_factory() as session:
+        artifact = await session.get(Artifact, run.artifact_id)
+        assert artifact.kind == "counterexample"
+        link = (
+            await session.execute(
+                select(ClaimEvidenceLink).where(ClaimEvidenceLink.evidence_id == run.evidence_id)
+            )
+        ).scalar_one()
+        assert link.relation_kind == "weaken"
+    entry = run.checkpoint.tool_invocations[0]
+    assert entry["instrument"] == "interval.eval"
+    assert entry["output"]["holds"] is False

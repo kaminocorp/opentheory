@@ -124,6 +124,26 @@ export type TableArtifactOutput = {
   expression_latex?: string | null;
 };
 
+// Output shape of `interval.eval` (0.35.0) — proven enclosure, never a float.
+export type IntervalEvalOutput = {
+  expression: string;
+  is_relation: boolean;
+  lo?: string | null;
+  hi?: string | null;
+  left_lo?: string | null;
+  left_hi?: string | null;
+  right_lo?: string | null;
+  right_hi?: string | null;
+  holds?: boolean | null;
+  precision_bits: number;
+  method?: string | null;
+  status_reason?: string | null;
+  expression_latex?: string | null;
+  enclosure_latex?: string | null;
+  left_enclosure_latex?: string | null;
+  right_enclosure_latex?: string | null;
+};
+
 // Output shape of Bench 6 `plot.*` (0.34.0) — Vega-Lite spec, approximate viz.
 export type PlotArtifactOutput = {
   expression?: string;
