@@ -119,15 +119,19 @@ are unchanged. Full project-budget metering remains `0.12.5` (not this line).
   2. `fly secrets set AGENT_LOOP_ENABLED=true` (dark-launch flag; default remains `false`)
 
 ```bash
-cd backend && uv run ruff check .
-cd backend && uv run pytest -q
-cd frontend && npm run typecheck && npm run lint && npm run build
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 329 passed, 129 skipped (DB-gated)  [was 319 / 128]
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
 ```
 
 **Not in this release:** continuous / scheduled loops, a multi-thread orchestrator, or
 `0.12.5` project-budget metering (the per-pass caps still bound blast radius). Account ≠ Actor
 and funder ≠ contributor ≠ validator are untouched — a completed pass does not auto-validate
 (that would conflate contributor and validator).
+
+**Unverified:** the new DB-gated assertions (completed-pass checkpoint stands;
+thread/overview rollup round-trip) skip without `TEST_DATABASE_URL`. No live agent
+pass and no pixel-level browser walk of the new copy.
 
 ## 0.16.3
 
@@ -147,10 +151,14 @@ untouched — this is the aggregation the roadmap said was cheap once the deriva
   Grounding bay with the same words the claim chip already uses (letter rungs stay `at B`).
 
 ```bash
-cd backend && uv run ruff check .
-cd backend && uv run pytest -q
-cd frontend && npm run typecheck && npm run lint && npm run build
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 329 passed, 129 skipped (DB-gated)  [was 319 / 128]
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
 ```
+
+**Unverified:** `test_thread_and_overview_grounding_rollup` is written but skipped
+without a test Postgres (same gate as the rest of `test_read_models.py`). No
+browser walk of the thread-list line or Overview bay.
 
 ## 0.16.2
 
