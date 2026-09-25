@@ -278,12 +278,18 @@ async def test_failed_subpass_does_not_corrupt_the_ledger(
             await session.execute(select(func.count()).select_from(FundingAllocation))
         ).scalar()
 
+    ok_stub = _stub_planner(_one_calc())
+
     async def _planner(
         thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None
     ):
         if str(thread.id) == fail_id:
             raise AgentLlmError("planner failed on purpose")
-        return _one_calc()
+        # One-shot: a raw PlanResult would replan the same calc until the pass cap.
+        return await ok_stub(
+            thread, open_claims, catalog, model, llm=llm, max_runs=max_runs,
+            grounding=grounding, observations=observations,
+        )
 
     orch_id = await _start(session_factory, project_id, actor_id)
     async with session_factory() as session:

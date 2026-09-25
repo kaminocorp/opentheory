@@ -49,10 +49,22 @@ on shipped `0.21.0` research-git merge / tag.
   `Validation` or a `FundingAllocation` and does not block the next thread;
   `max_passes` skips the remainder; API round-trip + in-flight `409`.
 
+## Verification
+
+- `ruff check .` clean.
+- Default pytest (no `TEST_DATABASE_URL`): **405 passed, 155 skipped**.
+- With `TEST_DATABASE_URL` at a local throwaway Postgres: focused
+  `tests/agent/test_orchestration.py` + API + migration + select helpers
+  **21 passed**, including budget-stop, multi-thread, empty/no-work,
+  failed-sub-pass-does-not-corrupt-ledger, max-passes cap, dark-launch
+  `404`, and in-flight `409`.
+- Frontend `typecheck` / `lint` / `build` clean.
+
 ## Unverified
 
 - No live orchestration against OpenRouter. The loop is still dark in
   production until the ops flip.
-- No pixel-level browser walk of the Overview control.
+- No pixel-level browser walk of the Overview control (no signed-in
+  browser session against a live backend in this environment).
 - Concurrent *sub-passes* are not implemented (sequential by design). Two
   overlapping orchestrations are rejected at commission.

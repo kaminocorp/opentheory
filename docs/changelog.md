@@ -127,8 +127,10 @@ Migration `0017_orchestration_runs` (additive).
 
 ```bash
 cd backend && uv run ruff check .   # clean
-cd backend && uv run pytest -q      # (see completions doc)
-cd frontend && npm run typecheck && npm run lint && npm run build
+cd backend && uv run pytest -q      # 405 passed, 155 skipped (DB-gated)
+# With TEST_DATABASE_URL: tests/agent/test_orchestration*.py + migration/select
+#   21 passed (budget stop, multi-thread, empty, failed sub-pass, 409)
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
 ```
 
 See `docs/completions/multi-thread-orchestrator-0.22.0.md`.

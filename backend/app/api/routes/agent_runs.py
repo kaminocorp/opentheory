@@ -26,7 +26,6 @@ from app.schemas.agent_run import AgentRunRead, AgentRunSummary, AgentRunTrigger
 from app.services import agent_runs as agent_run_service
 from app.services.project_members import ensure_is_member
 
-
 router = APIRouter(dependencies=[Depends(require_agent_loop_enabled)])
 
 
