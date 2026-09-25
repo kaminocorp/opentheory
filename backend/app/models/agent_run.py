@@ -22,11 +22,16 @@ looked up *inside* the background pass and stamped then — so ``agent_actor_id`
 
 Step JSON shape (each entry in ``steps``)::
 
-    {"index": int, "instrument": str, "inputs": dict,
+    {"index": int | None, "instrument": str, "inputs": dict,
      "claim_id": str | None, "relation_kind": str | None, "rationale": str,
-     "status": "landed" | "failed" | "dropped_invalid" | "skipped",
+     "status": "landed" | "failed" | "dropped_invalid" | "skipped" | "plan" | "replan",
      "checkpoint_id": str | None, "evidence_id": str | None,
-     "outcome": str | None, "error": str | None, "reason": str | None}
+     "outcome": str | None, "error": str | None, "reason": str | None,
+     "plan_version": int | None, "observe_summary": str | None}
+
+``status="plan"`` / ``"replan"`` are narrative rows (0.20.0): a plan version and, on a replan,
+the observe summary that caused it. They mint nothing. ``plan`` JSON also carries a ``versions``
+array alongside the latest ``runs`` so a mid-pass poll shows every version, not a black box.
 """
 
 from typing import Any
@@ -89,7 +94,9 @@ class AgentRun(IdMixin, TimestampMixin, Base):
         default=AgentRunStatus.RUNNING,
         nullable=False,
     )
-    # The raw validated AgentPlan (the model's proposed runs after two-stage validation).
+    # The validated plan. Shape (0.20.0, still a plain JSON column — no migration):
+    #   {"runs": [latest version's runnable], "versions": [{version, runs, reason,
+    #    observe_summary, tokens_used}, ...]}. Pre-0.20.0 rows have only ``runs``.
     plan: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     # Per-step trace (see the module docstring for the shape) — the live, human-readable narrative.
     steps: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list, nullable=False)
@@ -98,7 +105,7 @@ class AgentRun(IdMixin, TimestampMixin, Base):
     planned_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     # Steps that reached run_instrument (landed or failed at execution).
     ran_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    # Planning-call token usage (future: cumulative across an iterative loop).
+    # Cumulative planning-call token usage across the initial plan and every replan (0.20.0).
     tokens_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     # 0.16.1 — what the pass *bought*: the before/after grounding rung of every open claim it could
     # have moved (see app/schemas/agent_run.py::PassYield for the shape). Measured point-in-time at

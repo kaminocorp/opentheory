@@ -155,23 +155,66 @@ async def _make_run(
 
 
 # The stub planners mirror ``agent.planner.plan``'s signature *explicitly* — including 0.16.1's
-# ``grounding`` — rather than swallowing extras with ``**kwargs``. That is deliberate: the planner
-# is an injected seam, so a stub that quietly accepts anything would let the orchestrator start
-# passing an argument the real planner never receives, and no test would notice.
+# ``grounding`` and 0.20.0's ``observations`` — rather than swallowing extras with ``**kwargs``.
+# That is deliberate: the planner is an injected seam, so a stub that quietly accepts anything
+# would let the orchestrator start passing an argument the real planner never receives, and no
+# test would notice.
+#
+# A one-shot stub returns ``plan_result`` on the first call and an empty plan afterwards, so
+# existing tests keep a single batch. Replan tests pass ``then=[...]``.
 
 
-def _stub_planner(plan_result: PlanResult, *, seen: dict | None = None):
-    async def _planner(thread, open_claims, catalog, model, *, llm, max_runs, grounding=None):
+def _stub_planner(
+    plan_result: PlanResult,
+    *,
+    seen: dict | None = None,
+    then: list[PlanResult] | None = None,
+):
+    calls = {"n": 0}
+
+    async def _planner(
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None
+    ):
+        calls["n"] += 1
         if seen is not None:
-            seen["grounding"] = grounding
-        return plan_result
+            seen.setdefault("calls", []).append(
+                {"grounding": grounding, "observations": observations, "max_runs": max_runs}
+            )
+            # First-call grounding is the yield's ``before`` — keep that contract for 0.16.1 tests.
+            if "grounding" not in seen:
+                seen["grounding"] = grounding
+            seen["observations"] = observations
+        if calls["n"] == 1:
+            return plan_result
+        if then is not None:
+            idx = calls["n"] - 2
+            if 0 <= idx < len(then):
+                return then[idx]
+        return PlanResult(runnable=[], proposed_count=0, tokens_used=0)
 
     return _planner
 
 
 def _raising_planner(exc: Exception):
-    async def _planner(thread, open_claims, catalog, model, *, llm, max_runs, grounding=None):
+    async def _planner(
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None
+    ):
         raise exc
+
+    return _planner
+
+
+def _always_planner(plan_result: PlanResult, *, seen: dict | None = None):
+    """A stub that keeps proposing the same batch — used to prove the max-replan stop."""
+
+    async def _planner(
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None
+    ):
+        if seen is not None:
+            seen.setdefault("n", 0)
+            seen["n"] += 1
+            seen["observations"] = observations
+        return plan_result
 
     return _planner
 
@@ -213,8 +256,7 @@ async def test_pass_lands_attributed_checkpoint_and_evidence_on_the_agent_branch
         assert result.branch_id is not None
         branch_id = result.branch_id
         agent_actor_id = result.agent_actor_id
-        landed = result.steps[-1]
-        assert landed["status"] == "landed"
+        landed = next(s for s in result.steps if s["status"] == "landed")
         assert landed["outcome"] == "refuted"
         assert landed["evidence_id"] is not None
         checkpoint_id = UUID(landed["checkpoint_id"])
@@ -390,6 +432,7 @@ async def test_safety_cap_truncates_to_max_runs(
     run_id = await _make_run(session_factory, project_id, thread_id, actor_id)
 
     monkeypatch.setattr(settings, "agent_pass_max_runs", 3)
+    monkeypatch.setattr(settings, "agent_pass_max_replans", 0)  # isolate the planner cap
     # The REAL planner + a StubLlm proposing 10 valid runs → truncated to 3 by the cap.
     runs = [{"instrument": "calc.eval", "inputs": {"expression": f"{i} == {i}"}} for i in range(10)]
     ten = json.dumps({"runs": runs})
@@ -464,7 +507,8 @@ async def test_main_line_fallback_when_thread_has_no_checkpoint(
         assert result.status is AgentRunStatus.COMPLETED
         assert result.ran_count == 1
         assert result.branch_id is None  # the documented fallback
-        checkpoint_id = UUID(result.steps[-1]["checkpoint_id"])
+        landed = next(s for s in result.steps if s["status"] == "landed")
+        checkpoint_id = UUID(landed["checkpoint_id"])
 
     async with session_factory() as session:
         checkpoint = await session.get(Checkpoint, checkpoint_id)
@@ -527,3 +571,246 @@ async def test_planner_failure_is_a_recorded_failed_trace(
             )
         ).scalars().all()
         assert tool_runs == []
+
+
+# --- 0.20.0: plan → observe → replan --------------------------------------------------------------
+
+
+async def test_replan_after_observe_runs_the_second_batch(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """The first batch's outcomes are what the second plan is allowed to know."""
+    actor_id = await _actor(client)
+    project_id = await _project(client, "agent-replan")
+    thread_id = await _thread(client, project_id, actor_id)
+    claim_id = await _claim(client, thread_id, actor_id, "1 + 1 equals 2.")
+    await _thread_checkpoint(client, project_id, thread_id, actor_id)
+    await _assign_model(session_factory, project_id)
+    run_id = await _make_run(session_factory, project_id, thread_id, actor_id)
+
+    first = PlanResult(
+        runnable=[
+            PlannedRun(instrument="calc.eval", inputs={"expression": "1 + 1 == 2"}, rationale="v0")
+        ],
+        tokens_used=10,
+        proposed_count=1,
+    )
+    second = PlanResult(
+        runnable=[
+            PlannedRun(
+                instrument="calc.eval",
+                inputs={"expression": "2 + 2 == 4"},
+                claim_id=UUID(claim_id),
+                relation_kind="support",
+                rationale="v1 after observe",
+            )
+        ],
+        tokens_used=11,
+        proposed_count=1,
+    )
+    seen: dict = {}
+
+    async with session_factory() as session:
+        result = await run_agent_pass(
+            session, run_id, planner=_stub_planner(first, seen=seen, then=[second])
+        )
+
+    assert result.status is AgentRunStatus.COMPLETED
+    assert result.ran_count == 2
+    assert result.tokens_used == 21
+    versions = result.plan.get("versions") or []
+    assert versions[0]["reason"] == "initial"
+    assert versions[1]["reason"] == "replan"
+    assert versions[1]["observe_summary"]
+    assert "calc.eval → result" in versions[1]["observe_summary"]
+    # A later empty replan (nothing more to do) is an honest stop, not a third batch.
+    assert [v["version"] for v in versions[:2]] == [0, 1]
+
+    statuses = [s["status"] for s in result.steps]
+    assert statuses.count("plan") == 1
+    assert statuses.count("replan") >= 1
+    assert statuses.count("landed") == 2
+
+    # The replan call saw the first batch's observation, not an empty context.
+    assert len(seen["calls"]) >= 2
+    second_obs = seen["calls"][1]["observations"]
+    assert second_obs
+    assert second_obs[0].instrument == "calc.eval"
+    assert second_obs[0].status == "landed"
+    assert second_obs[0].outcome == "result"
+    assert second_obs[0].minted is True
+
+
+async def test_max_replans_stops_even_when_runs_remain(
+    client: AsyncClient,
+    session_factory: async_sessionmaker,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actor_id = await _actor(client)
+    project_id = await _project(client, "agent-maxreplan")
+    thread_id = await _thread(client, project_id, actor_id)
+    await _thread_checkpoint(client, project_id, thread_id, actor_id)
+    await _assign_model(session_factory, project_id)
+    run_id = await _make_run(session_factory, project_id, thread_id, actor_id)
+
+    monkeypatch.setattr(settings, "agent_pass_max_runs", 5)
+    monkeypatch.setattr(settings, "agent_pass_max_replans", 1)
+    monkeypatch.setattr(settings, "agent_pass_max_batch_runs", 1)
+
+    seen: dict = {}
+    repeating = PlanResult(
+        runnable=[PlannedRun(instrument="calc.eval", inputs={"expression": "1 == 1"})],
+        tokens_used=3,
+        proposed_count=1,
+    )
+
+    async with session_factory() as session:
+        result = await run_agent_pass(
+            session, run_id, planner=_always_planner(repeating, seen=seen)
+        )
+
+    # initial + 1 replan = 2 planning calls, 2 landed runs; remaining run budget is unused.
+    assert result.status is AgentRunStatus.COMPLETED
+    assert result.ran_count == 2
+    assert seen["n"] == 2
+    assert any(s.get("reason") == "max_replans" for s in result.steps)
+    versions = result.plan.get("versions") or []
+    assert [v["version"] for v in versions] == [0, 1]
+
+
+async def test_settled_grounding_reaches_the_replan(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """A claim the first batch refutes is marked settled on the next planning call."""
+    actor_id = await _actor(client)
+    project_id = await _project(client, "agent-replan-settled")
+    thread_id = await _thread(client, project_id, actor_id)
+    claim_id = await _claim(client, thread_id, actor_id, "Return distance equals the sum of legs.")
+    await _thread_checkpoint(client, project_id, thread_id, actor_id)
+    await _assign_model(session_factory, project_id)
+    run_id = await _make_run(session_factory, project_id, thread_id, actor_id)
+
+    first = PlanResult(
+        runnable=[
+            PlannedRun(
+                instrument="counterexample.search",
+                inputs=_GEOMETRY_STORY_SEARCH,
+                claim_id=UUID(claim_id),
+                relation_kind="weaken",
+                rationale="hunt",
+            )
+        ],
+        tokens_used=1,
+        proposed_count=1,
+    )
+    seen: dict = {}
+
+    async with session_factory() as session:
+        result = await run_agent_pass(session, run_id, planner=_stub_planner(first, seen=seen))
+
+    assert result.status is AgentRunStatus.COMPLETED
+    assert result.ran_count == 1
+    # First call saw an ungrounded claim (absent from the map). Second call must see refuted.
+    assert seen["calls"][0]["grounding"] == {}
+    assert len(seen["calls"]) >= 2
+    replan_grounding = seen["calls"][1]["grounding"]
+    assert UUID(claim_id) in replan_grounding
+    assert replan_grounding[UUID(claim_id)].headline == "refuted"
+    observe = seen["calls"][1]["observations"]
+    assert observe[0].grounding_after == "refuted"
+    assert observe[0].movement == "settled"
+
+
+async def test_failed_instrument_does_not_poison_the_replan(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """A failed first step mints nothing and the next plan can still land."""
+    actor_id = await _actor(client)
+    project_id = await _project(client, "agent-replan-fail")
+    thread_id = await _thread(client, project_id, actor_id)
+    await _thread_checkpoint(client, project_id, thread_id, actor_id)
+    await _assign_model(session_factory, project_id)
+    run_id = await _make_run(session_factory, project_id, thread_id, actor_id)
+
+    doomed = PlanResult(
+        runnable=[
+            PlannedRun(
+                instrument="calc.eval",
+                inputs={"expression": "2 + 2 == 4"},
+                claim_id=uuid4(),
+                rationale="doomed",
+            )
+        ],
+        tokens_used=4,
+        proposed_count=1,
+    )
+    recovery = PlanResult(
+        runnable=[
+            PlannedRun(instrument="calc.eval", inputs={"expression": "1 == 1"}, rationale="ok")
+        ],
+        tokens_used=5,
+        proposed_count=1,
+    )
+    seen: dict = {}
+
+    async with session_factory() as session:
+        result = await run_agent_pass(
+            session, run_id, planner=_stub_planner(doomed, seen=seen, then=[recovery])
+        )
+
+    assert result.status is AgentRunStatus.COMPLETED
+    assert result.ran_count == 1  # only the recovery landed
+    executed = [s for s in result.steps if s["status"] in ("landed", "failed")]
+    assert [s["status"] for s in executed] == ["failed", "landed"]
+    assert executed[0]["checkpoint_id"] is None
+    assert executed[1]["checkpoint_id"] is not None
+    # The replan saw the failure as "minted nothing", not as a ledger outcome.
+    observe = seen["calls"][1]["observations"]
+    assert observe[0].status == "failed"
+    assert observe[0].minted is False
+    assert observe[0].outcome is None
+
+    async with session_factory() as session:
+        tool_runs = (
+            await session.execute(
+                select(Contribution).where(Contribution.action == "tool_run")
+            )
+        ).scalars().all()
+        assert len(tool_runs) == 1
+
+
+async def test_replan_failure_after_a_landed_step_completes_the_pass(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """A bad replan must not invert 'one bad step never aborts the pass'."""
+    actor_id = await _actor(client)
+    project_id = await _project(client, "agent-replan-llmfail")
+    thread_id = await _thread(client, project_id, actor_id)
+    await _thread_checkpoint(client, project_id, thread_id, actor_id)
+    await _assign_model(session_factory, project_id)
+    run_id = await _make_run(session_factory, project_id, thread_id, actor_id)
+
+    first = PlanResult(
+        runnable=[PlannedRun(instrument="calc.eval", inputs={"expression": "1 == 1"})],
+        tokens_used=8,
+        proposed_count=1,
+    )
+    calls = {"n": 0}
+
+    async def _planner(
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None
+    ):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return first
+        raise AgentLlmError("replan provider down", tokens_used=9)
+
+    async with session_factory() as session:
+        result = await run_agent_pass(session, run_id, planner=_planner)
+
+    assert result.status is AgentRunStatus.COMPLETED
+    assert result.ran_count == 1
+    assert result.tokens_used == 17  # initial + failed replan spend
+    replan_row = next(s for s in result.steps if s["status"] == "replan")
+    assert replan_row["reason"] == "planner_failed"
+    assert replan_row["observe_summary"]

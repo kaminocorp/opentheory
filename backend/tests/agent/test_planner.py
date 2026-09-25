@@ -11,6 +11,7 @@ from uuid import uuid4
 import pytest
 
 from app.agent.llm import AgentLlmError
+from app.agent.observe import Observation
 from app.agent.planner import plan
 from app.models.enums import EvidenceGrade
 from app.schemas.claim import ClaimGrounding
@@ -178,6 +179,36 @@ async def test_grounding_context_reaches_the_planning_call() -> None:
     user_message = llm.calls[0]["messages"][1]["content"]
     assert "grounding: B" in user_message
     assert "to raise: run one of [z3.prove]" in user_message
+
+
+async def test_observations_reach_the_planning_call() -> None:
+    """The wiring test: an Observation passed to ``plan`` shows up in the LLM messages."""
+    claim = make_claim()
+    llm = StubLlm(_content([]))
+    await plan(
+        make_thread(),
+        [claim],
+        CATALOG,
+        "m",
+        llm=llm,
+        max_runs=5,
+        observations=[
+            Observation(
+                instrument="calc.eval",
+                status="landed",
+                outcome="result",
+                claim_id=claim.id,
+                minted=True,
+                grounding_before="ungrounded",
+                grounding_after="B",
+                movement="raised",
+            )
+        ],
+    )
+    user_message = llm.calls[0]["messages"][1]["content"]
+    assert "OBSERVATIONS FROM EARLIER BATCHES" in user_message
+    assert "calc.eval → landed, outcome=result" in user_message
+    assert f"claim {claim.id}" in user_message
 
 
 async def test_grounding_is_optional_and_omitting_it_changes_no_validation() -> None:

@@ -123,19 +123,30 @@ async def _assign_model(
         await session.commit()
 
 
-# Signatures mirror ``agent.planner.plan`` exactly (0.16.1 added ``grounding``) — see the note in
-# tests/agent/test_orchestrator.py for why these are explicit rather than ``**kwargs``.
+# Signatures mirror ``agent.planner.plan`` exactly (0.16.1 added ``grounding``, 0.20.0
+# ``observations``) — see the note in tests/agent/test_orchestrator.py for why these are
+# explicit rather than ``**kwargs``. A one-shot stub returns empty after the first call so
+# the 0.20.0 replan does not re-execute the same canned batch.
 
 
 def _stub_planner(plan_result: PlanResult):
-    async def _planner(thread, open_claims, catalog, model, *, llm, max_runs, grounding=None):
-        return plan_result
+    calls = {"n": 0}
+
+    async def _planner(
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None
+    ):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return plan_result
+        return PlanResult(runnable=[], proposed_count=0, tokens_used=0)
 
     return _planner
 
 
 def _raising_planner(exc: Exception):
-    async def _planner(thread, open_claims, catalog, model, *, llm, max_runs, grounding=None):
+    async def _planner(
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None
+    ):
         raise exc
 
     return _planner

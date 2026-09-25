@@ -118,8 +118,20 @@ async def _make_run(
 
 
 def _stub_planner(plan_result: PlanResult):
-    async def _planner(thread, open_claims, catalog, model, *, llm, max_runs, grounding=None):
-        return plan_result
+    """One-shot stub: return ``plan_result`` once, then empty.
+
+    0.20.0 will replan unless the second call is empty. An always-same plan would
+    re-execute and break ``ran_count`` / ``tokens_used`` / ``skipped==2`` assertions.
+    """
+    calls = {"n": 0}
+
+    async def _planner(
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None
+    ):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return plan_result
+        return PlanResult(runnable=[], proposed_count=0, tokens_used=0)
 
     return _planner
 
@@ -207,7 +219,9 @@ async def test_exhausted_budget_refuses_to_start_and_mints_nothing(
 
     called = {"planner": False}
 
-    async def _boom(thread, open_claims, catalog, model, *, llm, max_runs, grounding=None):
+    async def _boom(
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None
+    ):
         called["planner"] = True
         raise AssertionError("planner must not run when the project budget is exhausted")
 

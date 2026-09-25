@@ -68,25 +68,31 @@ class Settings(BaseSettings):
     # one. As of Feb 2026 the polite-pool mailto param is ignored; the key is the real quota.
     openalex_api_key: str | None = None
 
-    # --- Thin agent loop (0.12.x) -----------------------------------------------------
-    # The agent loop turns the config-only Research crew into an operator: one bounded planning
-    # call (OpenRouter) → a validated, capped sequence of *existing* instrument runs on an agent
+    # --- Thin agent loop (0.12.x / 0.20.0) --------------------------------------------
+    # The agent loop turns the config-only Research crew into an operator: a bounded
+    # plan → observe → replan loop (OpenRouter) of *existing* instrument runs on an agent
     # branch, through the same chokepoint humans use.
     #
-    # NOTE on caps: `agent_pass_max_runs` / `agent_pass_max_tokens` are SAFETY limits (they bound
-    # a single pass's blast radius), NOT budget. Real budget is a *project-level* ceiling
-    # (0.19.0, historically `0.12.5`) — never per-thread. These caps remain the blast-radius
-    # bound on top of that ceiling. Prod enablement is an ops flip, not a code change:
+    # NOTE on caps: these are SAFETY limits (they bound a single pass's blast radius), NOT
+    # project budget. Real budget is the *project-level* ceiling shipped in `0.19.0`
+    # (historically `0.12.5`; never per-thread). These caps remain the blast-radius bound
+    # on top of that ceiling. Prod enablement is an ops flip, not a code change:
     # `OPENROUTER_API_KEY` is a Fly **secret** (`fly secrets set`), never `fly.toml [env]`;
     # `AGENT_LOOP_ENABLED` is the dark-launch flag production sets when the key is in place
     # (see docs/operations/deploy.md). Do not invent a second key or a second flag.
     openrouter_api_key: str | None = None
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    # Wall-clock cap for the single planning call (the one LLM round-trip per pass).
+    # Wall-clock cap for one planning / replan call.
     agent_llm_timeout_s: float = 60.0
-    # Max instrument runs a single pass may execute (safety, not budget).
+    # Max instrument attempts a single pass may execute (landed or failed; safety, not budget).
     agent_pass_max_runs: int = 5
-    # Token ceiling for a pass's planning call — still a SAFETY cap (blast radius), recorded
+    # Max *additional* planning calls after the initial plan (0 = one-shot, the 0.12.x shape).
+    # Default 2 → at most 3 LLM calls per pass (initial + two replans).
+    agent_pass_max_replans: int = 2
+    # Max runnable steps one plan version may propose. Keeps the first batch short so there is
+    # remaining run budget to spend after observing. The orchestrator also slices to this.
+    agent_pass_max_batch_runs: int = 2
+    # Token ceiling for a pass's planning calls — still a SAFETY cap (blast radius), recorded
     # on the trace. The project ceiling that turns those tokens into spend is
     # ``agent_token_rate_usd_per_1k`` × tokens, debited in 0.19.0.
     agent_pass_max_tokens: int = 200_000

@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.20.0` — **Bounded plan → observe → replan inside one agent pass.** After each instrument batch the pass feeds observations (outcomes, whether anything minted, grounding deltas) into a capped replan. Hard bounds: `agent_pass_max_replans` (default 2), `agent_pass_max_batch_runs` (default 2), existing `agent_pass_max_runs` / token recording. `BudgetPolicy.check` is the shipped `0.19.0` project ceiling (`ProjectBudgetPolicy` / `record_compute_debit` / refuse-to-start / skip-remaining-on-exhaust; no replan after a budget stop). Trace shows each plan version and why it replanned. Failed/empty steps still mint nothing. Planner stays on the fixed catalog. Human review stays opt-in (`0.17.0`). No schema, no migration.
 - `0.19.0` — **Project-budget metering for agent passes.** Recorded `AgentRun` tokens debit an append-only `ComputeDebit` ledger (not a `FundingAllocation` — the agent is a contributor, never a funder). `project_budget.spent` is the sum of those rows; `available` drops by the metered amount. An exhausted project refuses to start (`failed`, `error="project budget exhausted"`, mints nothing); a pass that burns the remainder mid-way skips remaining instrument runs with `budget_exhausted`. Per-pass safety caps are unchanged. Historically sketched as deferred `0.12.5`. Migration `0015_compute_debits` (additive).
 - `0.18.0` — **Tier-1 literature pin instruments.** `crossref.lookup`, `arxiv.lookup`, and `openalex.lookup` reuse the `source.pin` shape `oeis.search` proved: DOI / versioned arXiv id / OpenAlex id land as attributed checkpoints through `run_instrument`, with `url` + `source_url` + `retrieved_at` + `raw_response_hash`. Network failures mint nothing; a successful empty match is honest `undecided`. OpenAlex does not hard-require a prod secret — optional `OPENALEX_API_KEY`, demo-pool degrade when absent. Backend + frontend + docs — no schema, no migration.
 - `0.17.0` — **Phase 1 agent autonomy: human review becomes opt-in.** A completed pass's attributed checkpoints on the agent branch stand without a mandatory accept/reject/fork. The API serializes `requires_review: false` (computed, never stored) so a client cannot invent a gate; accept / reject / fork remain available as opt-in audit through the existing Validation and Branch write paths. Per-pass safety caps are unchanged; `0.12.5` project-budget metering is still deferred. Prod enablement remains the ops flip `AGENT_LOOP_ENABLED` + `OPENROUTER_API_KEY`. No schema, no migration.
@@ -87,6 +88,53 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.20.0
+
+**Bounded plan → observe → replan inside one agent pass.** A one-shot plan is too brittle
+once literature pins, `z3.prove`, and counterexamples exist. `run_agent_pass` now runs a
+capped **plan → observe → replan** loop: each plan version is a short batch from the fixed
+instrument catalog; after the batch, server-derived observations (instrument outcome,
+minted-or-not, grounding delta) and a refreshed grounding snapshot feed the next planning
+call. **No schema, no migration.** Plan history lives in the existing `AgentRun.plan` JSON
+(`versions` beside the latest `runs`) and as narrative `plan` / `replan` rows on `steps`.
+
+- **Hard bounds.** `agent_pass_max_replans` (default 2) caps additional planning calls;
+  `agent_pass_max_batch_runs` (default 2) keeps each version short so there is run budget
+  left to spend after observing; `agent_pass_max_runs` still caps total instrument
+  *attempts* (a failed run costs the cap — it used the sandbox). `agent_pass_max_tokens`
+  remains recorded. `BudgetPolicy.check` is the shipped `0.19.0` project ceiling: default
+  `ProjectBudgetPolicy` from `project_budget`, refuse to start when `available <= 0`,
+  `record_compute_debit` after the first planning call (one row per pass), skip remaining
+  current-batch steps with `budget_exhausted`, and do not replan after a budget stop.
+- **The trace is not a black box.** Each plan version is a row (`plan` / `replan`) with
+  an `observe_summary` on every replan (*"counterexample.search → refuted, grounding
+  ungrounded→refuted, settled"*). Tokens are cumulative across planning calls.
+- **Honesty contract held.** A failed or empty step still mints nothing. A failed step
+  does not poison the pass: the next plan sees `failed, minted nothing` and may try a
+  different instrument. A replan LLM failure after landed work **completes** the pass
+  (it must not invert "one bad step never aborts the pass"). The initial planner
+  failure is still a failed trace that mints nothing.
+- **Planner still constrained.** Same two-stage validation; observations are optional
+  read-only context. Failed-step error text is deliberately kept off the prompt (it can
+  echo user-supplied inputs). Grounding / settled stop lines refresh on each replan.
+- **Human review stays opt-in** (`0.17.0`). No mandatory gate, no `awaiting_review`.
+- **Frontend.** The live trace renders each plan version and the observe summary that
+  caused a replan.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # (see verification after rebase)
+# With TEST_DATABASE_URL: tests/agent/ covers replan + 0.19.0 budget metering.
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
+```
+
+See `docs/completions/plan-observe-replan-0.20.0.md`.
+
+**Not in this release:** continuous / scheduled loops, a multi-thread orchestrator, or
+free-form tools. Project-budget metering shipped in `0.19.0` and is wired here.
 
 ---
 

@@ -1,11 +1,13 @@
-"""The bounded agent orchestrator (0.12.2) — one pass, executed on an agent branch, fully traced.
+"""The bounded agent orchestrator (0.12.2 / 0.20.0) — one pass, executed on an agent branch.
 
-``run_agent_pass`` is the thin loop's engine. It composes the reuse spine and invents **no** ledger
-mechanics: it resolves the project's agent Actor, calls the planner **once**, selects (or forks) the
-thread's agent branch *only when a run will actually land*, then executes each runnable step through
-the **same** ``run_instrument`` chokepoint humans use — attributed to the agent Actor, on the agent
-branch. Every step is recorded on the ``AgentRun`` trace; a per-step failure is caught so one bad
-run never aborts the pass. Forking after planning keeps a failed or empty pass free of any mint.
+``run_agent_pass`` is the loop's engine. It composes the reuse spine and invents **no** ledger
+mechanics: it resolves the project's agent Actor, then runs a capped **plan → observe → replan**
+loop. Each plan version is held to the fixed instrument catalog; each runnable step goes through
+the **same** ``run_instrument`` chokepoint humans use — attributed to the agent Actor, on the
+agent branch. Observations (instrument outcomes, whether anything minted, grounding deltas) feed
+the next planning call. Every plan version and every step is recorded on the ``AgentRun`` trace;
+a per-step failure is caught so one bad run never aborts the pass. Forking after the first
+non-empty plan keeps a failed or empty pass free of any mint.
 
 Three invariants this file must preserve:
 
@@ -33,7 +35,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agent.llm import AgentLlmError, LlmClient, OpenRouterClient
-from app.agent.planner import PlanResult
+from app.agent.observe import Observation, summarize_observations
+from app.agent.planner import PlannedRun, PlanResult
 from app.agent.planner import plan as default_plan
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
@@ -45,6 +48,7 @@ from app.models.enums import AgentRunStatus, BranchStatus, ClaimStatus
 from app.models.project import Project
 from app.models.thread import Thread
 from app.schemas.branch import BranchCreate
+from app.schemas.claim import ClaimGrounding
 from app.services import branches as branch_service
 from app.services import checkpoints as checkpoint_service
 from app.services import compute as compute_service
@@ -71,10 +75,14 @@ class BudgetPolicy(Protocol):
 
     Default (``None``) is the project ceiling (0.19.0 / historical ``0.12.5``): refuse to
     start when ``available <= 0``, debit recorded tokens, stop the instrument loop when
-    the remainder is exhausted. The per-pass safety caps (``agent_pass_max_runs``) still
-    bound blast radius independently. A future orchestrator supplies a project-budget-
-    derived policy through this seam (e.g. :class:`ProjectBudgetPolicy` with a subagent
-    slice); **no per-thread limits ever**.
+    the remainder is exhausted — and do not replan after a budget stop. The per-pass
+    safety caps (``agent_pass_max_runs``, ``agent_pass_max_replans``,
+    ``agent_pass_max_batch_runs``) still bound blast radius independently. A future
+    orchestrator supplies a project-budget-derived policy through this seam (e.g.
+    :class:`ProjectBudgetPolicy` with a subagent slice); **no per-thread limits ever**.
+
+    0.16.1 supplied the missing half of metering — the recorded ``AgentRun.grounding_yield`` —
+    so a budget can ask "what did the last pass buy?" instead of only "how much did it spend?".
     """
 
     def check(self, *, tokens_used: int, ran_count: int) -> bool: ...
@@ -146,7 +154,9 @@ async def select_agent_branch(
     return branch.id
 
 
-def _executed_step(index: int, run: Any, *, status: str, **extra: Any) -> dict[str, Any]:
+def _executed_step(
+    index: int, run: Any, *, status: str, plan_version: int = 0, **extra: Any
+) -> dict[str, Any]:
     """A per-step trace entry (landed/failed), in the documented ``AgentRun`` step shape."""
     return {
         "index": index,
@@ -161,7 +171,80 @@ def _executed_step(index: int, run: Any, *, status: str, **extra: Any) -> dict[s
         "outcome": extra.get("outcome"),
         "error": extra.get("error"),
         "reason": extra.get("reason"),
+        "plan_version": plan_version,
     }
+
+
+def _plan_step(
+    *,
+    version: int,
+    reason: str,
+    observe_summary: str | None,
+    planned_runs: int,
+    error: str | None = None,
+) -> dict[str, Any]:
+    """A narrative plan / replan row — mints nothing; the trace is not a black box."""
+    return {
+        "index": None,
+        "instrument": "",
+        "inputs": {},
+        "claim_id": None,
+        "relation_kind": None,
+        "rationale": "",
+        "status": "plan" if version == 0 else "replan",
+        "checkpoint_id": None,
+        "evidence_id": None,
+        "outcome": None,
+        "error": error,
+        "reason": reason,
+        "plan_version": version,
+        "observe_summary": observe_summary,
+        "planned_runs": planned_runs,
+    }
+
+
+def _version_record(
+    version: int,
+    plan_result: PlanResult,
+    *,
+    reason: str,
+    observe_summary: str | None,
+) -> dict[str, Any]:
+    """One entry in ``AgentRun.plan["versions"]``."""
+    return {
+        "version": version,
+        "runs": [run.model_dump(mode="json") for run in plan_result.runnable],
+        "reason": reason,
+        "observe_summary": observe_summary,
+        "tokens_used": plan_result.tokens_used,
+        "proposed_count": plan_result.proposed_count,
+    }
+
+
+def _plan_payload(versions: list[dict[str, Any]], latest_runs: list[PlannedRun]) -> dict[str, Any]:
+    """Keep ``plan.runs`` as the latest version so pre-0.20.0 readers still see a plan."""
+    return {
+        "runs": [run.model_dump(mode="json") for run in latest_runs],
+        "versions": list(versions),
+    }
+
+
+def _headline(grounding: dict[UUID, ClaimGrounding], claim_id: UUID | None) -> str | None:
+    if claim_id is None:
+        return None
+    return (grounding.get(claim_id) or ClaimGrounding()).headline
+
+
+def _batch_cap(remaining_runs: int) -> int:
+    """How many runnable steps this plan version may propose.
+
+    When replans are disabled the pass is the 0.12.x one-shot: the planner may use
+    the whole remaining run budget. When replans are on, each version is capped so
+    there is budget left to spend after observing.
+    """
+    if settings.agent_pass_max_replans <= 0:
+        return max(0, remaining_runs)
+    return max(0, min(remaining_runs, settings.agent_pass_max_batch_runs))
 
 
 def requires_review(_agent_run: AgentRun | None = None) -> bool:
@@ -275,26 +358,42 @@ async def _execute(
             opening.available, rate_per_1k=compute_service.rate_for_model(model)
         )
 
-    # 3. The ONE planning call — BEFORE any branch fork, so a planner failure (down provider /
-    #    unparseable plan) is a recorded failed trace that mints nothing at all.
+    # 3. Plan → observe → replan. The *initial* planning call happens BEFORE any branch fork, so a
+    #    planner failure (down provider / unparseable plan) is a recorded failed trace that mints
+    #    nothing at all. Later replan failures do not fail a pass that already landed work.
     #
-    #    The grounding snapshot (0.16.1) is loaded once, here, and serves *both* consumers: it is
-    #    the planner's context (plan to raise a rung) and the ``before`` half of the yield measure.
-    #    One batched query, not two — and taking it before the plan means the state the model
-    #    reasoned about is exactly the state the yield is measured against.
+    #    The grounding snapshot (0.16.1) loaded here is the ``before`` half of the yield measure
+    #    (the whole pass, not one batch). Each replan re-reads grounding so a settled claim is
+    #    visible to the next plan — that live snapshot is *not* the yield's ``before``.
     open_claims = await _open_claims(db, agent_run.thread_id)
     claim_ids = [claim.id for claim in open_claims]
     grounding_before = await grounding_by_claim(db, claim_ids)
     the_llm: LlmClient = llm if llm is not None else OpenRouterClient()
-    try:
-        plan_result = await planner(
+
+    remaining_runs = settings.agent_pass_max_runs
+    remaining_replans = settings.agent_pass_max_replans
+    catalog = build_catalog()
+
+    async def _plan(
+        *,
+        grounding: dict[UUID, ClaimGrounding],
+        observations: list[Observation] | None,
+        claims: list[Claim],
+    ) -> PlanResult:
+        return await planner(
             thread,
-            open_claims,
-            build_catalog(),
+            claims,
+            catalog,
             model,
             llm=the_llm,
-            max_runs=settings.agent_pass_max_runs,
-            grounding=grounding_before,
+            max_runs=_batch_cap(remaining_runs),
+            grounding=grounding,
+            observations=observations,
+        )
+
+    try:
+        plan_result = await _plan(
+            grounding=grounding_before, observations=None, claims=open_claims
         )
     except AgentLlmError as exc:
         agent_run.tokens_used = getattr(exc, "tokens_used", 0)
@@ -309,11 +408,23 @@ async def _execute(
             db, agent_run, status=AgentRunStatus.FAILED, error=f"planner failed: {exc}"
         )
 
-    # Persist the plan + dropped steps + usage before executing, so a poll mid-pass sees the plan.
-    steps: list[dict[str, Any]] = list(plan_result.dropped)
-    agent_run.plan = {"runs": [run.model_dump(mode="json") for run in plan_result.runnable]}
-    agent_run.planned_count = plan_result.proposed_count
-    agent_run.tokens_used = plan_result.tokens_used
+    versions: list[dict[str, Any]] = [
+        _version_record(0, plan_result, reason="initial", observe_summary=None)
+    ]
+    steps: list[dict[str, Any]] = [
+        _plan_step(
+            version=0,
+            reason="initial",
+            observe_summary=None,
+            planned_runs=len(plan_result.runnable),
+        ),
+        *({**dropped, "plan_version": 0} for dropped in plan_result.dropped),
+    ]
+    planned_count = plan_result.proposed_count
+    tokens_used = plan_result.tokens_used
+    agent_run.plan = _plan_payload(versions, plan_result.runnable)
+    agent_run.planned_count = planned_count
+    agent_run.tokens_used = tokens_used
     agent_run.steps = list(steps)
     # Debit the recorded tokens now — the provider already billed the planning call. A zero-token
     # stub (tests) writes nothing. Idempotent on the agent_run_id unique index.
@@ -345,81 +456,278 @@ async def _execute(
         agent_run.branch_id = branch_id
         await db.commit()
 
-    # 5. Execute the runnable steps (already ≤ agent_pass_max_runs). Each landed run is its own
-    #    atomic transaction; a per-step failure is caught and recorded (mints nothing).
+    # 5. Execute the current plan version, observe, replan while budget remains. Each landed run
+    #    is its own atomic transaction; a per-step failure is caught and recorded (mints nothing).
     ran_count = 0
-    for index, run in enumerate(plan_result.runnable):
-        stop = False
+    observations: list[Observation] = []
+    step_index = 0
+    plan_version = 0
+    grounding_now = grounding_before
+
+    async def _budget_exhausted() -> bool:
         if budget_policy is not None and not budget_policy.check(
-            tokens_used=agent_run.tokens_used, ran_count=ran_count
+            tokens_used=tokens_used, ran_count=ran_count
         ):
-            stop = True
-        elif enforce_project_ceiling:
+            return True
+        if enforce_project_ceiling:
             remaining = await funding_service.project_budget(db, agent_run.project_id)
             if remaining.available <= 0:
-                stop = True
-        if stop:
-            # Record every remaining step so the trace shows what the ceiling cut, not just the
-            # first one the loop happened to be on.
-            for later_index, later_run in enumerate(plan_result.runnable[index:], start=index):
-                steps.append(
-                    _executed_step(
-                        later_index, later_run, status="skipped", reason=BUDGET_EXHAUSTED_REASON
-                    )
-                )
-            agent_run.steps = list(steps)
-            await db.commit()
+                return True
+        return False
+
+    while True:
+        batch = plan_result.runnable[:_batch_cap(remaining_runs)]
+        if not batch:
             break
 
-        instrument = registry.get(run.instrument)
-        if instrument is None:  # pragma: no cover - the planner already resolved it
-            steps.append(_executed_step(index, run, status="failed", error="instrument not found"))
-            agent_run.steps = list(steps)
-            await db.commit()
-            continue
+        batch_observations: list[Observation] = []
+        budget_stop = False
+        for run_i, run in enumerate(batch):
+            if remaining_runs <= 0:
+                break
+            if await _budget_exhausted():
+                # Record every remaining step in this batch so the trace shows what the
+                # ceiling cut, not just the first one the loop happened to be on.
+                # Do not replan after a budget stop — the pot is empty.
+                for later_run in batch[run_i:]:
+                    steps.append(
+                        _executed_step(
+                            step_index,
+                            later_run,
+                            status="skipped",
+                            reason=BUDGET_EXHAUSTED_REASON,
+                            plan_version=plan_version,
+                        )
+                    )
+                    step_index += 1
+                agent_run.steps = list(steps)
+                await db.commit()
+                budget_stop = True
+                break
 
-        try:
-            result = await run_instrument(
-                db,
-                agent_run.project_id,
-                instrument,
-                agent_actor,
-                inputs=run.inputs,
-                thread_id=agent_run.thread_id,
-                branch_id=branch_id,
-                claim_id=run.claim_id,
-                relation_kind=run.relation_kind,
-            )
-        except HTTPException as exc:
-            # The failure split: run_instrument raised before any db.add, so nothing was minted.
-            steps.append(_executed_step(index, run, status="failed", error=str(exc.detail)))
-            agent_run.steps = list(steps)
-            await db.commit()
-            continue
+            remaining_runs -= 1  # the attempt itself — failed runs still cost the cap
+            instrument = registry.get(run.instrument)
+            if instrument is None:  # pragma: no cover - the planner already resolved it
+                obs = Observation(
+                    instrument=run.instrument,
+                    status="failed",
+                    claim_id=run.claim_id,
+                    minted=False,
+                    grounding_before=_headline(grounding_now, run.claim_id),
+                )
+                observations.append(obs)
+                batch_observations.append(obs)
+                steps.append(
+                    _executed_step(
+                        step_index,
+                        run,
+                        status="failed",
+                        error="instrument not found",
+                        plan_version=plan_version,
+                    )
+                )
+                step_index += 1
+                agent_run.steps = list(steps)
+                await db.commit()
+                continue
 
-        ran_count += 1
-        steps.append(
-            _executed_step(
-                index,
-                run,
+            try:
+                result = await run_instrument(
+                    db,
+                    agent_run.project_id,
+                    instrument,
+                    agent_actor,
+                    inputs=run.inputs,
+                    thread_id=agent_run.thread_id,
+                    branch_id=branch_id,
+                    claim_id=run.claim_id,
+                    relation_kind=run.relation_kind,
+                )
+            except HTTPException as exc:
+                # The failure split: run_instrument raised before any db.add, so nothing was minted.
+                obs = Observation(
+                    instrument=run.instrument,
+                    status="failed",
+                    claim_id=run.claim_id,
+                    minted=False,
+                    grounding_before=_headline(grounding_now, run.claim_id),
+                    error=str(exc.detail),
+                )
+                observations.append(obs)
+                batch_observations.append(obs)
+                steps.append(
+                    _executed_step(
+                        step_index,
+                        run,
+                        status="failed",
+                        error=str(exc.detail),
+                        plan_version=plan_version,
+                    )
+                )
+                step_index += 1
+                agent_run.steps = list(steps)
+                await db.commit()
+                continue
+
+            ran_count += 1
+            after_map = grounding_now
+            movement = None
+            if run.claim_id is not None:
+                after_map = await grounding_by_claim(db, [run.claim_id])
+                batch_yield = compute_yield([run.claim_id], grounding_now, after_map)
+                movement = batch_yield.changed[0].movement if batch_yield.changed else "unchanged"
+            before_headline = _headline(grounding_now, run.claim_id)
+            after_headline = _headline(after_map, run.claim_id)
+            obs = Observation(
+                instrument=run.instrument,
                 status="landed",
-                checkpoint_id=str(result.checkpoint.id),
-                evidence_id=str(result.evidence_id) if result.evidence_id is not None else None,
                 outcome=result.status.value,
+                claim_id=run.claim_id,
+                checkpoint_id=str(result.checkpoint.id),
+                minted=True,
+                grounding_before=before_headline,
+                grounding_after=after_headline,
+                movement=movement,
+            )
+            observations.append(obs)
+            batch_observations.append(obs)
+            if run.claim_id is not None:
+                grounding_now = {**grounding_now, **after_map}
+            steps.append(
+                _executed_step(
+                    step_index,
+                    run,
+                    status="landed",
+                    plan_version=plan_version,
+                    checkpoint_id=str(result.checkpoint.id),
+                    evidence_id=str(result.evidence_id) if result.evidence_id is not None else None,
+                    outcome=result.status.value,
+                )
+            )
+            step_index += 1
+            agent_run.ran_count = ran_count
+            agent_run.steps = list(steps)
+            await db.commit()
+            logger.info(
+                "agent_pass_step_landed agent_run_id=%s instrument=%s checkpoint_id=%s outcome=%s",
+                agent_run.id,
+                run.instrument,
+                result.checkpoint.id,
+                result.status.value,
+            )
+
+        if budget_stop or remaining_runs <= 0 or remaining_replans <= 0:
+            if remaining_runs > 0 and remaining_replans <= 0 and not budget_stop:
+                steps.append(
+                    {
+                        "index": None,
+                        "instrument": "pass",
+                        "inputs": {},
+                        "claim_id": None,
+                        "relation_kind": None,
+                        "rationale": "",
+                        "status": "skipped",
+                        "checkpoint_id": None,
+                        "evidence_id": None,
+                        "outcome": None,
+                        "error": None,
+                        "reason": "max_replans",
+                        "plan_version": plan_version,
+                    }
+                )
+                agent_run.steps = list(steps)
+                await db.commit()
+            break
+
+        # Observe, then replan. A failed replan after landed work completes the pass — it must
+        # not invert "one bad step never aborts the pass" on a narrative LLM call.
+        open_claims = await _open_claims(db, agent_run.thread_id)
+        live_ids = [claim.id for claim in open_claims]
+        try:
+            grounding_now = await grounding_by_claim(db, live_ids or claim_ids)
+        except Exception as exc:  # observation is narrative — keep going with the last snapshot
+            logger.warning(
+                "agent_pass_observe_grounding_failed agent_run_id=%s error=%s",
+                agent_run.id,
+                exc,
+                exc_info=True,
+            )
+            await db.rollback()
+            reloaded = await db.get(AgentRun, agent_run.id)
+            if reloaded is None:  # pragma: no cover
+                raise
+            agent_run = reloaded
+
+        observe_summary = summarize_observations(batch_observations)
+        remaining_replans -= 1
+        plan_version += 1
+        try:
+            plan_result = await _plan(
+                grounding=grounding_now,
+                observations=observations,
+                claims=open_claims,
+            )
+        except AgentLlmError as exc:
+            tokens_used += getattr(exc, "tokens_used", 0)
+            agent_run.tokens_used = tokens_used
+            steps.append(
+                _plan_step(
+                    version=plan_version,
+                    reason="planner_failed",
+                    observe_summary=observe_summary,
+                    planned_runs=0,
+                    error=str(exc),
+                )
+            )
+            agent_run.steps = list(steps)
+            await db.commit()
+            logger.warning(
+                "agent_pass_replan_failed agent_run_id=%s error=%s", agent_run.id, exc
+            )
+            break
+
+        tokens_used += plan_result.tokens_used
+        planned_count += plan_result.proposed_count
+        versions.append(
+            _version_record(
+                plan_version,
+                plan_result,
+                reason="replan",
+                observe_summary=observe_summary,
             )
         )
-        agent_run.ran_count = ran_count
+        steps.append(
+            _plan_step(
+                version=plan_version,
+                reason="replan",
+                observe_summary=observe_summary,
+                planned_runs=len(plan_result.runnable),
+            )
+        )
+        steps.extend({**dropped, "plan_version": plan_version} for dropped in plan_result.dropped)
+        agent_run.plan = _plan_payload(versions, plan_result.runnable)
+        agent_run.planned_count = planned_count
+        agent_run.tokens_used = tokens_used
         agent_run.steps = list(steps)
         await db.commit()
         logger.info(
-            "agent_pass_step_landed agent_run_id=%s instrument=%s checkpoint_id=%s outcome=%s",
+            "agent_pass_replan agent_run_id=%s version=%s runnable=%s observe=%s",
             agent_run.id,
-            run.instrument,
-            result.checkpoint.id,
-            result.status.value,
+            plan_version,
+            len(plan_result.runnable),
+            observe_summary,
         )
 
+        if plan_result.runnable and branch_id is None:
+            branch_id = await select_agent_branch(
+                db, agent_run.project_id, agent_run.thread_id, agent_actor, role=agent_run.role
+            )
+            agent_run.branch_id = branch_id
+            await db.commit()
+
     agent_run.ran_count = ran_count
+    agent_run.tokens_used = tokens_used
+    agent_run.planned_count = planned_count
     agent_run.steps = list(steps)
 
     # 6. Measure the yield (0.16.1): re-read grounding for the same claims and diff it against the
@@ -561,12 +869,12 @@ _STALE_RUN_MARGIN_S = 30.0
 def _stale_running_cutoff() -> datetime:
     """The instant before which an untouched ``running`` row counts as lost.
 
-    Worst-case wall-clock for a legitimate pass = the single planning call (``agent_llm_timeout_s``)
-    + up to ``agent_pass_max_runs`` instrument runs (each bounded by ``toolbench_wall_timeout_s``) +
-    a margin. Anything ``running`` and untouched for longer than that had its worker die.
+    Worst-case wall-clock for a legitimate pass = every planning call (initial + max replans)
+    + up to ``agent_pass_max_runs`` instrument runs (each bounded by ``toolbench_wall_timeout_s``)
+    + a margin. Anything ``running`` and untouched for longer than that had its worker die.
     """
     ttl = (
-        settings.agent_llm_timeout_s
+        settings.agent_llm_timeout_s * (1 + settings.agent_pass_max_replans)
         + settings.agent_pass_max_runs * settings.toolbench_wall_timeout_s
         + _STALE_RUN_MARGIN_S
     )

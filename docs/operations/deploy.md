@@ -170,10 +170,11 @@ run in production until both of these are set.
 
 Leave `AGENT_LOOP_ENABLED=false` until you intend to take live agent traffic. Local
 dev copies the same pair from `backend/.env.example`. Per-pass **safety** caps
-(`AGENT_PASS_MAX_RUNS`, `AGENT_PASS_MAX_TOKENS`) already bound blast radius — they
-are not budget. Full project-budget metering shipped in `0.19.0` (historical
-`0.12.5`) and is **not** required to flip the loop on — an unfunded project
-simply refuses to start a pass (`available = 0`).
+(`AGENT_PASS_MAX_RUNS`, `AGENT_PASS_MAX_REPLANS`, `AGENT_PASS_MAX_BATCH_RUNS`,
+`AGENT_PASS_MAX_TOKENS`) already bound blast radius — they are not budget. Full
+project-budget metering shipped in `0.19.0` (historical `0.12.5`) and is **not**
+required to flip the loop on — an unfunded project simply refuses to start a
+pass (`available = 0`).
 
 ## Operating notes
 
