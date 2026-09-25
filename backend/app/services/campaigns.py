@@ -10,10 +10,12 @@ It invents **no** ledger mechanics and never writes a ``Validation`` or a
 ``FundingAllocation``. Merge / tag stay human/API operations — this loop does
 not call ``services/merges.py``.
 
-v1 is **sequential**. One in-flight campaign per project; a running campaign
-also blocks a standalone orchestration (they share the pot). Each cycle is one
-0.22.0 orchestration, so per-orchestration ``orchestration_max_passes`` still
-bounds a single scan; the campaign is what continues after that cap.
+One in-flight campaign per project; a running campaign also blocks a standalone
+orchestration (they share the pot). Each cycle is one 0.22.0 / 0.27.0
+orchestration, so per-orchestration ``orchestration_max_passes`` and
+``orchestration_concurrency`` still bound a single scan; the campaign is what
+continues after that cap. Concurrent *cycles* are out of scope — concurrency
+lives inside each cycle.
 """
 
 from __future__ import annotations
@@ -45,6 +47,9 @@ from app.services.orchestration import (
     STOP_ERROR,
     STOP_NO_OPEN_WORK,
     classify_project_threads,
+)
+from app.services.orchestration import (
+    STOP_CANCELLED as ORCH_STOP_CANCELLED,
 )
 
 logger = logging.getLogger(__name__)
@@ -177,6 +182,17 @@ async def request_cancel(db: AsyncSession, campaign_id: UUID) -> ResearchCampaig
             detail="Campaign is not running",
         )
     campaign.cancel_requested = True
+    running_orch = (
+        await db.execute(
+            select(OrchestrationRun)
+            .where(
+                OrchestrationRun.project_id == campaign.project_id,
+                OrchestrationRun.status == OrchestrationRunStatus.RUNNING,
+            )
+        )
+    ).scalar_one_or_none()
+    if running_orch is not None:
+        running_orch.cancel_requested = True
     await db.commit()
     return campaign
 
@@ -381,6 +397,14 @@ async def _execute(
             live.available,
         )
 
+        if finished.stop_reason == ORCH_STOP_CANCELLED or campaign.cancel_requested:
+            return await _finalize(
+                db,
+                campaign,
+                status=ResearchCampaignStatus.COMPLETED,
+                stop_reason=STOP_CANCELLED,
+                budget_end=live.available,
+            )
         if finished.stop_reason == STOP_BUDGET_EXHAUSTED or live.available <= 0:
             return await _finalize(
                 db,

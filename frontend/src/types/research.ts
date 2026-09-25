@@ -504,12 +504,14 @@ export type FundingCreate = {
   notes?: string | null;
 };
 
-// Budget: funded = Σ settled allocations; spent = Σ ComputeDebit (0.19.0); available = funded − spent.
+// Budget: funded = Σ settled allocations; spent = Σ ComputeDebit (0.19.0);
+// reserved = Σ in-flight holds (0.27.0); available = funded − spent − reserved.
 export type ProjectBudget = {
   project_id: string;
   currency: string;
   funded: string;
   spent: string;
+  reserved?: string;
   available: string;
   by_source: Record<string, string>;
   by_status: Record<string, string>;

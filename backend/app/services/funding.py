@@ -164,9 +164,11 @@ async def project_budget(db: AsyncSession, project_id: UUID) -> ProjectBudget:
     """Derive the project budget from the funding ledger (one query, Python aggregation).
 
     ``funded`` = Σ settled allocations; ``spent`` = Σ ``ComputeDebit`` amounts (0.19.0);
-    ``available`` = funded − spent. Breakdowns: settled totals by source, and totals by status
-    across all allocations. Amounts are summed in a single accounting unit. Compute is
-    billed in USD; multi-currency funding remains the acknowledged-out-of-scope case.
+    ``reserved`` = Σ in-flight ``AgentRun.reserved_amount`` holds (0.27.0);
+    ``available`` = funded − spent − reserved. Breakdowns: settled totals by source, and
+    totals by status across all allocations. Amounts are summed in a single accounting
+    unit. Compute is billed in USD; multi-currency funding remains the
+    acknowledged-out-of-scope case.
     """
     # Ordered oldest→newest so the inferred accounting unit is deterministically the *most recent*
     # settled allocation's currency (last write wins), not whatever order the rows came back in.
@@ -189,12 +191,14 @@ async def project_budget(db: AsyncSession, project_id: UUID) -> ProjectBudget:
             currency = a.currency  # infer the accounting unit from settled funding
 
     spent = await compute_service.project_compute_spent(db, project_id)
+    reserved = await compute_service.project_compute_reserved(db, project_id)
     return ProjectBudget(
         project_id=project_id,
         currency=currency,
         funded=funded,
         spent=spent,
-        available=funded - spent,
+        reserved=reserved,
+        available=funded - spent - reserved,
         by_source=dict(by_source),
         by_status=dict(by_status),
     )

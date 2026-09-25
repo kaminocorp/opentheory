@@ -77,10 +77,13 @@ An append-only compute-spend row against a project's funded budget (`0.19.0`).
 
 Agent passes convert recorded `AgentRun.tokens_used` into a debit at a per-1k-token
 rate. This is **not** a `FundingAllocation`: the agent is a contributor and never
-funds. `project_budget.spent` is the sum of these rows; `available = funded − spent`.
+funds. `project_budget.spent` is the sum of these rows;
+`reserved` is the sum of in-flight `AgentRun.reserved_amount` holds (`0.27.0`);
+`available = funded − spent − reserved`.
 A pass on an exhausted project (`available <= 0`) refuses to start. A pass that
 exhausts the remainder after planning stops the instrument loop; the trace records
-`budget_exhausted`.
+`budget_exhausted`. Concurrent sub-passes reserve a slice before they start so
+they cannot oversell the pot; the debit itself is still recorded after tokens.
 
 Typical fields:
 
@@ -111,10 +114,12 @@ Typical fields:
 - `role` — the Research-crew role each sub-pass runs as
 - `status` — `running` / `completed` / `failed`
 - `decisions` — per-thread commissioned / skipped narrative
-- `stop_reason` — `budget_exhausted` / `no_open_work` / `max_passes` / `error`
+- `stop_reason` — `budget_exhausted` / `no_open_work` / `max_passes` / `cancelled` / `error`
 - `passes_commissioned` / `passes_completed` / `passes_failed` / `passes_skipped`
 - `budget_available_start` / `budget_available_end`
 - `max_passes`
+- `concurrency` — how many sub-passes this run may execute at once (`0.27.0`; `1` is sequential)
+- `cancel_requested` — honoured between waves (`0.27.0`)
 
 ## ResearchCampaign
 

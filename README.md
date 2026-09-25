@@ -30,7 +30,7 @@ Nothing resets. Dead ends are recorded, not deleted.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-live-success)](https://opentheory.vercel.app)
-[![Version](https://img.shields.io/badge/version-0.26.0-crimson)](docs/changelog.md)
+[![Version](https://img.shields.io/badge/version-0.27.0-crimson)](docs/changelog.md)
 &nbsp;
 ![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
@@ -400,7 +400,7 @@ opentheory/
 ## Status
 
 **Live** (Vercel + Fly.io + Supabase), shipped in small, deployable phases tracked in
-[`docs/changelog.md`](docs/changelog.md). Currently `0.26.0`.
+[`docs/changelog.md`](docs/changelog.md). Currently `0.27.0`.
 
 **Shipped:**
 
@@ -425,6 +425,7 @@ opentheory/
 | `0.24.x` | CommandRail sync — rail zones are live `?tab=` links; `#funding` + inert Agents retired |
 | `0.25.x` | Continuous research campaign — re-commission the orchestrator until the pot is empty |
 | `0.26.x` | `lean.prove` Mathlib opt-in — bounded offline `lake`; missing Mathlib is honest `undecided` |
+| `0.27.x` | Concurrent sub-passes under the shared project budget — reserved slices, no oversell |
 
 **Honest caveats:**
 

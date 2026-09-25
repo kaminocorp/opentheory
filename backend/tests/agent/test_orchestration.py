@@ -7,6 +7,8 @@ empty/no-work exits cleanly, and a failed sub-pass does not corrupt the ledger
 (no validation, no funding write, earlier checkpoints stand).
 """
 
+import asyncio
+import time
 from decimal import Decimal
 from uuid import UUID
 
@@ -25,11 +27,15 @@ from app.models.funding import FundingAllocation
 from app.models.project import Project
 from app.models.thread import Thread
 from app.models.validation import Validation
+from app.services import compute as compute_service
+from app.services import funding as funding_service
 from app.services.compute import tokens_to_cost
 from app.services.orchestration import (
     STOP_BUDGET_EXHAUSTED,
+    STOP_CANCELLED,
     STOP_MAX_PASSES,
     STOP_NO_OPEN_WORK,
+    request_cancel,
     run_orchestration,
     start_orchestration,
 )
@@ -353,3 +359,190 @@ async def test_max_passes_cap_skips_remaining_threads(
     skipped = next(d for d in result.decisions if d["action"] == "skipped")
     assert skipped["reason"] == "max_passes"
     assert skipped["thread_id"] == t2
+
+
+def _sleeping_planner(*, hold: float, tokens_used: int = 10):
+    """Record overlap so tests can prove concurrent vs sequential execution."""
+    marks: dict[str, dict[str, float]] = {}
+
+    async def _planner(
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None
+    ):
+        tid = str(thread.id)
+        marks[tid] = {"start": time.monotonic()}
+        await asyncio.sleep(hold)
+        marks[tid]["end"] = time.monotonic()
+        if observations is None:
+            return _one_calc(tokens_used=tokens_used)
+        return PlanResult(runnable=[], proposed_count=0, tokens_used=0)
+
+    return _planner, marks
+
+
+def _waves_overlapped(marks: dict[str, dict[str, float]]) -> bool:
+    starts = [row["start"] for row in marks.values()]
+    ends = [row["end"] for row in marks.values()]
+    return max(starts) < min(ends)
+
+
+async def test_concurrent_subpasses_overlap_and_trace_the_wave(
+    client: AsyncClient,
+    session_factory: async_sessionmaker,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "orchestration_concurrency", 2)
+    actor_id = await _actor(client)
+    project_id = await _project(client, "orch-parallel")
+    t1 = await _thread(client, project_id, actor_id)
+    t2 = await _thread(client, project_id, actor_id)
+    await _claim(client, t1, actor_id, "First thread claim.")
+    await _claim(client, t2, actor_id, "Second thread claim.")
+    await _thread_checkpoint(client, project_id, t1, actor_id)
+    await _thread_checkpoint(client, project_id, t2, actor_id)
+    await _assign_model(session_factory, project_id)
+    orch_id = await _start(session_factory, project_id, actor_id)
+    planner, marks = _sleeping_planner(hold=0.2)
+
+    async with session_factory() as session:
+        result = await run_orchestration(session, orch_id, planner=planner)
+
+    assert result.status is OrchestrationRunStatus.COMPLETED
+    assert result.concurrency == 2
+    assert result.passes_commissioned == 2
+    assert result.passes_completed == 2
+    assert _waves_overlapped(marks)
+    commissioned = [d for d in result.decisions if d["action"] == "commissioned"]
+    assert {d["thread_id"] for d in commissioned} == {t1, t2}
+    assert all(d["wave"] == 1 for d in commissioned)
+    assert all(d["parallel_with"] for d in commissioned)
+    assert {d["parallel_with"][0] for d in commissioned} == {t1, t2}
+
+
+async def test_concurrency_one_is_sequential(
+    client: AsyncClient,
+    session_factory: async_sessionmaker,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "orchestration_concurrency", 1)
+    actor_id = await _actor(client)
+    project_id = await _project(client, "orch-seq")
+    t1 = await _thread(client, project_id, actor_id)
+    t2 = await _thread(client, project_id, actor_id)
+    await _claim(client, t1, actor_id, "First.")
+    await _claim(client, t2, actor_id, "Second.")
+    await _thread_checkpoint(client, project_id, t1, actor_id)
+    await _thread_checkpoint(client, project_id, t2, actor_id)
+    await _assign_model(session_factory, project_id)
+    orch_id = await _start(session_factory, project_id, actor_id)
+    planner, marks = _sleeping_planner(hold=0.08)
+
+    async with session_factory() as session:
+        result = await run_orchestration(session, orch_id, planner=planner)
+
+    assert result.concurrency == 1
+    assert result.passes_completed == 2
+    assert not _waves_overlapped(marks)
+    commissioned = [d for d in result.decisions if d["action"] == "commissioned"]
+    assert all(d["wave"] in (1, 2) for d in commissioned)
+    assert all(d["parallel_with"] == [] for d in commissioned)
+
+
+async def test_cancel_skips_remaining_threads_after_the_current_wave(
+    client: AsyncClient,
+    session_factory: async_sessionmaker,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "orchestration_concurrency", 2)
+    actor_id = await _actor(client)
+    project_id = await _project(client, "orch-cancel")
+    t1 = await _thread(client, project_id, actor_id)
+    t2 = await _thread(client, project_id, actor_id)
+    t3 = await _thread(client, project_id, actor_id)
+    await _claim(client, t1, actor_id, "One.")
+    await _claim(client, t2, actor_id, "Two.")
+    await _claim(client, t3, actor_id, "Three.")
+    await _thread_checkpoint(client, project_id, t1, actor_id)
+    await _thread_checkpoint(client, project_id, t2, actor_id)
+    await _thread_checkpoint(client, project_id, t3, actor_id)
+    await _assign_model(session_factory, project_id)
+    orch_id = await _start(session_factory, project_id, actor_id)
+
+    started = asyncio.Event()
+
+    async def _planner(
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None
+    ):
+        started.set()
+        await asyncio.sleep(0.2)
+        if observations is None:
+            return _one_calc()
+        return PlanResult(runnable=[], proposed_count=0, tokens_used=0)
+
+    async def _run() -> None:
+        async with session_factory() as session:
+            return await run_orchestration(session, orch_id, planner=_planner)
+
+    task = asyncio.create_task(_run())
+    await asyncio.wait_for(started.wait(), timeout=5)
+    async with session_factory() as session:
+        cancelled = await request_cancel(session, orch_id)
+        assert cancelled.cancel_requested is True
+    result = await asyncio.wait_for(task, timeout=10)
+
+    assert result.status is OrchestrationRunStatus.COMPLETED
+    assert result.stop_reason == STOP_CANCELLED
+    assert result.passes_commissioned == 2
+    assert result.passes_skipped == 1
+    skipped = [d for d in result.decisions if d["action"] == "skipped"]
+    assert skipped[0]["thread_id"] == t3
+    assert skipped[0]["reason"] == "cancelled"
+
+
+async def test_concurrent_reserve_cannot_oversell(
+    client: AsyncClient,
+    session_factory: async_sessionmaker,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two sessions racing the last dollar: only one hold lands; available stays non-negative."""
+    monkeypatch.setattr(settings, "agent_token_rate_usd_per_1k", Decimal("1.00"))
+    monkeypatch.setattr(settings, "agent_pass_max_tokens", 1000)
+    actor_id = await _actor(client)
+    project_id = await _project(client, "orch-race")
+    t1 = await _thread(client, project_id, actor_id)
+    t2 = await _thread(client, project_id, actor_id)
+    await _assign_model(session_factory, project_id, budget=None)
+    await _grant_budget(session_factory, project_id, amount="1.00")
+
+    from app.models.actor import Actor
+    from app.services.agent_runs import start_agent_pass
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        a = await start_agent_pass(
+            session, UUID(project_id), UUID(t1), triggered_by=actor, role="researcher"
+        )
+        b = await start_agent_pass(
+            session, UUID(project_id), UUID(t2), triggered_by=actor, role="researcher"
+        )
+        a_id, b_id = a.id, b.id
+
+    async def _reserve(run_id: UUID) -> Decimal | None:
+        async with session_factory() as session:
+            row = await session.get(AgentRun, run_id)
+            held = await compute_service.reserve_compute_for_pass(
+                session, row, rate_per_1k=Decimal("1.00")
+            )
+            await session.commit()
+            return held
+
+    held_a, held_b = await asyncio.gather(_reserve(a_id), _reserve(b_id))
+    winners = [amount for amount in (held_a, held_b) if amount is not None]
+    assert len(winners) == 1
+    assert winners[0] == Decimal("1.000000")
+
+    async with session_factory() as session:
+        budget = await funding_service.project_budget(session, UUID(project_id))
+        assert budget.reserved == Decimal("1.000000")
+        assert budget.available == Decimal("0")
+        assert budget.available >= 0
+        assert budget.spent + budget.reserved <= budget.funded

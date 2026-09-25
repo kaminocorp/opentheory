@@ -6,7 +6,12 @@ import pytest
 
 from app.core.config import settings
 from app.core.openrouter_models import ModelOption
-from app.services.compute import ProjectBudgetPolicy, rate_for_model, tokens_to_cost
+from app.services.compute import (
+    ProjectBudgetPolicy,
+    pass_reserve_amount,
+    rate_for_model,
+    tokens_to_cost,
+)
 
 
 def test_tokens_to_cost_is_tokens_times_rate_over_1000() -> None:
@@ -51,3 +56,13 @@ def test_project_budget_policy_refuses_when_available_is_already_zero() -> None:
     policy = ProjectBudgetPolicy(Decimal("0"), rate_per_1k=Decimal("1.00"))
     assert policy.check(tokens_used=0, ran_count=0) is False
     assert policy.check(tokens_used=1, ran_count=0) is False
+
+
+def test_pass_reserve_amount_clamps_to_available_and_the_safety_cap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "agent_pass_max_tokens", 1000)
+    # 1000 tokens × $1/1k = $1 envelope.
+    assert pass_reserve_amount(Decimal("5.00"), rate_per_1k=Decimal("1.00")) == Decimal("1.000000")
+    assert pass_reserve_amount(Decimal("0.25"), rate_per_1k=Decimal("1.00")) == Decimal("0.25")
+    assert pass_reserve_amount(Decimal("0"), rate_per_1k=Decimal("1.00")) == Decimal("0")

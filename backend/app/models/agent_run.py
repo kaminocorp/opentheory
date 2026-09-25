@@ -34,10 +34,11 @@ the observe summary that caused it. They mint nothing. ``plan`` JSON also carrie
 array alongside the latest ``runs`` so a mid-pass poll shows every version, not a black box.
 """
 
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import JSON, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Enum, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -112,6 +113,10 @@ class AgentRun(IdMixin, TimestampMixin, Base):
     # both ends of the pass rather than derived on read, so a human raising a rung later is never
     # credited to the agent. Empty ``{}`` on a pass that failed before executing anything.
     grounding_yield: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    # 0.27.0 — a hold against ``project_budget.available`` while this pass is in
+    # flight. Not a ``ComputeDebit`` (those stay append-only and debit-after-tokens).
+    # Released when the debit is recorded or the pass finalizes without spending.
+    reserved_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
     # Pass-level failure reason (unassigned role, planner error, unexpected exception) — null on
     # the success path.
     error: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -27,6 +27,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -277,6 +278,7 @@ async def _finalize(
     on the agent branch. Human accept / reject / fork is opt-in audit after this commit, not
     a precondition of it — see :func:`requires_review`.
     """
+    await compute_service.release_compute_reservation(db, agent_run)
     agent_run.status = status
     if error is not None:
         agent_run.error = error[:2000]
@@ -345,19 +347,30 @@ async def _execute(
         )
     agent_run.model = model
 
-    # 2b. Project ceiling (0.19.0). An injected BudgetPolicy replaces the default so tests
-    #     and a future orchestrator can supply a slice; the default reads the live project
-    #     budget and refuses *before* the planner so an exhausted project never spends.
+    # 2b. Project ceiling (0.19.0 / 0.27.0). An injected BudgetPolicy replaces the
+    #     default so tests and the orchestrator can supply a reserved slice. The
+    #     default reserves against the live project pot and refuses *before* the
+    #     planner so an exhausted project never spends. A hold already on the row
+    #     (orchestrator reserved it) is reused, not stacked.
     enforce_project_ceiling = budget_policy is None
-    if enforce_project_ceiling:
-        opening = await funding_service.project_budget(db, agent_run.project_id)
-        if opening.available <= 0:
-            return await _finalize(
-                db, agent_run, status=AgentRunStatus.FAILED, error=BUDGET_EXHAUSTED
+    rate = compute_service.rate_for_model(model)
+    if budget_policy is None:
+        reserved = agent_run.reserved_amount
+        if reserved is None or reserved <= 0:
+            opening = await funding_service.project_budget(db, agent_run.project_id)
+            if opening.available <= 0:
+                return await _finalize(
+                    db, agent_run, status=AgentRunStatus.FAILED, error=BUDGET_EXHAUSTED
+                )
+            reserved = await compute_service.reserve_compute_for_pass(
+                db, agent_run, rate_per_1k=rate
             )
-        budget_policy = ProjectBudgetPolicy(
-            opening.available, rate_per_1k=compute_service.rate_for_model(model)
-        )
+            if reserved is None:
+                return await _finalize(
+                    db, agent_run, status=AgentRunStatus.FAILED, error=BUDGET_EXHAUSTED
+                )
+            await db.commit()
+        budget_policy = ProjectBudgetPolicy(Decimal(reserved), rate_per_1k=rate)
 
     # 3. Plan → observe → replan. The *initial* planning call happens BEFORE any branch fork, so a
     #    planner failure (down provider / unparseable plan) is a recorded failed trace that mints
@@ -405,6 +418,7 @@ async def _execute(
             tokens_used=agent_run.tokens_used,
             model=model,
         )
+        await compute_service.release_compute_reservation(db, agent_run)
         return await _finalize(
             db, agent_run, status=AgentRunStatus.FAILED, error=f"planner failed: {exc}"
         )
@@ -436,6 +450,9 @@ async def _execute(
         tokens_used=agent_run.tokens_used,
         model=model,
     )
+    # Convert the hold into the debit so ``available`` does not double-count
+    # this pass (spent already includes it).
+    await compute_service.release_compute_reservation(db, agent_run)
     await db.commit()
 
     # 4. Select the agent branch (reuse / fork / main-line fallback) — but ONLY now that we know a
@@ -782,8 +799,13 @@ async def start_agent_pass(
     *,
     triggered_by: Actor,
     role: str,
+    commit: bool = True,
 ) -> AgentRun:
-    """Mint the ``running`` trace row in the **request** session and commit it (the ``POST`` half).
+    """Mint the ``running`` trace row in the **request** session (the ``POST`` half).
+
+    ``commit=True`` (the default) commits so the ``202`` response can return a
+    durable id. The orchestrator passes ``commit=False`` so it can write a
+    reservation hold in the same transaction.
 
     Deliberately does *only* the commission: validate the thread belongs to the project (``404``
     otherwise) and record who/what/which-role, so the route can return ``202`` + a pollable id
@@ -804,7 +826,10 @@ async def start_agent_pass(
         status=AgentRunStatus.RUNNING,
     )
     db.add(agent_run)
-    await db.commit()
+    if commit:
+        await db.commit()
+    else:
+        await db.flush()
     return agent_run
 
 
@@ -852,6 +877,7 @@ async def run_agent_pass_background(agent_run_id: UUID) -> None:
         async with executor.session_factory() as db:
             agent_run = await db.get(AgentRun, agent_run_id)
             if agent_run is not None and agent_run.status is AgentRunStatus.RUNNING:
+                await compute_service.release_compute_reservation(db, agent_run)
                 agent_run.status = AgentRunStatus.FAILED
                 agent_run.error = "background pass crashed unexpectedly"
                 await db.commit()
@@ -889,6 +915,7 @@ def _sweep_if_stale(agent_run: AgentRun, cutoff: datetime) -> bool:
     the mixin ``onupdate`` and the swept instance is fresh for serialization — no expire/refetch.
     """
     if agent_run.status is AgentRunStatus.RUNNING and agent_run.updated_at < cutoff:
+        agent_run.reserved_amount = None
         agent_run.status = AgentRunStatus.FAILED
         agent_run.error = "lost — the background worker did not finish (stale run swept on read)"
         return True

@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.27.0` — **Concurrent sub-passes under project budget.** The `0.22.0` orchestrator (and each `0.25.0` campaign cycle) can run a small number of `run_agent_pass` calls at once against the shared `ComputeDebit` pot. Before a pass starts, a project-row lock holds a slice of `available`; debit stays after tokens, so concurrent starts cannot oversell. Trace records which threads ran in parallel, skips, and stop reasons (including cancel). Same `AGENT_LOOP_ENABLED` gate. Never auto-validates or auto-funds. Overview shows concurrency status and Stop. Migration `0019_concurrent_subpasses` (additive). No Mathlib expansion.
 - `0.26.0` — **Mathlib / lake Grade-A path.** `lean.prove` grows an explicit `mathlib` opt-in: a closed Mathlib import set typechecks through a bounded offline `lake` project. Grade A only on a real kernel success. Missing Mathlib/`lake`, timeout, `sorry`/axiom/IO, and disallowed imports are honest `undecided` — never a fake proof. Optional image path (`INSTALL_MATHLIB=1`); CI stays green without it. Quiet frontend checkbox. No schema, no migration. Does not rewrite the orchestrator or campaigns.
 - `0.25.0` — **Continuous research under budget.** A `ResearchCampaign` repeatedly commissions the shipped `0.22.0` orchestrator until the project `ComputeDebit` pot is empty, no raisable work remains, the cycle cap is hit, a member cancels, or consecutive cycle failures exhaust the error budget. Same `AGENT_LOOP_ENABLED` dark-launch flag — no second switch. Persistence is a mutable campaign row (cycles, stop reason, budget remainder) so a lost worker is swept honestly rather than looking still-live. Orchestrator stays contributor infrastructure: never funds, never self-validates, never auto-merges. Frontend: quiet Start / Stop on Overview. Migration `0018_research_campaigns` (additive). Sits on shipped `0.24.0` CommandRail.
 - `0.24.0` — **CommandRail sync.** The left rail's project zones are live `?tab=` links (research · instruments · crew · funding · overview); active state comes from the URL, same source as the in-page strip. Retires the `#funding` hash target and the inert Agents hatch — the agent surface is Instruments. Historically the deferred deepdive Phase B (`0.14.1`). Frontend-only — no backend, schema, or migration.
@@ -94,6 +95,51 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.27.0
+
+**Concurrent sub-passes under project budget.** Today's `0.22.0` orchestrator
+and `0.25.0` campaigns ran sequential agent passes. This release lets a
+project explore several open threads at once without double-spending the
+`0.19.0` pot or conflating funder ≠ contributor ≠ validator. **Migration
+`0019_concurrent_subpasses` (additive).** Sits on shipped `0.26.0` Mathlib
+Grade-A. Does not expand Mathlib.
+
+- **Bounded concurrency.** `ORCHESTRATION_CONCURRENCY` (default 2, hard-capped
+  at 8). `1` is the sequential fallback. The bound is snapshotted on
+  `OrchestrationRun.concurrency`.
+- **Reserve, then debit.** A short critical section locks the project row and
+  holds `AgentRun.reserved_amount` (the safety-cap cost of
+  `agent_pass_max_tokens`, clamped to live `available`).
+  `project_budget.available = funded − spent − reserved`. The `ComputeDebit`
+  is still written after tokens; the hold is released then. Two sessions
+  racing the last dollar produce one hold.
+- **Trace.** Each decision records `wave` and `parallel_with`. Stop reasons
+  include `cancelled` (honoured between waves; in-flight passes finish).
+  Campaign Stop flags the current orchestration so a cycle can end between
+  waves.
+- **Dark launch.** Same `AGENT_LOOP_ENABLED` flag. Off ⇒ every agent-family
+  route `404`s, including the new cancel route.
+- **Contributor only.** Never writes `Validation` or `FundingAllocation`.
+  Merge / tag stay human/API. `after_pass_hook` stays unused.
+- **Frontend.** Overview Run research shows "N at a time", marks parallel
+  decisions, and offers Stop.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 480 passed, 191 skipped (no TEST_DATABASE_URL)
+# With TEST_DATABASE_URL: tests/agent/test_orchestration*.py + campaigns + budget
+#   44 passed (parallel wave, sequential fallback, budget race, cancel,
+#   existing empty/no-work / failed-sub-pass / max-passes / dark 404 / 409)
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
+```
+
+See `docs/completions/concurrent-subpasses-0.27.0.md`.
+
+**Not in this release:** concurrent campaign cycles; a durable job queue;
+auto-merge / auto-validate; Mathlib expansion.
 
 ---
 

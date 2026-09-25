@@ -2,6 +2,7 @@
 
 - ``POST /projects/{id}/orchestrations`` — member-gated; mints the ``running``
   trace, schedules the loop in a ``BackgroundTask``, returns ``202``.
+- ``POST /orchestrations/{id}/cancel`` — member-gated; stop after the current wave.
 - ``GET  /projects/{id}/orchestrations`` — public, newest-first summaries.
 - ``GET  /orchestrations/{id}`` — public poll target: the full decision trace.
 
@@ -56,6 +57,22 @@ async def trigger_orchestration(
 async def list_orchestrations(project_id: UUID, db: DbSession) -> list[OrchestrationRun]:
     """Public, newest-first orchestration summaries (stale ``running`` rows swept on read)."""
     return await orchestration_service.list_project_orchestrations(db, project_id)
+
+
+@router.post(
+    "/orchestrations/{orchestration_id}/cancel",
+    response_model=OrchestrationRunRead,
+    tags=["orchestrations"],
+)
+async def cancel_orchestration(
+    orchestration_id: UUID,
+    db: DbSession,
+    actor: ActingActor,
+) -> OrchestrationRun:
+    """Request a stop after the current wave. In-flight passes finish."""
+    run = await orchestration_service.get_orchestration(db, orchestration_id)
+    await ensure_is_member(db, run.project_id, actor)
+    return await orchestration_service.request_cancel(db, orchestration_id)
 
 
 @router.get(

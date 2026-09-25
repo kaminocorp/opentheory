@@ -47,7 +47,8 @@ class ProjectBudget(BaseModel):
     """Project budget derived from the funding ledger (0.6.3).
 
     ``funded`` = Σ settled allocations; ``spent`` = Σ ``ComputeDebit`` amounts (0.19.0,
-    closing Decision #6); ``available`` = funded − spent. Amounts are summed in a single
+    closing Decision #6); ``reserved`` = Σ in-flight reservation holds (0.27.0);
+    ``available`` = funded − spent − reserved. Amounts are summed in a single
     accounting unit (``currency``); multi-currency funding is out of scope for this release.
     """
 
@@ -55,6 +56,7 @@ class ProjectBudget(BaseModel):
     currency: str
     funded: Decimal
     spent: Decimal
+    reserved: Decimal = Decimal("0")
     available: Decimal
     # Settled totals keyed by FundingSource value (e.g. {"native": "500.00"}).
     by_source: dict[str, Decimal] = Field(default_factory=dict)

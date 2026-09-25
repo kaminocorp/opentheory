@@ -412,6 +412,12 @@ export function getOrchestration(orchestrationId: string): Promise<Orchestration
   return request<OrchestrationRunRead>(`/orchestrations/${orchestrationId}`);
 }
 
+export function cancelOrchestration(orchestrationId: string): Promise<OrchestrationRunRead> {
+  return request<OrchestrationRunRead>(`/orchestrations/${orchestrationId}/cancel`, {
+    method: "POST",
+  });
+}
+
 // --- Campaigns (0.25.0 — continuous research under the project budget) -------
 
 export function triggerCampaign(

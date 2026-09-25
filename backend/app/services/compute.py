@@ -1,4 +1,4 @@
-"""Project compute metering (0.19.0) — tokens → cost → an append-only ``ComputeDebit``.
+"""Project compute metering (0.19.0 / 0.27.0) — tokens → cost → an append-only ``ComputeDebit``.
 
 Closes funding Decision #6 (historically sketched as deferred ``0.12.5``). The agent is a
 **contributor**: this service never writes a ``FundingAllocation`` and never records a
@@ -6,18 +6,24 @@ Closes funding Decision #6 (historically sketched as deferred ``0.12.5``). The a
 
 Helper writers ``db.add`` / ``flush`` and **never commit** — the orchestrator owns the
 trace transaction this debit rides in.
+
+0.27.0 adds a **reservation** hold on the mutable ``AgentRun`` so concurrent
+sub-passes cannot oversell ``available``. The hold is not a debit (``ComputeDebit``
+stays append-only). ``available = funded − spent − reserved``.
 """
 
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.openrouter_models import OPENROUTER_MODELS
+from app.models.agent_run import AgentRun
 from app.models.compute_debit import ComputeDebit
 from app.models.enums import ComputeDebitKind
+from app.models.project import Project
 
 # Sub-cent quantum matching ``ComputeDebit.amount`` Numeric(12, 6).
 _AMOUNT_QUANTUM = Decimal("0.000001")
@@ -56,10 +62,11 @@ def rate_for_model(model: str | None) -> Decimal:
 class ProjectBudgetPolicy:
     """The ``BudgetPolicy`` implementer (0.19.0): keep going while this pass is still under budget.
 
-    ``available`` is the project's remainder **before this pass's debit**. ``check``
+    ``available`` is this pass's remainder — either the project's opening
+    remainder or a reserved slice (0.27.0 concurrent sub-passes). ``check``
     returns ``False`` once recorded tokens consume that remainder. No per-thread
-    figure is ever consulted — the ceiling is the project. A future orchestrator
-    can construct one of these per subagent with a slice of the same project pot.
+    figure is ever consulted — the ceiling is the project pot (or a reserved
+    slice of it).
     """
 
     def __init__(self, available: Decimal, *, rate_per_1k: Decimal) -> None:
@@ -128,3 +135,76 @@ async def project_compute_spent(db: AsyncSession, project_id: UUID) -> Decimal:
     for (amount,) in result.all():
         total += Decimal(amount)
     return total
+
+
+def pass_reserve_amount(available: Decimal, *, rate_per_1k: Decimal) -> Decimal:
+    """How much of ``available`` one pass may hold before it starts.
+
+    The envelope is the safety-cap cost of ``agent_pass_max_tokens`` at this
+    rate, clamped to the live remainder. A tight pot therefore admits one
+    pass at a time; concurrent passes only start when the remainder covers
+    two (or more) full envelopes.
+    """
+    if available <= 0:
+        return Decimal("0")
+    envelope = tokens_to_cost(settings.agent_pass_max_tokens, rate_per_1k)
+    if envelope <= 0:
+        return available
+    return min(envelope, available)
+
+
+async def project_compute_reserved(db: AsyncSession, project_id: UUID) -> Decimal:
+    """Σ in-flight reservation holds (the number ``project_budget.reserved`` uses)."""
+    result = await db.execute(
+        select(func.coalesce(func.sum(AgentRun.reserved_amount), 0)).where(
+            AgentRun.project_id == project_id,
+            AgentRun.reserved_amount.is_not(None),
+        )
+    )
+    return Decimal(result.scalar_one() or 0)
+
+
+async def reserve_compute_for_pass(
+    db: AsyncSession,
+    agent_run: AgentRun,
+    *,
+    rate_per_1k: Decimal | None = None,
+) -> Decimal | None:
+    """Hold a slice of the project pot for this pass. ``None`` if nothing remains.
+
+    Locks the ``Project`` row so two concurrent reserves cannot both see the
+    same remainder. Does not commit. Idempotent: a pass that already holds
+    a reservation keeps it.
+    """
+    if agent_run.reserved_amount is not None and agent_run.reserved_amount > 0:
+        return Decimal(agent_run.reserved_amount)
+
+    locked = (
+        await db.execute(
+            select(Project).where(Project.id == agent_run.project_id).with_for_update()
+        )
+    ).scalar_one_or_none()
+    if locked is None:
+        return None
+
+    from app.services import funding as funding_service
+
+    budget = await funding_service.project_budget(db, agent_run.project_id)
+    if budget.available <= 0:
+        return None
+
+    rate = rate_per_1k if rate_per_1k is not None else rate_for_model(agent_run.model)
+    amount = pass_reserve_amount(budget.available, rate_per_1k=rate)
+    if amount <= 0:
+        return None
+    agent_run.reserved_amount = amount
+    await db.flush()
+    return amount
+
+
+async def release_compute_reservation(db: AsyncSession, agent_run: AgentRun) -> None:
+    """Drop this pass's hold. Does not commit. Safe to call when nothing is held."""
+    if agent_run.reserved_amount is None:
+        return
+    agent_run.reserved_amount = None
+    await db.flush()
