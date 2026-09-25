@@ -25,7 +25,7 @@ The ledger borrows git's shape (see `docs/vision/research-git.md`):
 | -------------- | ------------------------------------------------------- |
 | commit         | **checkpoint** — an immutable, attributed state change  |
 | branch         | a parallel line of exploration (dead ends preserved)    |
-| merge / diff   | integrating research lines (`0.21.0`); semantic diff planned |
+| merge / diff   | integrating research lines (`0.21.0`); semantic diff (`0.29.0`) |
 | blame          | provenance — who contributed what, and on what evidence |
 | tag            | a marked, citable result (`0.21.0`)                     |
 

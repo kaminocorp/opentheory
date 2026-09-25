@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.29.0` — **Semantic git diff.** A derived ledger read compares two checkpoint / branch / tag / `main` tips and returns a structured research-space delta: claims opened or left a line, validation-signal changes, grounding-rung moves, and instrument outcomes on `from..to`. Deterministic — same two tips, same payload. No LLM prose. Mints nothing. Public GET, always-on. Quiet Compare bay on Research. **No schema, no migration.** Sits on shipped `0.28.0`. Does not claim live OpenRouter prices (`0.28.0`).
 - `0.28.0` — **Live OpenRouter price metering.** Agent-pass `ComputeDebit` rows bill at the model's live prompt/completion rates when `GET /models` is reachable (process cache, short timeout). Missing key, timeout, fetch failure, or unknown model falls back to the configured blended `agent_token_rate_usd_per_1k` (or catalog `usd_per_1k`) and records that fallback on the row — never skips metering, never labels a fallback as live. Snapshot columns for the split and `rate_source`. Migration `0020_compute_debit_live_rates` (additive). Rebased after shipped `0.27.0` (does not claim it).
 - `0.27.0` — **Concurrent sub-passes under project budget.** The `0.22.0` orchestrator (and each `0.25.0` campaign cycle) can run a small number of `run_agent_pass` calls at once against the shared `ComputeDebit` pot. Before a pass starts, a project-row lock holds a slice of `available`; debit stays after tokens, so concurrent starts cannot oversell. Trace records which threads ran in parallel, skips, and stop reasons (including cancel). Same `AGENT_LOOP_ENABLED` gate. Never auto-validates or auto-funds. Overview shows concurrency status and Stop. Migration `0019_concurrent_subpasses` (additive). No Mathlib expansion.
 - `0.26.0` — **Mathlib / lake Grade-A path.** `lean.prove` grows an explicit `mathlib` opt-in: a closed Mathlib import set typechecks through a bounded offline `lake` project. Grade A only on a real kernel success. Missing Mathlib/`lake`, timeout, `sorry`/axiom/IO, and disallowed imports are honest `undecided` — never a fake proof. Optional image path (`INSTALL_MATHLIB=1`); CI stays green without it. Quiet frontend checkbox. No schema, no migration. Does not rewrite the orchestrator or campaigns.
@@ -96,6 +97,50 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.29.0
+
+**Semantic git diff.** Research-git could commit, branch, merge, tag, and list
+the log. It could not yet answer *what moved* between two tips in claim space.
+This release adds that read: a deterministic structured delta over the
+append-only graph — not a blob `git diff`, not an LLM summary. **No schema, no
+migration.** Sits on shipped `0.28.0` live OpenRouter price metering. Does
+not touch live prices or concurrent sub-passes.
+
+- **Read, not a write.** `GET /projects/{id}/diff?from=&to=` resolves each
+  token (checkpoint UUID, branch id/name, tag id/name, or `main`) onto a
+  checkpoint and compares ancestor closures. Unknown ref → `404`. Nothing is
+  minted — this is not an instrument (instruments land a checkpoint on
+  `result`).
+- **What the payload carries.** Claims added / removed / `status_changed`
+  (the derived validation *signal*, never a rewrite of stored
+  `Claim.status`); grounding headline moves via the shipped `0.16.x` yield
+  rules; instrument outcomes (`result` / `refuted` / `undecided`) on the
+  directed interval `from..to`; ancestry (ancestor flags, diverge, merge-base).
+- **Deterministic.** Same two resolved tips serialize the same JSON. Lists
+  sort by `(created_at, id)` or `claim_id`. No request timestamp.
+- **Frontend.** Quiet Compare bay on Research — two tip pickers, sentence-case
+  copy, no AI chrome. Public, like the rest of the ledger read.
+- **Roles held.** A read. No `Validation`, no `FundingAllocation`, no
+  contribution. The chokepoint is untouched.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 511 passed, 200 skipped (no TEST_DATABASE_URL)
+# With TEST_DATABASE_URL: tests/test_diff.py + test_diff_schema.py
+#   20 passed (empty same-tip + idle pair, claim signal change, grounding
+#   ungrounded→D, calc.eval on the interval, unknown ref 404 + no mint,
+#   deterministic repeat, main/branch/tag resolve, reverse direction)
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
+```
+
+See `docs/completions/semantic-diff-0.29.0.md`.
+
+**Not in this release:** blame-as-an-op; LLM-written prose diffs; force-push /
+history rewrite; auto-merge; live OpenRouter prices remain `0.28.0`'s work;
+Mathlib expansion.
 
 ---
 

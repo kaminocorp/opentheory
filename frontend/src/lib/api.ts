@@ -45,6 +45,7 @@ import type {
   ProjectOverview,
   ProjectRole,
   ResearchTag,
+  SemanticDiffRead,
   TagCreate,
   Thread,
   ThreadCreate,
@@ -316,6 +317,15 @@ export function listTags(projectId: string): Promise<ResearchTag[]> {
 
 export function createTag(projectId: string, payload: TagCreate): Promise<ResearchTag> {
   return request<ResearchTag>(`/projects/${projectId}/tags`, writeInit(payload));
+}
+
+export function getSemanticDiff(
+  projectId: string,
+  fromRef: string,
+  toRef: string,
+): Promise<SemanticDiffRead> {
+  const q = new URLSearchParams({ from: fromRef, to: toRef });
+  return request<SemanticDiffRead>(`/projects/${projectId}/diff?${q}`);
 }
 
 // --- Funding (0.6.3) --------------------------------------------------------

@@ -16,7 +16,7 @@ The product is currently a *human-operable* research ledger. Agents are explicit
   - `docs/blueprints/techstack.md` — stack choices and the rationale/boundaries behind them.
   - `docs/blueprints/design-system.md` — the OpenTheory Console design language.
 - **`docs/vision/`** — *target* state and design intent. **Do not read as current build.** Each doc carries a status banner saying what is and isn't shipped.
-  - `docs/vision/research-git.md` — target git-for-research ledger semantics; operations are annotated *(built)* / *(planned)* (commit/branch/merge/tag/log are built; blame and semantic diff are not).
+  - `docs/vision/research-git.md` — target git-for-research ledger semantics; operations are annotated *(built)* / *(planned)* (commit/branch/merge/tag/log/semantic diff are built; blame is not).
   - `docs/vision/research-flow.md` — the stage skeleton for the future agent-execution layer; **not** the current build.
   - `docs/vision/product-vision.md` — product vision and example research domains (the physics/Millennium examples convey ambition, they are not a build target).
 - **`docs/operations/`** — runbooks for deploying and operating the live system.

@@ -1,18 +1,18 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-09-25 · **Current release line:** `0.28.0` (live
-> OpenRouter price metering), sitting on shipped `0.27.0` (concurrent
-> sub-passes under project budget), `0.26.0` (Mathlib / lake Grade-A path on
-> `lean.prove`), `0.25.0` (continuous research under budget), `0.24.0`
-> (CommandRail sync — historically the deferred deepdive Phase B /
-> `0.14.1`), `0.23.0` (Lean 4 Grade-A path — prelude `lean.prove`), `0.22.0`
-> (thin multi-thread orchestrator), `0.21.0` (research-git merge + tag),
-> `0.20.0` (plan → observe → replan), `0.19.0` (project-budget metering),
-> `0.18.0` (Tier-1 literature pins), `0.17.0` (review is opt-in) and `0.16.3`
-> (thread/project grounding rollup). For the per-phase ledger see
-> `docs/changelog.md`; for the line just closed see
-> `docs/completions/live-openrouter-prices-0.28.0.md`. The remaining `0.14.x`
-> phases (C–D) still live at `docs/archive/project-deepdive-tabs-0.14.md`.
+> **Last updated:** 2026-09-25 · **Current release line:** `0.29.0` (semantic
+> git diff), sitting on shipped `0.28.0` (live OpenRouter price metering),
+> `0.27.0` (concurrent sub-passes under project budget), `0.26.0` (Mathlib /
+> lake Grade-A path on `lean.prove`), `0.25.0` (continuous
+> research under budget), `0.24.0` (CommandRail sync — historically the
+> deferred deepdive Phase B / `0.14.1`), `0.23.0` (Lean 4 Grade-A path —
+> prelude `lean.prove`), `0.22.0` (thin multi-thread orchestrator), `0.21.0`
+> (research-git merge + tag), `0.20.0` (plan → observe → replan), `0.19.0`
+> (project-budget metering), `0.18.0` (Tier-1 literature pins), `0.17.0`
+> (review is opt-in) and `0.16.3` (thread/project grounding rollup). For the
+> per-phase ledger see `docs/changelog.md`; for the line just closed see
+> `docs/completions/semantic-diff-0.29.0.md`. The remaining `0.14.x` phases
+> (C–D) still live at `docs/archive/project-deepdive-tabs-0.14.md`.
 >
 > **Next after this line:** the still-owed browser eyeball pass; then `0.14.2`
 > Phase C polish. Unmerged work is not claimed as shipped. Lean REPL /
@@ -98,6 +98,18 @@ who changed it, and what evidence or artifacts were involved — then extend it 
 bypassing the checkpoint chokepoint or conflating funder / contributor / validator roles.
 
 ## Recommended next releases
+
+### `0.29.x` — Semantic git diff ✅ **shipped** (`0.29.0`)
+
+Delivered: a derived ledger read compares two tips (checkpoint / branch /
+tag / `main`) and returns a structured research-space delta — claims
+added/removed/signal-changed, grounding-rung moves, instrument outcomes
+on `from..to`, merge-base ancestry. Deterministic. Mints nothing. Quiet
+Compare bay on Research. **No schema, no migration.** See
+`docs/completions/semantic-diff-0.29.0.md`.
+
+**Not in this release:** blame-as-an-op; LLM prose diffs; live OpenRouter
+prices (shipped as `0.28.0`).
 
 ### `0.28.x` — Live OpenRouter price metering ✅ **shipped** (`0.28.0`)
 
@@ -195,7 +207,7 @@ name is `409`, never a silent overwrite. Workspace: Merge on the line bar, a
 Tags bay on Research. Migration `0016_research_git_merge_tag` (additive). See
 `docs/completions/research-git-merge-tag-0.21.0.md`.
 
-**Not in this line:** semantic diff, blame-as-an-op. `lean.prove` shipped as
+**Not in this line:** ~~semantic diff~~ ✅ shipped as `0.29.0`; blame-as-an-op. `lean.prove` shipped as
 `0.23.0` (prelude/Init). Mathlib / `lake` remain later. The multi-thread
 orchestrator shipped as `0.22.0`.
 
@@ -392,6 +404,7 @@ demo requirement.
     `docs/completions/project-budget-metering-0.19.0.md`.
     ~~**`0.20.0` plan → observe → replan**~~ ✅ shipped on the same loop.
     ~~**`0.21.0` research-git merge/tag**~~ ✅ shipped.
+    ~~**`0.29.0` semantic git diff**~~ ✅ shipped.
     ~~**`0.22.0` multi-thread orchestrator**~~ ✅ shipped — sequential sub-passes
     under the shared project pot.
     ~~**`0.25.0` continuous research under budget**~~ ✅ shipped — re-commission
@@ -430,6 +443,7 @@ demo requirement.
 | `0.26.x` | `lean.prove` Mathlib opt-in — bounded offline `lake`; Grade A only on a real kernel + allow-list success |
 | `0.27.x` | Concurrent sub-passes under the shared project budget — reserved slices, no oversell |
 | `0.28.x` | Live OpenRouter price metering — `ComputeDebit` at prompt/completion rates, honest blended fallback |
+| `0.29.x` | Semantic git diff — structured claim / grounding / instrument delta between two tips |
 
 ## Success criteria for the next milestone
 
@@ -476,5 +490,9 @@ at the model's live prompt/completion rates when the price catalog answers,
 and fall back to the configured blended rate with that fallback recorded.
 Reservation envelopes use the same quote. Rebased after `0.27.0`.
 
+**`0.29.0` (semantic git diff)** is shipped: two ledger tips compare as a
+structured research-space delta. Deterministic. Mints nothing. Blame is
+not in this release.
+
 **Next product step:** the still-owed browser eyeball pass; then `0.14.2`
-Phase C polish.
+Phase C polish. Blame-as-an-op remains later.

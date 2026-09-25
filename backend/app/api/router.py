@@ -9,6 +9,7 @@ from app.api.routes import (
     campaigns,
     checkpoints,
     claims,
+    diff,
     evidence,
     funding,
     health,
@@ -39,6 +40,8 @@ api_router.include_router(validations.router)
 api_router.include_router(branches.router)
 api_router.include_router(merges.router)
 api_router.include_router(tags.router)
+# Semantic diff is a public ledger read (0.29.0) — GET only, mints nothing.
+api_router.include_router(diff.router)
 api_router.include_router(funding.router)
 # Invitations span /projects/{id}/invitations and /me/invitations + /invitations/{id}/…, so the
 # router mounts at the root and declares full paths itself (like threads/funding).
