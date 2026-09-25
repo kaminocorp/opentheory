@@ -211,6 +211,22 @@ class ComputeDebitKind(StrEnum):
     EXECUTION = "execution"
 
 
+class ComputeDebitRateSource(StrEnum):
+    """Where the per-token rate on a ``ComputeDebit`` came from (0.28.0).
+
+    Live OpenRouter prompt/completion prices are preferred. A missing key, a
+    timed-out / failed catalog fetch, or a model the catalog does not list falls
+    back to the static blended rate (catalog ``usd_per_1k`` override, else
+    ``settings.agent_token_rate_usd_per_1k``). The source is snapshotted so a
+    later fetch never rewrites history, and so a fallback is never presented as
+    a live price.
+    """
+
+    OPENROUTER_LIVE = "openrouter_live"
+    CATALOG_OVERRIDE = "catalog_override"
+    BLENDED_FALLBACK = "blended_fallback"
+
+
 class EvidenceGrade(StrEnum):
     """How rigorously a piece of evidence backs a claim — the grade ladder (0.16.0).
 

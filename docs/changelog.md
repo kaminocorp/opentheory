@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.28.0` — **Live OpenRouter price metering.** Agent-pass `ComputeDebit` rows bill at the model's live prompt/completion rates when `GET /models` is reachable (process cache, short timeout). Missing key, timeout, fetch failure, or unknown model falls back to the configured blended `agent_token_rate_usd_per_1k` (or catalog `usd_per_1k`) and records that fallback on the row — never skips metering, never labels a fallback as live. Snapshot columns for the split and `rate_source`. Migration `0020_compute_debit_live_rates` (additive). Rebased after shipped `0.27.0` (does not claim it).
 - `0.27.0` — **Concurrent sub-passes under project budget.** The `0.22.0` orchestrator (and each `0.25.0` campaign cycle) can run a small number of `run_agent_pass` calls at once against the shared `ComputeDebit` pot. Before a pass starts, a project-row lock holds a slice of `available`; debit stays after tokens, so concurrent starts cannot oversell. Trace records which threads ran in parallel, skips, and stop reasons (including cancel). Same `AGENT_LOOP_ENABLED` gate. Never auto-validates or auto-funds. Overview shows concurrency status and Stop. Migration `0019_concurrent_subpasses` (additive). No Mathlib expansion.
 - `0.26.0` — **Mathlib / lake Grade-A path.** `lean.prove` grows an explicit `mathlib` opt-in: a closed Mathlib import set typechecks through a bounded offline `lake` project. Grade A only on a real kernel success. Missing Mathlib/`lake`, timeout, `sorry`/axiom/IO, and disallowed imports are honest `undecided` — never a fake proof. Optional image path (`INSTALL_MATHLIB=1`); CI stays green without it. Quiet frontend checkbox. No schema, no migration. Does not rewrite the orchestrator or campaigns.
 - `0.25.0` — **Continuous research under budget.** A `ResearchCampaign` repeatedly commissions the shipped `0.22.0` orchestrator until the project `ComputeDebit` pot is empty, no raisable work remains, the cycle cap is hit, a member cancels, or consecutive cycle failures exhaust the error budget. Same `AGENT_LOOP_ENABLED` dark-launch flag — no second switch. Persistence is a mutable campaign row (cycles, stop reason, budget remainder) so a lost worker is swept honestly rather than looking still-live. Orchestrator stays contributor infrastructure: never funds, never self-validates, never auto-merges. Frontend: quiet Start / Stop on Overview. Migration `0018_research_campaigns` (additive). Sits on shipped `0.24.0` CommandRail.
@@ -95,6 +96,64 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.28.0
+
+**Live OpenRouter price metering.** Budget is a first-class human control; a
+flat blended `agent_token_rate_usd_per_1k` drifts from what the provider
+actually bills. Agent-pass `ComputeDebit` rows now prefer the model's **live**
+OpenRouter prompt / completion prices when the catalog is reachable, and fall
+back honestly when it is not. **Migration `0020_compute_debit_live_rates`
+(additive).** Rebased onto shipped `0.27.0` concurrent sub-passes (does not
+claim that version). Reservation envelopes use the same live/fallback quote
+as the debit so concurrent holds do not drift from the ledger.
+
+- **Live rates when available.** `GET {OPENROUTER_BASE_URL}/models` (same
+  `OPENROUTER_API_KEY` as completions — no second key) is cached in-process
+  for `OPENROUTER_PRICE_CACHE_TTL_S` (default 3600). A refresh is capped at
+  `OPENROUTER_PRICE_TIMEOUT_S` (default 2) so a slow catalog cannot stall a
+  planning call. Prompt tokens bill at the prompt rate; completion tokens at
+  the completion rate; any leftover total (e.g. reasoning tokens) at the
+  completion rate. When the provider only reported a total, the live **mean**
+  of the two rates is used.
+- **Honest fallback.** Missing key, live prices disabled, timeout, non-2xx /
+  parse failure, empty catalog, or a model the catalog does not list →
+  existing `rate_for_model` (catalog `usd_per_1k` override, else
+  `AGENT_TOKEN_RATE_USD_PER_1K`). The debit records `rate_source` and a
+  `rate fallback: …` note. A stale cache after a failed refresh stays
+  `openrouter_live` (older live prices beat inventing a blend). Metering is
+  never skipped.
+- **Audit snapshot.** New nullable `prompt_tokens` / `completion_tokens` /
+  `prompt_rate_per_1k` / `completion_rate_per_1k`, and required `rate_source`
+  (`openrouter_live` / `catalog_override` / `blended_fallback`). Existing
+  rows backfill to `BLENDED_FALLBACK`. `rate_per_1k` remains the effective
+  blend so pre-0.28.0 readers still have one number.
+- **Same roles.** The agent is still a contributor: this is still a
+  `ComputeDebit`, never a `FundingAllocation`, never a `fund`
+  contribution, never a validation. One debit per pass (unique on
+  `agent_run_id`) is unchanged — replans still do not add a second row.
+  `0.27.0` reservation holds stay on the mutable `AgentRun` and are not
+  a debit.
+- **Tests.** Mocked `httpx.MockTransport` only; CI does not need the live
+  network. The suite disables live prices in `conftest.py` so a local key
+  cannot leak out.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # (see verification after rebase)
+# Focused: tests/agent/test_openrouter_prices.py + test_migration_0020.py
+#   + tests/test_compute.py + tests/agent/test_llm_client.py
+#   (live rate, fallback, cache, TTL, timeout — mocked, no network)
+cd frontend && npm run typecheck && npm run lint && npm run build
+```
+
+See `docs/completions/live-openrouter-prices-0.28.0.md`. Ops knobs:
+`docs/operations/deploy.md` § Live OpenRouter price metering.
+
+**Not in this release:** a Redis / shared price cache; billing each
+replan as its own debit; frontend debit-row detail.
 
 ---
 

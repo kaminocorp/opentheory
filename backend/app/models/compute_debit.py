@@ -1,4 +1,4 @@
-"""ComputeDebit — append-only project compute spend (0.19.0).
+"""ComputeDebit — append-only project compute spend (0.19.0 / 0.28.0).
 
 Agent passes debit the project's funded budget from recorded ``AgentRun.tokens_used``.
 This is **not** a ``FundingAllocation``: the agent is a contributor, never a funder.
@@ -8,6 +8,10 @@ loop spent against that budget. ``project_budget.spent`` is Σ these rows.
 One debit per pass (partial unique on ``agent_run_id``). A planner call that spent
 tokens and then failed still records the debit — the provider billed it. A refused
 start (available already ≤ 0) writes nothing: no tokens moved.
+
+``0.28.0`` snapshots the rate *source* and, when live OpenRouter prices were used,
+the prompt/completion rates and token split. A fallback to the blended default is
+recorded as such — never presented as a live price.
 """
 
 from decimal import Decimal
@@ -18,7 +22,7 @@ from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, IdMixin, TimestampMixin
-from app.models.enums import ComputeDebitKind
+from app.models.enums import ComputeDebitKind, ComputeDebitRateSource
 
 
 class ComputeDebit(IdMixin, TimestampMixin, Base):
@@ -50,12 +54,25 @@ class ComputeDebit(IdMixin, TimestampMixin, Base):
         index=True,
     )
     tokens_used: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Prompt / completion split when the provider reported it (0.28.0). Null on
+    # pre-0.28.0 rows and on stub/test calls that only have a total.
+    prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    completion_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Sub-cent precision: a short planning call at the default rate is well below $0.01.
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     model: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    # Snapshot of the per-1k rate used so a later rate change never rewrites history.
+    # Snapshot of the effective per-1k rate used so a later rate change never rewrites
+    # history. When live prompt/completion rates were used this is the realized blend
+    # (amount × 1000 / tokens); otherwise the static blended fallback.
     rate_per_1k: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    prompt_rate_per_1k: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    completion_rate_per_1k: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    rate_source: Mapped[ComputeDebitRateSource] = mapped_column(
+        Enum(ComputeDebitRateSource, name="compute_debit_rate_source"),
+        nullable=False,
+        default=ComputeDebitRateSource.BLENDED_FALLBACK,
+    )
     kind: Mapped[ComputeDebitKind] = mapped_column(
         Enum(ComputeDebitKind, name="compute_debit_kind"),
         nullable=False,

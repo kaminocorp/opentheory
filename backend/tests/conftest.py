@@ -23,6 +23,10 @@ from app.main import create_app
 # writes resolve without an IdP (matches the plan's "auth_dev_header_enabled True in test").
 # Auth-specific tests flip individual auth settings via monkeypatch (auto-restored).
 settings.auth_dev_header_enabled = True
+# 0.28.0 live OpenRouter prices must not reach the network from the suite, even if a
+# local ``.env`` has OPENROUTER_API_KEY. Tests that exercise the live path re-enable
+# the flag and inject an ``httpx.MockTransport``.
+settings.openrouter_live_prices = False
 
 # DB-backed tests run only when a Postgres URL is configured; otherwise they skip cleanly so the
 # suite stays green. Prefer an explicit TEST_DATABASE_URL (a deliberate opt-in, trusted for any

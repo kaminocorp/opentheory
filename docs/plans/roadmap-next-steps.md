@@ -1,17 +1,18 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-09-25 · **Current release line:** `0.27.0` (concurrent
-> sub-passes under project budget), sitting on shipped `0.26.0` (Mathlib /
-> lake Grade-A path on `lean.prove`), `0.25.0` (continuous
-> research under budget), `0.24.0` (CommandRail sync — historically the
-> deferred deepdive Phase B / `0.14.1`), `0.23.0` (Lean 4 Grade-A path —
-> prelude `lean.prove`), `0.22.0` (thin multi-thread orchestrator), `0.21.0`
-> (research-git merge + tag), `0.20.0` (plan → observe → replan), `0.19.0`
-> (project-budget metering), `0.18.0` (Tier-1 literature pins), `0.17.0`
-> (review is opt-in) and `0.16.3` (thread/project grounding rollup). For the
-> per-phase ledger see `docs/changelog.md`; for the line just closed see
-> `docs/completions/concurrent-subpasses-0.27.0.md`. The remaining `0.14.x` phases
-> (C–D) still live at `docs/archive/project-deepdive-tabs-0.14.md`.
+> **Last updated:** 2026-09-25 · **Current release line:** `0.28.0` (live
+> OpenRouter price metering), sitting on shipped `0.27.0` (concurrent
+> sub-passes under project budget), `0.26.0` (Mathlib / lake Grade-A path on
+> `lean.prove`), `0.25.0` (continuous research under budget), `0.24.0`
+> (CommandRail sync — historically the deferred deepdive Phase B /
+> `0.14.1`), `0.23.0` (Lean 4 Grade-A path — prelude `lean.prove`), `0.22.0`
+> (thin multi-thread orchestrator), `0.21.0` (research-git merge + tag),
+> `0.20.0` (plan → observe → replan), `0.19.0` (project-budget metering),
+> `0.18.0` (Tier-1 literature pins), `0.17.0` (review is opt-in) and `0.16.3`
+> (thread/project grounding rollup). For the per-phase ledger see
+> `docs/changelog.md`; for the line just closed see
+> `docs/completions/live-openrouter-prices-0.28.0.md`. The remaining `0.14.x`
+> phases (C–D) still live at `docs/archive/project-deepdive-tabs-0.14.md`.
 >
 > **Next after this line:** the still-owed browser eyeball pass; then `0.14.2`
 > Phase C polish. Unmerged work is not claimed as shipped. Lean REPL /
@@ -97,6 +98,21 @@ who changed it, and what evidence or artifacts were involved — then extend it 
 bypassing the checkpoint chokepoint or conflating funder / contributor / validator roles.
 
 ## Recommended next releases
+
+### `0.28.x` — Live OpenRouter price metering ✅ **shipped** (`0.28.0`)
+
+Delivered: agent-pass `ComputeDebit` rows bill at the model's live OpenRouter
+prompt / completion rates when `GET /models` is reachable (process cache,
+short timeout). Missing key, timeout, fetch failure, or an unknown model
+falls back to the configured blended `agent_token_rate_usd_per_1k` (or a
+catalog `usd_per_1k` override) and records that fallback on the row —
+metering is never skipped. Snapshot columns for the split and the rate
+source. Reservation envelopes (`0.27.0`) use the same quote. Migration
+`0020_compute_debit_live_rates` (additive). Rebased after shipped `0.27.0`.
+See `docs/completions/live-openrouter-prices-0.28.0.md`.
+
+**Not in this release:** per-replan extra debit rows (one debit per pass
+still); a Redis price cache; changing funder ≠ contributor ≠ validator.
 
 ### `0.27.x` — Concurrent sub-passes under project budget ✅ **shipped** (`0.27.0`)
 
@@ -203,8 +219,9 @@ caps unchanged. Migration `0015_compute_debits` (additive). Historical alias
 `0.12.5`. See `docs/completions/project-budget-metering-0.19.0.md`.
 
 **Natural follow-ons:** ~~the orchestrator that allocates project budget across
-subagents~~ ✅ shipped as `0.22.0`; live OpenRouter prices instead of the blended
-`agent_token_rate_usd_per_1k` default. Plan→observe→replan shipped in `0.20.0`.
+subagents~~ ✅ shipped as `0.22.0`; ~~live OpenRouter prices instead of the
+blended `agent_token_rate_usd_per_1k` default~~ ✅ shipped as `0.28.0`.
+Plan→observe→replan shipped in `0.20.0`.
 
 ### `0.17.x` — Phase 1 agent autonomy ✅ **shipped** (`0.17.0`)
 
@@ -412,6 +429,7 @@ demo requirement.
 | `0.25.x` | Continuous research campaign — re-commission the 0.22.0 orchestrator under the project pot |
 | `0.26.x` | `lean.prove` Mathlib opt-in — bounded offline `lake`; Grade A only on a real kernel + allow-list success |
 | `0.27.x` | Concurrent sub-passes under the shared project budget — reserved slices, no oversell |
+| `0.28.x` | Live OpenRouter price metering — `ComputeDebit` at prompt/completion rates, honest blended fallback |
 
 ## Success criteria for the next milestone
 
@@ -452,6 +470,11 @@ capped number of `run_agent_pass` calls at once against the shared
 `ComputeDebit` pot. A reservation hold prevents oversell; debit stays after
 tokens. `concurrency=1` is sequential. Campaigns inherit the inner
 concurrency. Never auto-validates or auto-funds.
+
+**`0.28.0` (live OpenRouter price metering)** is shipped: agent passes debit
+at the model's live prompt/completion rates when the price catalog answers,
+and fall back to the configured blended rate with that fallback recorded.
+Reservation envelopes use the same quote. Rebased after `0.27.0`.
 
 **Next product step:** the still-owed browser eyeball pass; then `0.14.2`
 Phase C polish.

@@ -107,12 +107,25 @@ class Settings(BaseSettings):
     agent_pass_max_batch_runs: int = 2
     # Token ceiling for a pass's planning calls — still a SAFETY cap (blast radius), recorded
     # on the trace. The project ceiling that turns those tokens into spend is
-    # ``agent_token_rate_usd_per_1k`` × tokens, debited in 0.19.0.
+    # ``agent_token_rate_usd_per_1k`` × tokens, debited in 0.19.0, or the live
+    # OpenRouter prompt/completion rates when 0.28.0 metering can fetch them.
     agent_pass_max_tokens: int = 200_000
-    # Default blended USD per 1 000 planning tokens. A catalog ``ModelOption.usd_per_1k``
-    # overrides this per model when set. Snapshot onto each ``ComputeDebit`` so a later
-    # rate change never rewrites history.
+    # Default blended USD per 1 000 planning tokens. Used when live OpenRouter
+    # prices are unavailable (missing key, timeout, fetch failure, unknown model)
+    # or when ``openrouter_live_prices`` is off. A catalog ``ModelOption.usd_per_1k``
+    # still overrides this per model on the fallback path. Snapshot onto each
+    # ``ComputeDebit`` so a later rate change never rewrites history.
     agent_token_rate_usd_per_1k: Decimal = Decimal("0.005")
+    # 0.28.0 — live OpenRouter model prices for ComputeDebit. Off = always use the
+    # blended fallback (still meters; never skips). Tests disable this in conftest
+    # so a local OPENROUTER_API_KEY cannot reach the network.
+    openrouter_live_prices: bool = True
+    # Process-local cache of GET /models. A refresh is one short HTTP call; a
+    # pass never waits longer than ``openrouter_price_timeout_s``.
+    openrouter_price_cache_ttl_s: float = 3600.0
+    # Hard cap on one price-catalog fetch. Keep this tiny relative to
+    # ``agent_llm_timeout_s`` — a slow /models must not stall a planning call.
+    openrouter_price_timeout_s: float = 2.0
     # Dark-launch flag: when False the agent-run, orchestration, *and* campaign
     # routes 404 (indistinguishable from "not a route"). One flag for the whole
     # agent family — do not invent a second. Campaigns are the continuous outer

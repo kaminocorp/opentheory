@@ -73,26 +73,32 @@ Possible `status` values:
 
 ## ComputeDebit
 
-An append-only compute-spend row against a project's funded budget (`0.19.0`).
+An append-only compute-spend row against a project's funded budget (`0.19.0`,
+live rates in `0.28.0`).
 
-Agent passes convert recorded `AgentRun.tokens_used` into a debit at a per-1k-token
-rate. This is **not** a `FundingAllocation`: the agent is a contributor and never
-funds. `project_budget.spent` is the sum of these rows;
+Agent passes convert recorded `AgentRun.tokens_used` into a debit. When the
+OpenRouter price catalog is reachable, prompt and completion tokens bill at
+that model's live rates; otherwise the configured blended
+`agent_token_rate_usd_per_1k` (or a catalog `usd_per_1k` override) is used and
+the fallback is recorded. This is **not** a `FundingAllocation`: the agent is a
+contributor and never funds. `project_budget.spent` is the sum of these rows;
 `reserved` is the sum of in-flight `AgentRun.reserved_amount` holds (`0.27.0`);
-`available = funded − spent − reserved`.
-A pass on an exhausted project (`available <= 0`) refuses to start. A pass that
-exhausts the remainder after planning stops the instrument loop; the trace records
-`budget_exhausted`. Concurrent sub-passes reserve a slice before they start so
-they cannot oversell the pot; the debit itself is still recorded after tokens.
+`available = funded − spent − reserved`. A pass on an exhausted project
+(`available <= 0`) refuses to start. A pass that exhausts the remainder after
+planning stops the instrument loop; the trace records `budget_exhausted`.
+Concurrent sub-passes reserve a slice before they start so they cannot
+oversell the pot; the debit itself is still recorded after tokens.
 
 Typical fields:
 
 - `id`
 - `project_id`
 - `agent_run_id` — the pass that incurred the spend (one debit per pass)
-- `tokens_used`
+- `tokens_used` / `prompt_tokens` / `completion_tokens`
 - `amount` / `currency` — snapshot of the billed cost (USD)
-- `model` / `rate_per_1k` — the rate used, so a later change never rewrites history
+- `model` / `rate_per_1k` — effective rate used, so a later change never rewrites history
+- `prompt_rate_per_1k` / `completion_rate_per_1k` — live split when the catalog answered
+- `rate_source` — `openrouter_live` / `catalog_override` / `blended_fallback`
 - `kind` — `planning` (v1) or `execution` (reserved)
 - `created_at`
 

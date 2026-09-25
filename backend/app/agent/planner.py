@@ -88,6 +88,8 @@ class PlanResult:
     dropped: list[dict[str, Any]] = field(default_factory=list)
     tokens_used: int = 0
     proposed_count: int = 0
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
 
 
 def _parse_plan(text: str) -> AgentPlan:
@@ -171,6 +173,8 @@ async def plan(
         # The call completed (and cost tokens) but the body was unusable — attach the spend so the
         # orchestrator records it on the failed trace instead of losing it.
         exc.tokens_used = response.tokens_used
+        exc.prompt_tokens = response.prompt_tokens
+        exc.completion_tokens = response.completion_tokens
         raise
 
     runnable: list[PlannedRun] = []
@@ -210,4 +214,6 @@ async def plan(
         dropped=dropped,
         tokens_used=response.tokens_used,
         proposed_count=len(parsed.runs),
+        prompt_tokens=response.prompt_tokens,
+        completion_tokens=response.completion_tokens,
     )

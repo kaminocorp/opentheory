@@ -12,7 +12,7 @@ from app.agent.llm import AgentLlmError, OpenRouterClient
 
 _OK_BODY = {
     "choices": [{"message": {"content": '{"runs": []}'}}],
-    "usage": {"total_tokens": 123},
+    "usage": {"total_tokens": 123, "prompt_tokens": 80, "completion_tokens": 43},
 }
 
 
@@ -29,6 +29,8 @@ async def test_complete_returns_text_and_tokens() -> None:
     )
     assert resp.text == '{"runs": []}'
     assert resp.tokens_used == 123
+    assert resp.prompt_tokens == 80
+    assert resp.completion_tokens == 43
     assert resp.model == "test/model"
 
 

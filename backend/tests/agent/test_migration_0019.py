@@ -26,14 +26,14 @@ def test_revision_linkage() -> None:
     assert mod.down_revision == "0018_research_campaigns"
 
 
-def test_it_is_the_only_head() -> None:
-    """Nothing revises 0019 — a second head makes ``alembic upgrade head`` ambiguous on deploy."""
+def test_it_is_revised_by_0020() -> None:
+    """0020 (live OpenRouter rates) revises 0019; a second head is a deploy footgun."""
     down_revisions = {
         match.group(1)
         for path in _VERSIONS.glob("*.py")
         if (match := re.search(r'down_revision[^=]*=\s*"([^"]+)"', path.read_text()))
     }
-    assert _REVISION not in down_revisions
+    assert _REVISION in down_revisions
 
 
 def test_the_columns_the_models_declare_are_the_columns_the_migration_adds() -> None:
