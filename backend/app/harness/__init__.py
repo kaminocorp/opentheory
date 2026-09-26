@@ -1,7 +1,8 @@
-"""External DeepSeek Harness adapter — Milestone 0 (`0.40.0`).
+"""External DeepSeek Harness adapter (`0.40.0` composition + `0.41.0` live MCP).
 
-Composition + fixture MCP only. Not imported by the FastAPI app. Does not
-enable ``AGENT_LOOP_ENABLED``. Does not write the ledger.
+Composition, fixture MCP (M0 probe), and the live domain door. Not imported
+by the FastAPI app. Does not enable ``AGENT_LOOP_ENABLED``. Ledger writes go
+only through ``run_instrument`` / ``create_checkpoint``.
 """
 
 from app.harness.composition import (

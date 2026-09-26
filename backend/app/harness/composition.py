@@ -18,7 +18,7 @@ MCP_SERVER_NAME = "opentheory"
 MCP_CLIENT_PACKAGE = "@deepseek-ai/dsh-mcp-client"
 LLM_PROVIDER_PACKAGE = "@deepseek-ai/dsh-llm-pi-ai"
 
-# Stems the fixture (and later the live OT plugin) may expose. The harness
+# Stems the fixture and the live OT plugin may expose. The harness
 # prefixes MCP tools as mcp__<serverName>__<stem>.
 DOMAIN_TOOL_STEMS = frozenset(
     {
