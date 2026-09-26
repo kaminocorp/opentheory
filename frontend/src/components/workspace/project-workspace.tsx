@@ -25,6 +25,7 @@ import type { GroundingRollup, ProjectBudget, ProjectCounts } from "@/types/rese
 import { AgentPassPanel } from "./agent-pass/agent-pass-panel";
 import { BranchBar } from "./branch-bar";
 import { CheckpointTimelinePanel } from "./checkpoint-timeline-panel";
+import { BlamePanel } from "./blame-panel";
 import { ComparePanel } from "./compare-panel";
 import { ClaimListPanel } from "./claim-list-panel";
 import { Collaborators } from "./collaborators-panel";
@@ -71,6 +72,8 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
   const [editing, setEditing] = useState(false);
   // Contested-strip click-through (0.30.0): which claim the Research list should land on.
   const [focusClaimId, setFocusClaimId] = useState<string | null>(null);
+  const [blameClaimId, setBlameClaimId] = useState<string | null>(null);
+  const blameBayRef = useRef<HTMLDivElement>(null);
   const { isAuthed, me } = useActingIdentity();
 
   const projectQuery = useQuery({
@@ -243,12 +246,17 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
             onSelectThread={(threadId) => {
               replaceView({ thread: threadId });
               setFocusClaimId(null);
+              setBlameClaimId(null);
             }}
           />
           <ClaimListPanel
             projectId={projectId}
             threadId={selectedThreadId}
             focusClaimId={focusClaimId}
+            onBlameClaim={(claimId) => {
+              setBlameClaimId(claimId);
+              blameBayRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+            }}
           />
           <CheckpointTimelinePanel
             projectId={projectId}
@@ -259,6 +267,13 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
         </div>
         <TagPanel projectId={projectId} />
         <ComparePanel projectId={projectId} selectedBranchId={selectedBranchId} />
+        <div ref={blameBayRef}>
+          <BlamePanel
+            projectId={projectId}
+            threadId={selectedThreadId}
+            selectedClaimId={blameClaimId}
+          />
+        </div>
       </TabPanel>
 
       {/* --- instruments (keep-alive: an agent trace may be polling) ------------ */}

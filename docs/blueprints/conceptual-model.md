@@ -90,7 +90,7 @@ it was abandoned. Negative results are kept because they prevent repeated work.
 | commit       | **Checkpoint** — an immutable, attributed state change  |
 | branch       | **Branch** — a parallel line of exploration             |
 | merge / diff | integrating research lines (`0.21.0`); semantic diff (`0.29.0`) |
-| blame        | provenance — who contributed what, on what evidence     |
+| blame        | provenance — who contributed what, on what evidence (`0.36.0`) |
 | tag          | a marked, citable result (`0.21.0`)                     |
 
 ---

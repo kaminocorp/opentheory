@@ -50,9 +50,16 @@ type ClaimListPanelProps = {
   threadId: string | null;
   /** Header contested-strip click-through (0.30.0). Scroll + highlight; no rewrite. */
   focusClaimId?: string | null;
+  /** Open the Research Blame bay on this claim (0.36.0). Read only. */
+  onBlameClaim?: (claimId: string) => void;
 };
 
-export function ClaimListPanel({ projectId, threadId, focusClaimId }: ClaimListPanelProps) {
+export function ClaimListPanel({
+  projectId,
+  threadId,
+  focusClaimId,
+  onBlameClaim,
+}: ClaimListPanelProps) {
   if (!threadId) {
     return (
       <Bay density="none" className="grid min-h-64 place-items-center">
@@ -61,7 +68,12 @@ export function ClaimListPanel({ projectId, threadId, focusClaimId }: ClaimListP
     );
   }
   return (
-    <ClaimListPanelInner projectId={projectId} threadId={threadId} focusClaimId={focusClaimId} />
+    <ClaimListPanelInner
+      projectId={projectId}
+      threadId={threadId}
+      focusClaimId={focusClaimId}
+      onBlameClaim={onBlameClaim}
+    />
   );
 }
 
@@ -69,10 +81,12 @@ function ClaimListPanelInner({
   projectId,
   threadId,
   focusClaimId,
+  onBlameClaim,
 }: {
   projectId: string;
   threadId: string;
   focusClaimId?: string | null;
+  onBlameClaim?: (claimId: string) => void;
 }) {
   const { canWrite, hydrated, signInHint } = useActingIdentity();
   const queryClient = useQueryClient();
@@ -232,6 +246,15 @@ function ClaimListPanelInner({
                     {claim.kind} · {claim.status}
                   </span>
                   <GroundingChip grounding={claim.grounding} />
+                  {onBlameClaim ? (
+                    <button
+                      type="button"
+                      onClick={() => onBlameClaim(claim.id)}
+                      className="text-[12px] font-medium text-text-mute transition-colors hover:text-signal"
+                    >
+                      Blame
+                    </button>
+                  ) : null}
                 </div>
                 <p className="mt-1.5 text-[12px] text-text-faint">
                   {groundingRaiseLine(claim.grounding)}

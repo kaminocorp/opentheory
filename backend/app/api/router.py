@@ -5,6 +5,7 @@ from app.api.routes import (
     actors,
     agent_models,
     agent_runs,
+    blame,
     branches,
     campaigns,
     checkpoints,
@@ -42,6 +43,8 @@ api_router.include_router(merges.router)
 api_router.include_router(tags.router)
 # Semantic diff is a public ledger read (0.29.0) — GET only, mints nothing.
 api_router.include_router(diff.router)
+# Semantic blame is a public ledger read (0.36.0) — GET only, mints nothing.
+api_router.include_router(blame.router)
 api_router.include_router(funding.router)
 # Invitations span /projects/{id}/invitations and /me/invitations + /invitations/{id}/…, so the
 # router mounts at the root and declares full paths itself (like threads/funding).

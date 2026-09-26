@@ -45,6 +45,7 @@ import type {
   ProjectOverview,
   ProjectRole,
   ResearchTag,
+  ClaimBlameRead,
   SemanticDiffRead,
   TagCreate,
   Thread,
@@ -326,6 +327,10 @@ export function getSemanticDiff(
 ): Promise<SemanticDiffRead> {
   const q = new URLSearchParams({ from: fromRef, to: toRef });
   return request<SemanticDiffRead>(`/projects/${projectId}/diff?${q}`);
+}
+
+export function getClaimBlame(projectId: string, claimId: string): Promise<ClaimBlameRead> {
+  return request<ClaimBlameRead>(`/projects/${projectId}/claims/${claimId}/blame`);
 }
 
 // --- Funding (0.6.3) --------------------------------------------------------

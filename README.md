@@ -87,8 +87,8 @@ meaningful state change is committed as an immutable **checkpoint** carrying *wh
 | commit | **checkpoint** — an immutable, attributed state change | ✅ built |
 | branch | a parallel line of exploration; dead ends preserved | ✅ built |
 | log / show | the checkpoint timeline and its detail | ✅ built |
-| blame | provenance — who contributed what, on what evidence | 🟡 *recorded* (every checkpoint carries its blame tuple); the semantic `blame` op is planned |
-| merge / diff | integrating or comparing research lines | ✅ merge built (`0.21.0`); semantic `diff` planned |
+| blame | provenance — who contributed what, on what evidence | ✅ built (`0.36.0` semantic `blame` read); every tool-run checkpoint still carries its blame tuple |
+| merge / diff | integrating or comparing research lines | ✅ merge built (`0.21.0`); semantic `diff` built (`0.29.0`) |
 | tag | a marked, citable result | ✅ built (`0.21.0`) |
 
 Two mechanisms make this real rather than cosmetic:
@@ -451,9 +451,10 @@ opentheory/
   (`available = 0`) will not start a pass.
 - **Funding is recorded, not settled.** `FundingAllocation` is a real append-only
   concern; payment rails are future work.
-- **Reputation/influence, semantic blame, and object storage for large
-  artifacts** are described in the docs but not built. Merge and tag shipped in
-  `0.21.0`. Semantic diff shipped in `0.29.0`.
+- **Reputation/influence and object storage for large artifacts** are
+  described in the docs but not built. Merge and tag shipped in
+  `0.21.0`. Semantic diff shipped in `0.29.0`. Semantic blame shipped
+  in `0.36.0`.
 - **`lean.prove` is optional.** If `lean` is not on the runtime PATH the
   instrument records `undecided` / `unavailable` and never a proof. Mathlib
   needs a separate image rebuild (`INSTALL_MATHLIB=1`); missing cache is

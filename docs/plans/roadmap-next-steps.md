@@ -1,7 +1,8 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-09-26 · **Current release line:** `0.35.0`
-> (`interval.eval` proven enclosures), sitting on shipped `0.34.0`
+> **Last updated:** 2026-09-26 · **Current release line:** `0.36.0`
+> (research-git blame), sitting on shipped `0.35.0`
+> (`interval.eval` proven enclosures, `1ca7116`) and shipped `0.34.0`
 > (Bench 6 tables & Vega-Lite plots, `a7cd946`) and shipped `0.33.0`
 > (`z3.satisfy` model-finding, `e3a07ea`) and shipped `0.32.0`
 > (concurrent campaign cycles under project budget), `0.31.0` (deepdive Phase D — shareable Research deep links), `0.30.0`
@@ -16,14 +17,14 @@
 > (project-budget metering), `0.18.0` (Tier-1 literature pins), `0.17.0`
 > (review is opt-in) and `0.16.3` (thread/project grounding rollup). For the
 > per-phase ledger see `docs/changelog.md`; for the line just closed see
-> `docs/completions/interval-eval-0.35.0.md`. The deepdive line
+> `docs/completions/research-git-blame-0.36.0.md`. The deepdive line
 > (A–D) is closed; the archive plan is at
 > `docs/archive/project-deepdive-tabs-0.14.md`.
 >
 > **Next after this line:** the still-owed browser eyeball pass. Unmerged
-> work is not claimed as shipped (`0.35.0` is this branch, not `main`).
-> Lean REPL / LeanDojo remain later. Blame-as-an-op remains later.
-> `0.34.0` and `0.33.0` are on `main`.
+> work is not claimed as shipped (`0.36.0` is this branch, not `main`).
+> Lean REPL / LeanDojo remain later.
+> ~~Blame-as-an-op~~ ✅ shipped as `0.36.0`. `0.33.0`–`0.35.0` are on `main`.
 
 ## Where we are
 
@@ -432,6 +433,19 @@ migration.** Sits on `0.34.0`. See
 **Not in this release:** Lean REPL / LeanDojo; boolean Z3 parser;
 blame-as-an-op; browser eyeball.
 
+### `0.36.x` — Research-git blame ✅ **shipped** (`0.36.0`)
+
+Delivered: a derived ledger read walks the checkpoints, actors, and
+tool invocations that produced or evidence-grounded a claim
+(`GET /projects/{id}/claims/{claim_id}/blame`). Deterministic. Mints
+nothing. Quiet Blame bay next to Compare on Research. **No schema, no
+migration.** Sits on `0.35.0`. See
+`docs/completions/research-git-blame-0.36.0.md`.
+
+**Not in this release:** merging this PR; Lean REPL / LeanDojo;
+auto-validate / auto-fund / auto-merge; content-addressed commit ids;
+rewriting claim field history; browser eyeball.
+
 ### Deferred / deprioritized
 
 | Item | Notes |
@@ -476,6 +490,7 @@ blame-as-an-op; browser eyeball.
     ~~**`0.20.0` plan → observe → replan**~~ ✅ shipped on the same loop.
     ~~**`0.21.0` research-git merge/tag**~~ ✅ shipped.
     ~~**`0.29.0` semantic git diff**~~ ✅ shipped.
+    ~~**`0.36.0` research-git blame**~~ ✅ shipped.
     ~~**`0.22.0` multi-thread orchestrator**~~ ✅ shipped — sequential sub-passes
     under the shared project pot.
     ~~**`0.25.0` continuous research under budget**~~ ✅ shipped — re-commission
@@ -500,6 +515,8 @@ blame-as-an-op; browser eyeball.
 18. ~~**`interval.eval` proven enclosures**~~ ✅ shipped as `0.35.0` — Arb
     ball / mpmath.iv fallback; Grade C support, B on a definitive miss;
     never A. Overlap is honest `undecided`.
+19. ~~**Research-git blame**~~ ✅ shipped as `0.36.0` — derived claim
+    provenance read; mints nothing; not an instrument.
 
 ## Shipped milestones (reference)
 
@@ -536,6 +553,7 @@ blame-as-an-op; browser eyeball.
 | `0.33.x` | `z3.satisfy` — model-finding (sat assignment / unsat no-model / honest undecided) |
 | `0.34.x` | Bench 6 tables & plots — typed grids, derived columns, Vega-Lite specs (not rasters) |
 | `0.35.x` | `interval.eval` — proven numeric enclosures (Arb / mpmath.iv; never Grade A alone) |
+| `0.36.x` | Research-git blame — derived checkpoint / actor / instrument chain for a claim |
 
 ## Success criteria for the next milestone
 

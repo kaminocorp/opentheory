@@ -9,12 +9,13 @@ A git-like ledger for research, not code. The unit of versioning is a **claim** 
 > schema-enforced), **branch** + **close-branch** (fork from a checkpoint;
 > close as dead-end / superseded), **merge** (a multi-parent checkpoint that
 > marks source branches `merged`, `0.21.0`), **tag** (a named immutable
-> pointer at a checkpoint, `0.21.0`), and **semantic diff** (a derived read
-> of claim / grounding / instrument deltas between two tips, `0.29.0`).
-> **Not built yet: blame.** Commit `id`s are UUIDs today — content-addressing
-> is still target, not current; and `confidence` is tracked on `Claim`, not
-> on the commit. The Operations list below is annotated *(built)* /
-> *(planned)*. See `docs/changelog.md`.
+> pointer at a checkpoint, `0.21.0`), **semantic diff** (a derived read
+> of claim / grounding / instrument deltas between two tips, `0.29.0`), and
+> **blame** (a derived read of the checkpoint / actor / instrument chain
+> that produced a claim, `0.36.0`). Commit `id`s are UUIDs today —
+> content-addressing is still target, not current; and `confidence` is
+> tracked on `Claim`, not on the commit. The Operations list below is
+> annotated *(built)* / *(planned)*. See `docs/changelog.md`.
 
 ## Why git-shaped
 
@@ -74,7 +75,7 @@ A diff between two commits answers: *what claims, confidences, or open questions
 
 ### Blame
 
-For any claim in the project, blame returns the chain of commits, agents, and tool invocations that produced it. This is the substrate for attribution and for debugging bad results.
+For any claim in the project, blame returns the chain of commits, agents, and tool invocations that produced it. This is the substrate for attribution and for debugging bad results. *(built — `GET /projects/{id}/claims/{claim_id}/blame`, `0.36.0`; derived read, mints nothing)*
 
 ### Tag
 
@@ -114,7 +115,7 @@ Limited, named operations. Agents do not get to write to the ledger arbitrarily.
 - `tag(commit, name, kind)` — promote, milestone, or retract. *(built — `create_tag`)*
 - `close_branch(commit, outcome)` — mark a branch as dead-end or superseded. *(built — `close_branch`)*
 
-Reads (`diff`, `blame`, `log`, `show`) are unrestricted. *(semantic `diff` built as `GET /projects/{id}/diff`, `0.29.0`; `blame` is planned; `log` / `show` exist as checkpoint list / get)*
+Reads (`diff`, `blame`, `log`, `show`) are unrestricted. *(semantic `diff` built as `GET /projects/{id}/diff`, `0.29.0`; `blame` built as `GET /projects/{id}/claims/{claim_id}/blame`, `0.36.0`; `log` / `show` exist as checkpoint list / get)*
 
 ## What is *not* in scope here
 

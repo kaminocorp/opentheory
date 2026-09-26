@@ -15,6 +15,9 @@ export const queryKeys = {
   // Semantic research-git diff (0.29.0) — derived read, keyed by the two tips.
   semanticDiff: (projectId: string, fromRef: string, toRef: string) =>
     ["diff", projectId, fromRef, toRef] as const,
+  // Semantic research-git blame (0.36.0) — derived read, keyed by the claim.
+  claimBlame: (projectId: string, claimId: string) =>
+    ["blame", projectId, claimId] as const,
   funding: (projectId: string) => ["funding", projectId] as const,
   budget: (projectId: string) => ["budget", projectId] as const,
   members: (projectId: string) => ["members", projectId] as const,
