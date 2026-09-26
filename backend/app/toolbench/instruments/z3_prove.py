@@ -1,7 +1,8 @@
 """``z3.prove`` — machine-checked validity under linear (and honest nonlinear) arithmetic.
 
 Given typed variables (``int`` / ``real`` / ``bool``), hypotheses, and a goal — each a
-relation or a quantifier-free boolean formula — assert ``hypotheses ∧ ¬goal`` in Z3 and
+relation, a boolean formula, or a first-order ``ForAll`` / ``Exists`` — assert
+``hypotheses ∧ ¬goal`` in Z3 and
 return one of the three honest outcomes:
 
 - **``result``** (``artifact_kind="proof"``) — ``unsat``: the goal is entailed for all assignments
@@ -11,7 +12,7 @@ return one of the three honest outcomes:
   hypotheses the solver could not decide.
 
 Unlike ``counterexample.search``, a supporting ``result`` here is a *proof*, not weak support.
-Quantifiers stay out of scope.
+``If`` / ``Quantifier`` stay out of scope.
 """
 
 from __future__ import annotations
@@ -53,8 +54,8 @@ class Z3ProveInput(BaseModel):
         default_factory=list,
         max_length=_MAX_CONSTRAINTS,
         description=(
-            "Hypotheses — each a relation or a boolean formula "
-            "(And/Or/Not/Implies/Xor/Equivalent). Conjoined. "
+            "Hypotheses — each a relation, a boolean formula "
+            "(And/Or/Not/Implies/Xor/Equivalent), or ForAll/Exists. Conjoined. "
             "Empty means prove the goal unconditionally over the declared sorts."
         ),
     )
@@ -62,8 +63,8 @@ class Z3ProveInput(BaseModel):
         min_length=1,
         max_length=_MAX_RELATION_LEN,
         description=(
-            "The relation or boolean formula to prove under the hypotheses "
-            "(e.g. x + y > 0, or Implies(And(P, Q), P))."
+            "The relation, boolean formula, or quantified formula to prove "
+            "(e.g. x + y > 0, Implies(And(P, Q), P), or ForAll(x, x + 0 == x))."
         ),
     )
 
@@ -140,19 +141,19 @@ class Z3ProveOutput(BaseModel):
 
 
 class Z3Prove:
-    """Machine-checked validity over quantifier-free arithmetic and propositional connectives."""
+    """Machine-checked validity over arithmetic, connectives, and first-order quantifiers."""
 
     name = "z3.prove"
     namespace = "z3"
-    version = "0.2.0"
+    version = "0.3.0"
     engine = ENGINE
     engine_version = ENGINE_VERSION
     description = (
-        "Prove a relation or boolean formula under typed hypotheses via Z3. "
-        "Sorts: int, real, bool. Connectives: And, Or, Not, Implies, Xor, Equivalent. "
+        "Prove a relation, boolean formula, or first-order sentence under typed hypotheses "
+        "via Z3. Sorts: int, real, bool. Connectives: And, Or, Not, Implies, Xor, Equivalent. "
+        "Quantifiers: ForAll, Exists (binders are declared names). "
         "unsat is a machine-checked proof (when hypotheses are satisfiable); sat yields a "
-        "concrete counter-model; unknown is honest undecided — never a pass. "
-        "Quantifiers are out of scope."
+        "concrete counter-model; unknown is honest undecided — never a pass."
     )
     InputModel = Z3ProveInput
     OutputModel = Z3ProveOutput

@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.39.0` — **First-order quantifiers for `z3.prove` / `z3.satisfy`.** Closed allow-list grows `ForAll` / `Exists` on the existing 0.38.0 formula AST — dedicated walker, no `eval`, no widening of the shared SymPy gate, no new AST node types for binders. `∀x. x + 0 = x` is now a real Z3 proof. Vacuous-hypotheses guard and timeout→undecided stay. Quiet drive-form hint update. **No schema, no migration.** Sits on shipped `0.38.0` (`e0e118b`, #28) on current `main`.
 - `0.36.1` — **Project open no longer white-screens.** Live Fly is behind current `main` (`GET /projects/{id}/tags` 404; thread rows omit `grounding_rollup`). The Research keep-alive then threw `undefined.total` and gated Instruments / Blame. FE treats tags 404 / empty envelope as `[]` and always defines rollup `total`. Backend list stays a bare array (`200 []` on an existing project; `404` if the project is missing). **No schema, no migration.** Sits on shipped `0.36.0` (`71a8929`, #21). Does not claim unmerged `0.37` / `0.38`.
 - `0.36.0` — **Research-git blame.** A derived ledger read walks the checkpoints, actors, and tool invocations that produced or evidence-grounded a claim (`GET /projects/{id}/claims/{claim_id}/blame`). Deterministic. Mints nothing. Quiet Blame bay next to Compare on Research. **No schema, no migration.** Sits on shipped `0.35.0` interval.eval (`1ca7116`, #20 squash). On `main` as `71a8929` (#21 squash). `0.33.0`–`0.36.0` are on `main`.
 - `0.36.3` — **Honesty polish.** `BranchCreate` / `ValidationCreate` OpenAPI copy no longer advertises the local-only actor header; the planner prompt prints validation-axis `signal` (`compute_signal`) instead of the dead stored `Claim.status`. Auth assistant/ops copy matches JWT. **No schema, no migration.** Sits on shipped `0.36.0` (`71a8929` / #21). Does not claim `0.36.1` / `0.36.2` / `0.37.0` / `0.38.0` (open PRs).
@@ -113,6 +114,52 @@
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
 
 ---
+
+## 0.39.0
+
+**First-order quantifiers for `z3.prove` / `z3.satisfy`.** The remaining
+cheap verifier-wave follow-on after shipped boolean connectives
+(`0.38.0`, `e0e118b`, #28): a formula can carry `ForAll` / `Exists`
+instead of stopping at QF connectives. Same InputModel, same sandbox,
+same honesty contract. The dedicated formula AST walker grows two
+named functions — the shared SymPy `parse_expr` gate is **not**
+widened, and binders are bare declared names (`ForAll(x, y, body)`),
+not lists / lambdas. **No schema, no migration.** Sits on current
+`main` (includes shipped `0.38.0` and the 0.36.x / 0.37.0 line that
+landed around it). Does not weaken the vacuous-hypotheses guard.
+
+- **Closed allow-list extension.** `ForAll` / `Exists` join
+  `And` / `Or` / `Not` / `Implies` / `Xor` / `Equivalent`. Binders
+  must already be in `variables` (sort from the declaration).
+  Multi-binder `ForAll(x, y, body)` and nesting
+  `ForAll(x, Exists(y, …))` are in. `If` / `Quantifier` / wrong-case
+  `Forall` / list binders still raise (422, mint nothing).
+- **No false-proof path.** Grade A / `proven` only on a real Z3
+  `unsat` of `H ∧ ¬goal` after hypotheses-sat. A false quantified
+  hypothesis (`ForAll(x, And(x > 0, x < 0))`) is
+  `contradictory_hypotheses`. Timeout / `unknown` on the quantified
+  nonlinear fragment is `undecided`. Parse / injection / undeclared
+  binder raise and mint nothing.
+- **Same write path.** Lands only through `run_instrument` → the
+  checkpoint chokepoint. Soft timeout stays under the subprocess
+  wall-clock. Instruments still return only `result | refuted |
+  undecided`.
+- **Frontend.** Drive-form hints mention ForAll/Exists. Result cards
+  unchanged. Sentence case, no AI chrome.
+
+```bash
+cd backend && uv run ruff check .   # pending verification
+cd backend && uv run pytest -q      # pending verification
+# Write-path quantifier round-trips are DB-gated (skip without Postgres)
+cd frontend && npm run typecheck && npm run lint && npm run build
+cd frontend && npm test
+```
+
+See `docs/completions/z3-quantifiers-0.39.0.md`.
+
+**Not in this release:** Lean REPL / LeanDojo; retrieval instruments;
+agent-loop changes; full replayable proof terms; `If` / ite; a
+browser eyeball pass.
 
 ## 0.36.1
 

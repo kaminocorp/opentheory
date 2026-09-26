@@ -7,11 +7,12 @@ Mirrors :mod:`app.toolbench.instruments._sympy_support` in role:
 - **Closed allow-list translator.** ``to_z3`` maps a *whitelist* of SymPy node types to Z3.
   No string round-trip, no ``eval``. Undeclared symbols, ``Float`` literals, and any
   non-whitelisted node raise ``ValueError`` (→ write path mints nothing, 422).
-- **Formula parser (0.38.0).** ``formula_to_z3`` walks a *second* closed AST allow-list —
-  relational atoms, bool variables, and ``And`` / ``Or`` / ``Not`` / ``Implies`` / ``Xor`` /
-  ``Equivalent`` — without ``parse_expr`` or ``eval``. Quantifiers stay rejected. The
+- **Formula parser (0.38.0 / 0.39.0).** ``formula_to_z3`` walks a *second* closed AST
+  allow-list — relational atoms, bool variables, ``And`` / ``Or`` / ``Not`` / ``Implies`` /
+  ``Xor`` / ``Equivalent``, and first-order ``ForAll`` / ``Exists`` — without ``parse_expr``
+  or ``eval``. ``If`` / ``Quantifier`` / wrong-case ``Forall`` stay rejected. The
   ``0.9.7`` ``parse_expr``-is-``eval`` lesson is not re-learned: the shared SymPy gate is
-  not widened.
+  not widened. No new AST node types for binders (no list / tuple / lambda).
 - **Relation bridge.** ``relation_to_z3`` still reuses the hardened ``split_relation`` +
   ``parse`` gate for a single top-level relation (the 0.13.x path).
 - **Two-stage validity solver.** ``solve`` first checks hypotheses alone (vacuous-proof guard),
@@ -42,8 +43,11 @@ SORTS = frozenset({"int", "real", "bool"})
 
 # Names an agent or human may not declare as variables — they are the formula language.
 _CONNECTIVE_FUNCS = frozenset({"And", "Or", "Not", "Implies", "Xor", "Equivalent", "Iff"})
-_BANNED_FUNCS = frozenset({"ForAll", "Exists", "Forall", "Quantifier", "If"})
-RESERVED_NAMES = _CONNECTIVE_FUNCS | _BANNED_FUNCS | frozenset({"True", "False"})
+_QUANTIFIER_FUNCS = frozenset({"ForAll", "Exists"})
+_BANNED_FUNCS = frozenset({"Forall", "Quantifier", "If"})
+_FORMULA_FUNCS = _CONNECTIVE_FUNCS | _QUANTIFIER_FUNCS
+RESERVED_NAMES = _FORMULA_FUNCS | _BANNED_FUNCS | frozenset({"True", "False"})
+_MAX_QUANTIFIER_BINDERS = 8
 
 # Relational op → Z3 boolean constructor over two terms of matching sort.
 _OP_TO_Z3 = {
@@ -64,9 +68,10 @@ _COMPARE_OPS: dict[type[ast.cmpop], str] = {
     ast.GtE: ">=",
 }
 
-# Closed AST allow-list for QF boolean formulas. Attribute access, subscripting, lambdas,
-# comprehensions, and string/bytes literals are absent — the same eval-escape class the
-# shared SymPy gate closes, applied here without ever calling ``parse_expr``.
+# Closed AST allow-list for boolean / first-order formulas. Attribute access, subscripting,
+# lambdas, lists, tuples, comprehensions, and string/bytes literals are absent — the same
+# eval-escape class the shared SymPy gate closes, applied here without ever calling
+# ``parse_expr``. Binders are bare ``Name`` arguments (``ForAll(x, y, body)``), not lists.
 _ALLOWED_FORMULA_AST = frozenset(
     {
         ast.Expression,
@@ -100,7 +105,7 @@ _ALLOWED_FORMULA_AST = frozenset(
 _MAX_FORMULA_AST_NODES = 500
 _MAX_POW_EXPONENT = 1000
 
-# Presentation-only connective TeX. Never hashed (``*_latex`` is stripped).
+# Presentation-only connective / quantifier TeX. Never hashed (``*_latex`` is stripped).
 _CONNECTIVE_LATEX = {
     "And": r"\land",
     "Or": r"\lor",
@@ -109,6 +114,10 @@ _CONNECTIVE_LATEX = {
     "Xor": r"\oplus",
     "Equivalent": r"\leftrightarrow",
     "Iff": r"\leftrightarrow",
+}
+_QUANTIFIER_LATEX = {
+    "ForAll": r"\forall",
+    "Exists": r"\exists",
 }
 _COMPARE_LATEX = {
     "==": "=",
@@ -248,7 +257,7 @@ def _parse_formula_ast(text: str) -> ast.Expression:
         if type(node) not in _ALLOWED_FORMULA_AST:
             raise ValueError(
                 f"unsupported syntax ({type(node).__name__}) — only arithmetic, "
-                "relations, and And/Or/Not/Implies/Xor/Equivalent are permitted"
+                "relations, And/Or/Not/Implies/Xor/Equivalent, and ForAll/Exists are permitted"
             )
         if isinstance(node, ast.Name) and node.id.startswith("_"):
             raise ValueError(f"name {node.id!r} is not allowed")
@@ -259,12 +268,12 @@ def _parse_formula_ast(text: str) -> ast.Expression:
                 raise ValueError("only direct calls to named connectives are allowed")
             if node.func.id in _BANNED_FUNCS:
                 raise ValueError(
-                    f"{node.func.id} is out of scope for 0.38.0 — quantifiers / If stay later"
+                    f"{node.func.id} is out of scope — If / Quantifier / Forall stay rejected"
                 )
-            if node.func.id not in _CONNECTIVE_FUNCS:
+            if node.func.id not in _FORMULA_FUNCS:
                 raise ValueError(
                     f"unsupported function {node.func.id!r} — only "
-                    "And, Or, Not, Implies, Xor, Equivalent (Iff) are allowed"
+                    "And, Or, Not, Implies, Xor, Equivalent (Iff), ForAll, Exists are allowed"
                 )
         if isinstance(node, ast.Constant) and not isinstance(node.value, int | bool):
             # bool is a subclass of int — accepted above. floats / strings / None / complex go here.
@@ -297,7 +306,7 @@ def _is_bool_root(node: ast.AST) -> bool:
     if (
         isinstance(node, ast.Call)
         and isinstance(node.func, ast.Name)
-        and node.func.id in _CONNECTIVE_FUNCS
+        and node.func.id in _FORMULA_FUNCS
     ):
         return True
     if isinstance(node, ast.Name):
@@ -314,7 +323,7 @@ def assert_formula_shape(text: str) -> None:
     if not _is_bool_root(tree.body):
         raise ValueError(
             "must be a relation or boolean formula "
-            "(And/Or/Not/Implies/Xor/Equivalent), not a bare arithmetic expression"
+            "(And/Or/Not/Implies/Xor/Equivalent/ForAll/Exists), not a bare arithmetic expression"
         )
 
 
@@ -416,7 +425,7 @@ def _bool_shaped(node: ast.AST, env: dict[str, z3.ExprRef]) -> bool:
     if (
         isinstance(node, ast.Call)
         and isinstance(node.func, ast.Name)
-        and node.func.id in _CONNECTIVE_FUNCS
+        and node.func.id in _FORMULA_FUNCS
     ):
         return True
     if isinstance(node, ast.Constant) and isinstance(node.value, bool):
@@ -459,6 +468,8 @@ def _formula_ast_to_z3(node: ast.AST, env: dict[str, z3.ExprRef]) -> z3.BoolRef:
 
     if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
         name = node.func.id
+        if name in _QUANTIFIER_FUNCS:
+            return _quantifier_ast_to_z3(name, node.args, env)
         args = [_formula_ast_to_z3(arg, env) for arg in node.args]
         if name == "And":
             if len(args) < 1:
@@ -491,8 +502,39 @@ def _formula_ast_to_z3(node: ast.AST, env: dict[str, z3.ExprRef]) -> z3.BoolRef:
 
     raise ValueError(
         f"unsupported formula node {type(node).__name__} — only relations, bool variables, "
-        "and And/Or/Not/Implies/Xor/Equivalent are allowed"
+        "And/Or/Not/Implies/Xor/Equivalent, and ForAll/Exists are allowed"
     )
+
+
+def _quantifier_ast_to_z3(
+    kind: str,
+    args: list[ast.AST],
+    env: dict[str, z3.ExprRef],
+) -> z3.BoolRef:
+    """Translate ``ForAll(x, y, body)`` / ``Exists(x, body)`` — binders are declared Names."""
+    if len(args) < 2:
+        raise ValueError(f"{kind} needs at least one binder and a body")
+    *binder_nodes, body_node = args
+    if len(binder_nodes) > _MAX_QUANTIFIER_BINDERS:
+        raise ValueError(f"{kind} has too many binders (max {_MAX_QUANTIFIER_BINDERS})")
+    binders: list[z3.ExprRef] = []
+    seen: set[str] = set()
+    for node in binder_nodes:
+        if not isinstance(node, ast.Name):
+            raise ValueError(
+                f"{kind} binder must be a declared variable name, not {type(node).__name__}"
+            )
+        name = node.id
+        if name in RESERVED_NAMES:
+            raise ValueError(f"{name!r} cannot be a quantifier binder")
+        if name in seen:
+            raise ValueError(f"duplicate binder {name!r}")
+        seen.add(name)
+        binders.append(_lookup(name, env))
+    body = _formula_ast_to_z3(body_node, env)
+    if kind == "ForAll":
+        return z3.ForAll(binders, body)
+    return z3.Exists(binders, body)
 
 
 def _compare_ast_to_z3(node: ast.Compare, env: dict[str, z3.ExprRef]) -> z3.BoolRef:
@@ -526,17 +568,20 @@ def _compare_ast_to_z3(node: ast.Compare, env: dict[str, z3.ExprRef]) -> z3.Bool
 
 
 def formula_to_z3(text: str, env: dict[str, z3.ExprRef]) -> z3.BoolRef:
-    """Parse a quantifier-free boolean formula and translate it to Z3.
+    """Parse a boolean / first-order formula and translate it to Z3.
 
     Accepts a top-level relation (``x + y > 0``), a connective tree
     (``Implies(And(P, Q), P)``), Python ``and`` / ``or`` / ``not``, a declared
-    bool variable, or ``True`` / ``False``. No ``eval``, no ``parse_expr``.
+    bool variable, ``True`` / ``False``, or a quantifier
+    (``ForAll(x, x + 0 == x)``, ``Exists(x, y, And(x > 0, y > x))``).
+    Binders must already be declared (sort comes from ``variables``).
+    No ``eval``, no ``parse_expr``.
     """
     tree = _parse_formula_ast(text)
     if not _is_bool_root(tree.body):
         raise ValueError(
             "must be a relation or boolean formula "
-            "(And/Or/Not/Implies/Xor/Equivalent), not a bare arithmetic expression"
+            "(And/Or/Not/Implies/Xor/Equivalent/ForAll/Exists), not a bare arithmetic expression"
         )
     return _formula_ast_to_z3(tree.body, env)
 
@@ -581,6 +626,14 @@ def _formula_ast_to_latex(node: ast.AST) -> str:
         op = r"\land" if isinstance(node.op, ast.And) else r"\lor"
         return f" {op} ".join(f"({_formula_ast_to_latex(v)})" for v in node.values)
     if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+        if node.func.id in _QUANTIFIER_FUNCS and len(node.args) >= 2:
+            *binder_nodes, body_node = node.args
+            names = ", ".join(
+                arg.id if isinstance(arg, ast.Name) else _formula_ast_to_latex(arg)
+                for arg in binder_nodes
+            )
+            quant = _QUANTIFIER_LATEX[node.func.id]
+            return rf"{quant} {names}.\ {_formula_ast_to_latex(body_node)}"
         op = _CONNECTIVE_LATEX.get(node.func.id, node.func.id)
         rendered = [_formula_ast_to_latex(arg) for arg in node.args]
         if node.func.id == "Not" and len(rendered) == 1:

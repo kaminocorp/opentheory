@@ -1,5 +1,10 @@
 # Roadmap Next Steps
 
+> **Last updated:** 2026-09-26 · **Current release line:** `0.39.0`
+> (Z3 first-order quantifiers), sitting on shipped `0.38.0`
+> (boolean connectives, `e0e118b`, #28) on current `main`.
+> See `docs/completions/z3-quantifiers-0.39.0.md`.
+>
 > **Last updated:** 2026-09-26 · **Current release line:** `0.36.1`
 > (research-git blame), sitting on shipped `0.35.0`
 > **Last updated:** 2026-09-26 · **Current release line:** `0.36.3`
@@ -38,7 +43,7 @@
 > `docs/archive/project-deepdive-tabs-0.14.md`.
 >
 > **Next after this line:** the still-owed browser eyeball pass.
-> Quantifiers on Z3 remain later. Lean REPL / LeanDojo remain later.
+> ~~Quantifiers on Z3~~ ✅ shipped as `0.39.0`. Lean REPL / LeanDojo remain later.
 > Does not claim `0.36.1` / `0.36.2` / `0.37.0`. `0.33.0`–`0.36.0` are
 > on `main`. ~~Boolean connectives / `bool` sort~~ ✅ shipped as `0.38.0`.
 > Unmerged assessment remediations (`0.36.1` / `0.36.2`) are not
@@ -448,7 +453,7 @@ no false-proof path exists.
 
 - ~~`z3.satisfy` — model-finding as the primary output.~~ ✅ shipped as `0.33.0`.
 - ~~Boolean connectives / `bool` sort (needs a parser beyond `split_relation`).~~ ✅ shipped as `0.38.0`.
-- Quantifiers; full replayable proof terms (out of scope for v1).
+- ~~Quantifiers~~ ✅ shipped as `0.39.0`; full replayable proof terms (out of scope for v1).
 - **Lean + Mathlib** (Tier 2 remainder) — `lean.prove` shipped in `0.23.0`
   (prelude / `Init`) and `0.26.0` (optional Mathlib / offline `lake`). REPL /
   LeanDojo are still later.
@@ -568,7 +573,7 @@ changing branch protection.
 17. ~~**`z3.satisfy` model-finding**~~ ✅ shipped as `0.33.0` — sat → concrete
     model; unsat → honest no-model; unknown/timeout → undecided.
     ~~Boolean connectives / `bool` sort~~ ✅ shipped as `0.38.0`.
-    Quantifiers remain later.
+    ~~Quantifiers~~ ✅ shipped as `0.39.0`.
 18. ~~**`interval.eval` proven enclosures**~~ ✅ shipped as `0.35.0` — Arb
     ball / mpmath.iv fallback; Grade C support, B on a definitive miss;
     never A. Overlap is honest `undecided`.
@@ -616,6 +621,7 @@ changing branch protection.
 | `0.36.x` | Research-git blame — derived checkpoint / actor / instrument chain for a claim |
 | `0.38.x` | Boolean connectives + `bool` sort on `z3.prove` / `z3.satisfy` |
 | `0.37.x` | GitHub Actions CI with Postgres — ruff / pytest (DB-gated) + frontend typecheck/lint/test/build |
+| `0.39.x` | First-order `ForAll` / `Exists` on the same closed Z3 formula AST |
 
 ## Success criteria for the next milestone
 
@@ -685,7 +691,7 @@ auto-validates or auto-funds.
 **`0.33.0` (`z3.satisfy`)** is shipped: model-finding as a first-class
 instrument. `sat` lands a concrete model; `unsat` is an honest no-model
 (`refuted`); timeout / `unknown` is `undecided`. Boolean connectives
-shipped later as `0.38.0`. Quantifiers remain later. Lean REPL /
+shipped later as `0.38.0`. Quantifiers shipped as `0.39.0`. Lean REPL /
 LeanDojo remain later.
 
 **`0.34.0` (Bench 6 tables & plots)** is shipped: typed tables, a computed
@@ -702,8 +708,13 @@ Never Grade A from an interval alone. Sits on `0.34.0`.
 `z3.satisfy` accept `And` / `Or` / `Not` / `Implies` / `Xor` /
 `Equivalent` and a `bool` sort on the existing InputModel. Grade A
 only on a real Z3 success; vacuous hypotheses stay undecided.
-Quantifiers are not in this release. Does not claim `0.36.1` /
-`0.36.2` / `0.37.0`.
+Quantifiers shipped later as `0.39.0`. Does not claim `0.36.1` /
+`0.36.2` / `0.37.0` (those have since landed on `main`).
+
+**`0.39.0` (Z3 first-order quantifiers)** is shipped: `ForAll` /
+`Exists` on the same closed formula AST. Binders are declared names.
+`If` / ite / replayable proof terms are not in this release. Sits on
+shipped `0.38.0` (`e0e118b`).
 
 **Next product step:** the still-owed browser eyeball pass.
-Quantifiers on Z3 remain later. Lean REPL / LeanDojo remain later.
+Lean REPL / LeanDojo remain later. `If` / ite remain later.

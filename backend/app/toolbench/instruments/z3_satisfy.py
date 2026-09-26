@@ -1,7 +1,8 @@
 """``z3.satisfy`` — machine-checked model-finding under linear (and honest nonlinear) arithmetic.
 
-Given typed variables (``int`` / ``real`` / ``bool``) and constraints — each a relation or
-a quantifier-free boolean formula — ask Z3 whether a concrete assignment exists:
+Given typed variables (``int`` / ``real`` / ``bool``) and constraints — each a relation, a
+boolean formula, or a first-order ``ForAll`` / ``Exists`` — ask Z3 whether a concrete
+assignment exists:
 
 - **``result``** (``artifact_kind="model"``) — ``sat``: a concrete assignment of the declared
   variables (exact ints / rationals / ``true``/``false`` as strings).
@@ -11,7 +12,7 @@ a quantifier-free boolean formula — ask Z3 whether a concrete assignment exist
   incompleteness.
 
 Unlike ``z3.prove``, there is no goal and no vacuous-hypotheses guard: ``unsat`` *is* the
-honest no-model outcome. Quantifiers stay out of scope.
+honest no-model outcome. ``If`` / ``Quantifier`` stay out of scope.
 """
 
 from __future__ import annotations
@@ -53,8 +54,8 @@ class Z3SatisfyInput(BaseModel):
         default_factory=list,
         max_length=_MAX_CONSTRAINTS,
         description=(
-            "Constraints — each a relation or a boolean formula "
-            "(And/Or/Not/Implies/Xor/Equivalent). Conjoined. "
+            "Constraints — each a relation, a boolean formula "
+            "(And/Or/Not/Implies/Xor/Equivalent), or ForAll/Exists. Conjoined. "
             "Empty means any assignment of the declared sorts is a model."
         ),
     )
@@ -117,19 +118,19 @@ class Z3SatisfyOutput(BaseModel):
 
 
 class Z3Satisfy:
-    """Machine-checked model-finding over QF arithmetic and propositional connectives."""
+    """Machine-checked model-finding over arithmetic, connectives, and first-order quantifiers."""
 
     name = "z3.satisfy"
     namespace = "z3"
-    version = "0.2.0"
+    version = "0.3.0"
     engine = ENGINE
     engine_version = ENGINE_VERSION
     description = (
         "Find a concrete model of typed constraints via Z3. "
         "Sorts: int, real, bool. Connectives: And, Or, Not, Implies, Xor, Equivalent. "
+        "Quantifiers: ForAll, Exists (binders are declared names). "
         "sat yields an exact assignment; unsat is a machine-checked proof that no model "
-        "exists; unknown is honest undecided — never a fabricated model. "
-        "Quantifiers are out of scope."
+        "exists; unknown is honest undecided — never a fabricated model."
     )
     InputModel = Z3SatisfyInput
     OutputModel = Z3SatisfyOutput

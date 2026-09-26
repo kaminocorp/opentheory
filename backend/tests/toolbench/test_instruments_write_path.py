@@ -741,6 +741,75 @@ async def test_z3_satisfy_boolean_unsat_weakens_with_no_model(
     assert entry["output"]["model"] is None
 
 
+# --- 0.39.0: first-order quantifiers through the chokepoint --------------------------------------
+
+
+async def test_z3_prove_forall_identity_lands_a_proof(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """∀x. x + 0 = x — a formula 0.38.0 rejected — still a real proof artifact."""
+    actor_id = await _actor(client)
+    project_id = await _project(client, "instr-z3-forall-proof")
+    pid = UUID(project_id)
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        run = await run_instrument(
+            session,
+            pid,
+            Z3_PROVE,
+            actor,
+            inputs={
+                "variables": {"x": "int"},
+                "constraints": [],
+                "goal": "ForAll(x, x + 0 == x)",
+            },
+        )
+
+    assert run.status is ResultStatus.RESULT
+    async with session_factory() as session:
+        artifact = await session.get(Artifact, run.artifact_id)
+        assert artifact.kind == "proof"
+    entry = run.checkpoint.tool_invocations[0]
+    assert entry["instrument"] == "z3.prove"
+    assert entry["engine"] == "z3"
+    assert entry["output"]["proven"] is True
+    assert entry["output"]["certificate"] == "unsat"
+
+
+async def test_z3_satisfy_exists_contradiction_weakens_with_no_model(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """Exists(x, x > 0 ∧ x < 0) is unsat — proof artifact, never a fabricated assignment."""
+    actor_id = await _actor(client)
+    project_id = await _project(client, "instr-z3-exists-unsat")
+    thread_id = await _thread(client, project_id, actor_id)
+    claim_id = await _claim(client, thread_id, actor_id, "Some integer is both positive and negative.")
+    pid = UUID(project_id)
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        run = await run_instrument(
+            session,
+            pid,
+            Z3_SATISFY,
+            actor,
+            inputs={
+                "variables": {"x": "int"},
+                "constraints": ["Exists(x, And(x > 0, x < 0))"],
+            },
+            claim_id=UUID(claim_id),
+        )
+
+    assert run.status is ResultStatus.REFUTED
+    async with session_factory() as session:
+        artifact = await session.get(Artifact, run.artifact_id)
+        assert artifact.kind == "proof"
+    entry = run.checkpoint.tool_invocations[0]
+    assert entry["output"]["unsatisfiable"] is True
+    assert entry["output"]["model"] is None
+
+
 # --- 0.23.0: lean.prove through the chokepoint ----------------------------------------------------
 
 

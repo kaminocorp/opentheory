@@ -3,7 +3,7 @@
 Cases that ``split_relation`` could not express (``Implies(And(P, Q), P)``, mixed
 arithmetic + propositional structure). Honesty contract is unchanged: Grade A /
 ``proven`` only on a real Z3 validity success; vacuous hypotheses stay undecided;
-parse / quantifier / injection failures raise (mint nothing).
+parse / If / injection failures raise (mint nothing). ForAll / Exists land in 0.39.0.
 """
 
 from __future__ import annotations
@@ -253,14 +253,15 @@ def test_satisfy_python_not() -> None:
 # --- translator safety: closed allow-list, no false-proof path ------------------------------------
 
 
-def test_quantifiers_are_rejected() -> None:
-    with pytest.raises(ValidationError, match="out of scope|ForAll|unsupported"):
+def test_wrong_case_forall_and_quantifier_stay_rejected() -> None:
+    """0.39.0 adds ForAll/Exists; Forall / Quantifier / list binders stay closed-out."""
+    with pytest.raises(ValidationError, match="out of scope|Forall|unsupported"):
         Z3_PROVE.InputModel.model_validate(
-            {"variables": {"P": "bool"}, "constraints": [], "goal": "ForAll(P, P)"}
+            {"variables": {"P": "bool"}, "constraints": [], "goal": "Forall(P, P)"}
         )
-    with pytest.raises(ValidationError, match="out of scope|Exists|unsupported"):
+    with pytest.raises(ValidationError, match="out of scope|Quantifier|unsupported"):
         Z3_SATISFY.InputModel.model_validate(
-            {"variables": {"P": "bool"}, "constraints": ["Exists(P, P)"]}
+            {"variables": {"P": "bool"}, "constraints": ["Quantifier(P, P)"]}
         )
 
 
@@ -386,10 +387,10 @@ def test_boolean_prove_runs_through_the_killable_subprocess(
     assert proof.status is ResultStatus.RESULT
     assert proof.output["proven"] is True
 
-    with pytest.raises(ValueError, match="out of scope|ForAll|unsupported"):
+    with pytest.raises(ValueError, match="out of scope|If|unsupported"):
         run_bounded_sync(
             "z3.prove",
-            {"variables": {"P": "bool"}, "constraints": [], "goal": "ForAll(P, P)"},
+            {"variables": {"P": "bool", "Q": "bool"}, "constraints": [], "goal": "If(P, Q, P)"},
             {},
             limits,
         )
