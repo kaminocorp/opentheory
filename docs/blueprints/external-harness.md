@@ -1,7 +1,8 @@
 # External harness actor path
 
-> **What is (`0.40.0`).** Milestone 0: docs + fail-closed Cordis
-> composition + fixture MCP. The live binding is not shipped. If this
+> **What is (`0.41.0`).** Milestone 0 composition + fixture, plus the
+> live MCP door (`live_mcp.py`) bound to JWT Actor + membership + the
+> existing chokepoints. Gateway / Fly enablement are not shipped. If this
 > blueprint disagrees with `backend/app/harness/`, the code wins.
 
 ## The rule
@@ -20,17 +21,19 @@ earn a parallel data model.
 
 - `docs/harness/` — plan, compatibility, tool contracts, prior-art note
 - `backend/app/harness/` — composition verify, `opentheory.cordis.yml`,
-  fixture MCP, probe (live skip)
+  fixture MCP (M0 probes), live MCP door, probe (OpenRouter skip)
+- JWT-file injection (`OPENTHEORY_ACTOR_JWT_FILE`) so the bearer never
+  enters session / probe logs
 - Optional `[harness]` extra for `deepseek-harness-sdk==0.1.5rc1`
-- Tests that run in default CI without a key or a `dsh` binary
+- Tests that run in default CI without a key or a `dsh` binary; ledger
+  tests skip without `TEST_DATABASE_URL`
 
 The FastAPI app does not import this package. Fly does not run it.
 `AGENT_LOOP_ENABLED` is untouched (default `false`).
 
 ## What does not exist yet
 
-- Live MCP handlers bound to JWT + membership
-- Gateway + turn supervision
+- Gateway + turn supervision (`0.42.0`)
 - A reference campaign on this path
 - Perpetual ops dashboard
 - Any new Alembic revision
@@ -46,11 +49,14 @@ persona is a research contributor. Composition fails closed on drift.
 
 No settlement outside instruments. A harness turn that cannot call
 `run_instrument` / `create_checkpoint` cannot mint a checkpoint. The
-M0 fixture returns `minted: false` on purpose.
+M0 fixture still returns `minted: false` on purpose. The live door
+returns `minted: true` only after the chokepoint commits.
 
 `ComputeDebit` remains the compute-spend ledger (contributor, not
 funder). `FundingAllocation` stays money. `Validation` stays assessment.
-The external path must not conflate those tables.
+The external path must not conflate those tables. A funded project with
+`available <= 0` refuses live writes. Standalone instrument runs do not
+debit — same as humans. Token metering is the gateway slice.
 
 ## Relationship to the built-in planner
 

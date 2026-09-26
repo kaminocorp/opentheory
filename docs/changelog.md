@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.41.0` — **Live OpenTheory MCP domain door.** The M0 stems bind to the existing chokepoints: JWT Actor (file-path injection, never logged) + `ensure_is_member` → real `run_instrument` / `create_checkpoint`, plus claim / thread / budget reads. Fixture MCP stays for M0 probe tests. FastAPI still does not import the package. Does not light `AGENT_LOOP_ENABLED`. A funded exhausted pot refuses and mints nothing; standalone instrument runs still do not debit (same as humans). **Backend + docs — no schema, no migration.** Sits on shipped `0.40.0` (`901b3de`, #33).
 - `0.40.0` — **External DeepSeek Harness Milestone 0.** Docs + fail-closed Cordis composition + fixture MCP probe scaffolding. The external adapter lives outside the product loop; OpenTheory's only domain door is a thin MCP plugin (`run_instrument`, `create_checkpoint`, context/budget reads). M0 does not bind those tools to the live ledger, does not light `AGENT_LOOP_ENABLED`, and does not enable the harness on Fly. Default CI stays green without `OPENROUTER_API_KEY` or the optional `[harness]` extra (`deepseek-harness-sdk==0.1.5rc1`). **Backend + docs — no schema, no migration.** Sits on shipped `0.39.0` (`00b20bc`, #31) / current `main` `921cdd1`.
 - `0.39.0` — **First-order quantifiers for `z3.prove` / `z3.satisfy`.** Closed allow-list grows `ForAll` / `Exists` on the existing 0.38.0 formula AST — dedicated walker, no `eval`, no widening of the shared SymPy gate, no new AST node types for binders. `∀x. x + 0 = x` is now a real Z3 proof. Vacuous-hypotheses guard and timeout→undecided stay. Quiet drive-form hint update. **No schema, no migration.** On `main` as `00b20bc` (#31). Sits on shipped `0.38.0` (`e0e118b`, #28).
 - `0.38.0` — **Boolean connectives for `z3.prove` / `z3.satisfy`.** Closed allow-list of `And` / `Or` / `Not` / `Implies` / `Xor` / `Equivalent` plus a `bool` sort, through the existing instruments — no parallel language, no `eval`, no quantifiers. `(P ∧ Q) → P` is now a real Z3 proof. Vacuous-hypotheses guard and timeout→undecided stay. Quiet drive-form sort + hint update. **No schema, no migration.** On `main` as `e0e118b` (#28). Sits on shipped `0.36.0` blame (`71a8929`, #21).
@@ -112,6 +113,49 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.41.0
+
+**Live OpenTheory MCP domain door.** Second slice of the external
+agent adapter. The capability tree from `0.40.0` now has a real door:
+a stdio MCP child authenticates as a JWT Actor, passes membership, and
+calls the same `run_instrument` / `create_checkpoint` services humans
+use. The M0 fixture stays for composition probes. **No schema, no
+migration.** Sits on shipped `0.40.0` (`901b3de`, #33). Does not flip
+`AGENT_LOOP_ENABLED`. Does not invent a parallel settlement path.
+
+- **Live MCP.** `backend/app/harness/live_mcp.py` — same stems as M0.
+  Unknown tools rejected. Exceptions mint nothing. Reads
+  (`list_claims`, `get_thread_context`, `get_budget`) compose existing
+  claim / thread / grounding / `project_budget` models and mint
+  nothing.
+- **Auth injection.** Preferred `OPENTHEORY_ACTOR_JWT_FILE` (path only
+  in the Cordis `env` block). Raw `OPENTHEORY_ACTOR_JWT` is accepted
+  but never logged. `OPENTHEORY_DEV_ACTOR_ID` is the flagged local/test
+  `X-Dev-Actor-Id` path. Probe logs redact secret keys. Resolution is
+  the FastAPI `ActingActor` path (`resolve_actor_from_bearer`).
+- **Budget honesty.** A funded project with `available <= 0` refuses
+  writes (`project budget exhausted`) and mints nothing. Unfunded
+  projects are not treated as exhausted. Standalone instrument runs
+  still do not debit `ComputeDebit` — gateway metering is `0.42.0`.
+- **Fixture kept.** `fixture_mcp.py` still returns `minted: false`.
+  FastAPI does not import the package.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 756 passed, 237 skipped (no TEST_DATABASE_URL)
+# +12 vs shipped 0.40.0 (744) — live auth + inventory; +10 skipped (ledger suite)
+# CI / local with TEST_DATABASE_URL: 989 passed, 4 skipped — +22 vs 0.40.0 (967)
+# Frontend untouched — typecheck/lint/test/build unchanged
+```
+
+See `docs/completions/live-mcp-domain-door-0.41.0.md`.
+
+**Not in this release:** OpenRouter gateway + turn supervision
+(`0.42.0`); a reference campaign; perpetual ops dashboard; Lean REPL /
+LeanDojo; lighting `AGENT_LOOP_ENABLED`.
 
 ---
 

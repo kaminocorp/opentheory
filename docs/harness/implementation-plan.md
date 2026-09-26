@@ -1,7 +1,7 @@
 # External DeepSeek Harness — implementation plan
 
-> **Status — `0.40.0` Milestone 0 is this slice.** Docs + fail-closed Cordis
-> composition + a fixture MCP probe. Not a product loop. Not enabled on Fly.
+> **Status — `0.41.0` Milestone 1 is this slice** (live MCP door), sitting
+> on shipped `0.40.0` Milestone 0. Not a product loop. Not enabled on Fly.
 > Does not light `AGENT_LOOP_ENABLED`.
 
 The external agent adapter lives **outside** the built-in OpenRouter planner
@@ -25,15 +25,15 @@ runtime with a composed capability tree, talking to OpenTheory only through
 MCP. Same `Actor`, same membership, same `ComputeDebit` — different
 ownership of the session.
 
-Milestone 0 does **not** bind the live APIs. It pins the composition so a
-later binding cannot quietly grow a shell.
+Milestone 0 pinned the composition so a later binding cannot quietly grow
+a shell. Milestone 1 (`0.41.0`) binds the live APIs through that door.
 
 ## Milestones
 
 | Slice | What ships | What must stay out |
 | --- | --- | --- |
-| **0 — `0.40.0` (this)** | Docs, `opentheory.cordis.yml`, composition verify, fixture MCP (`echo_nonce` + stub domain tools), probe that skips without a key / SDK | Live ledger writes; gateway; Fly enablement; `AGENT_LOOP_ENABLED` |
-| **1 — `0.41.0`** | Live MCP binding: JWT Actor + `ensure_is_member` + real `run_instrument` / `create_checkpoint` + claim/thread/budget reads | Gateway supervision; campaigns; a second settlement path |
+| **0 — `0.40.0`** | Docs, `opentheory.cordis.yml`, composition verify, fixture MCP (`echo_nonce` + stub domain tools), probe that skips without a key / SDK | Live ledger writes; gateway; Fly enablement; `AGENT_LOOP_ENABLED` |
+| **1 — `0.41.0` (this)** | Live MCP binding: JWT Actor + `ensure_is_member` + real `run_instrument` / `create_checkpoint` + claim/thread/budget reads | Gateway supervision; campaigns; a second settlement path |
 | **2 — `0.42.0`** | OpenRouter gateway + turn supervision in the API (provider allowlist, `allow_fallbacks: false`, `require_parameters: true`, `data_collection: deny`) | Lighting the built-in planner; daily caps |
 | **3 — later** | Reference campaign (odd perfect numbers) on the external path | Auto-validate / auto-fund / auto-merge |
 | **4 — later** | Perpetual ops dashboard; daily turn/request caps | Lean REPL / LeanDojo (separate line) |
@@ -67,8 +67,8 @@ Default `uv sync --group dev` (CI) must not need the DeepSeek SDK or a
 
 `python -m app.harness` always verifies composition + fixture inventory.
 A live OpenRouter round-trip is opt-in (`OPENTHEORY_HARNESS_LIVE=1`) and
-still **not implemented** in 0.40.0 — missing key / missing runtime skip
-cleanly. That is honesty, not a hidden pass.
+still **not implemented** — missing key / missing runtime skip cleanly.
+The live *MCP* door is `python -m app.harness.live_mcp` (`0.41.0`).
 
 ## Invariants this line must not break
 

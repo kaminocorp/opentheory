@@ -1,5 +1,10 @@
 # Roadmap Next Steps
 
+> **Last updated:** 2026-09-26 · **Current release line:** `0.41.0`
+> (live OpenTheory MCP domain door), sitting on shipped `0.40.0`
+> (external DeepSeek Harness M0, `901b3de`, #33) on current `main`.
+> See `docs/completions/live-mcp-domain-door-0.41.0.md`.
+>
 > **Last updated:** 2026-09-26 · **Current release line:** `0.40.0`
 > (external DeepSeek Harness Milestone 0), sitting on shipped `0.39.0`
 > (Z3 first-order quantifiers, `00b20bc`, #31) on current `main`
@@ -47,9 +52,11 @@
 > (A–D) is closed; the archive plan is at
 > `docs/archive/project-deepdive-tabs-0.14.md`.
 >
-> **Next after this line:** live OT MCP binding (`0.41.0`) on the
-> external harness path; the still-owed browser eyeball pass.
-> ~~External harness M0~~ ✅ this branch as `0.40.0`.
+> **Next after this line:** OpenRouter gateway + turn supervision
+> (`0.42.0`) on the external harness path; the still-owed browser
+> eyeball pass.
+> ~~Live OT MCP binding~~ ✅ this branch as `0.41.0`.
+> ~~External harness M0~~ ✅ shipped as `0.40.0` (`901b3de`, #33).
 > ~~Quantifiers on Z3~~ ✅ shipped as `0.39.0`. Lean REPL / LeanDojo remain later.
 > Does not claim `0.36.1` / `0.36.2` / `0.37.0`. `0.33.0`–`0.36.0` are
 > on `main`. ~~Boolean connectives / `bool` sort~~ ✅ shipped as `0.38.0`.
@@ -160,7 +167,7 @@ bypassing the checkpoint chokepoint or conflating funder / contributor / validat
 
 ## Recommended next releases
 
-### `0.40.x` — External DeepSeek Harness Milestone 0 ✅ **this branch** (`0.40.0`)
+### `0.40.x` — External DeepSeek Harness Milestone 0 ✅ **shipped** (`0.40.0`)
 
 Delivered: docs (`docs/harness/`, blueprint
 `docs/blueprints/external-harness.md`), fail-closed Cordis composition
@@ -175,12 +182,24 @@ the optional `[harness]` extra. FastAPI does not import the package.
 turn supervision (`0.42.0`); reference campaign; ops dashboard;
 lighting the built-in planner.
 
-### `0.41.x` — Live OT MCP binding (next on this line)
+### `0.41.x` — Live OT MCP binding ✅ **this branch** (`0.41.0`)
 
-Wire the fixture stems to the real APIs: verified JWT Actor,
-`ensure_is_member`, `run_instrument` / `create_checkpoint` chokepoints,
-plus claim / thread / budget reads. Still no gateway, still no
-`AGENT_LOOP_ENABLED` flip, still no settlement outside instruments.
+Delivered: the M0 stems bound to the live ledger. JWT Actor (file-path
+injection, never logged) + `ensure_is_member` + real `run_instrument` /
+`create_checkpoint` + claim / thread / budget reads. Fixture MCP stays
+for M0 probes. FastAPI still does not import the package.
+`AGENT_LOOP_ENABLED` stays dark. **No schema, no migration.** See
+`docs/completions/live-mcp-domain-door-0.41.0.md`.
+
+**Not in this release:** OpenRouter gateway + turn supervision
+(`0.42.0`); reference campaign; ops dashboard; lighting the built-in
+planner.
+
+### `0.42.x` — OpenRouter gateway + turn supervision (next on this line)
+
+Provider allowlist, `allow_fallbacks: false`, `require_parameters: true`,
+`data_collection: deny`. Token spend debits `ComputeDebit` the same way
+the built-in planner does. Still no `AGENT_LOOP_ENABLED` flip.
 
 ### `0.32.x` — Concurrent campaign cycles under project budget ✅ **shipped** (`0.32.0`)
 
@@ -611,9 +630,9 @@ changing branch protection.
 20. ~~**GitHub Actions CI with Postgres**~~ ✅ shipped as `0.37.0` —
     the contribution contract on every PR, with the DB-gated suite
     actually running. Lean / Mathlib stay off.
-21. ~~**External DeepSeek Harness Milestone 0**~~ ✅ this branch as
-    `0.40.0` — docs + fail-closed Cordis + fixture MCP. **Next on
-    this line:** live JWT MCP binding (`0.41.0`). Gateway later.
+21. ~~**External DeepSeek Harness Milestone 0**~~ ✅ shipped as
+    `0.40.0` (`901b3de`, #33) — docs + fail-closed Cordis + fixture MCP.
+    ~~**Live JWT MCP binding**~~ ✅ this branch as `0.41.0`. Gateway later.
 
 ## Shipped milestones (reference)
 
@@ -655,6 +674,7 @@ changing branch protection.
 | `0.37.x` | GitHub Actions CI with Postgres — ruff / pytest (DB-gated) + frontend typecheck/lint/test/build |
 | `0.39.x` | First-order `ForAll` / `Exists` on the same closed Z3 formula AST |
 | `0.40.x` | External DeepSeek Harness Milestone 0 — docs, fail-closed Cordis, fixture MCP |
+| `0.41.x` | Live OT MCP domain door — JWT Actor + membership + chokepoints |
 
 ## Success criteria for the next milestone
 
@@ -749,11 +769,15 @@ Quantifiers shipped later as `0.39.0`. Does not claim `0.36.1` /
 `If` / ite / replayable proof terms are not in this release. Sits on
 shipped `0.38.0` (`e0e118b`).
 
-**`0.40.0` (external DeepSeek Harness M0)** is this branch: docs +
-fail-closed Cordis composition + fixture MCP probe. No live ledger
-binding. No `AGENT_LOOP_ENABLED` flip. No schema, no migration.
+**`0.40.0` (external DeepSeek Harness M0)** is shipped (`901b3de`, #33):
+docs + fail-closed Cordis composition + fixture MCP probe. No live
+ledger binding in that slice.
 
-**Next product step:** `0.41.0` live OT MCP binding (JWT Actor +
-membership + `run_instrument` / `create_checkpoint`). The still-owed
-browser eyeball pass remains. Lean REPL / LeanDojo remain later.
-`If` / ite remain later.
+**`0.41.0` (live OT MCP domain door)** is this branch: JWT Actor +
+`ensure_is_member` + real `run_instrument` / `create_checkpoint` +
+claim / thread / budget reads. Fixture kept for M0 probes. No
+`AGENT_LOOP_ENABLED` flip. No schema, no migration.
+
+**Next product step:** `0.42.0` OpenRouter gateway + turn supervision.
+The still-owed browser eyeball pass remains. Lean REPL / LeanDojo
+remain later. `If` / ite remain later.

@@ -69,6 +69,9 @@
         env:
           OPENTHEORY_PROBE_NONCE: !!js process.env.OPENTHEORY_PROBE_NONCE
           OPENTHEORY_PROBE_LOG: !!js process.env.OPENTHEORY_PROBE_LOG
+          # Path only — never interpolate the bearer. See docs/harness/compatibility.md.
+          OPENTHEORY_ACTOR_JWT_FILE: !!js process.env.OPENTHEORY_ACTOR_JWT_FILE
+          OPENTHEORY_DEV_ACTOR_ID: !!js process.env.OPENTHEORY_DEV_ACTOR_ID
         failOnStartupError: true
         toolCallTimeoutMs: 15000
         reconnect:

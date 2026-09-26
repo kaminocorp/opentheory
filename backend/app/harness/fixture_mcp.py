@@ -1,8 +1,7 @@
 """Milestone-0 fixture MCP — probe tools that never touch the ledger.
 
-The live OpenTheory plugin (later) will expose the same stems against JWT
-Actor + membership + ``run_instrument`` / ``create_checkpoint``. This module
-is the fail-closed stand-in so composition and a stdio round-trip can be
+The live plugin is ``app.harness.live_mcp`` (``0.41.0``). This module stays
+the fail-closed stand-in so composition and a stdio round-trip can be
 tested without ``OPENROUTER_API_KEY``, the DeepSeek SDK, or Postgres.
 """
 

@@ -147,6 +147,43 @@ async def _resolve_dev_actor(db: AsyncSession, x_dev_actor_id: str | None) -> Ac
     return actor
 
 
+async def resolve_actor_from_bearer(db: AsyncSession, token: str) -> Actor:
+    """Verify ``token`` and map it to the account's primary ``human`` Actor.
+
+    Shared by the FastAPI ``ActingActor`` dependency and the live MCP door
+    (``0.41.0``) so there is one JWT → Account → Actor path. A bad/expired
+    token is ``401``; first login JIT-provisions through ``_resolve_or_provision``.
+    """
+    try:
+        # verify_bearer_token is synchronous and, on a JWKS cache miss/rotation, does a
+        # blocking network fetch. Run it off the event loop so one cold verification can't
+        # stall other in-flight requests on this single-worker machine. (Steady state is an
+        # in-memory cache hit thanks to the lifespan prewarm, so the thread hop is cheap.)
+        identity = await asyncio.to_thread(verify_bearer_token, token)
+    except AuthError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired authentication token",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+    return await _resolve_or_provision(db, identity)
+
+
+async def resolve_actor_from_dev_id(db: AsyncSession, x_dev_actor_id: str | None) -> Actor:
+    """The local/test ``X-Dev-Actor-Id`` path. Production (flag off) is ``401``.
+
+    Used by FastAPI when no bearer is present *and* by the live MCP child when
+    ``OPENTHEORY_DEV_ACTOR_ID`` is set. Not a production bypass.
+    """
+    if not settings.auth_dev_header_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return await _resolve_dev_actor(db, x_dev_actor_id)
+
+
 async def get_acting_actor(
     db: DbSession,
     authorization: Annotated[str | None, Header()] = None,
@@ -165,19 +202,7 @@ async def get_acting_actor(
     """
     token = _bearer_token(authorization)
     if token is not None:
-        try:
-            # verify_bearer_token is synchronous and, on a JWKS cache miss/rotation, does a
-            # blocking network fetch. Run it off the event loop so one cold verification can't
-            # stall other in-flight requests on this single-worker machine. (Steady state is an
-            # in-memory cache hit thanks to the lifespan prewarm, so the thread hop is cheap.)
-            identity = await asyncio.to_thread(verify_bearer_token, token)
-        except AuthError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired authentication token",
-                headers={"WWW-Authenticate": "Bearer"},
-            ) from exc
-        return await _resolve_or_provision(db, identity)
+        return await resolve_actor_from_bearer(db, token)
 
     if settings.auth_dev_header_enabled:
         return await _resolve_dev_actor(db, x_dev_actor_id)

@@ -136,13 +136,8 @@ async def create_claim(
     return _to_read(claim, [])
 
 
-async def list_claims(db: AsyncSession, thread_id: UUID) -> list[ClaimRead]:
-    result = await db.execute(
-        select(Claim)
-        .where(Claim.thread_id == thread_id)
-        .order_by(Claim.created_at.desc())
-    )
-    claims = list(result.scalars())
+async def _read_claims(db: AsyncSession, claims: list[Claim]) -> list[ClaimRead]:
+    """Batch-enrich claim rows (validation signal + grounding). No writes."""
     claim_ids = [c.id for c in claims]
     # Two batch loaders, two queries total, regardless of how many claims come back (no N+1).
     by_claim = await validation_service.validations_by_claim(db, claim_ids)
@@ -151,6 +146,25 @@ async def list_claims(db: AsyncSession, thread_id: UUID) -> list[ClaimRead]:
         _to_read(claim, by_claim.get(claim.id, []), grounded.get(claim.id))
         for claim in claims
     ]
+
+
+async def list_claims(db: AsyncSession, thread_id: UUID) -> list[ClaimRead]:
+    result = await db.execute(
+        select(Claim)
+        .where(Claim.thread_id == thread_id)
+        .order_by(Claim.created_at.desc())
+    )
+    return await _read_claims(db, list(result.scalars()))
+
+
+async def list_project_claims(db: AsyncSession, project_id: UUID) -> list[ClaimRead]:
+    """Project-scoped claim list — same enrichment as the thread list. Mints nothing."""
+    result = await db.execute(
+        select(Claim)
+        .where(Claim.project_id == project_id)
+        .order_by(Claim.created_at.desc())
+    )
+    return await _read_claims(db, list(result.scalars()))
 
 
 async def get_claim(db: AsyncSession, claim_id: UUID) -> ClaimRead:
