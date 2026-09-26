@@ -418,9 +418,10 @@ tradeoffs, and the blast radius. Look at `git log` for the house style.
   harness make this the best-paved path. See
   [`docs/plans/toolbench-catalog.md`](docs/plans/toolbench-catalog.md) for the menu.
   Tier 1 retrieval pins (Crossref / arXiv / OpenAlex) shipped in `0.18.0` on the
-  proven `source.pin` shape. `z3.prove` shipped in `0.13.x`. `lean.prove` shipped
+  proven `source.pin` shape. `z3.prove` shipped in `0.13.x`. `z3.satisfy` shipped
+  in `0.33.0`. `lean.prove` shipped
   in `0.23.0` (optional Lean, prelude/Init only). Next cheap adds: `interval.eval`,
-  `z3.satisfy`. Mathlib / `lake` are not a first contribution.
+  boolean connectives on Z3. Mathlib / `lake` are not a first contribution.
 - **Read-model surfaces** — the workspace has more ledger structure available than it
   currently shows.
 - **Tests** — particularly DB-free gate tests for security controls, and invariant

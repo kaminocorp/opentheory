@@ -118,6 +118,7 @@ def test_production_registry_holds_the_tier0_instruments() -> None:
         "arxiv.lookup",
         "openalex.lookup",
         "z3.prove",
+        "z3.satisfy",
         "lean.prove",
     } <= names
     catalog = build_catalog()

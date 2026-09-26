@@ -758,6 +758,139 @@ function Z3ProveForm({ onInputs, disabled }: FormProps) {
   );
 }
 
+// --- z3.satisfy -------------------------------------------------------------
+
+function Z3SatisfyForm({ onInputs, disabled }: FormProps) {
+  const [variables, setVariables] = useState<Z3VarRow[]>([
+    z3VarRow("x", "real"),
+    z3VarRow("y", "real"),
+  ]);
+  const [constraints, setConstraints] = useState<Z3ConstraintRow[]>([
+    z3ConstraintRow("x > 0"),
+    z3ConstraintRow("y > 0"),
+    z3ConstraintRow("x + y == 1"),
+  ]);
+  const emit = useEmit(onInputs);
+
+  useEffect(() => {
+    const vars: Record<string, Z3Sort> = {};
+    for (const row of variables) {
+      const name = row.name.trim();
+      if (!name) {
+        emit.current(null);
+        return;
+      }
+      if (name in vars) {
+        emit.current(null);
+        return;
+      }
+      vars[name] = row.sort;
+    }
+    if (Object.keys(vars).length === 0) {
+      emit.current(null);
+      return;
+    }
+
+    const hyps: string[] = [];
+    for (const row of constraints) {
+      const text = row.value.trim();
+      if (!text) {
+        emit.current(null);
+        return;
+      }
+      hyps.push(text);
+    }
+
+    emit.current({ variables: vars, constraints: hyps });
+  }, [variables, constraints, emit]);
+
+  const patchVar = (index: number, patch: Partial<Z3VarRow>) =>
+    setVariables((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+
+  return (
+    <div className="grid gap-3">
+      <Field
+        label="Variables"
+        hint="Declare free variables and their sorts (int or real). Max 8."
+      >
+        <ul className="grid gap-1.5">
+          {variables.map((row, index) => (
+            <li key={row.id} className="flex items-center gap-1.5">
+              <Input
+                mono
+                value={row.name}
+                onChange={(event) => patchVar(index, { name: event.target.value })}
+                placeholder="x"
+                aria-label={`Variable ${index + 1} name`}
+                disabled={disabled}
+                className="w-20 shrink-0"
+              />
+              <Select
+                mono
+                value={row.sort}
+                onChange={(event) =>
+                  patchVar(index, { sort: event.target.value as Z3Sort })
+                }
+                aria-label={`Variable ${index + 1} sort`}
+                disabled={disabled}
+                className="w-24 shrink-0"
+              >
+                <option value="real">real</option>
+                <option value="int">int</option>
+              </Select>
+              <RemoveButton
+                onClick={() => setVariables((rows) => rows.filter((_, i) => i !== index))}
+                disabled={disabled || variables.length <= 1}
+                label={`Remove variable ${index + 1}`}
+              />
+            </li>
+          ))}
+        </ul>
+        <AddRow
+          label="Add variable"
+          onClick={() => setVariables((rows) => [...rows, z3VarRow("", "real")])}
+          disabled={disabled || variables.length >= 8}
+        />
+      </Field>
+
+      <Field
+        label="Constraints"
+        hint="Each is a single top-level relation (e.g. x > 0). Conjoined. Leave empty for any assignment of the declared sorts."
+      >
+        <ul className="grid gap-1.5">
+          {constraints.map((row, index) => (
+            <li key={row.id} className="flex items-center gap-1.5">
+              <Input
+                mono
+                value={row.value}
+                onChange={(event) =>
+                  setConstraints((rows) =>
+                    rows.map((r, i) => (i === index ? { ...r, value: event.target.value } : r)),
+                  )
+                }
+                placeholder="x > 0"
+                aria-label={`Constraint ${index + 1}`}
+                disabled={disabled}
+                className="min-w-0 flex-1"
+              />
+              <RemoveButton
+                onClick={() => setConstraints((rows) => rows.filter((_, i) => i !== index))}
+                disabled={disabled}
+                label={`Remove constraint ${index + 1}`}
+              />
+            </li>
+          ))}
+        </ul>
+        <AddRow
+          label="Add constraint"
+          onClick={() => setConstraints((rows) => [...rows, z3ConstraintRow("")])}
+          disabled={disabled || constraints.length >= 16}
+        />
+      </Field>
+    </div>
+  );
+}
+
 // --- lean.prove -------------------------------------------------------------
 
 const LEAN_DEMO = "example : 1 + 1 = 2 := rfl";
@@ -877,6 +1010,8 @@ export function DriveForm({
       return <CounterexampleSearchForm onInputs={onInputs} disabled={disabled} />;
     case "z3.prove":
       return <Z3ProveForm onInputs={onInputs} disabled={disabled} />;
+    case "z3.satisfy":
+      return <Z3SatisfyForm onInputs={onInputs} disabled={disabled} />;
     case "lean.prove":
       return <LeanProveForm onInputs={onInputs} disabled={disabled} />;
     default:

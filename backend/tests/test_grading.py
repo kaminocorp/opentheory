@@ -23,6 +23,7 @@ from app.toolbench.registry import registry
 # The production instruments, for the exhaustive sweeps below.
 INSTRUMENTS = (
     "z3.prove",
+    "z3.satisfy",
     "lean.prove",
     "expr.compare",
     "calc.eval",
@@ -42,6 +43,9 @@ MATRIX_CELLS = [
     ("z3.prove", ResultStatus.RESULT, EvidenceGrade.A),
     ("z3.prove", ResultStatus.REFUTED, EvidenceGrade.A),
     ("z3.prove", ResultStatus.UNDECIDED, None),
+    ("z3.satisfy", ResultStatus.RESULT, EvidenceGrade.A),
+    ("z3.satisfy", ResultStatus.REFUTED, EvidenceGrade.A),
+    ("z3.satisfy", ResultStatus.UNDECIDED, None),
     ("lean.prove", ResultStatus.RESULT, EvidenceGrade.A),
     ("lean.prove", ResultStatus.REFUTED, None),  # n/a — never refutes
     ("lean.prove", ResultStatus.UNDECIDED, None),
@@ -195,7 +199,7 @@ def test_only_machine_checked_instruments_reach_grade_a() -> None:
     Derived from the matrix, so a new A-capable instrument widens the planner advice
     with no prompt edit. ``lean.prove`` joins ``z3.prove``; order is alphabetical.
     """
-    assert instruments_reaching(EvidenceGrade.A) == ["lean.prove", "z3.prove"]
+    assert instruments_reaching(EvidenceGrade.A) == ["lean.prove", "z3.prove", "z3.satisfy"]
 
 
 def test_capability_is_read_across_all_statuses_not_just_result() -> None:
@@ -219,8 +223,8 @@ def test_retrieval_is_never_a_way_to_raise_a_rung() -> None:
 
 
 def test_raise_path_from_b_is_the_a_capable_set() -> None:
-    """A claim already at exact-symbolic B has exactly two ways up: machine-check it."""
-    assert raise_path(EvidenceGrade.B) == ["lean.prove", "z3.prove"]
+    """A claim already at exact-symbolic B has the machine-checked A-path as the way up."""
+    assert raise_path(EvidenceGrade.B) == ["lean.prove", "z3.prove", "z3.satisfy"]
 
 
 def test_nothing_beats_a_machine_checked_proof() -> None:
@@ -233,6 +237,7 @@ def test_raise_path_from_nothing_offers_every_graded_instrument() -> None:
     path = raise_path(None)
     assert set(path) == {
         "z3.prove",
+        "z3.satisfy",
         "lean.prove",
         "expr.compare",
         "calc.eval",

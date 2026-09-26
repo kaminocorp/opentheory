@@ -72,6 +72,33 @@ function CounterexampleCard({ caption, children }: { caption: string; children: 
   );
 }
 
+/** Unsat of a constraint set — no model exists. Fail edge, never a fake assignment. */
+function UnsatCard({ caption, children }: { caption: string; children: ReactNode }) {
+  return (
+    <div className="relative rounded-built bg-panel p-3 pl-4" style={{ border: "1px solid var(--hairline)" }}>
+      <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-state-fail" />
+      <p className="text-[12px] font-medium text-state-fail">Unsatisfiable · no model</p>
+      <div className="mt-1.5">{children}</div>
+      <p className="mt-1.5 text-[12px] leading-[1.5] text-text-mute">{caption}</p>
+    </div>
+  );
+}
+
+/**
+ * Model card for `z3.satisfy`: a concrete assignment — strong positive edge, never
+ * styled like a proof of a universal, and never invented on timeout.
+ */
+function ModelCard({ caption, children }: { caption: string; children: ReactNode }) {
+  return (
+    <div className="relative rounded-built bg-panel p-3 pl-4" style={{ border: "1px solid var(--hairline)" }}>
+      <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-state-ok" />
+      <p className="text-[12px] font-medium text-state-ok">Model · assignment</p>
+      <div className="mt-1.5">{children}</div>
+      <p className="mt-1.5 text-[12px] leading-[1.5] text-text-mute">{caption}</p>
+    </div>
+  );
+}
+
 /**
  * Proof card for `z3.prove` / `lean.prove`: a machine-checked entailment — strong
  * positive edge, never styled like weak support (the whole point of the verifier wave).
@@ -472,6 +499,110 @@ function Z3ProveBody({
   );
 }
 
+// --- z3.satisfy -------------------------------------------------------------
+
+const Z3_SATISFY_REASON_GLOSS: Record<string, string> = {
+  timeout: "Solver soft-timeout — recorded as undecided so a hard problem is citable, not killed.",
+  incomplete: "Z3 returned unknown on this fragment — honest undecided, never a fabricated model.",
+};
+
+function Z3SatisfyBody({
+  output,
+  status,
+}: {
+  output: Record<string, unknown>;
+  status: string;
+}) {
+  const constraints = Array.isArray(output.constraints)
+    ? (output.constraints as unknown[]).map(asString)
+    : [];
+  const constraintsLatex = Array.isArray(output.constraints_latex)
+    ? (output.constraints_latex as unknown[]).map((v) => asLatex(v) ?? asString(v))
+    : [];
+  const model = (output.model ?? {}) as Record<string, unknown>;
+  const used = Array.isArray(output.used_constraints)
+    ? (output.used_constraints as unknown[]).map(asString)
+    : [];
+  const reason = asString(output.status_reason);
+  const certificate = asString(output.certificate);
+
+  const constraintsBlock =
+    constraints.length > 0 ? (
+      <KeyValue k="Constraints">
+        <ul className="grid gap-1">
+          {constraints.map((c, i) => (
+            <li key={`${c}-${i}`}>
+              <Formula expr={c} latex={constraintsLatex[i]} className="text-[13px]" />
+            </li>
+          ))}
+        </ul>
+      </KeyValue>
+    ) : (
+      <KeyValue k="Constraints">
+        <span className="text-[12px] text-text-faint">none (any assignment of the declared sorts)</span>
+      </KeyValue>
+    );
+
+  if (status === "result" && output.satisfied === true) {
+    return (
+      <div className="grid gap-2">
+        {constraintsBlock}
+        <ModelCard caption="A concrete assignment satisfies every constraint — exact rationals, never a float.">
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {Object.entries(model).map(([name, value]) => (
+              <Chip key={name}>
+                {name}={asString(value)}
+              </Chip>
+            ))}
+          </div>
+        </ModelCard>
+      </div>
+    );
+  }
+
+  if (status === "refuted" && output.unsatisfiable === true) {
+    return (
+      <div className="grid gap-2">
+        {constraintsBlock}
+        <UnsatCard caption="No assignment of the declared variables satisfies the constraints — unsat, not a fabricated model.">
+          <div className="grid gap-1.5">
+            {certificate ? (
+              <KeyValue k="Certificate">
+                <span className="font-mono text-[13px] text-text">{certificate}</span>
+              </KeyValue>
+            ) : null}
+            {used.length > 0 ? (
+              <KeyValue k="Used">
+                <span className="flex flex-wrap gap-1.5">
+                  {used.map((name) => (
+                    <Chip key={name}>{name}</Chip>
+                  ))}
+                </span>
+              </KeyValue>
+            ) : null}
+          </div>
+        </UnsatCard>
+      </div>
+    );
+  }
+
+  const reasonGloss =
+    (reason && Z3_SATISFY_REASON_GLOSS[reason]) ||
+    "Z3 could not decide — escalate to a stronger verifier, never a fabricated model.";
+  return (
+    <div className="grid gap-2">
+      {constraintsBlock}
+      <UndecidedCard caption={reasonGloss}>
+        {reason ? (
+          <KeyValue k="Reason">
+            <span className="font-mono text-[13px] text-text">{reason}</span>
+          </KeyValue>
+        ) : null}
+      </UndecidedCard>
+    </div>
+  );
+}
+
 // --- lean.prove -------------------------------------------------------------
 
 const LEAN_REASON_GLOSS: Record<string, string> = {
@@ -753,6 +884,29 @@ function resolveOutcomeMeta(
       };
     }
   }
+  if (instrumentName === "z3.satisfy") {
+    if (status === "result" && output.satisfied === true) {
+      return {
+        tone: "ok",
+        label: "Satisfiable",
+        gloss: "A concrete assignment satisfies the constraints.",
+      };
+    }
+    if (status === "refuted" && output.unsatisfiable === true) {
+      return {
+        tone: "fail",
+        label: "Unsatisfiable",
+        gloss: "No model exists — the constraints cannot be satisfied.",
+      };
+    }
+    if (status === "undecided") {
+      return {
+        tone: "warn",
+        label: "Undecided",
+        gloss: "Z3 could not decide — recorded, never a fabricated model.",
+      };
+    }
+  }
   if (instrumentName === "lean.prove") {
     if (status === "result" && output.proven === true) {
       return {
@@ -829,6 +983,8 @@ function ResultBody({
       return <CounterexampleSearchBody output={output} status={status} />;
     case "z3.prove":
       return <Z3ProveBody output={output} status={status} />;
+    case "z3.satisfy":
+      return <Z3SatisfyBody output={output} status={status} />;
     case "lean.prove":
       return <LeanProveBody output={output} status={status} />;
     default:

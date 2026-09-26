@@ -24,7 +24,8 @@ class InstrumentResult(BaseModel):
 
     ``status`` is one of the three honest outcomes and is decided by the instrument, not inferred
     by the caller. ``artifact_kind`` names the kind of ``Artifact`` this run produces —
-    ``derivation`` / ``counterexample`` / ``measurement`` / ``pinned_source``. It lives on the
+    ``derivation`` / ``counterexample`` / ``measurement`` / ``pinned_source`` /
+    ``proof`` / ``model``. It lives on the
     *result*, not the instrument, because one instrument can yield different kinds per run (e.g.
     ``expr.compare`` yields a ``derivation`` when equivalent but a ``counterexample`` when refuted).
     ``output`` is
