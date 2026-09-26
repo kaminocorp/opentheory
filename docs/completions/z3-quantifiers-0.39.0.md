@@ -74,6 +74,8 @@ gate, and **not** `ast.List` / `ast.Lambda` binders.
 - Existing `z3.prove` / `z3.satisfy` / `z3.boolean` suites.
 - Write-path (DB-gated): forall identity lands a `proof`;
   contradictory `Exists` unsat weakens as `proof` / no model.
+  Helpers now use `tests/principals.py` so `_thread` is a member
+  write (pre-existing 403 on `main` after `0.36.1`).
 
 ## Verification
 
