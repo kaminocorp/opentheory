@@ -58,7 +58,14 @@ Sits on shipped `0.39.0` (`00b20bc`, #31) / current `main` `921cdd1`.
 
 ## Verification
 
-Recorded after the local agent-VM run (see the PR / changelog body).
+- `ruff check .` clean.
+- Default pytest (no `TEST_DATABASE_URL`): **744 passed, 227 skipped**.
+  +22 vs shipped `0.39.0` (722) — the new `tests/harness/` suite
+  (composition drift reject, fixture inventory + stdio `tools/list`,
+  probe skip/refuse). Skip count unchanged; no OpenRouter key and no
+  `dsh` binary were required.
+- `python -m app.harness` prints composition=ok, fixture=ok, live skipped.
+- Frontend untouched.
 
 ## Unverified
 

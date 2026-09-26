@@ -149,8 +149,9 @@ flip `AGENT_LOOP_ENABLED`. Does not invent a parallel settlement path.
   does not install it.
 
 ```bash
-cd backend && uv run ruff check .   # recorded after the local run
-cd backend && uv run pytest -q      # recorded after the local run
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 744 passed, 227 skipped (no TEST_DATABASE_URL)
+# +22 vs shipped 0.39.0 (722) — the new harness suite; skip count unchanged
 # Frontend untouched — no typecheck/lint/build required for this slice
 ```
 
