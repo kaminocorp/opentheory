@@ -13,9 +13,9 @@ must mint nothing. **No schema, no migration.** Reuses shipped
 helpers, and `AgentRun.steps[].checkpoint_id` for optional pass
 linkage.
 
-Sits on unmerged `0.35.0` (itself stacked on `0.34.0` / shipped `0.33.0`).
-**Does not claim 0.34–0.36 as on `main`.** `main` is shipped `0.33.0`
-(squash `e3a07ea`).
+Sits on shipped `0.35.0` (`1ca7116`, #20 squash) and shipped
+`0.34.0` (`a7cd946`) and `0.33.0` (`e3a07ea`). **Does not claim
+0.36 as on `main`.**
 
 ## Why a read
 
@@ -79,8 +79,8 @@ would force a ledger write on every lookup, or a special-case
 - Instruments stay `result | refuted | undecided`. Blame is not one
   of them.
 - No Alembic revision — `0021_concurrent_campaign_cycles` stays the
-  head on `main` (`0.33.0` added none). Stacked PRs #19–#20 also claimed no new
-  migrations. This release does not add one.
+  head on `main` (`0.33.0` / `0.34.0` / `0.35.0` added none). This
+  release does not add one.
 
 ## Caveats (honest)
 

@@ -1,8 +1,8 @@
 # Roadmap Next Steps
 
 > **Last updated:** 2026-09-26 · **Current release line:** `0.36.0`
-> (research-git blame), sitting on `0.35.0`
-> (`interval.eval` proven enclosures — #20, not on `main`) and shipped `0.34.0`
+> (research-git blame), sitting on shipped `0.35.0`
+> (`interval.eval` proven enclosures, `1ca7116`) and shipped `0.34.0`
 > (Bench 6 tables & Vega-Lite plots, `a7cd946`) and shipped `0.33.0`
 > (`z3.satisfy` model-finding, `e3a07ea`) and shipped `0.32.0`
 > (concurrent campaign cycles under project budget), `0.31.0` (deepdive Phase D — shareable Research deep links), `0.30.0`
@@ -22,9 +22,9 @@
 > `docs/archive/project-deepdive-tabs-0.14.md`.
 >
 > **Next after this line:** the still-owed browser eyeball pass. Unmerged
-> work is not claimed as shipped (`0.36.0` / `0.35.0` are this stack, not
-> `main`). Lean REPL / LeanDojo remain later.
-> ~~Blame-as-an-op~~ ✅ shipped as `0.36.0`. `0.34.0` and `0.33.0` are on `main`.
+> work is not claimed as shipped (`0.36.0` is this branch, not `main`).
+> Lean REPL / LeanDojo remain later.
+> ~~Blame-as-an-op~~ ✅ shipped as `0.36.0`. `0.33.0`–`0.35.0` are on `main`.
 
 ## Where we are
 
@@ -442,7 +442,7 @@ nothing. Quiet Blame bay next to Compare on Research. **No schema, no
 migration.** Sits on `0.35.0`. See
 `docs/completions/research-git-blame-0.36.0.md`.
 
-**Not in this release:** merging #19 / #20; Lean REPL / LeanDojo;
+**Not in this release:** merging this PR; Lean REPL / LeanDojo;
 auto-validate / auto-fund / auto-merge; content-addressed commit ids;
 rewriting claim field history; browser eyeball.
 
