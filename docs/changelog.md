@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.36.3` — **Honesty polish.** `BranchCreate` / `ValidationCreate` OpenAPI copy no longer advertises the local-only actor header; the planner prompt prints validation-axis `signal` (`compute_signal`) instead of the dead stored `Claim.status`. Auth assistant/ops copy matches JWT. **No schema, no migration.** Sits on shipped `0.36.0` (`71a8929` / #21). Does not claim `0.36.1` / `0.36.2` / `0.37.0` / `0.38.0` (open PRs).
 - `0.38.0` — **Boolean connectives for `z3.prove` / `z3.satisfy`.** Closed allow-list of `And` / `Or` / `Not` / `Implies` / `Xor` / `Equivalent` plus a `bool` sort, through the existing instruments — no parallel language, no `eval`, no quantifiers. `(P ∧ Q) → P` is now a real Z3 proof. Vacuous-hypotheses guard and timeout→undecided stay. Quiet drive-form sort + hint update. **No schema, no migration.** Sits on shipped `0.36.0` blame (`71a8929`). Does not claim `0.36.1` / `0.36.2` / `0.37.0`.
 - `0.37.0` — **GitHub Actions CI with Postgres.** `ruff` + `pytest` against a throwaway Postgres 16 service (`TEST_DATABASE_URL` so the DB-gated suite actually runs) and frontend `typecheck` / `lint` / `test` / `build` on every pull request and push to `main`. Lean / Mathlib stay off. No secrets. Infra only — **no schema, no migration, no application code.** Sits on shipped `0.36.0` (`71a8929`) + R1 assessment (`375733a`). Does not claim `0.36.1` / `0.36.2`.
 - `0.36.2` — **Assessment R2 P2 bugfixes.** `ThreadCreate` rejects client-stamped `status` (server default `open`); agent-trace pills pass the recorded display map into `resolveOutcomeMeta` so chrome matches ResultView; write-path stubs register as `test.stub*` (not `calc.eval`) and geometry write-path assertions accept `*_latex` companions. **No schema, no migration.** Sits on `0.36.1` (#23 tip `80495c0`). Does not claim `0.36.1` on `main`.
@@ -111,6 +112,43 @@
 
 ---
 
+## 0.36.3
+
+**Honesty polish on two leftover lies** noted after the 0.36.x assessor
+loop closed P0/P1 (R3 residuals P2-12 / P2-13). Copy and prompt only.
+**No schema, no migration.** Sits on shipped `0.36.0` (`71a8929`, #21)
+and the R1 assessment doc (`375733a`, #22). Does **not** claim
+`0.36.1` / `0.36.2` / `0.37.0` / `0.38.0` — those are still open PRs
+and this branch is off `main`, not stacked on them.
+
+- **`BranchCreate` / `ValidationCreate`.** Schema docstrings (OpenAPI)
+  named the local-only actor header as the acting-actor path. They now
+  describe the signed-in principal (verified Supabase bearer JWT).
+  Assistant (`CLAUDE.md`) and deploy runbook copy match: production is
+  JWT; the local/test header path is off by default and is not
+  advertised.
+- **Planner prompt.** Open-claim lines printed stored `Claim.status`
+  (`proposed` forever — nothing writes settlement there). They now
+  print `signal` from `compute_signal`, the same validation-axis
+  derivation the claim read already serializes. The system prompt
+  names that axis. The stored column is not taught. The open-claim
+  *filter* is unchanged (that is `0.36.1` / #23, still unmerged).
+- **Write path untouched.** `create_checkpoint` stays the only
+  Checkpoint writer. No assessor-loop restart, no Lean / Z3 expansion.
+
+```bash
+cd backend && uv run ruff check .
+cd backend && uv run pytest tests/agent/test_prompts.py tests/agent/test_planner.py
+# plus the default suite
+cd frontend && npm run typecheck && npm run lint
+```
+
+See `docs/completions/honesty-polish-0.36.3.md`.
+
+**Not in this release:** membership gating on original ledger writes
+(`0.36.1`); `ClaimCreate` forbidding client `status`; planner
+open-claim filter via `compute_signal`; CI; Lean REPL; boolean Z3
+quantifiers.
 ## 0.38.0
 
 **Boolean connectives for `z3.prove` / `z3.satisfy`.** The deferred

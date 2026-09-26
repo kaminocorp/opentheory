@@ -206,3 +206,37 @@ def test_omitting_observations_adds_no_block() -> None:
     text = _prompt([make_claim()])
     assert "OBSERVATIONS FROM EARLIER BATCHES" not in text
 
+
+# --- validation-axis signal, not stored Claim.status ----------------------------------------------
+
+
+def test_open_claims_print_signal_not_stored_status() -> None:
+    """The stored column is dead; the prompt must not teach it as settlement."""
+    claim = make_claim()
+    text = _prompt([claim])
+    assert "  status:" not in text
+    assert f"status: {claim.status.value}" not in text
+    # Empty history is the same substitute the claim read uses (``compute_signal([])``).
+    assert "signal: none" in text
+
+
+def test_passed_signal_is_what_the_model_sees() -> None:
+    """A caller-supplied ``compute_signal`` result is printed verbatim — no stored status."""
+    claim = make_claim()
+    text = build_user_prompt(
+        make_thread(),
+        [claim],
+        CATALOG,
+        signals={claim.id: "contested"},
+    )
+    assert "signal: contested" in text
+    assert "  status:" not in text
+
+
+def test_system_prompt_names_signal_not_stored_status() -> None:
+    system = build_messages(make_thread(), [], CATALOG)[0]["content"]
+    assert "signal" in system
+    assert "`none` / `contested` / `validated`" in system
+    assert "Claim.status" not in system
+    assert "claim.status" not in system
+

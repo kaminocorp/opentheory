@@ -11,9 +11,10 @@ from app.schemas.checkpoint import CheckpointRead
 class BranchCreate(BaseModel):
     """Fork a new line of exploration from an existing checkpoint.
 
-    ``project_id`` comes from the path; ``actor_id`` from the ``X-Dev-Actor-Id`` header.
-    ``from_checkpoint_id`` is the fork point (validated in-project in the service layer).
-    ``thread_id`` optionally scopes the branch to a thread.
+    ``project_id`` comes from the path. The acting actor is the signed-in
+    principal (verified Supabase bearer JWT). ``from_checkpoint_id`` is the
+    fork point (validated in-project in the service layer). ``thread_id``
+    optionally scopes the branch to a thread.
     """
 
     from_checkpoint_id: UUID

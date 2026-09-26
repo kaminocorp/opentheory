@@ -120,7 +120,7 @@ def _stub_planner(plan_result: PlanResult):
     calls = {"n": 0}
 
     async def _planner(
-        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None, signals=None
     ):
         calls["n"] += 1
         if calls["n"] == 1:

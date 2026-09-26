@@ -50,13 +50,15 @@ from app.models.enums import AgentRunStatus, BranchStatus
 from app.models.project import Project
 from app.models.thread import Thread
 from app.schemas.branch import BranchCreate
-from app.schemas.claim import ClaimGrounding
+from app.schemas.claim import ClaimGrounding, ClaimSignal
 from app.services import branches as branch_service
 from app.services import checkpoints as checkpoint_service
 from app.services import claims as claim_service
 from app.services import compute as compute_service
 from app.services import funding as funding_service
+from app.services import validations as validation_service
 from app.services.agent_actors import get_or_create_project_agent_actor
+from app.services.claims import compute_signal
 from app.services.compute import BUDGET_EXHAUSTED, BUDGET_EXHAUSTED_REASON, ProjectBudgetPolicy
 from app.services.grounding import compute_yield, grounding_by_claim
 from app.services.tool_runs import run_instrument
@@ -91,6 +93,18 @@ class BudgetPolicy(Protocol):
 async def _open_claims(db: AsyncSession, thread_id: UUID) -> list[Claim]:
     """The thread's claims still in play on the validation axis (signal ≠ validated)."""
     return await claim_service.open_claims_for_planner(db, thread_id)
+
+
+async def _signals_for_claims(
+    db: AsyncSession, claim_ids: list[UUID]
+) -> dict[UUID, ClaimSignal]:
+    """Validation-axis ``signal`` for each claim — the same ``compute_signal`` the read uses.
+
+    Does not touch the stored ``Claim.status`` column. A claim with no validations is
+    ``none``, matching the empty-history read-model substitute.
+    """
+    by_claim = await validation_service.validations_by_claim(db, claim_ids)
+    return {claim_id: compute_signal(by_claim.get(claim_id, [])) for claim_id in claim_ids}
 
 
 async def select_agent_branch(
@@ -411,6 +425,7 @@ async def _execute(
     open_claims = await _open_claims(db, agent_run.thread_id)
     claim_ids = [claim.id for claim in open_claims]
     grounding_before = await grounding_by_claim(db, claim_ids)
+    signals_before = await _signals_for_claims(db, claim_ids)
     the_llm: LlmClient = llm if llm is not None else OpenRouterClient()
 
     remaining_runs = settings.agent_pass_max_runs
@@ -422,6 +437,7 @@ async def _execute(
         grounding: dict[UUID, ClaimGrounding],
         observations: list[Observation] | None,
         claims: list[Claim],
+        signals: dict[UUID, ClaimSignal],
     ) -> PlanResult:
         return await planner(
             thread,
@@ -432,11 +448,15 @@ async def _execute(
             max_runs=_batch_cap(remaining_runs),
             grounding=grounding,
             observations=observations,
+            signals=signals,
         )
 
     try:
         plan_result = await _plan(
-            grounding=grounding_before, observations=None, claims=open_claims
+            grounding=grounding_before,
+            observations=None,
+            claims=open_claims,
+            signals=signals_before,
         )
     except AgentLlmError as exc:
         agent_run.tokens_used = getattr(exc, "tokens_used", 0)
@@ -516,6 +536,7 @@ async def _execute(
     step_index = 0
     plan_version = 0
     grounding_now = grounding_before
+    signals_now = signals_before
 
     async def _budget_exhausted() -> bool:
         if budget_policy is not None and not budget_policy.check(
@@ -698,7 +719,9 @@ async def _execute(
         open_claims = await _open_claims(db, agent_run.thread_id)
         live_ids = [claim.id for claim in open_claims]
         try:
-            grounding_now = await grounding_by_claim(db, live_ids or claim_ids)
+            observe_ids = live_ids or claim_ids
+            grounding_now = await grounding_by_claim(db, observe_ids)
+            signals_now = await _signals_for_claims(db, observe_ids)
         except Exception as exc:  # observation is narrative — keep going with the last snapshot
             logger.warning(
                 "agent_pass_observe_grounding_failed agent_run_id=%s error=%s",
@@ -720,6 +743,7 @@ async def _execute(
                 grounding=grounding_now,
                 observations=observations,
                 claims=open_claims,
+                signals=signals_now,
             )
         except AgentLlmError as exc:
             tokens_used += getattr(exc, "tokens_used", 0)
