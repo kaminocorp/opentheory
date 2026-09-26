@@ -65,7 +65,9 @@ Sits on shipped `0.39.0` (`00b20bc`, #31) / current `main` `921cdd1`.
   probe skip/refuse). Skip count unchanged; no OpenRouter key and no
   `dsh` binary were required.
 - `python -m app.harness` prints composition=ok, fixture=ok, live skipped.
-- Frontend untouched.
+- GitHub Actions CI on this branch: **967 passed, 4 skipped**
+  (Postgres write-path included; +22 vs `0.39.0` 945). Frontend job
+  green. Lean / Mathlib stay off.
 
 ## Unverified
 

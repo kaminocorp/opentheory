@@ -152,7 +152,8 @@ flip `AGENT_LOOP_ENABLED`. Does not invent a parallel settlement path.
 cd backend && uv run ruff check .   # clean
 cd backend && uv run pytest -q      # 744 passed, 227 skipped (no TEST_DATABASE_URL)
 # +22 vs shipped 0.39.0 (722) — the new harness suite; skip count unchanged
-# Frontend untouched — no typecheck/lint/build required for this slice
+# CI (0.37.0, TEST_DATABASE_URL): 967 passed, 4 skipped — +22 vs 0.39.0 (945)
+# Frontend untouched — typecheck/lint/test/build green on this PR
 ```
 
 See `docs/completions/external-harness-m0-0.40.0.md`.
