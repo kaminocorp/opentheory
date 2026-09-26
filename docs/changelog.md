@@ -2,15 +2,14 @@
 
 ## Index
 
-- `0.39.0` — **First-order quantifiers for `z3.prove` / `z3.satisfy`.** Closed allow-list grows `ForAll` / `Exists` on the existing 0.38.0 formula AST — dedicated walker, no `eval`, no widening of the shared SymPy gate, no new AST node types for binders. `∀x. x + 0 = x` is now a real Z3 proof. Vacuous-hypotheses guard and timeout→undecided stay. Quiet drive-form hint update. **No schema, no migration.** Sits on shipped `0.38.0` (`e0e118b`, #28) on current `main`.
-- `0.36.1` — **Project open no longer white-screens.** Live Fly is behind current `main` (`GET /projects/{id}/tags` 404; thread rows omit `grounding_rollup`). The Research keep-alive then threw `undefined.total` and gated Instruments / Blame. FE treats tags 404 / empty envelope as `[]` and always defines rollup `total`. Backend list stays a bare array (`200 []` on an existing project; `404` if the project is missing). **No schema, no migration.** Sits on shipped `0.36.0` (`71a8929`, #21). Does not claim unmerged `0.37` / `0.38`.
-- `0.36.0` — **Research-git blame.** A derived ledger read walks the checkpoints, actors, and tool invocations that produced or evidence-grounded a claim (`GET /projects/{id}/claims/{claim_id}/blame`). Deterministic. Mints nothing. Quiet Blame bay next to Compare on Research. **No schema, no migration.** Sits on shipped `0.35.0` interval.eval (`1ca7116`, #20 squash). On `main` as `71a8929` (#21 squash). `0.33.0`–`0.36.0` are on `main`.
-- `0.36.3` — **Honesty polish.** `BranchCreate` / `ValidationCreate` OpenAPI copy no longer advertises the local-only actor header; the planner prompt prints validation-axis `signal` (`compute_signal`) instead of the dead stored `Claim.status`. Auth assistant/ops copy matches JWT. **No schema, no migration.** Sits on shipped `0.36.0` (`71a8929` / #21). Does not claim `0.36.1` / `0.36.2` / `0.37.0` / `0.38.0` (open PRs).
-- `0.38.0` — **Boolean connectives for `z3.prove` / `z3.satisfy`.** Closed allow-list of `And` / `Or` / `Not` / `Implies` / `Xor` / `Equivalent` plus a `bool` sort, through the existing instruments — no parallel language, no `eval`, no quantifiers. `(P ∧ Q) → P` is now a real Z3 proof. Vacuous-hypotheses guard and timeout→undecided stay. Quiet drive-form sort + hint update. **No schema, no migration.** Sits on shipped `0.36.0` blame (`71a8929`). Does not claim `0.36.1` / `0.36.2` / `0.37.0`.
-- `0.37.0` — **GitHub Actions CI with Postgres.** `ruff` + `pytest` against a throwaway Postgres 16 service (`TEST_DATABASE_URL` so the DB-gated suite actually runs) and frontend `typecheck` / `lint` / `test` / `build` on every pull request and push to `main`. Lean / Mathlib stay off. No secrets. Infra only — **no schema, no migration, no application code.** Sits on shipped `0.36.0` (`71a8929`) + R1 assessment (`375733a`). Does not claim `0.36.1` / `0.36.2`.
-- `0.36.2` — **Assessment R2 P2 bugfixes.** `ThreadCreate` rejects client-stamped `status` (server default `open`); agent-trace pills pass the recorded display map into `resolveOutcomeMeta` so chrome matches ResultView; write-path stubs register as `test.stub*` (not `calc.eval`) and geometry write-path assertions accept `*_latex` companions. **No schema, no migration.** Sits on `0.36.1` (#23 tip `80495c0`). Does not claim `0.36.1` on `main`.
-- `0.36.1` — **Assessment R1 remediation.** Membership on original ledger writes (`ensure_is_member`); planner open-claims use validation signal, not the dead `Claim.status` column; `ClaimCreate` rejects client-stamped settlement fields; agent-trace pills share instrument-honest chrome; orchestrator mid-pass budget uses the reservation quote; CLAUDE.md / deploy.md auth drift corrected. **No schema, no migration.** Sits on shipped `0.36.0` (`71a8929`) and the R1 assessment (`375733a`, #22).
-- `0.36.0` — **Research-git blame.** A derived ledger read walks the checkpoints, actors, and tool invocations that produced or evidence-grounded a claim (`GET /projects/{id}/claims/{claim_id}/blame`). Deterministic. Mints nothing. Quiet Blame bay next to Compare on Research. **No schema, no migration.** Sits on shipped `0.35.0` interval.eval (`1ca7116`, #20 squash). Does not claim 0.36 as on `main`. `0.33.0`–`0.35.0` are on `main`.
+- `0.39.0` — **First-order quantifiers for `z3.prove` / `z3.satisfy`.** Closed allow-list grows `ForAll` / `Exists` on the existing 0.38.0 formula AST — dedicated walker, no `eval`, no widening of the shared SymPy gate, no new AST node types for binders. `∀x. x + 0 = x` is now a real Z3 proof. Vacuous-hypotheses guard and timeout→undecided stay. Quiet drive-form hint update. **No schema, no migration.** On `main` as `00b20bc` (#31). Sits on shipped `0.38.0` (`e0e118b`, #28).
+- `0.38.0` — **Boolean connectives for `z3.prove` / `z3.satisfy`.** Closed allow-list of `And` / `Or` / `Not` / `Implies` / `Xor` / `Equivalent` plus a `bool` sort, through the existing instruments — no parallel language, no `eval`, no quantifiers. `(P ∧ Q) → P` is now a real Z3 proof. Vacuous-hypotheses guard and timeout→undecided stay. Quiet drive-form sort + hint update. **No schema, no migration.** On `main` as `e0e118b` (#28). Sits on shipped `0.36.0` blame (`71a8929`, #21).
+- `0.37.0` — **GitHub Actions CI with Postgres.** `ruff` + `pytest` against a throwaway Postgres 16 service (`TEST_DATABASE_URL` so the DB-gated suite actually runs) and frontend `typecheck` / `lint` / `test` / `build` on every pull request and push to `main`. Lean / Mathlib stay off. No secrets. Infra only — **no schema, no migration, no application code.** On `main` as `e93ca47` (#27). Sits on shipped `0.36.0` (`71a8929`, #21) + R1 assessment (`375733a`, #22).
+- `0.36.4` — **Project open no longer white-screens.** Live Fly lagged `main` (`GET /projects/{id}/tags` 404; thread rows omit `grounding_rollup`). The Research keep-alive then threw `undefined.total` and gated Instruments / Blame. FE treats tags 404 / empty envelope as `[]` and always defines rollup `total`. Backend list stays a bare array (`200 []` on an existing project; `404` if the project is missing). **No schema, no migration.** On `main` as `9b6220c` (#30). The squash commit subject still says `0.36.1` because of a merge-time numbering collision; the correct release id is `0.36.4`. Sits on shipped `0.36.0` (`71a8929`, #21).
+- `0.36.3` — **Honesty polish.** `BranchCreate` / `ValidationCreate` OpenAPI copy no longer advertises the local-only actor header; the planner prompt prints validation-axis `signal` (`compute_signal`) instead of the dead stored `Claim.status`. Auth assistant/ops copy matches JWT. **No schema, no migration.** On `main` as `81a154e` (#29). Sits on shipped `0.36.0` (`71a8929`, #21).
+- `0.36.2` — **Assessment R2 P2 bugfixes.** `ThreadCreate` rejects client-stamped `status` (server default `open`); agent-trace pills pass the recorded display map into `resolveOutcomeMeta` so chrome matches ResultView; write-path stubs register as `test.stub*` (not `calc.eval`) and geometry write-path assertions accept `*_latex` companions. **No schema, no migration.** On `main` as `ca06239` (#25). Sits on `0.36.1` (`b63293d`, #23).
+- `0.36.1` — **Assessment R1 remediation.** Membership on original ledger writes (`ensure_is_member`); planner open-claims use validation signal, not the dead `Claim.status` column; `ClaimCreate` rejects client-stamped settlement fields; agent-trace pills share instrument-honest chrome; orchestrator mid-pass budget uses the reservation quote; CLAUDE.md / deploy.md auth drift corrected. **No schema, no migration.** On `main` as `b63293d` (#23). Sits on shipped `0.36.0` (`71a8929`, #21) and the R1 assessment (`375733a`, #22).
+- `0.36.0` — **Research-git blame.** A derived ledger read walks the checkpoints, actors, and tool invocations that produced or evidence-grounded a claim (`GET /projects/{id}/claims/{claim_id}/blame`). Deterministic. Mints nothing. Quiet Blame bay next to Compare on Research. **No schema, no migration.** On `main` as `71a8929` (#21 squash). Sits on shipped `0.35.0` interval.eval (`1ca7116`, #20 squash). `0.33.0`–`0.36.0` are on `main`.
 - `0.35.0` — **`interval.eval` — proven numeric enclosures.** Evaluate a closed-form real expression to a proven `[lo, hi]` via python-flint / Arb (mpmath.iv fallback if the C extension fails to import). Successful enclosure is `result` (Grade C — a bound, not a proof). A relation the enclosure entirely misses is `refuted` (Grade B witness). Overlap / timeout / domain / free symbols / missing library is honest `undecided` — never a fabricated bound, never Grade A. Quiet Instruments drive/show. **No schema, no migration.** Sits on shipped `0.34.0` Bench 6 (`a7cd946`). On `main` as `1ca7116` (#20 squash).
 - `0.34.0` — **Bench 6 tables & plots.** `table.create` / `table.derive_column` / `table.render` / `plot.function` / `plot.points` — typed grids, a *computed* column with calc-spine honesty, and Vega-Lite specs (not rasters). Tables are the falsification grid; plots are optional viz and never Grade-A evidence. `formula.render` is not reintroduced (`*_latex` + KaTeX already covers it). Quiet Instruments drive/show. **No schema, no migration.** Sits on shipped `0.33.0` `z3.satisfy` (`e3a07ea`). On `main` as `a7cd946` (#19 squash).
 - `0.33.0` — **`z3.satisfy` — model-finding as the primary instrument output.** The deferred verifier-wave follow-on to shipped `z3.prove`: typed constraints go to Z3 and come back as a concrete assignment (`result` / `artifact_kind="model"`), an honest no-model (`refuted` / `unsat` certificate), or `undecided` on timeout / unknown. Same `_z3_support` translator, same safety bounds, same soft-timeout-under-wall-clock honesty. No boolean connectives, no quantifiers. Quiet Instruments drive form + result card. **No schema, no migration.** Sits on shipped `0.32.0`.
@@ -124,9 +123,10 @@ instead of stopping at QF connectives. Same InputModel, same sandbox,
 same honesty contract. The dedicated formula AST walker grows two
 named functions — the shared SymPy `parse_expr` gate is **not**
 widened, and binders are bare declared names (`ForAll(x, y, body)`),
-not lists / lambdas. **No schema, no migration.** Sits on current
-`main` (includes shipped `0.38.0` and the 0.36.x / 0.37.0 line that
-landed around it). Does not weaken the vacuous-hypotheses guard.
+not lists / lambdas. **No schema, no migration.** On `main` as
+`00b20bc` (#31). Sits on shipped `0.38.0` (`e0e118b`, #28) and the
+0.36.x / 0.37.0 line already on `main`. Does not weaken the
+vacuous-hypotheses guard.
 
 - **Closed allow-list extension.** `ForAll` / `Exists` join
   `And` / `Or` / `Not` / `Implies` / `Xor` / `Equivalent`. Binders
@@ -167,84 +167,8 @@ See `docs/completions/z3-quantifiers-0.39.0.md`.
 agent-loop changes; full replayable proof terms; `If` / ite; a
 browser eyeball pass.
 
-## 0.36.1
+---
 
-**Opening a project no longer white-screens when tags are missing.** Confirmed
-on live `opentheory.vercel.app`: home cards load, opening an Active project
-hits `GET /api/v1/projects/{id}/tags` → **404**, then the client throws
-`TypeError: Cannot read properties of undefined (reading 'total')`. Research
-is keep-alive, so that exception unmounts the whole workspace — Instruments
-and Blame are unreachable behind it. **No schema, no migration.** Sits on
-shipped `0.36.0` (`71a8929`, #21). Does not claim unmerged `0.37` / `0.38`.
-
-- **Root cause.** Live Fly OpenAPI has no `/tags` paths (pre-`0.21.0`) and
-  thread rows omit `grounding_rollup` (pre-`0.16.3`). Current Vercel FE
-  calls tags and reads `thread.grounding_rollup.total` unconditionally.
-  Tags are a real shipped surface on `main` (`0.21.0`, bare array — not
-  `{ items, total }`). The `.total` crash is the missing rollup, not a
-  paginated tags payload.
-- **Frontend.** `listTags` treats 404 as `[]` and accepts either a bare
-  array or an empty `{ items, total }` envelope without reading
-  `undefined.total`. `listThreads` / `formatGroundingRollup` always
-  normalize to `{ buckets: [], total: 0 }`. A missing optional field is
-  not a client exception.
-- **Backend.** `GET /projects/{id}/tags` already exists on `main`.
-  `list_tags` now 404s an unknown project (`Project not found`) and
-  returns `200 []` for an existing project with no tags. No new table;
-  tagging is not re-announced as a feature. `create_checkpoint` is still
-  the only Checkpoint writer.
-- **Honest empty.** A 404 from a missing *route* (stale Fly) is empty,
-  not a pretend tagging product. A missing *project* stays 404.
-
-```bash
-cd frontend && npm test             # includes safe-reads / tags 404
-cd frontend && npm run typecheck && npm run lint
-cd backend && uv run ruff check .
-cd backend && uv run pytest tests/test_wiring.py tests/test_tags.py -q
-```
-
-**Not in this release:** redeploying Fly (the live 404 disappears only
-when the backend that already has `/tags` is shipped); a new tagging
-UX; schema/migration; auto-validate / auto-fund / auto-merge.
-## 0.36.3
-
-**Honesty polish on two leftover lies** noted after the 0.36.x assessor
-loop closed P0/P1 (R3 residuals P2-12 / P2-13). Copy and prompt only.
-**No schema, no migration.** Sits on shipped `0.36.0` (`71a8929`, #21)
-and the R1 assessment doc (`375733a`, #22). Does **not** claim
-`0.36.1` / `0.36.2` / `0.37.0` / `0.38.0` — those are still open PRs
-and this branch is off `main`, not stacked on them.
-
-- **`BranchCreate` / `ValidationCreate`.** Schema docstrings (OpenAPI)
-  named the local-only actor header as the acting-actor path. They now
-  describe the signed-in principal (verified Supabase bearer JWT).
-  Assistant (`CLAUDE.md`) and deploy runbook copy match: production is
-  JWT; the local/test header path is off by default and is not
-  advertised.
-- **Planner prompt.** Open-claim lines printed stored `Claim.status`
-  (`proposed` forever — nothing writes settlement there). They now
-  print `signal` from `compute_signal`, the same validation-axis
-  derivation the claim read already serializes. The system prompt
-  names that axis. The stored column is not taught. The open-claim
-  *filter* is unchanged (that is `0.36.1` / #23, still unmerged).
-- **Write path untouched.** `create_checkpoint` stays the only
-  Checkpoint writer. No assessor-loop restart, no Lean / Z3 expansion.
-
-```bash
-cd backend && uv run ruff check .   # clean
-cd backend && uv run pytest -q      # 638 passed, 220 skipped (no TEST_DATABASE_URL)
-# Prompt/planner extras: 32 passed (includes signal-not-status cases)
-# DB-backed ledger/agent suite skipped — no Postgres in this environment
-cd frontend && npm run typecheck && npm run lint   # clean
-cd frontend && npm test             # 35 passed
-```
-
-See `docs/completions/honesty-polish-0.36.3.md`.
-
-**Not in this release:** membership gating on original ledger writes
-(`0.36.1`); `ClaimCreate` forbidding client `status`; planner
-open-claim filter via `compute_signal`; CI; Lean REPL; boolean Z3
-quantifiers.
 ## 0.38.0
 
 **Boolean connectives for `z3.prove` / `z3.satisfy`.** The deferred
@@ -253,9 +177,8 @@ proposition can carry `And` / `Or` / `Not` / `Implies` (and `Xor` /
 `Equivalent`) instead of a single top-level relation. Same InputModel,
 same sandbox, same honesty contract. A dedicated formula AST walker —
 the shared SymPy `parse_expr` gate is **not** widened. **No schema, no
-migration.** Sits on shipped `0.36.0` (`71a8929`, on `main`). Does not
-claim `0.36.1` / `0.36.2` / `0.37.0`. Does not weaken the
-vacuous-hypotheses guard.
+migration.** On `main` as `e0e118b` (#28). Sits on shipped `0.36.0`
+(`71a8929`, #21). Does not weaken the vacuous-hypotheses guard.
 
 - **Closed allow-list.** Function-call connectives plus Python
   `and` / `or` / `not`. `bool` sort. Bare bool variables and
@@ -283,8 +206,10 @@ cd frontend && npm test             # 35 passed
 See `docs/completions/z3-boolean-connectives-0.38.0.md`.
 
 **Not in this release:** quantifiers; full replayable proof terms;
-Lean REPL / LeanDojo; `0.36.1` / `0.36.2` / `0.37.0`; a browser
-eyeball pass.
+Lean REPL / LeanDojo; a browser eyeball pass.
+
+---
+
 ## 0.37.0
 
 **GitHub Actions CI with Postgres — the contribution contract, actually
@@ -293,8 +218,9 @@ highest-value remaining P2: without a Postgres service, membership /
 ClaimCreate / write-path closures stay "verified only on the agent's
 laptop," and a default pytest is green-but-hollow. This release adds
 the workflow only. **No schema, no migration, no application code.**
-Sits on shipped `0.36.0` (`71a8929`, #21) and the R1 assessment
-(`375733a`, #22). Does not claim `0.36.1` / `0.36.2`.
+On `main` as `e93ca47` (#27). Sits on shipped `0.36.0` (`71a8929`, #21)
+and the R1 assessment (`375733a`, #22). R1/R2 remediations shipped
+separately as `0.36.1` (`b63293d`, #23) and `0.36.2` (`ca06239`, #25).
 
 - **`.github/workflows/ci.yml`.** Runs on `pull_request` and `push` to
   `main`. Two parallel jobs. `contents: read`. Stale runs on the same
@@ -325,24 +251,115 @@ cd frontend && npm ci && npm run typecheck && npm run lint && npm test && npm ru
 
 See `docs/completions/github-actions-ci-0.37.0.md`.
 
-**Not in this release:** Lean / Mathlib in CI; assessment remediations
-(`0.36.1` / `0.36.2`); changing branch protection; a durable job
-queue; a browser eyeball pass.
+**Not in this release:** Lean / Mathlib in CI; changing branch
+protection; a durable job queue; a browser eyeball pass. This commit
+is the CI workflow only.
+
+---
+
+## 0.36.4
+
+**Opening a project no longer white-screens when tags are missing.** The
+motivating prod symptom: live Fly lagged `main`, so `opentheory.vercel.app`
+home cards loaded, then opening an Active project hit
+`GET /api/v1/projects/{id}/tags` → **404**, and the client threw
+`TypeError: Cannot read properties of undefined (reading 'total')`. Research
+is keep-alive, so that exception unmounted the whole workspace — Instruments
+and Blame were unreachable behind it. **No schema, no migration.** On `main`
+as `9b6220c` (#30). The squash commit subject on `main` still says `0.36.1`
+because of a merge-time numbering collision with R1 remediation; the
+correct release id is `0.36.4`. Git history is not rewritten. Sits on
+shipped `0.36.0` (`71a8929`, #21).
+
+- **Root cause.** Live Fly OpenAPI has no `/tags` paths (pre-`0.21.0`) and
+  thread rows omit `grounding_rollup` (pre-`0.16.3`). Current Vercel FE
+  calls tags and reads `thread.grounding_rollup.total` unconditionally.
+  Tags are a real shipped surface on `main` (`0.21.0`, bare array — not
+  `{ items, total }`). The `.total` crash is the missing rollup, not a
+  paginated tags payload.
+- **Frontend.** `listTags` treats 404 as `[]` and accepts either a bare
+  array or an empty `{ items, total }` envelope without reading
+  `undefined.total`. `listThreads` / `formatGroundingRollup` always
+  normalize to `{ buckets: [], total: 0 }`. A missing optional field is
+  not a client exception.
+- **Backend.** `GET /projects/{id}/tags` already exists on `main`.
+  `list_tags` now 404s an unknown project (`Project not found`) and
+  returns `200 []` for an existing project with no tags. No new table;
+  tagging is not re-announced as a feature. `create_checkpoint` is still
+  the only Checkpoint writer.
+- **Honest empty.** A 404 from a missing *route* (stale Fly) is empty,
+  not a pretend tagging product. A missing *project* stays 404.
+
+```bash
+cd frontend && npm test             # includes safe-reads / tags 404
+cd frontend && npm run typecheck && npm run lint
+cd backend && uv run ruff check .
+cd backend && uv run pytest tests/test_wiring.py tests/test_tags.py -q
+```
+
+**Not in this release:** redeploying Fly (the live 404 disappears only
+when the backend that already has `/tags` is shipped); a new tagging
+UX; schema/migration; auto-validate / auto-fund / auto-merge.
+
+---
+
+## 0.36.3
+
+**Honesty polish on two leftover lies** noted after the 0.36.x assessor
+loop closed P0/P1 (R3 residuals P2-12 / P2-13). Copy and prompt only.
+**No schema, no migration.** On `main` as `81a154e` (#29). Sits on
+shipped `0.36.0` (`71a8929`, #21) and the R1 assessment doc
+(`375733a`, #22).
+
+- **`BranchCreate` / `ValidationCreate`.** Schema docstrings (OpenAPI)
+  named the local-only actor header as the acting-actor path. They now
+  describe the signed-in principal (verified Supabase bearer JWT).
+  Assistant (`CLAUDE.md`) and deploy runbook copy match: production is
+  JWT; the local/test header path is off by default and is not
+  advertised.
+- **Planner prompt.** Open-claim lines printed stored `Claim.status`
+  (`proposed` forever — nothing writes settlement there). They now
+  print `signal` from `compute_signal`, the same validation-axis
+  derivation the claim read already serializes. The system prompt
+  names that axis. The stored column is not taught. The open-claim
+  *filter* is unchanged (that is `0.36.1` / #23 / `b63293d`).
+- **Write path untouched.** `create_checkpoint` stays the only
+  Checkpoint writer. No assessor-loop restart, no Lean / Z3 expansion.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 638 passed, 220 skipped (no TEST_DATABASE_URL)
+# Prompt/planner extras: 32 passed (includes signal-not-status cases)
+# DB-backed ledger/agent suite skipped — no Postgres in this environment
+cd frontend && npm run typecheck && npm run lint   # clean
+cd frontend && npm test             # 35 passed
+```
+
+See `docs/completions/honesty-polish-0.36.3.md`.
+
+**Not in this release:** Lean REPL. Membership gating on original
+ledger writes, `ClaimCreate` forbidding client `status`, and the
+planner open-claim filter via `compute_signal` shipped in `0.36.1`
+(`b63293d`, #23). CI is `0.37.0`. Boolean Z3 connectives are `0.38.0`;
+quantifiers are `0.39.0`.
+
+---
+
 ## 0.36.2
 
 **Assessment R2 P2 bugfixes — thread settlement, agent-trace honesty, write-path
 suite honesty.** The R1 P0/P1s stay closed. This slice closes the three
-bug-like residuals from `docs/plans/codebase-assessment-2026-09-26-r2.md`
-(PR #24): a client can no longer stamp `Thread.status`; agent-trace pills
+bug-like residuals from `docs/plans/codebase-assessment-2026-09-26-r2.md`:
+a client can no longer stamp `Thread.status`; agent-trace pills
 stop passing `{}` into `resolveOutcomeMeta`; the DB-backed write-path suite
 stops naming stubs `calc.eval` and stops exact-matching geometry output
 without the `*_latex` companions the instruments have emitted since 0.10.4.
-**No schema, no migration.** Stacked on `0.36.1` (`80495c0`, #23). Does not
-claim `0.36.1` or this line on `main`.
+**No schema, no migration.** On `main` as `ca06239` (#25). Sits on
+`0.36.1` (`b63293d`, #23).
 
 - **`ThreadCreate`.** Standalone model (`extra="forbid"`). `status` is
   server-owned — `create_thread` stamps `open`. Create-time `stage` stays
-  allowed. Same shape as `ClaimCreate` in 0.36.1, lower blast radius.
+  allowed. Same shape as `ClaimCreate` in `0.36.1`, lower blast radius.
 - **Agent-trace chrome.** Landed steps persist a trimmed display map
   (`proven` / `found` / `is_relation` / …). `landedStepMeta` feeds it to
   `resolveOutcomeMeta`, so a successful proof reads Proven and weak-support
@@ -368,10 +385,10 @@ cd frontend && npm run typecheck && npm run lint && npm test
 
 See `docs/completions/assessment-r2-p2-bugfixes-0.36.2.md`.
 
-**Not in this release:** merging this PR or #23; file splits of
-`drive-forms.tsx` / `result-view.tsx`; GitHub Actions CI; renaming
-`canManageProject`; hiding the claim confidence percentage; fat project
-PATCH; dual-fork race docs; `visitedTabs`.
+**Not in this release:** file splits of `drive-forms.tsx` /
+`result-view.tsx`; renaming `canManageProject`; hiding the claim
+confidence percentage; fat project PATCH; dual-fork race docs;
+`visitedTabs`. CI shipped separately as `0.37.0`.
 
 ---
 
@@ -385,8 +402,8 @@ pre-`0.9` research POSTs authenticated and wrote with no
 someone else's claim, or merge their branches. Instruments / agent /
 campaign already gated; this release mirrors that on checkpoint / claim /
 validation / thread / evidence / branch / close / merge / tag / funding.
-**No schema, no migration.** Sits on shipped `0.36.0` (`71a8929`, #21) and
-the assessment doc (`375733a`, #22).
+**No schema, no migration.** On `main` as `b63293d` (#23). Sits on shipped
+`0.36.0` (`71a8929`, #21) and the assessment doc (`375733a`, #22).
 
 - **P0 — membership.** Route-level `ensure_is_member` (nested paths resolve
   `project_id` from the loaded row first). Services that agents compose
@@ -416,16 +433,16 @@ cd backend && uv run ruff check . && uv run pytest -q
 # With local Postgres (TEST_DATABASE_URL): 860 passed, 4 skipped, 7 failed.
 # The 7 failures are pre-existing toolbench write-path assertion drift
 # (stub named calc.eval dispatched through the 0.11 sandbox; geometry
-# *_latex companions) — not this PR. Without a DB: 649 passed, 222 skipped.
+# *_latex companions) — not this release. Without a DB: 649 passed, 222 skipped.
 cd frontend && npm run typecheck && npm run lint && npm test
 # typecheck + lint clean; 41 tests passed (includes resolveOutcomeMeta).
 ```
 
 See `docs/completions/assessment-r1-remediation-0.36.1.md`.
 
-**Not in this release:** merging this PR; P2 file splits; GitHub Actions;
-renaming `canManageProject`; hiding the claim confidence percentage;
-durable reservation-rate column.
+**Not in this release:** P2 file splits; renaming `canManageProject`;
+hiding the claim confidence percentage; durable reservation-rate
+column. CI shipped separately as `0.37.0`.
 
 ---
 
@@ -436,9 +453,9 @@ claim in a project, return the ordered chain of checkpoints, actors, and
 tool invocations that produced or evidence-grounded it. Substrate for
 attribution and for debugging a bad result. Like semantic diff (`0.29.0`),
 this is a **derived read that mints nothing** — not an instrument.
-**No schema, no migration.** Sits on shipped `0.35.0` (`1ca7116`,
-#20 squash-merged) and shipped `0.34.0` (`a7cd946`) and `0.33.0`
-(`e3a07ea`). Does not claim `0.36.0` as on `main`.
+**No schema, no migration.** On `main` as `71a8929` (#21 squash). Sits on
+shipped `0.35.0` (`1ca7116`, #20 squash-merged) and shipped `0.34.0`
+(`a7cd946`) and `0.33.0` (`e3a07ea`).
 
 - **`GET /projects/{id}/claims/{claim_id}/blame`.** Public, always-on.
   Unknown project or claim → `404`. A claim that exists in another
@@ -469,9 +486,9 @@ cd frontend && npm test             # 35 passed
 
 See `docs/completions/research-git-blame-0.36.0.md`.
 
-**Not in this release:** merging this PR; auto-validate / auto-fund /
-auto-merge; Lean REPL / LeanDojo; content-addressed commit ids;
-rewriting claim field history tables; a browser eyeball pass.
+**Not in this release:** auto-validate / auto-fund / auto-merge;
+Lean REPL / LeanDojo; content-addressed commit ids; rewriting claim
+field history tables; a browser eyeball pass.
 
 ---
 
