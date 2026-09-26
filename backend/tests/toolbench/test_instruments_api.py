@@ -43,6 +43,11 @@ def test_instruments_catalog_is_public(dbfree_client: TestClient) -> None:
         "z3.prove",
         "z3.satisfy",
         "lean.prove",
+        "table.create",
+        "table.derive_column",
+        "table.render",
+        "plot.function",
+        "plot.points",
     } <= names
     # every descriptor carries the universal three-outcome contract
     contract = {o["status"] for o in resp.json()[0]["result_contract"]}

@@ -103,3 +103,42 @@ export type LeanProveOutput = {
   lake_used?: boolean;
   mathlib_rev?: string | null;
 };
+
+// Output shape of Bench 6 `table.*` (0.34.0) — structured grid, exact cells.
+export type TableArtifactOutput = {
+  title?: string | null;
+  columns: string[];
+  rows: Record<string, string>[];
+  n_rows: number;
+  n_cols: number;
+  has_labels?: boolean;
+  exact?: boolean;
+  markdown?: string;
+  name?: string;
+  expression?: string;
+  is_relation?: boolean;
+  holds_per_row?: Array<boolean | null> | null;
+  n_false?: number | null;
+  n_undecided?: number | null;
+  witness?: Record<string, string> | null;
+  expression_latex?: string | null;
+};
+
+// Output shape of Bench 6 `plot.*` (0.34.0) — Vega-Lite spec, approximate viz.
+export type PlotArtifactOutput = {
+  expression?: string;
+  variable?: string;
+  domain?: string[];
+  n_samples?: number;
+  n_plotted?: number;
+  n_points?: number;
+  mark?: string;
+  approximate: boolean;
+  spec: Record<string, unknown>;
+  points: Array<{ x: number; y: number }>;
+  note: string;
+  status_reason?: string | null;
+  expression_latex?: string | null;
+  x_title?: string;
+  y_title?: string;
+};

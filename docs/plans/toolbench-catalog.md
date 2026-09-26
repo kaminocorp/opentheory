@@ -1,6 +1,6 @@
 # Toolbench Catalog — The Buildable Tool List, Sorted by Integration Cost
 
-> **Status — working catalog (updated 2026-09-25), partially shipped (`0.9.x`–`0.18.x`).** A
+> **Status — working catalog (updated 2026-09-25), partially shipped (`0.9.x`–`0.34.0`).** A
 > concrete, buildable companion to the design proposal in
 > `docs/plans/agent-research-tools.md`. That doc argues *why* the bench exists and *what
 > each tool is for* (the four families: Compute / Verify / Retrieve / Visualize). This doc
@@ -10,14 +10,16 @@
 > **Shipped:** Tier 0 SymPy instruments (`calc.eval`, `expr.compare`,
 > `geometry.coordinate_measure`, `counterexample.search`) + Tier 0 **`z3.prove`** (`0.13.x`)
 > + Tier 0 **`z3.satisfy`** (`0.33.0`)
+> + Tier 0 Bench 6 **`table.*` / `plot.*`** (`0.34.0`)
 > + Tier 1 `oeis.search` + Tier 1 literature pins (`crossref.lookup`, `arxiv.lookup`,
 > `openalex.lookup`, `0.18.0`) + Tier 2 **`lean.prove`** (`0.23.0` prelude/Init;
 > `0.26.0` optional Mathlib / offline `lake`); adapter registry, write path,
 > provenance spine, workspace UI, KaTeX render, execution sandbox. See
 > `docs/plans/maths-toolbox.md` §Shipped in production.
 >
-> **Not shipped:** Arb/`interval.eval`, Lean REPL / LeanDojo, visualization
-> instruments (Vega-Lite tables/plots), boolean connectives / quantifiers on Z3.
+> **Not shipped:** Arb/`interval.eval`, Lean REPL / LeanDojo, boolean
+> connectives / quantifiers on Z3. `formula.render` remains covered by
+> `*_latex` + KaTeX (do not reintroduce).
 
 ## The organizing principle
 
@@ -153,16 +155,19 @@ coincide, which is convenient for sequencing.
 
 ## Recommended starter kit
 
-The original starter kit argued for SymPy + Z3 + OEIS. **As of `0.33.0` we shipped SymPy
-(four instruments) + OEIS + `z3.prove` + `z3.satisfy` + literature pins + a thin `lean.prove`.**
+The original starter kit argued for SymPy + Z3 + OEIS. **As of `0.34.0` we shipped SymPy
+(four instruments + Bench 6 tables/plots) + OEIS + `z3.prove` + `z3.satisfy` + literature pins + a thin `lean.prove`.**
 That covers the flagship demo (`agent-research-tools.md` §5) **claims 1–4** with readable
-KaTeX *and* two machine-checked proof paths *and* a model-finder *and* a citable literature retrieve path.
+KaTeX *and* two machine-checked proof paths *and* a model-finder *and* a citable literature retrieve path
+*and* a typed falsification grid.
 Claim 5 has a prelude/Init Grade-A path (`0.23.0`) and an optional Mathlib
 path (`0.26.0`) when the image is rebuilt with `INSTALL_MATHLIB=1`.
 
 ```text
-Shipped (0.9.x–0.33.0):
+Shipped (0.9.x–0.34.0):
   SymPy     — calc.eval, expr.compare, geometry.coordinate_measure, counterexample.search
+              table.create, table.derive_column, table.render
+              plot.function, plot.points (Vega-Lite spec; viz only)
   OEIS      — oeis.search (Tier 1, pinned retrieval)
   Z3        — z3.prove (validity: proof / counter-model / undecided)
               z3.satisfy (model-finding: assignment / unsat / undecided)
@@ -191,6 +196,9 @@ Next adds:
 - **Resolved (`0.33.0`):** **`z3.satisfy`** — model-finding as the primary output.
   `sat` → `result` / `artifact_kind="model"`; `unsat` → `refuted` / no model;
   `unknown` → `undecided`. Boolean connectives / quantifiers remain later.
+- **Resolved (`0.34.0`):** Bench 6 **`table.*` / `plot.*`**. Tables are the
+  falsification grid; plots emit Vega-Lite specs and never grade. No
+  `formula.render` instrument (`*_latex` + KaTeX). No migration.
 - **Resolved (`0.23.0`):** `lean.prove` on the existing sandbox — optional `lean`
   binary, prelude/Init only, Grade A only on a real kernel check. Missing Lean is
   honest `undecided`.

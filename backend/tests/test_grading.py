@@ -33,6 +33,11 @@ INSTRUMENTS = (
     "crossref.lookup",
     "arxiv.lookup",
     "openalex.lookup",
+    "table.create",
+    "table.derive_column",
+    "table.render",
+    "plot.function",
+    "plot.points",
 )
 
 # --- every cell of the §3 matrix ------------------------------------------------------------------
@@ -73,6 +78,21 @@ MATRIX_CELLS = [
     ("openalex.lookup", ResultStatus.RESULT, None),
     ("openalex.lookup", ResultStatus.REFUTED, None),
     ("openalex.lookup", ResultStatus.UNDECIDED, None),
+    ("table.create", ResultStatus.RESULT, None),
+    ("table.create", ResultStatus.REFUTED, None),
+    ("table.create", ResultStatus.UNDECIDED, None),
+    ("table.render", ResultStatus.RESULT, None),
+    ("table.render", ResultStatus.REFUTED, None),
+    ("table.render", ResultStatus.UNDECIDED, None),
+    ("table.derive_column", ResultStatus.RESULT, EvidenceGrade.C),
+    ("table.derive_column", ResultStatus.REFUTED, EvidenceGrade.B),
+    ("table.derive_column", ResultStatus.UNDECIDED, None),
+    ("plot.function", ResultStatus.RESULT, None),
+    ("plot.function", ResultStatus.REFUTED, None),
+    ("plot.function", ResultStatus.UNDECIDED, None),
+    ("plot.points", ResultStatus.RESULT, None),
+    ("plot.points", ResultStatus.REFUTED, None),
+    ("plot.points", ResultStatus.UNDECIDED, None),
 ]
 
 
@@ -220,6 +240,10 @@ def test_retrieval_is_never_a_way_to_raise_a_rung() -> None:
         assert "openalex.lookup" not in instruments_reaching(grade)
     assert "oeis.search" not in raise_path(None)
     assert "crossref.lookup" not in raise_path(None)
+    assert "table.create" not in raise_path(None)
+    assert "table.render" not in raise_path(None)
+    assert "plot.function" not in raise_path(None)
+    assert "plot.points" not in raise_path(None)
 
 
 def test_raise_path_from_b_is_the_a_capable_set() -> None:
@@ -243,6 +267,7 @@ def test_raise_path_from_nothing_offers_every_graded_instrument() -> None:
         "calc.eval",
         "geometry.coordinate_measure",
         "counterexample.search",
+        "table.derive_column",
     }
 
 
@@ -254,6 +279,9 @@ def test_raise_path_is_strictly_stronger_than_the_current_rung() -> None:
     """
     assert "counterexample.search" in instruments_reaching(EvidenceGrade.C)
     assert "counterexample.search" in raise_path(EvidenceGrade.C)  # can still reach B
+    assert "table.derive_column" in instruments_reaching(EvidenceGrade.C)
+    assert "table.derive_column" in raise_path(EvidenceGrade.C)  # can still reach B
+    assert "table.derive_column" not in raise_path(EvidenceGrade.B)
     # geometry tops out at B, so it is a way up from C but not from B.
     assert "geometry.coordinate_measure" in raise_path(EvidenceGrade.C)
     assert "geometry.coordinate_measure" not in raise_path(EvidenceGrade.B)

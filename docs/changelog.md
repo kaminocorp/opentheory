@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.34.0` — **Bench 6 tables & plots.** `table.create` / `table.derive_column` / `table.render` / `plot.function` / `plot.points` — typed grids, a *computed* column with calc-spine honesty, and Vega-Lite specs (not rasters). Tables are the falsification grid; plots are optional viz and never Grade-A evidence. `formula.render` is not reintroduced (`*_latex` + KaTeX already covers it). Quiet Instruments drive/show. **No schema, no migration.** Sits on shipped `0.33.0` `z3.satisfy` (`e3a07ea`). Does not claim this line as on `main`.
 - `0.33.0` — **`z3.satisfy` — model-finding as the primary instrument output.** The deferred verifier-wave follow-on to shipped `z3.prove`: typed constraints go to Z3 and come back as a concrete assignment (`result` / `artifact_kind="model"`), an honest no-model (`refuted` / `unsat` certificate), or `undecided` on timeout / unknown. Same `_z3_support` translator, same safety bounds, same soft-timeout-under-wall-clock honesty. No boolean connectives, no quantifiers. Quiet Instruments drive form + result card. **No schema, no migration.** Sits on shipped `0.32.0`.
 - `0.32.0` — **Concurrent campaign cycles under project budget.** A `0.25.0` campaign may run a bounded number of `0.22.0` orchestrations at once against the shared `ComputeDebit` pot (`campaign_cycle_concurrency`, default 1 = sequential, hard-capped at 4). Cycle starts reuse the `0.27.0` project-row reservation lock; live OpenRouter quotes (`0.28.0`) stay the source for hold + debit. Trace records overlapping cycles, skips, and stop reasons (including cancel). Same `AGENT_LOOP_ENABLED` gate. One campaign per project still (`409`). Never auto-validates, auto-funds, or auto-merges. Overview shows "N cycles at a time". Migration `0021_concurrent_campaign_cycles` (additive). Sits on shipped `0.31.0`.
 - `0.31.0` — **Deepdive Phase D.** Shareable Research deep links (`?tab=research&thread=<id>&branch=<id>`) restore selection via `router.replace`. A quiet "Pass running" cue on the strip and CommandRail lights from the existing keep-alive newest-run flag — no new fetch — and clears when idle. Rail-only nav recorded; no sidecar. Historically the optional deepdive Phase D (after `0.14.0` / `0.24.0` / `0.30.0`). Sits on shipped `0.30.0`. Frontend-only — no backend, schema, or migration.
@@ -101,6 +102,50 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.34.0
+
+**Bench 6 — See & record: tables and Vega-Lite plots.** The agreed
+workspace surface after `0.33.0` `z3.satisfy`: build a typed table, add a
+*computed* column (this is compute), render the grid, and optionally graph
+`y = f(x)` or a point list as a Vega-Lite spec. **No schema, no
+migration** — `Artifact.kind` is already a free-form string; `table` and
+`plot` fit. Sits on shipped `0.33.0` (`e3a07ea`, #18 squash-merged).
+Does not reintroduce `formula.render`. Rebased after that merge —
+does not claim `0.34.0` as on `main`.
+
+- **`table.create`.** Columns + rows → a `table` artifact. Exact integers /
+  rationals / expressions, or opaque labels. A JSON float or `0.5` is a
+  422 — no silent promotion.
+- **`table.derive_column`.** Exact substitution over column names. A false
+  relation is `refuted` + a witness row (Grade B). Every row holding is
+  finite support (Grade C), never a proof. Undecided rows do not dilute a
+  witness. Blame rides on this instrument, same as `calc.eval`.
+- **`table.render`.** Structured table + markdown. Display only — no grade.
+- **`plot.function` / `plot.points`.** Vega-Lite v5 spec + sampled points.
+  Marked `approximate: true`. Too few real samples → `undecided`, never a
+  fabricated curve. Grade `None` — a picture is not evidence.
+- **Write path.** Only through `run_instrument` → the checkpoint
+  chokepoint. Parse / float / bound failures raise (422, mint nothing).
+- **Frontend.** Drive forms and result cards (HTML table, SVG from the
+  recorded points). Sentence case, no AI chrome. Plots captioned
+  *Visualization only — not evidence.*
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 602 passed, 209 skipped (no TEST_DATABASE_URL)
+# Write-path table/plot round-trips are DB-gated (skip without Postgres)
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
+cd frontend && npm test             # 29 passed
+```
+
+See `docs/completions/bench-6-tables-plots-0.34.0.md`.
+
+**Not in this release:** auto-validate / auto-fund / auto-merge; Lean
+REPL / LeanDojo; `interval.eval`; boolean Z3 parser; blame-as-op; a
+browser eyeball pass.
 
 ---
 

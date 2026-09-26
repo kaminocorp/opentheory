@@ -4,6 +4,7 @@ import { ExternalLink } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Icon, StatusPill } from "@/components/console";
+import { asPlotPoints, plotBounds, polylinePoints, projectPoint } from "@/lib/vega-lite-plot";
 import type { InstrumentDescriptor, ToolInvocation, ToolRunResult } from "@/types/toolbench";
 
 import { Formula } from "./formula";
@@ -737,6 +738,255 @@ function LeanProveBody({
   );
 }
 
+// --- table.* ----------------------------------------------------------------
+
+function ArtifactTable({
+  columns,
+  rows,
+}: {
+  columns: string[];
+  rows: Array<Record<string, unknown>>;
+}) {
+  if (columns.length === 0) {
+    return <p className="text-[13px] text-text-soft">Empty table.</p>;
+  }
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse text-left font-mono text-[12px]">
+        <thead>
+          <tr>
+            {columns.map((column) => (
+              <th
+                key={column}
+                className="px-2 py-1.5 font-medium text-text-mute"
+                style={{ borderBottom: "1px solid var(--hairline)" }}
+              >
+                {column}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, index) => (
+            <tr key={index}>
+              {columns.map((column) => (
+                <td
+                  key={column}
+                  className="px-2 py-1.5 tabular-nums text-text"
+                  style={{ borderBottom: "1px solid var(--hairline)" }}
+                >
+                  {asString(row[column])}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function TableBody({
+  output,
+  status,
+  instrumentName,
+}: {
+  output: Record<string, unknown>;
+  status: string;
+  instrumentName: string;
+}) {
+  const columns = Array.isArray(output.columns) ? (output.columns as unknown[]).map(asString) : [];
+  const rows = Array.isArray(output.rows) ? (output.rows as Array<Record<string, unknown>>) : [];
+  const title = asString(output.title);
+  const expression = asString(output.expression);
+  const expressionLatex = asLatex(output.expression_latex);
+  const witness = (output.witness ?? null) as Record<string, unknown> | null;
+  const isRelation = output.is_relation === true;
+  const nFalse = typeof output.n_false === "number" ? output.n_false : null;
+  const nUndecided = typeof output.n_undecided === "number" ? output.n_undecided : null;
+
+  const grid = (
+    <div className="grid gap-2">
+      {title ? <p className="text-[13px] font-medium text-text-soft">{title}</p> : null}
+      {expression ? (
+        <KeyValue k={instrumentName === "table.derive_column" ? "Derived" : "Expression"}>
+          <Formula expr={expression} latex={expressionLatex} className="text-[15px]" />
+        </KeyValue>
+      ) : null}
+      <ArtifactTable columns={columns} rows={rows} />
+    </div>
+  );
+
+  if (instrumentName === "table.derive_column" && status === "refuted") {
+    return (
+      <div className="grid gap-2">
+        {grid}
+        <CounterexampleCard caption="A computed row falsifies the relation — exact, blamable, never a float.">
+          {witness ? (
+            <div className="flex flex-wrap gap-1.5">
+              {Object.entries(witness).map(([name, value]) => (
+                <Chip key={name}>
+                  {name}={asString(value)}
+                </Chip>
+              ))}
+            </div>
+          ) : null}
+          {nFalse != null ? (
+            <KeyValue k="False rows">
+              <span className="font-mono text-[13px] tabular-nums text-text">{nFalse}</span>
+            </KeyValue>
+          ) : null}
+        </CounterexampleCard>
+      </div>
+    );
+  }
+
+  if (instrumentName === "table.derive_column" && status === "result" && isRelation) {
+    return (
+      <div className="grid gap-2">
+        {grid}
+        <WeakSupportCard caption="The relation holds on every row in this table — finite support only, never a proof.">
+          <KeyValue k="Rows">
+            <span className="font-mono text-[13px] tabular-nums text-text">{rows.length}</span>
+          </KeyValue>
+        </WeakSupportCard>
+      </div>
+    );
+  }
+
+  if (instrumentName === "table.derive_column" && status === "undecided") {
+    return (
+      <div className="grid gap-2">
+        {grid}
+        <UndecidedCard caption="At least one row could not be settled exactly — escalate, never a pass.">
+          {nUndecided != null ? (
+            <KeyValue k="Undecided rows">
+              <span className="font-mono text-[13px] tabular-nums text-text">{nUndecided}</span>
+            </KeyValue>
+          ) : null}
+        </UndecidedCard>
+      </div>
+    );
+  }
+
+  return grid;
+}
+
+// --- plot.* -----------------------------------------------------------------
+
+function PlotSvg({
+  points,
+  mark,
+}: {
+  points: Array<{ x: number; y: number }>;
+  mark: "point" | "line";
+}) {
+  const width = 320;
+  const height = 180;
+  const pad = 28;
+  const bounds = plotBounds(points);
+  if (!bounds) {
+    return <p className="text-[13px] text-text-soft">No finite points to draw.</p>;
+  }
+  const projected = points.map((point) => projectPoint(point, bounds, width, height, pad));
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      width="100%"
+      height={height}
+      role="img"
+      aria-label="Approximate plot of computed points"
+      className="max-w-md rounded-built bg-panel"
+      style={{ border: "1px solid var(--hairline)" }}
+    >
+      <line
+        x1={pad}
+        y1={height - pad}
+        x2={width - pad}
+        y2={height - pad}
+        stroke="currentColor"
+        className="text-text-faint"
+        strokeWidth="1"
+      />
+      <line
+        x1={pad}
+        y1={pad}
+        x2={pad}
+        y2={height - pad}
+        stroke="currentColor"
+        className="text-text-faint"
+        strokeWidth="1"
+      />
+      {mark === "line" ? (
+        <polyline
+          fill="none"
+          stroke="currentColor"
+          className="text-text"
+          strokeWidth="1.5"
+          points={polylinePoints(points, bounds, width, height, pad)}
+        />
+      ) : null}
+      {projected.map((point, index) => (
+        <circle
+          key={index}
+          cx={point.x}
+          cy={point.y}
+          r={mark === "line" ? 2 : 3}
+          fill="currentColor"
+          className="text-text"
+        />
+      ))}
+    </svg>
+  );
+}
+
+function PlotBody({
+  output,
+  status,
+  instrumentName,
+}: {
+  output: Record<string, unknown>;
+  status: string;
+  instrumentName: string;
+}) {
+  const points = asPlotPoints(output.points);
+  const mark = output.mark === "line" || instrumentName === "plot.function" ? "line" : "point";
+  const expression = asString(output.expression);
+  const expressionLatex = asLatex(output.expression_latex);
+  const note = asString(output.note) || "Visualization only — not evidence.";
+  const reason = asString(output.status_reason);
+  const domain = Array.isArray(output.domain) ? (output.domain as unknown[]).map(asString) : [];
+
+  if (status === "undecided") {
+    return (
+      <UndecidedCard caption="Not enough real samples to draw a curve — recorded, never a fabricated plot.">
+        {reason ? (
+          <KeyValue k="Reason">
+            <span className="font-mono text-[13px] text-text">{reason}</span>
+          </KeyValue>
+        ) : null}
+      </UndecidedCard>
+    );
+  }
+
+  return (
+    <div className="grid gap-2">
+      {expression ? (
+        <KeyValue k="Function">
+          <Formula expr={expression} latex={expressionLatex} className="text-[15px]" />
+          {domain.length === 2 ? (
+            <span className="font-mono text-[12px] text-text-faint">
+              over [{domain[0]}, {domain[1]}]
+            </span>
+          ) : null}
+        </KeyValue>
+      ) : null}
+      <PlotSvg points={points} mark={mark} />
+      <p className="text-[12px] leading-[1.5] text-text-mute">{note}</p>
+    </div>
+  );
+}
+
 // --- pinned retrieval (OEIS + literature) -----------------------------------
 
 function PinFooter({ pin }: { pin: Record<string, unknown> }) {
@@ -930,6 +1180,43 @@ function resolveOutcomeMeta(
       };
     }
   }
+  if (instrumentName === "table.derive_column") {
+    if (status === "refuted") {
+      return {
+        tone: "fail",
+        label: "Refuted",
+        gloss: "A computed row falsifies the relation — exact witness.",
+      };
+    }
+    if (status === "result" && output.is_relation === true) {
+      return {
+        tone: "warn",
+        label: "Holds on this table",
+        gloss: "Finite support only — every row holding is not a proof.",
+      };
+    }
+    if (status === "undecided") {
+      return {
+        tone: "warn",
+        label: "Undecided",
+        gloss: "A row could not be settled exactly — recorded, never a pass.",
+      };
+    }
+  }
+  if (instrumentName === "plot.function" || instrumentName === "plot.points") {
+    if (status === "undecided") {
+      return {
+        tone: "warn",
+        label: "Undecided",
+        gloss: "Not enough real samples — recorded, never a fabricated plot.",
+      };
+    }
+    return {
+      tone: "ok",
+      label: "Plot",
+      gloss: "Visualization only — not evidence.",
+    };
+  }
   return outcomeMeta(status);
 }
 
@@ -987,6 +1274,13 @@ function ResultBody({
       return <Z3SatisfyBody output={output} status={status} />;
     case "lean.prove":
       return <LeanProveBody output={output} status={status} />;
+    case "table.create":
+    case "table.derive_column":
+    case "table.render":
+      return <TableBody output={output} status={status} instrumentName={name} />;
+    case "plot.function":
+    case "plot.points":
+      return <PlotBody output={output} status={status} instrumentName={name} />;
     default:
       return (
         <pre className="overflow-x-auto rounded-built bg-panel p-3 font-mono text-[12px] text-text-soft">

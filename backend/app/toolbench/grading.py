@@ -25,11 +25,10 @@ them.
 2. **Grade D is the absence of a tool, not a failure.** A human-created ``Evidence`` row (no
    ``instrument`` key in its metadata) is legitimately D — the baseline the bench exists to climb
    out of. It must never render as an error.
-3. **A tolerance-only result may never be reported as exact.** No current instrument produces one
-   (all current instruments are exact or retrieval), but the ladder must not acquire a "float → B"
-   rule when SciPy
-   lands. A numeric instrument whose output is a tolerance-bounded float belongs **below** the exact
-   rung, or on its own axis — never at B.
+3. **A tolerance-only result may never be reported as exact.** ``plot.*`` sample numerically
+   and are graded ``None`` on every cell (visualization, not evidence). The ladder must not
+   acquire a "float → B" rule when SciPy lands. A numeric instrument whose output is a
+   tolerance-bounded float belongs **below** the exact rung, or on its own axis — never at B.
 
 When in doubt, grade **lower** (plan R1): understating rigor is recoverable, overstating it is the
 failure mode a provenance ledger exists to prevent.
@@ -127,6 +126,38 @@ _MATRIX: dict[str, dict[ResultStatus, EvidenceGrade | None]] = {
     "openalex.lookup": {
         ResultStatus.RESULT: None,
         ResultStatus.REFUTED: None,
+        ResultStatus.UNDECIDED: None,
+    },
+    # Bench 6 containers / display. A table you typed, or a serialization of one,
+    # is not evidence that a claim is true. Explicit n/a on every cell.
+    "table.create": {
+        ResultStatus.RESULT: None,
+        ResultStatus.REFUTED: None,  # n/a — this instrument never refutes
+        ResultStatus.UNDECIDED: None,
+    },
+    "table.render": {
+        ResultStatus.RESULT: None,
+        ResultStatus.REFUTED: None,  # n/a — display only
+        ResultStatus.UNDECIDED: None,
+    },
+    # Secretly a compute instrument. A false relation on a row is an exact witness
+    # (**B**), same honesty as ``calc.eval`` / ``counterexample.search`` ``refuted``.
+    # Every row holding — or a value column with no check — is finite exact
+    # support (**C**), never a proof of a universal.
+    "table.derive_column": {
+        ResultStatus.RESULT: EvidenceGrade.C,
+        ResultStatus.REFUTED: EvidenceGrade.B,
+        ResultStatus.UNDECIDED: None,
+    },
+    # Optional visualization. A Vega-Lite spec is not evidence. Never a grade.
+    "plot.function": {
+        ResultStatus.RESULT: None,
+        ResultStatus.REFUTED: None,  # n/a — this instrument never refutes
+        ResultStatus.UNDECIDED: None,
+    },
+    "plot.points": {
+        ResultStatus.RESULT: None,
+        ResultStatus.REFUTED: None,  # n/a — this instrument never refutes
         ResultStatus.UNDECIDED: None,
     },
 }

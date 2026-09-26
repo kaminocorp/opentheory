@@ -4,6 +4,7 @@ import { Plus, X } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { Icon, Input, Select, Textarea } from "@/components/console";
+import { buildTablePayload } from "@/lib/table-artifact";
 import type { InstrumentDescriptor } from "@/types/toolbench";
 
 // A form reports its built `inputs` object (or `null` when incomplete/invalid) upward; the runner
@@ -938,6 +939,351 @@ function LeanProveForm({ onInputs, disabled }: FormProps) {
   );
 }
 
+// --- table.* ----------------------------------------------------------------
+
+const TABLE_DEMO_COLUMNS = "a, b, d";
+const TABLE_DEMO_ROWS = "3, 4, 5\n5, 12, 13";
+
+function TableFields({
+  title,
+  setTitle,
+  columns,
+  setColumns,
+  rows,
+  setRows,
+  disabled,
+}: {
+  title: string;
+  setTitle: (value: string) => void;
+  columns: string;
+  setColumns: (value: string) => void;
+  rows: string;
+  setRows: (value: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <>
+      <Field label="Title" hint="Optional. Rides on the artifact.">
+        <Input
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          placeholder="integer triples"
+          disabled={disabled}
+        />
+      </Field>
+      <Field label="Columns" hint="Comma-separated names. Identifiers only (a, b, d).">
+        <Input
+          mono
+          value={columns}
+          onChange={(event) => setColumns(event.target.value)}
+          placeholder="a, b, d"
+          disabled={disabled}
+        />
+      </Field>
+      <Field
+        label="Rows"
+        hint="One row per line, cells comma-separated. Exact values: 3, 1/2, sqrt(2) — not 0.5."
+      >
+        <Textarea
+          mono
+          value={rows}
+          onChange={(event) => setRows(event.target.value)}
+          rows={4}
+          aria-label="Table rows"
+          disabled={disabled}
+        />
+      </Field>
+    </>
+  );
+}
+
+function TableCreateForm({ onInputs, disabled }: FormProps) {
+  const [title, setTitle] = useState("integer triples");
+  const [columns, setColumns] = useState(TABLE_DEMO_COLUMNS);
+  const [rows, setRows] = useState(TABLE_DEMO_ROWS);
+  const emit = useEmit(onInputs);
+  useEffect(() => {
+    emit.current(buildTablePayload(columns, rows, title));
+  }, [title, columns, rows, emit]);
+
+  return (
+    <div className="grid gap-3">
+      <TableFields
+        title={title}
+        setTitle={setTitle}
+        columns={columns}
+        setColumns={setColumns}
+        rows={rows}
+        setRows={setRows}
+        disabled={disabled}
+      />
+    </div>
+  );
+}
+
+function TableDeriveColumnForm({ onInputs, disabled }: FormProps) {
+  const [title, setTitle] = useState("integer triples");
+  const [columns, setColumns] = useState(TABLE_DEMO_COLUMNS);
+  const [rows, setRows] = useState(TABLE_DEMO_ROWS);
+  const [name, setName] = useState("sum_legs");
+  const [expression, setExpression] = useState("d == a + b");
+  const emit = useEmit(onInputs);
+  useEffect(() => {
+    const table = buildTablePayload(columns, rows, title);
+    const col = name.trim();
+    const expr = expression.trim();
+    emit.current(table && col && expr ? { ...table, name: col, expression: expr } : null);
+  }, [title, columns, rows, name, expression, emit]);
+
+  return (
+    <div className="grid gap-3">
+      <TableFields
+        title={title}
+        setTitle={setTitle}
+        columns={columns}
+        setColumns={setColumns}
+        rows={rows}
+        setRows={setRows}
+        disabled={disabled}
+      />
+      <Field label="New column" hint="Identifier for the computed column.">
+        <Input
+          mono
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          placeholder="sum_legs"
+          disabled={disabled}
+        />
+      </Field>
+      <Field
+        label="Expression"
+        hint="Exact compute over column names — a**2 + b**2, or a relation d == a + b. Floats are rejected."
+      >
+        <Input
+          mono
+          value={expression}
+          onChange={(event) => setExpression(event.target.value)}
+          placeholder="d == a + b"
+          disabled={disabled}
+        />
+      </Field>
+    </div>
+  );
+}
+
+function TableRenderForm({ onInputs, disabled }: FormProps) {
+  const [title, setTitle] = useState("integer triples");
+  const [columns, setColumns] = useState(TABLE_DEMO_COLUMNS);
+  const [rows, setRows] = useState(TABLE_DEMO_ROWS);
+  const emit = useEmit(onInputs);
+  useEffect(() => {
+    emit.current(buildTablePayload(columns, rows, title));
+  }, [title, columns, rows, emit]);
+
+  return (
+    <div className="grid gap-3">
+      <TableFields
+        title={title}
+        setTitle={setTitle}
+        columns={columns}
+        setColumns={setColumns}
+        rows={rows}
+        setRows={setRows}
+        disabled={disabled}
+      />
+    </div>
+  );
+}
+
+// --- plot.* -----------------------------------------------------------------
+
+function PlotFunctionForm({ onInputs, disabled }: FormProps) {
+  const [expression, setExpression] = useState("x**2");
+  const [variable, setVariable] = useState("x");
+  const [domainMin, setDomainMin] = useState("-3");
+  const [domainMax, setDomainMax] = useState("3");
+  const [nSamples, setNSamples] = useState("50");
+  const emit = useEmit(onInputs);
+  useEffect(() => {
+    const expr = expression.trim();
+    const variableName = variable.trim();
+    const lo = domainMin.trim();
+    const hi = domainMax.trim();
+    const n = Number.parseInt(nSamples.trim(), 10);
+    if (!expr || !variableName || !lo || !hi || !Number.isInteger(n) || n < 2) {
+      emit.current(null);
+      return;
+    }
+    emit.current({
+      expression: expr,
+      variable: variableName,
+      domain_min: lo,
+      domain_max: hi,
+      n_samples: n,
+    });
+  }, [expression, variable, domainMin, domainMax, nSamples, emit]);
+
+  return (
+    <div className="grid gap-3">
+      <Field
+        label="Expression"
+        hint="y = f(x). Sampled numerically — visualization only, not evidence."
+      >
+        <Input
+          mono
+          value={expression}
+          onChange={(event) => setExpression(event.target.value)}
+          placeholder="x**2"
+          disabled={disabled}
+        />
+      </Field>
+      <Field label="Variable">
+        <Input
+          mono
+          value={variable}
+          onChange={(event) => setVariable(event.target.value)}
+          placeholder="x"
+          disabled={disabled}
+          className="w-24"
+        />
+      </Field>
+      <Field label="Domain" hint="Closed interval as exact math (−3, pi).">
+        <div className="flex items-center gap-1.5">
+          <Input
+            mono
+            value={domainMin}
+            onChange={(event) => setDomainMin(event.target.value)}
+            placeholder="-3"
+            aria-label="Domain minimum"
+            disabled={disabled}
+            className="w-28"
+          />
+          <span className="text-text-faint">…</span>
+          <Input
+            mono
+            value={domainMax}
+            onChange={(event) => setDomainMax(event.target.value)}
+            placeholder="3"
+            aria-label="Domain maximum"
+            disabled={disabled}
+            className="w-28"
+          />
+        </div>
+      </Field>
+      <Field label="Samples" hint="2–200 numeric samples along the domain.">
+        <Input
+          mono
+          value={nSamples}
+          onChange={(event) => setNSamples(event.target.value)}
+          placeholder="50"
+          disabled={disabled}
+          className="w-28"
+        />
+      </Field>
+    </div>
+  );
+}
+
+type PlotPointRow = { id: string; x: string; y: string };
+
+let _plotSeq = 0;
+const nextPlotId = (): string => `plot-${++_plotSeq}`;
+const plotPointRow = (x: string, y: string): PlotPointRow => ({
+  id: nextPlotId(),
+  x,
+  y,
+});
+
+function PlotPointsForm({ onInputs, disabled }: FormProps) {
+  const [mark, setMark] = useState<"point" | "line">("point");
+  const [points, setPoints] = useState<PlotPointRow[]>([
+    plotPointRow("0", "0"),
+    plotPointRow("1", "1"),
+    plotPointRow("2", "4"),
+  ]);
+  const emit = useEmit(onInputs);
+
+  useEffect(() => {
+    const parsed: Array<{ x: number | string; y: number | string }> = [];
+    for (const row of points) {
+      const x = row.x.trim();
+      const y = row.y.trim();
+      if (!x || !y) {
+        emit.current(null);
+        return;
+      }
+      parsed.push({
+        x: /^-?\d+$/.test(x) ? Number.parseInt(x, 10) : x,
+        y: /^-?\d+$/.test(y) ? Number.parseInt(y, 10) : y,
+      });
+    }
+    if (parsed.length === 0 || (mark === "line" && parsed.length < 2)) {
+      emit.current(null);
+      return;
+    }
+    emit.current({ points: parsed, mark });
+  }, [points, mark, emit]);
+
+  const patch = (index: number, part: Partial<PlotPointRow>) =>
+    setPoints((rows) => rows.map((row, i) => (i === index ? { ...row, ...part } : row)));
+
+  return (
+    <div className="grid gap-3">
+      <Field
+        label="Mark"
+        hint="Visualization only — a scatter or line is not evidence."
+      >
+        <Select
+          mono
+          value={mark}
+          onChange={(event) => setMark(event.target.value as "point" | "line")}
+          disabled={disabled}
+          className="w-28"
+        >
+          <option value="point">point</option>
+          <option value="line">line</option>
+        </Select>
+      </Field>
+      <Field label="Points" hint="x, y — numbers or exact strings (1/2, sqrt(2)).">
+        <ul className="grid gap-1.5">
+          {points.map((row, index) => (
+            <li key={row.id} className="flex items-center gap-1.5">
+              <Input
+                mono
+                value={row.x}
+                onChange={(event) => patch(index, { x: event.target.value })}
+                placeholder="x"
+                aria-label={`Point ${index + 1} x`}
+                disabled={disabled}
+                className="min-w-0 flex-1"
+              />
+              <Input
+                mono
+                value={row.y}
+                onChange={(event) => patch(index, { y: event.target.value })}
+                placeholder="y"
+                aria-label={`Point ${index + 1} y`}
+                disabled={disabled}
+                className="min-w-0 flex-1"
+              />
+              <RemoveButton
+                onClick={() => setPoints((rows) => rows.filter((_, i) => i !== index))}
+                disabled={disabled || points.length <= 1}
+                label={`Remove point ${index + 1}`}
+              />
+            </li>
+          ))}
+        </ul>
+        <AddRow
+          label="Add point"
+          onClick={() => setPoints((rows) => [...rows, plotPointRow("", "")])}
+          disabled={disabled || points.length >= 500}
+        />
+      </Field>
+    </div>
+  );
+}
+
 // --- generic fallback (any future instrument, no bespoke form yet) ----------
 
 function JsonForm({ descriptor, onInputs, disabled }: FormProps & { descriptor: InstrumentDescriptor }) {
@@ -1014,6 +1360,16 @@ export function DriveForm({
       return <Z3SatisfyForm onInputs={onInputs} disabled={disabled} />;
     case "lean.prove":
       return <LeanProveForm onInputs={onInputs} disabled={disabled} />;
+    case "table.create":
+      return <TableCreateForm onInputs={onInputs} disabled={disabled} />;
+    case "table.derive_column":
+      return <TableDeriveColumnForm onInputs={onInputs} disabled={disabled} />;
+    case "table.render":
+      return <TableRenderForm onInputs={onInputs} disabled={disabled} />;
+    case "plot.function":
+      return <PlotFunctionForm onInputs={onInputs} disabled={disabled} />;
+    case "plot.points":
+      return <PlotPointsForm onInputs={onInputs} disabled={disabled} />;
     default:
       return <JsonForm descriptor={descriptor} onInputs={onInputs} disabled={disabled} />;
   }
