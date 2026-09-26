@@ -46,9 +46,14 @@ schema, no migration.**
 - DB-free: unauthenticated ledger POSTs → `401`; `ClaimCreate` rejects
   stamped `status` / `confidence`; `claim_is_open_work`; reservation
   policy uses the passed rate; `resolveOutcomeMeta` proof fallthrough.
-- DB-gated: non-member `403` on every original write surface and the
-  checkpoint count does not rise; validation-only settlement empties
-  `_open_claims` while `Claim.status` stays `proposed`.
+- DB-gated (local Postgres): non-member `403` on every original write
+  surface and the checkpoint count does not rise; validation-only
+  settlement empties `_open_claims` while `Claim.status` stays
+  `proposed`. Full suite with `TEST_DATABASE_URL`: **860 passed**, 4
+  skipped, **7 failed** — the failures are pre-existing toolbench
+  write-path drift (stub named `calc.eval` vs sandbox registry;
+  geometry `*_latex` companions), not this PR. Without a DB: 649
+  passed, 222 skipped.
 
 ## What did not change
 

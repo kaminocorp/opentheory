@@ -146,8 +146,12 @@ the assessment doc (`375733a`, #22).
 
 ```bash
 cd backend && uv run ruff check . && uv run pytest -q
-# DB-backed membership / open-claims tests skip without TEST_DATABASE_URL
+# With local Postgres (TEST_DATABASE_URL): 860 passed, 4 skipped, 7 failed.
+# The 7 failures are pre-existing toolbench write-path assertion drift
+# (stub named calc.eval dispatched through the 0.11 sandbox; geometry
+# *_latex companions) — not this PR. Without a DB: 649 passed, 222 skipped.
 cd frontend && npm run typecheck && npm run lint && npm test
+# typecheck + lint clean; 41 tests passed (includes resolveOutcomeMeta).
 ```
 
 See `docs/completions/assessment-r1-remediation-0.36.1.md`.

@@ -339,6 +339,7 @@ async def test_contribution_recorded_for_all_create_flows(
 
     by_action = {r.action for r in rows}
     assert by_action == {
+        "create_project",
         "create_thread",
         "create_claim",
         "create_evidence",
