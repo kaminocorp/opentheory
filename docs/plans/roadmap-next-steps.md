@@ -1,8 +1,8 @@
 # Roadmap Next Steps
 
 > **Last updated:** 2026-09-25 · **Current release line:** `0.34.0`
-> (Bench 6 tables & Vega-Lite plots), sitting on `0.33.0`
-> (`z3.satisfy` model-finding) and shipped `0.32.0`
+> (Bench 6 tables & Vega-Lite plots), sitting on shipped `0.33.0`
+> (`z3.satisfy` model-finding, `e3a07ea`) and shipped `0.32.0`
 > (concurrent campaign cycles under project budget), `0.31.0` (deepdive Phase D — shareable Research deep links), `0.30.0`
 > (Phase C polish — historical alias `0.14.2`), `0.29.0`
 > (semantic git diff), `0.28.0` (live OpenRouter price metering),
@@ -20,8 +20,8 @@
 > `docs/archive/project-deepdive-tabs-0.14.md`.
 >
 > **Next after this line:** the still-owed browser eyeball pass. Unmerged
-> work is not claimed as shipped. Lean REPL / LeanDojo remain later.
-> `0.33.0` may still be unmerged (#18); this line is stacked on it.
+> work is not claimed as shipped (`0.34.0` is this branch, not `main`).
+> Lean REPL / LeanDojo remain later. `0.33.0` is on `main`.
 
 ## Where we are
 

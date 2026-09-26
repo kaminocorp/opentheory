@@ -1,6 +1,6 @@
 # 0.34.0 — Bench 6 tables & plots
 
-**Goal.** After unmerged-but-ready `0.33.0` `z3.satisfy`, ship the agreed Bench 6
+**Goal.** After shipped `0.33.0` `z3.satisfy` (`e3a07ea`), ship the agreed Bench 6
 *See & record* instruments so a researcher can build a falsification grid and
 (optionally) look at a curve — without treating a picture as a proof.
 
