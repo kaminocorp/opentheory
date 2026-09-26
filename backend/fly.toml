@@ -11,9 +11,11 @@ primary_region = "sin"
   dockerfile = "Dockerfile"
 
 # Non-secret runtime config. Secrets (DATABASE_URL, MIGRATION_DATABASE_URL,
-# BACKEND_CORS_ORIGINS, OPENROUTER_API_KEY) are set with `fly secrets set` — never
-# committed here. AGENT_LOOP_ENABLED stays off until that key is in place
-# (`fly secrets set AGENT_LOOP_ENABLED=true`); see docs/operations/deploy.md.
+# BACKEND_CORS_ORIGINS, OPENROUTER_API_KEY, OPENTHEORY_GATEWAY_TOKEN) are set
+# with `fly secrets set` — never committed here. AGENT_LOOP_ENABLED stays off
+# until that key is in place (`fly secrets set AGENT_LOOP_ENABLED=true`); the
+# external harness gateway (0.42.0) must not be turned on by flipping that
+# flag. See docs/operations/deploy.md.
 [env]
   APP_ENV = "production"
   API_V1_PREFIX = "/api/v1"

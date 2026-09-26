@@ -257,11 +257,15 @@ run in production until both of these are set.
 
 Leave `AGENT_LOOP_ENABLED=false` until you intend to take live agent traffic.
 
-The **external DeepSeek Harness** path (`0.40.0`) is a different owner of
-the session. Milestone 0 is docs + composition + a fixture MCP — it is
-**not** enabled on Fly, FastAPI does not import it, and it must not be
-turned on by flipping `AGENT_LOOP_ENABLED`. Do not set harness gateway
-tokens in `fly.toml [env]`. See `docs/harness/compatibility.md`.
+The **external DeepSeek Harness** path (`0.40.0`–`0.42.0`) is a different
+owner of the session. FastAPI does not import the package, Fly does not
+run the gateway or MCP child, and it must not be turned on by flipping
+`AGENT_LOOP_ENABLED`. The 0.42.0 gateway talks to OpenRouter only
+(`allow_fallbacks: false`, `require_parameters: true`,
+`data_collection: deny`, provider allowlist). Set
+`OPENROUTER_API_KEY` / `OPENTHEORY_GATEWAY_TOKEN` with `fly secrets set`
+if you ever run the child — **never** `fly.toml [env]`. See
+`docs/harness/compatibility.md`.
 
 Local dev copies the same pair from `backend/.env.example`. Per-pass **safety** caps
 (`AGENT_PASS_MAX_RUNS`, `AGENT_PASS_MAX_REPLANS`, `AGENT_PASS_MAX_BATCH_RUNS`,

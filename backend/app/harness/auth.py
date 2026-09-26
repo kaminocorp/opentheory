@@ -37,9 +37,13 @@ from app.models.actor import Actor
 JWT_ENV = "OPENTHEORY_ACTOR_JWT"
 JWT_FILE_ENV = "OPENTHEORY_ACTOR_JWT_FILE"
 DEV_ACTOR_ENV = "OPENTHEORY_DEV_ACTOR_ID"
+GATEWAY_TOKEN_ENV = "OPENTHEORY_GATEWAY_TOKEN"
+OPENROUTER_KEY_ENV = "OPENROUTER_API_KEY"
 
 # Keys whose values must never appear in probe / session logs.
-SECRET_ENV_KEYS = frozenset({JWT_ENV, JWT_FILE_ENV, DEV_ACTOR_ENV})
+SECRET_ENV_KEYS = frozenset(
+    {JWT_ENV, JWT_FILE_ENV, DEV_ACTOR_ENV, GATEWAY_TOKEN_ENV, OPENROUTER_KEY_ENV}
+)
 _REDACTED = "***"
 
 
@@ -112,6 +116,7 @@ def redact(value: Any) -> Any:
                 "jwt",
                 "api_key",
                 "apikey",
+                "gateway_token",
             }:
                 out[str(key)] = _REDACTED
             else:

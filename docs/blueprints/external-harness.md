@@ -1,9 +1,9 @@
 # External harness actor path
 
-> **What is (`0.41.0`).** Milestone 0 composition + fixture, plus the
-> live MCP door (`live_mcp.py`) bound to JWT Actor + membership + the
-> existing chokepoints. Gateway / Fly enablement are not shipped. If this
-> blueprint disagrees with `backend/app/harness/`, the code wins.
+> **What is (`0.42.0`).** Milestone 0 composition + fixture, the live
+> MCP door (`live_mcp.py`), and the fail-closed OpenRouter gateway +
+> turn supervision. Fly enablement is not shipped. If this blueprint
+> disagrees with `backend/app/harness/`, the code wins.
 
 ## The rule
 
@@ -21,7 +21,8 @@ earn a parallel data model.
 
 - `docs/harness/` — plan, compatibility, tool contracts, prior-art note
 - `backend/app/harness/` — composition verify, `opentheory.cordis.yml`,
-  fixture MCP (M0 probes), live MCP door, probe (OpenRouter skip)
+  fixture MCP (M0 probes), live MCP door, fail-closed OpenRouter
+  gateway, turn supervision, probe
 - JWT-file injection (`OPENTHEORY_ACTOR_JWT_FILE`) so the bearer never
   enters session / probe logs
 - Optional `[harness]` extra for `deepseek-harness-sdk==0.1.5rc1`
@@ -33,10 +34,10 @@ The FastAPI app does not import this package. Fly does not run it.
 
 ## What does not exist yet
 
-- Gateway + turn supervision (`0.42.0`)
 - A reference campaign on this path
-- Perpetual ops dashboard
+- Perpetual ops dashboard / daily caps
 - Any new Alembic revision
+- Fly enablement of the gateway or MCP child
 
 ## Capability tree
 
@@ -44,6 +45,7 @@ The authored Cordis patch strips coding tools (sandbox, pty, persistent
 shell, DeepSeek-native LLM extras) and inserts exactly two plugins:
 OpenRouter-via-env (`llm-pi-ai`) and the OpenTheory MCP client. The
 persona is a research contributor. Composition fails closed on drift.
+Turn supervision re-verifies the patch before every turn.
 
 ## Settlement
 
@@ -55,8 +57,13 @@ returns `minted: true` only after the chokepoint commits.
 `ComputeDebit` remains the compute-spend ledger (contributor, not
 funder). `FundingAllocation` stays money. `Validation` stays assessment.
 The external path must not conflate those tables. A funded project with
-`available <= 0` refuses live writes. Standalone instrument runs do not
-debit — same as humans. Token metering is the gateway slice.
+`available <= 0` refuses live writes and supervised turns. Unfunded
+projects are not treated as exhausted. Standalone instrument runs do
+not debit — same as humans. Token metering is the gateway: each
+supervised turn that spent tokens writes a `ComputeDebit` (no
+`AgentRun`; notes `harness_gateway_turn`) through
+`record_compute_debit`. An attempted completion that then failed still
+debits if tokens moved. A refused start writes nothing.
 
 ## Relationship to the built-in planner
 

@@ -81,7 +81,9 @@ Possible `status` values:
 An append-only compute-spend row against a project's funded budget (`0.19.0`,
 live rates in `0.28.0`).
 
-Agent passes convert recorded `AgentRun.tokens_used` into a debit. When the
+Agent passes convert recorded `AgentRun.tokens_used` into a debit. External
+harness turns (`0.42.0`) use the same writer without an `AgentRun`
+(`agent_run_id` null; notes `harness_gateway_turn`). When the
 OpenRouter price catalog is reachable, prompt and completion tokens bill at
 that model's live rates; otherwise the configured blended
 `agent_token_rate_usd_per_1k` (or a catalog `usd_per_1k` override) is used and

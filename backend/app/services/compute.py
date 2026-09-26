@@ -118,9 +118,9 @@ async def record_compute_debit(
     db: AsyncSession,
     *,
     project_id: UUID,
-    agent_run_id: UUID,
     tokens_used: int,
     model: str | None,
+    agent_run_id: UUID | None = None,
     kind: ComputeDebitKind = ComputeDebitKind.PLANNING,
     notes: str | None = None,
     prompt_tokens: int | None = None,
@@ -130,7 +130,9 @@ async def record_compute_debit(
     """Idempotently record this pass's spend. ``None`` when there is nothing to bill.
 
     Re-recording the same ``agent_run_id`` returns the existing row (the unique index
-    is the durable guard; this read is the happy-path short-circuit). Does not commit.
+    is the durable guard; this read is the happy-path short-circuit). A harness
+    gateway turn (``0.42.0``) has no ``AgentRun`` — ``agent_run_id`` stays null
+    and each call writes a new row. Does not commit.
 
     When ``quote`` is omitted the writer resolves one via :func:`quote_model_price`
     (cached live catalog, or blended fallback). Tokens that actually moved are
@@ -140,12 +142,13 @@ async def record_compute_debit(
     if tokens_used <= 0:
         return None
 
-    existing = await db.execute(
-        select(ComputeDebit).where(ComputeDebit.agent_run_id == agent_run_id)
-    )
-    already = existing.scalar_one_or_none()
-    if already is not None:
-        return already
+    if agent_run_id is not None:
+        existing = await db.execute(
+            select(ComputeDebit).where(ComputeDebit.agent_run_id == agent_run_id)
+        )
+        already = existing.scalar_one_or_none()
+        if already is not None:
+            return already
 
     resolved = quote if quote is not None else await quote_model_price(model)
     amount = usage_to_cost(

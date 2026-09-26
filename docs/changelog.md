@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.42.0` — **OpenRouter gateway + turn supervision.** The external DeepSeek Harness path talks to OpenRouter only, through a fail-closed gateway (provider allowlist, `allow_fallbacks: false`, `require_parameters: true`, `data_collection: deny`). Bounded turns refuse on composition drift or an exhausted funded pot. LLM tokens debit `ComputeDebit` via the existing writer (no `AgentRun`; notes `harness_gateway_turn`) on successful and attempted turns; a refused start writes nothing. Live MCP from `0.41.0` stays the only domain door. Opt-in live probe (`OPENTHEORY_HARNESS_LIVE`); default CI stays green without `OPENROUTER_API_KEY` or a `dsh` binary. Secrets never in `fly.toml [env]`. Does not light `AGENT_LOOP_ENABLED`. **Backend + docs — no schema, no migration.** Sits on shipped `0.41.0` (`06cfeab`, #34).
 - `0.41.0` — **Live OpenTheory MCP domain door.** The M0 stems bind to the existing chokepoints: JWT Actor (file-path injection, never logged) + `ensure_is_member` → real `run_instrument` / `create_checkpoint`, plus claim / thread / budget reads. Fixture MCP stays for M0 probe tests. FastAPI still does not import the package. Does not light `AGENT_LOOP_ENABLED`. A funded exhausted pot refuses and mints nothing; standalone instrument runs still do not debit (same as humans). **Backend + docs — no schema, no migration.** Sits on shipped `0.40.0` (`901b3de`, #33).
 - `0.40.0` — **External DeepSeek Harness Milestone 0.** Docs + fail-closed Cordis composition + fixture MCP probe scaffolding. The external adapter lives outside the product loop; OpenTheory's only domain door is a thin MCP plugin (`run_instrument`, `create_checkpoint`, context/budget reads). M0 does not bind those tools to the live ledger, does not light `AGENT_LOOP_ENABLED`, and does not enable the harness on Fly. Default CI stays green without `OPENROUTER_API_KEY` or the optional `[harness]` extra (`deepseek-harness-sdk==0.1.5rc1`). **Backend + docs — no schema, no migration.** Sits on shipped `0.39.0` (`00b20bc`, #31) / current `main` `921cdd1`.
 - `0.39.0` — **First-order quantifiers for `z3.prove` / `z3.satisfy`.** Closed allow-list grows `ForAll` / `Exists` on the existing 0.38.0 formula AST — dedicated walker, no `eval`, no widening of the shared SymPy gate, no new AST node types for binders. `∀x. x + 0 = x` is now a real Z3 proof. Vacuous-hypotheses guard and timeout→undecided stay. Quiet drive-form hint update. **No schema, no migration.** On `main` as `00b20bc` (#31). Sits on shipped `0.38.0` (`e0e118b`, #28).
@@ -113,6 +114,56 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.42.0
+
+**OpenRouter gateway + turn supervision.** Third slice of the external
+agent adapter. The live MCP door from `0.41.0` stays the only ledger
+writer; this slice owns the fail-closed OpenRouter path the Cordis
+`llm-pi-ai` plugin already pointed at (`OPENTHEORY_GATEWAY_URL` /
+`OPENTHEORY_GATEWAY_TOKEN`). **No schema, no migration.** Sits on
+shipped `0.41.0` (`06cfeab`, #34). Does not flip `AGENT_LOOP_ENABLED`.
+Does not invent a parallel settlement path.
+
+- **Fail-closed gateway.** `backend/app/harness/gateway.py` — OpenRouter
+  only (raw DeepSeek API refused). Default provider allowlist
+  `DeepSeek`. Every completion overwrites `provider` to
+  `allow_fallbacks: false`, `require_parameters: true`,
+  `data_collection: deny`. A client block that tries to re-open
+  fallbacks is discarded. HTTP child (`python -m app.harness.gateway`)
+  authenticates with `OPENTHEORY_GATEWAY_TOKEN` and forwards with
+  `OPENROUTER_API_KEY`. FastAPI still does not import the package.
+- **Turn supervision.** `backend/app/harness/turns.py` — re-verifies
+  the Cordis patch, bounds `OPENTHEORY_HARNESS_MAX_TURNS` (default 4),
+  refuses a funded exhausted pot before the LLM call. Optional MCP
+  dispatch after a successful completion uses the live door
+  (`run_instrument` / `create_checkpoint`). Exceptions mint nothing.
+- **ComputeDebit.** Tokens that moved — successful or attempted — go
+  through `record_compute_debit` (same rates / fallback honesty as the
+  built-in planner). Harness turns have no `AgentRun`; `agent_run_id`
+  stays null and `notes` carry `harness_gateway_turn`. A refused start
+  (drift / turn cap / exhausted pot) writes nothing. Standalone
+  instrument runs still do not debit.
+- **Probe.** `OPENTHEORY_HARNESS_LIVE=1` plus a key runs one fail-closed
+  completion. Unset flag / missing key skip. `dsh` / the `[harness]`
+  extra are not required for this path. Tests inject
+  `httpx.MockTransport`.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 779 passed, 240 skipped (no TEST_DATABASE_URL)
+# +23 vs shipped 0.41.0 (756) — gateway + turns + probe; +3 skipped (ledger suite)
+# CI / local with TEST_DATABASE_URL: 1015 passed, 4 skipped — +26 vs 0.41.0 (989)
+# Frontend untouched — typecheck/lint/test/build unchanged
+```
+
+See `docs/completions/openrouter-gateway-0.42.0.md`.
+
+**Not in this release:** a reference campaign; perpetual ops dashboard;
+daily caps; Lean REPL / LeanDojo; lighting `AGENT_LOOP_ENABLED`; Fly
+enablement of the gateway child.
 
 ---
 
