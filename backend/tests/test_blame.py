@@ -20,9 +20,9 @@ MISSING_ID = "00000000-0000-0000-0000-000000000000"
 
 
 async def _actor(client: AsyncClient) -> str:
-    resp = await client.post("/api/v1/actors", json={"type": "human", "display_name": "Ada"})
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
+    from tests.principals import make_dev_principal
+
+    return await make_dev_principal(client)
 
 
 async def _project(client: AsyncClient, slug: str = "blame-project") -> tuple[str, str]:

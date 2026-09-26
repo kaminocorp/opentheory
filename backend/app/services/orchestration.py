@@ -43,7 +43,6 @@ from app.models.agent_run import AgentRun
 from app.models.claim import Claim
 from app.models.enums import (
     AgentRunStatus,
-    ClaimStatus,
     OrchestrationRunStatus,
     ResearchCampaignStatus,
     ThreadStatus,
@@ -54,6 +53,7 @@ from app.models.research_campaign import ResearchCampaign
 from app.models.thread import Thread
 from app.schemas.claim import SETTLED_HEADLINES, ClaimGrounding
 from app.services import agent_runs as agent_run_service
+from app.services import claims as claim_service
 from app.services import compute as compute_service
 from app.services import funding as funding_service
 from app.services.agent_actors import get_or_create_project_agent_actor
@@ -63,7 +63,6 @@ from app.services.grounding import grounding_by_claim
 
 logger = logging.getLogger(__name__)
 
-_SETTLED_CLAIM_STATUSES = (ClaimStatus.RETRACTED, ClaimStatus.VALIDATED)
 _OPEN_THREAD_STATUSES = (ThreadStatus.OPEN, ThreadStatus.ACTIVE)
 
 # Why a thread was not commissioned. Stable strings the trace and tests assert against.
@@ -134,15 +133,7 @@ def _decision(
 
 
 async def _open_claims(db: AsyncSession, thread_id: UUID) -> list[Claim]:
-    result = await db.execute(
-        select(Claim)
-        .where(
-            Claim.thread_id == thread_id,
-            Claim.status.notin_(_SETTLED_CLAIM_STATUSES),
-        )
-        .order_by(Claim.created_at)
-    )
-    return list(result.scalars())
+    return await claim_service.open_claims_for_planner(db, thread_id)
 
 
 async def _thread_has_running_pass(db: AsyncSession, thread_id: UUID) -> bool:
@@ -458,7 +449,7 @@ async def _execute(
             break
 
         slots = min(run.concurrency, run.max_passes - run.passes_commissioned, len(pending))
-        wave: list[tuple[ThreadEligibility, AgentRun]] = []
+        wave: list[tuple[ThreadEligibility, ReservedPass]] = []
         leftover: list[ThreadEligibility] = []
         for index, eligibility in enumerate(pending):
             if len(wave) >= slots:
@@ -482,7 +473,7 @@ async def _execute(
             if commissioned is None:
                 leftover.extend(pending[index:])
                 break
-            assert isinstance(commissioned, AgentRun)
+            assert isinstance(commissioned, ReservedPass)
             wave.append((eligibility, commissioned))
             run = await _reload()
         pending = leftover
@@ -497,7 +488,7 @@ async def _execute(
         wave_thread_ids = [str(eligibility.thread.id) for eligibility, _ in wave]
         finished_runs = await _run_wave(
             db,
-            [started.id for _, started in wave],
+            [started for _, started in wave],
             planner=pass_planner,
             llm=llm,
         )
@@ -572,13 +563,25 @@ async def _execute(
     )
 
 
-def _policy_from_reservation(agent_run: AgentRun) -> ProjectBudgetPolicy | None:
+@dataclass
+class ReservedPass:
+    """A commissioned sub-pass plus the live/fallback rate that sized its hold."""
+
+    agent_run: AgentRun
+    rate_per_1k: Decimal
+
+
+def _policy_from_reservation(
+    agent_run: AgentRun, rate_per_1k: Decimal
+) -> ProjectBudgetPolicy | None:
+    """Build the mid-pass ceiling from the *same* rate that sized the reservation.
+
+    Do not re-derive from ``rate_for_model`` — that blended catalog/settings rate
+    can disagree with the live OpenRouter quote used at hold time (0.28.0).
+    """
     if agent_run.reserved_amount is None or agent_run.reserved_amount <= 0:
         return None
-    return ProjectBudgetPolicy(
-        Decimal(agent_run.reserved_amount),
-        rate_per_1k=compute_service.rate_for_model(agent_run.model),
-    )
+    return ProjectBudgetPolicy(Decimal(agent_run.reserved_amount), rate_per_1k=rate_per_1k)
 
 
 async def _commission_reserved_pass(
@@ -586,7 +589,7 @@ async def _commission_reserved_pass(
     run: OrchestrationRun,
     actor: Actor,
     thread: Thread,
-) -> AgentRun | object | None:
+) -> ReservedPass | object | None:
     """Lock the project, hold a slice, mint the running pass.
 
     ``None`` if the pot is gone. ``SKIP_THREAD_BUSY`` if a peer already holds
@@ -620,50 +623,53 @@ async def _commission_reserved_pass(
     if live_run is not None:
         live_run.passes_commissioned += 1
     await db.commit()
-    return agent_run
+    return ReservedPass(agent_run=agent_run, rate_per_1k=rate)
 
 
 async def _run_wave(
     db: AsyncSession,
-    agent_run_ids: list[UUID],
+    reserved: list[ReservedPass],
     *,
     planner: PlannerFn,
     llm: Any | None,
 ) -> list[AgentRun]:
     """Run one wave. ``concurrency=1`` (or a singleton wave) stays on the caller session."""
-    if len(agent_run_ids) == 1:
-        row = await db.get(AgentRun, agent_run_ids[0])
-        policy = _policy_from_reservation(row) if row is not None else None
+    if len(reserved) == 1:
+        held = reserved[0]
+        row = await db.get(AgentRun, held.agent_run.id)
+        policy = _policy_from_reservation(row, held.rate_per_1k) if row is not None else None
         finished = await agent_run_service.run_agent_pass(
-            db, agent_run_ids[0], llm=llm, planner=planner, budget_policy=policy
+            db, held.agent_run.id, llm=llm, planner=planner, budget_policy=policy
         )
         return [finished]
 
     # ``get_bind()`` is the sync Engine; concurrent tasks need the AsyncEngine.
     factory = async_sessionmaker(db.bind, expire_on_commit=False, class_=AsyncSession)
 
-    async def _one(agent_run_id: UUID) -> AgentRun:
+    async def _one(held: ReservedPass) -> AgentRun:
         async with factory() as session:
-            row = await session.get(AgentRun, agent_run_id)
-            policy = _policy_from_reservation(row) if row is not None else None
+            row = await session.get(AgentRun, held.agent_run.id)
+            policy = (
+                _policy_from_reservation(row, held.rate_per_1k) if row is not None else None
+            )
             return await agent_run_service.run_agent_pass(
-                session, agent_run_id, llm=llm, planner=planner, budget_policy=policy
+                session, held.agent_run.id, llm=llm, planner=planner, budget_policy=policy
             )
 
     gathered = await asyncio.gather(
-        *[_one(agent_run_id) for agent_run_id in agent_run_ids],
+        *[_one(held) for held in reserved],
         return_exceptions=True,
     )
     finished: list[AgentRun] = []
-    for agent_run_id, result in zip(agent_run_ids, gathered, strict=True):
+    for held, result in zip(reserved, gathered, strict=True):
         if isinstance(result, BaseException):
             logger.warning(
                 "orchestration_wave_pass_error agent_run_id=%s error=%s",
-                agent_run_id,
+                held.agent_run.id,
                 result,
             )
             async with factory() as session:
-                row = await session.get(AgentRun, agent_run_id)
+                row = await session.get(AgentRun, held.agent_run.id)
                 if row is not None and row.status is AgentRunStatus.RUNNING:
                     await compute_service.release_compute_reservation(session, row)
                     row.status = AgentRunStatus.FAILED

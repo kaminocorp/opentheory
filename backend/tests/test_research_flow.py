@@ -9,28 +9,21 @@ from httpx import AsyncClient
 
 
 async def _create_actor(client: AsyncClient) -> str:
-    response = await client.post(
-        "/api/v1/actors",
-        json={"type": "human", "display_name": "Ada Researcher"},
-    )
-    assert response.status_code == 201, response.text
-    return response.json()["id"]
+    from tests.principals import make_dev_principal
+
+    return await make_dev_principal(client, display_name="Ada Researcher")
 
 
-async def _create_project(client: AsyncClient) -> str:
-    # Project creation now requires an acting actor; reuse the dev-actor bootstrap helper.
-    actor_id = await _create_actor(client)
-    response = await client.post(
-        "/api/v1/projects",
-        json={
-            "title": "Test Project",
-            "slug": "test-project",
-            "question": "What is the nature of X?",
-        },
-        headers={"X-Dev-Actor-Id": actor_id},
+async def _create_project(client: AsyncClient, actor_id: str) -> str:
+    from tests.principals import create_owned_project
+
+    return await create_owned_project(
+        client,
+        actor_id,
+        "test-project",
+        title="Test Project",
+        question="What is the nature of X?",
     )
-    assert response.status_code == 201, response.text
-    return response.json()["id"]
 
 
 async def _create_thread(client: AsyncClient, project_id: str, actor_id: str) -> str:
@@ -46,7 +39,7 @@ async def _create_thread(client: AsyncClient, project_id: str, actor_id: str) ->
 async def _create_claim(client: AsyncClient, thread_id: str, actor_id: str) -> str:
     response = await client.post(
         f"/api/v1/threads/{thread_id}/claims",
-        json={"kind": "hypothesis", "statement": "X is caused by Y.", "confidence": 0.6},
+        json={"kind": "hypothesis", "statement": "X is caused by Y."},
         headers={"X-Dev-Actor-Id": actor_id},
     )
     assert response.status_code == 201, response.text
@@ -64,7 +57,7 @@ async def test_actor_create_and_list(client: AsyncClient) -> None:
 
 async def test_full_research_move_flow(client: AsyncClient) -> None:
     actor_id = await _create_actor(client)
-    project_id = await _create_project(client)
+    project_id = await _create_project(client, actor_id)
     thread_id = await _create_thread(client, project_id, actor_id)
 
     # thread appears under its project and is retrievable on its own
@@ -109,7 +102,7 @@ async def test_full_research_move_flow(client: AsyncClient) -> None:
 
 async def test_each_relation_kind_is_recorded(client: AsyncClient) -> None:
     actor_id = await _create_actor(client)
-    project_id = await _create_project(client)
+    project_id = await _create_project(client, actor_id)
     thread_id = await _create_thread(client, project_id, actor_id)
     claim_id = await _create_claim(client, thread_id, actor_id)
 
@@ -128,7 +121,7 @@ async def test_each_relation_kind_is_recorded(client: AsyncClient) -> None:
 
 async def test_invalid_relation_kind_rejected(client: AsyncClient) -> None:
     actor_id = await _create_actor(client)
-    project_id = await _create_project(client)
+    project_id = await _create_project(client, actor_id)
     thread_id = await _create_thread(client, project_id, actor_id)
     claim_id = await _create_claim(client, thread_id, actor_id)
 
@@ -141,7 +134,8 @@ async def test_invalid_relation_kind_rejected(client: AsyncClient) -> None:
 
 
 async def test_write_requires_valid_dev_actor_header(client: AsyncClient) -> None:
-    project_id = await _create_project(client)
+    actor_id = await _create_actor(client)
+    project_id = await _create_project(client, actor_id)
 
     # missing header
     missing = await client.post(

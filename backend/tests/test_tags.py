@@ -19,23 +19,19 @@ MISSING_ID = "00000000-0000-0000-0000-000000000000"
 
 
 async def _actor(client: AsyncClient) -> str:
-    resp = await client.post("/api/v1/actors", json={"type": "human", "display_name": "Ada"})
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
+    from tests.principals import make_dev_principal
+
+    return await make_dev_principal(client)
 
 
-async def _project(client: AsyncClient, slug: str = "tag-project") -> str:
-    actor = await client.post(
-        "/api/v1/actors", json={"type": "human", "display_name": "Author"}
-    )
-    assert actor.status_code == 201, actor.text
-    resp = await client.post(
-        "/api/v1/projects",
-        json={"title": "Tag Project", "slug": slug, "question": "What is X?"},
-        headers={"X-Dev-Actor-Id": actor.json()["id"]},
-    )
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
+async def _project(
+    client: AsyncClient, slug: str = "tag-project", actor_id: str | None = None
+) -> str:
+    from tests.principals import create_owned_project, make_dev_principal
+
+    if actor_id is None:
+        actor_id = await make_dev_principal(client, display_name="Author")
+    return await create_owned_project(client, actor_id, slug)
 
 
 async def _checkpoint(client: AsyncClient, project_id: str, actor_id: str) -> dict:
@@ -52,7 +48,7 @@ async def test_create_and_list_tags(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     checkpoint = await _checkpoint(client, project_id, actor_id)
 
     created = await client.post(
@@ -93,7 +89,7 @@ async def test_create_and_list_tags(
 
 async def test_duplicate_tag_name_is_conflict_not_overwrite(client: AsyncClient) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, slug="tag-dup")
+    project_id = await _project(client, slug="tag-dup", actor_id=actor_id)
     first = await _checkpoint(client, project_id, actor_id)
     second = await _checkpoint(client, project_id, actor_id)
 
@@ -122,7 +118,7 @@ async def test_tag_is_append_only(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, slug="tag-append")
+    project_id = await _project(client, slug="tag-append", actor_id=actor_id)
     checkpoint = await _checkpoint(client, project_id, actor_id)
     created = await client.post(
         f"/api/v1/projects/{project_id}/tags",
@@ -150,7 +146,7 @@ async def test_tag_is_append_only(
 
 async def test_tag_error_cases(client: AsyncClient) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, slug="tag-errors")
+    project_id = await _project(client, slug="tag-errors", actor_id=actor_id)
     other = await _project(client, slug="tag-other")
     checkpoint = await _checkpoint(client, project_id, actor_id)
     headers = {"X-Dev-Actor-Id": actor_id}
@@ -174,7 +170,7 @@ async def test_tag_error_cases(client: AsyncClient) -> None:
         json={"checkpoint_id": checkpoint["id"], "name": "x", "kind": "milestone"},
         headers=headers,
     )
-    assert r.status_code == 400
+    assert r.status_code == 403
 
     r = await client.post(
         f"/api/v1/projects/{project_id}/tags",
@@ -188,7 +184,7 @@ async def test_tag_error_cases(client: AsyncClient) -> None:
 
 async def test_tag_on_merged_branch_records_on_main_line(client: AsyncClient) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, slug="tag-merged-line")
+    project_id = await _project(client, slug="tag-merged-line", actor_id=actor_id)
     fork = await client.post(
         f"/api/v1/projects/{project_id}/checkpoints",
         json={"summary": "root"},

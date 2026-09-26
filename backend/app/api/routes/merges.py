@@ -5,6 +5,7 @@ from fastapi import APIRouter, status
 from app.api.deps import ActingActor, DbSession
 from app.schemas.merge import MergeCreate, MergeRead
 from app.services import merges as merge_service
+from app.services.project_members import ensure_is_member
 
 router = APIRouter()
 
@@ -21,4 +22,5 @@ async def merge_branches(
     db: DbSession,
     actor: ActingActor,
 ) -> MergeRead:
+    await ensure_is_member(db, project_id, actor)
     return await merge_service.merge_branches(db, project_id, payload, actor)

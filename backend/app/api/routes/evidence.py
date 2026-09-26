@@ -5,6 +5,7 @@ from fastapi import APIRouter, status
 from app.api.deps import ActingActor, DbSession
 from app.schemas.evidence import EvidenceCreate, EvidenceRead
 from app.services import evidence as evidence_service
+from app.services.project_members import ensure_member_of_claim
 
 router = APIRouter()
 
@@ -21,6 +22,7 @@ async def attach_evidence(
     db: DbSession,
     actor: ActingActor,
 ) -> EvidenceRead:
+    await ensure_member_of_claim(db, claim_id, actor)
     return await evidence_service.attach_evidence(db, claim_id, payload, actor)
 
 

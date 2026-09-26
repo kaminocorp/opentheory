@@ -30,25 +30,22 @@ from app.models.validation import Validation
 
 
 async def _actor(client: AsyncClient) -> str:
-    """An account-less (non-internal) dev actor."""
-    resp = await client.post("/api/v1/actors", json={"type": "human", "display_name": "Ada"})
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
+    """A signed-in principal without the ``internal`` role."""
+    from tests.principals import make_dev_principal
+
+    return await make_dev_principal(client)
 
 
-async def _project(client: AsyncClient, slug: str = "funding-project") -> str:
-    # Project creation now requires an acting actor; bootstrap a dev actor for the header.
-    actor = await client.post(
-        "/api/v1/actors", json={"type": "human", "display_name": "Author"}
+async def _project(
+    client: AsyncClient, slug: str = "funding-project", actor_id: str | None = None
+) -> str:
+    from tests.principals import create_owned_project, make_dev_principal
+
+    if actor_id is None:
+        actor_id = await make_dev_principal(client, display_name="Author")
+    return await create_owned_project(
+        client, actor_id, slug, title="Funding Project"
     )
-    assert actor.status_code == 201, actor.text
-    resp = await client.post(
-        "/api/v1/projects",
-        json={"title": "Funding Project", "slug": slug, "question": "What is X?"},
-        headers={"X-Dev-Actor-Id": actor.json()["id"]},
-    )
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
 
 
 async def _fund(
@@ -79,7 +76,7 @@ async def test_native_funding_records_settled_allocation_and_fund_contribution(
     client: AsyncClient, session_factory: async_sessionmaker, internal_funder
 ) -> None:
     actor_id, account_id = await internal_funder(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
 
     code, body = await _fund(client, project_id, actor_id, amount="500.00", source="native")
     assert code == 201, body
@@ -99,23 +96,25 @@ async def test_native_funding_records_settled_allocation_and_fund_contribution(
 
         # ...while the `fund` Contribution still attributes to the acting Actor (the act vs. the
         # money), linked to the allocation, NOT to a checkpoint (Decision #3).
+        # `create_project` is also present: an account-backed owner records origination (0.8.1).
         contribs = (await session.execute(select(Contribution))).scalars().all()
-        assert len(contribs) == 1
-        assert contribs[0].action == "fund"
-        assert str(contribs[0].actor_id) == actor_id
-        assert str(contribs[0].funding_allocation_id) == allocation_id
-        assert contribs[0].checkpoint_id is None
+        by_action = {c.action: c for c in contribs}
+        assert set(by_action) == {"create_project", "fund"}
+        fund = by_action["fund"]
+        assert str(fund.actor_id) == actor_id
+        assert str(fund.funding_allocation_id) == allocation_id
+        assert fund.checkpoint_id is None
 
         # No research checkpoint was minted for the funding event (the research DAG is untouched).
         checkpoints = (await session.execute(select(Checkpoint))).scalars().all()
         assert len(checkpoints) == 0
 
 
-async def test_native_funding_requires_internal_role_for_accountless_actor(
+async def test_native_funding_requires_internal_role_for_signed_in_member(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
-    actor_id = await _actor(client)  # account-less → no principal → not internal
-    project_id = await _project(client)
+    actor_id = await _actor(client)  # signed-in, no `internal` role
+    project_id = await _project(client, actor_id=actor_id)
 
     code, body = await _fund(client, project_id, actor_id, source="native")
     assert code == 403, body
@@ -133,7 +132,7 @@ async def test_native_funding_requires_internal_role_even_with_account(
     # the account, and `account_is_internal` checks for it there. Proves the gate reads the
     # principal's roles, not merely "has an account".
     actor_id, _ = await internal_funder(client, roles=())  # account with NO roles
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
 
     code, body = await _fund(client, project_id, actor_id, source="native")
     assert code == 403, body
@@ -161,7 +160,7 @@ async def test_stripe_funding_via_api_is_rejected(
     # (0.6.2 hardening): an authenticated actor cannot write a `pending` stripe allocation into the
     # public funding history. The model + enum stay so 0.7.0 can activate it.
     internal_id, _ = await internal_funder(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=internal_id)
 
     code, body = await _fund(client, project_id, internal_id, amount="250.00", source="stripe")
     assert code == 422, body
@@ -179,7 +178,7 @@ async def test_pending_allocation_excluded_from_funded(
     # over HTTP (stripe is rejected), so insert a pending allocation directly to exercise the
     # exclusion the budget read model guarantees. The funder is the Account now (Decision #5).
     internal_id, account_id = await internal_funder(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=internal_id)
 
     code, body = await _fund(client, project_id, internal_id, amount="500.00", source="native")
     assert code == 201, body
@@ -212,7 +211,7 @@ async def test_funding_allocation_is_append_only(
     client: AsyncClient, session_factory: async_sessionmaker, internal_funder
 ) -> None:
     actor_id, _ = await internal_funder(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     code, body = await _fund(client, project_id, actor_id, source="native")
     assert code == 201, body
     allocation_id = body["id"]
@@ -238,7 +237,7 @@ async def test_budget_and_overview_reflect_settled_funding(
     client: AsyncClient, internal_funder
 ) -> None:
     actor_id, _ = await internal_funder(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     await _fund(client, project_id, actor_id, amount="100.00", source="native")
     await _fund(client, project_id, actor_id, amount="50.00", source="native")
 
@@ -254,7 +253,7 @@ async def test_budget_and_overview_reflect_settled_funding(
 
 async def test_funding_lists_and_detail(client: AsyncClient, internal_funder) -> None:
     actor_id, account_id = await internal_funder(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     _, body = await _fund(client, project_id, actor_id, source="native")
     allocation_id = body["id"]
 
@@ -276,13 +275,14 @@ async def test_funding_is_not_contribution_or_validation(
 ) -> None:
     """Funder/contributor/validator separation: funding grants budget and nothing else."""
     actor_id, _ = await internal_funder(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     await _fund(client, project_id, actor_id, source="native")
 
     async with session_factory() as session:
         contribs = (await session.execute(select(Contribution))).scalars().all()
-        # Exactly one contribution, and it is a `fund` — no authorship/validation contribution.
-        assert {c.action for c in contribs} == {"fund"}
+        # Funding itself writes only `fund` — no authorship/validation contribution.
+        # `create_project` is the owner's origination record from project create, not from funding.
+        assert {c.action for c in contribs} == {"create_project", "fund"}
 
         # No validation was created; funding confers no validation authority.
         validations = (await session.execute(select(Validation))).scalars().all()

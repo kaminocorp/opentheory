@@ -31,6 +31,11 @@ Key relationships:
 - has many `FundingAllocation`
 - has many `Contribution`
 
+Authorization is **membership, not credit** (`0.8.1`, closed on every research write in
+`0.36.1`). A `ProjectMember` row (account + role) is access control. It never touches
+`Contribution` / `Validation` / `FundingAllocation`. Public reads are public; writes
+authenticate, then `ensure_is_member` (`404` missing project / `403` non-member).
+
 Funding note:
 
 - `Project` should reference funding through `FundingAllocation`.

@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Action, Input, Select, StatusPill, type StateTone } from "@/components/console";
 import { createValidation } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
-import { useActingIdentity } from "@/lib/use-identity";
+import { useProjectWriteAccess } from "@/lib/use-project-write-access";
 import type { ValidationOutcome, ValidationTargetType } from "@/types/research";
 
 // Outcome → a state tone + label (+ glyph override). Mapping onto the shared
@@ -56,7 +56,7 @@ export function RecordValidationForm({
   onDone,
   compact = false,
 }: RecordValidationFormProps) {
-  const { canWrite, hydrated, signInHint } = useActingIdentity();
+  const { canWrite, hydrated, signInHint } = useProjectWriteAccess(projectId);
   const queryClient = useQueryClient();
   const [outcome, setOutcome] = useState<ValidationOutcome>("passed");
   const [notes, setNotes] = useState("");

@@ -108,30 +108,26 @@ def test_tool_invocation_forbids_extra_key() -> None:
 
 
 async def _actor(client: AsyncClient) -> str:
-    resp = await client.post("/api/v1/actors", json={"type": "human", "display_name": "Ada"})
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
+    from tests.principals import make_dev_principal
+
+    return await make_dev_principal(client)
 
 
-async def _project(client: AsyncClient, slug: str = "toolbench-project") -> str:
-    author = await client.post(
-        "/api/v1/actors", json={"type": "human", "display_name": "Author"}
-    )
-    assert author.status_code == 201, author.text
-    resp = await client.post(
-        "/api/v1/projects",
-        json={"title": "Toolbench", "slug": slug, "question": "What is X?"},
-        headers={"X-Dev-Actor-Id": author.json()["id"]},
-    )
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
+async def _project(
+    client: AsyncClient, slug: str = "toolbench-project", actor_id: str | None = None
+) -> str:
+    from tests.principals import create_owned_project, make_dev_principal
+
+    if actor_id is None:
+        actor_id = await make_dev_principal(client, display_name="Author")
+    return await create_owned_project(client, actor_id, slug)
 
 
 async def test_checkpoint_carries_validated_tool_invocation(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
 
     ti = ToolInvocation(**_valid_invocation())  # type: ignore[arg-type]
     async with session_factory() as session:
@@ -164,7 +160,7 @@ async def test_tool_invocation_is_immutable_via_checkpoint_guard(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, slug="toolbench-immutable")
+    project_id = await _project(client, slug="toolbench-immutable", actor_id=actor_id)
 
     ti = ToolInvocation(**_valid_invocation())  # type: ignore[arg-type]
     async with session_factory() as session:

@@ -7,7 +7,7 @@ import { useState } from "react";
 import { Action, Bay, BayHeader, Icon, Input, Textarea } from "@/components/console";
 import { createCheckpoint, listCheckpoints, listTags } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
-import { useActingIdentity } from "@/lib/use-identity";
+import { useProjectWriteAccess } from "@/lib/use-project-write-access";
 
 import { PanelEmpty, PanelError, PanelLoading } from "./panel-state";
 import { RecordValidationForm } from "./validation-controls";
@@ -43,7 +43,7 @@ export function CheckpointTimelinePanel({
   selectedBranchId,
   lineSealed = false,
 }: CheckpointTimelinePanelProps) {
-  const { canWrite, hydrated, signInHint } = useActingIdentity();
+  const { canWrite, hydrated, signInHint } = useProjectWriteAccess(projectId);
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [summary, setSummary] = useState("");

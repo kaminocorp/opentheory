@@ -18,7 +18,7 @@ import {
 import { attachEvidence, createClaim, listClaims, listEvidence } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { queryKeys } from "@/lib/query-keys";
-import { useActingIdentity } from "@/lib/use-identity";
+import { useProjectWriteAccess } from "@/lib/use-project-write-access";
 import type { Claim, ClaimKind, RelationKind } from "@/types/research";
 
 import { GroundingChip, groundingRaiseLine } from "./grounding-chip";
@@ -88,7 +88,7 @@ function ClaimListPanelInner({
   focusClaimId?: string | null;
   onBlameClaim?: (claimId: string) => void;
 }) {
-  const { canWrite, hydrated, signInHint } = useActingIdentity();
+  const { canWrite, hydrated, signInHint } = useProjectWriteAccess(projectId);
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [kind, setKind] = useState<ClaimKind>("hypothesis");
@@ -272,7 +272,7 @@ function ClaimListPanelInner({
 }
 
 function ClaimEvidence({ projectId, claimId }: { projectId: string; claimId: string }) {
-  const { canWrite, hydrated, signInHint } = useActingIdentity();
+  const { canWrite, hydrated, signInHint } = useProjectWriteAccess(projectId);
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
@@ -423,7 +423,7 @@ function ClaimValidations({
   threadId: string;
   claim: Claim;
 }) {
-  const { canWrite } = useActingIdentity();
+  const { canWrite } = useProjectWriteAccess(projectId);
   const [recording, setRecording] = useState(false);
 
   // History and signal are embedded in the claim read (0.4.4) — no separate fetch. The

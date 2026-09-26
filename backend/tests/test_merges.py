@@ -20,23 +20,19 @@ MISSING_ID = "00000000-0000-0000-0000-000000000000"
 
 
 async def _actor(client: AsyncClient) -> str:
-    resp = await client.post("/api/v1/actors", json={"type": "human", "display_name": "Ada"})
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
+    from tests.principals import make_dev_principal
+
+    return await make_dev_principal(client)
 
 
-async def _project(client: AsyncClient, slug: str = "merge-project") -> str:
-    actor = await client.post(
-        "/api/v1/actors", json={"type": "human", "display_name": "Author"}
-    )
-    assert actor.status_code == 201, actor.text
-    resp = await client.post(
-        "/api/v1/projects",
-        json={"title": "Merge Project", "slug": slug, "question": "What is X?"},
-        headers={"X-Dev-Actor-Id": actor.json()["id"]},
-    )
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
+async def _project(
+    client: AsyncClient, slug: str = "merge-project", actor_id: str | None = None
+) -> str:
+    from tests.principals import create_owned_project, make_dev_principal
+
+    if actor_id is None:
+        actor_id = await make_dev_principal(client, display_name="Author")
+    return await create_owned_project(client, actor_id, slug)
 
 
 async def _checkpoint(
@@ -94,7 +90,7 @@ async def test_merge_two_branches_is_multi_parent(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     fork = await _checkpoint(client, project_id, actor_id)
     left = await _branch(client, project_id, actor_id, fork["id"], name="left")
     right = await _branch(client, project_id, actor_id, fork["id"], name="right")
@@ -158,7 +154,7 @@ async def test_merge_two_branches_is_multi_parent(
 
 async def test_merge_one_branch_into_main(client: AsyncClient) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, slug="merge-into-main")
+    project_id = await _project(client, slug="merge-into-main", actor_id=actor_id)
     fork = await _checkpoint(client, project_id, actor_id)
     branch = await _branch(client, project_id, actor_id, fork["id"])
     head = await _checkpoint(client, project_id, actor_id, branch_id=branch["id"])
@@ -180,7 +176,7 @@ async def test_merge_records_claims_without_rewriting_them(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, slug="merge-claims")
+    project_id = await _project(client, slug="merge-claims", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id)
     fork = await _checkpoint(client, project_id, actor_id)
@@ -216,7 +212,7 @@ async def test_merge_records_claims_without_rewriting_them(
 
 async def test_merge_rejects_closed_and_already_merged(client: AsyncClient) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, slug="merge-closed")
+    project_id = await _project(client, slug="merge-closed", actor_id=actor_id)
     fork = await _checkpoint(client, project_id, actor_id)
     dead = await _branch(client, project_id, actor_id, fork["id"], name="dead")
     live = await _branch(client, project_id, actor_id, fork["id"], name="live")
@@ -250,7 +246,7 @@ async def test_merge_rejects_closed_and_already_merged(client: AsyncClient) -> N
 
 async def test_merge_error_cases(client: AsyncClient) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, slug="merge-errors")
+    project_id = await _project(client, slug="merge-errors", actor_id=actor_id)
     other = await _project(client, slug="merge-other")
     fork = await _checkpoint(client, project_id, actor_id)
     branch = await _branch(client, project_id, actor_id, fork["id"])
@@ -275,7 +271,7 @@ async def test_merge_error_cases(client: AsyncClient) -> None:
         json={"source_branch_ids": [branch["id"]], "resolution": "clean"},
         headers=headers,
     )
-    assert r.status_code == 400
+    assert r.status_code == 403
 
     r = await client.post(
         f"/api/v1/projects/{project_id}/merges",

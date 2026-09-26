@@ -104,7 +104,7 @@ async def test_empty_project_stops_on_no_open_work(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "camp-empty")
+    project_id = await _project(client, "camp-empty", actor_id=actor_id)
     await _assign_model(session_factory, project_id)
     campaign_id = await _start_campaign(session_factory, project_id, actor_id)
 
@@ -134,7 +134,7 @@ async def test_unfunded_project_with_work_stops_on_budget(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "camp-broke")
+    project_id = await _project(client, "camp-broke", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     await _claim(client, thread_id, actor_id, "Would raise.")
     async with session_factory() as session:
@@ -168,7 +168,7 @@ async def test_continues_across_cycles_when_pass_cap_leaves_work(
     monkeypatch.setattr(settings, "orchestration_max_passes", 1)
     monkeypatch.setattr(settings, "campaign_max_cycles", 2)
     actor_id = await _actor(client)
-    project_id = await _project(client, "camp-cycles")
+    project_id = await _project(client, "camp-cycles", actor_id=actor_id)
     t1 = await _thread(client, project_id, actor_id)
     t2 = await _thread(client, project_id, actor_id)
     await _claim(client, t1, actor_id, "First.")
@@ -202,7 +202,7 @@ async def test_budget_stops_campaign_after_a_spent_cycle(
     monkeypatch.setattr(settings, "orchestration_max_passes", 1)
     monkeypatch.setattr(settings, "campaign_max_cycles", 8)
     actor_id = await _actor(client)
-    project_id = await _project(client, "camp-budget")
+    project_id = await _project(client, "camp-budget", actor_id=actor_id)
     t1 = await _thread(client, project_id, actor_id)
     t2 = await _thread(client, project_id, actor_id)
     await _claim(client, t1, actor_id, "Spender.")
@@ -230,7 +230,7 @@ async def test_cancel_before_first_cycle_stops_without_commissioning(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "camp-cancel")
+    project_id = await _project(client, "camp-cancel", actor_id=actor_id)
     t1 = await _thread(client, project_id, actor_id)
     await _claim(client, t1, actor_id, "Would raise.")
     await _thread_checkpoint(client, project_id, t1, actor_id)
@@ -256,7 +256,7 @@ async def test_cancel_after_first_cycle_stops_before_the_next(
     monkeypatch.setattr(settings, "orchestration_max_passes", 1)
     monkeypatch.setattr(settings, "campaign_max_cycles", 8)
     actor_id = await _actor(client)
-    project_id = await _project(client, "camp-cancel-mid")
+    project_id = await _project(client, "camp-cancel-mid", actor_id=actor_id)
     t1 = await _thread(client, project_id, actor_id)
     t2 = await _thread(client, project_id, actor_id)
     await _claim(client, t1, actor_id, "First.")
@@ -298,7 +298,7 @@ async def test_error_budget_stops_after_consecutive_failed_cycles(
     monkeypatch.setattr(settings, "campaign_error_budget", 2)
     monkeypatch.setattr(settings, "campaign_max_cycles", 8)
     actor_id = await _actor(client)
-    project_id = await _project(client, "camp-errors")
+    project_id = await _project(client, "camp-errors", actor_id=actor_id)
     t1 = await _thread(client, project_id, actor_id)
     await _claim(client, t1, actor_id, "Would raise.")
     await _thread_checkpoint(client, project_id, t1, actor_id)
@@ -325,7 +325,7 @@ async def test_campaign_does_not_write_validation_or_funding(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "camp-ledger")
+    project_id = await _project(client, "camp-ledger", actor_id=actor_id)
     t1 = await _thread(client, project_id, actor_id)
     await _claim(client, t1, actor_id, "A raisable claim.")
     await _thread_checkpoint(client, project_id, t1, actor_id)
@@ -360,7 +360,7 @@ async def test_running_campaign_blocks_a_standalone_orchestration(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "camp-blocks-orch")
+    project_id = await _project(client, "camp-blocks-orch", actor_id=actor_id)
     await _assign_model(session_factory, project_id)
     await _start_campaign(session_factory, project_id, actor_id)
 
@@ -378,7 +378,7 @@ async def test_concurrency_one_preserves_sequential_cycles(
     monkeypatch.setattr(settings, "campaign_max_cycles", 2)
     monkeypatch.setattr(settings, "campaign_cycle_concurrency", 1)
     actor_id = await _actor(client)
-    project_id = await _project(client, "camp-seq-cycles")
+    project_id = await _project(client, "camp-seq-cycles", actor_id=actor_id)
     t1 = await _thread(client, project_id, actor_id)
     t2 = await _thread(client, project_id, actor_id)
     await _claim(client, t1, actor_id, "First.")
@@ -408,7 +408,7 @@ async def test_concurrent_cycles_overlap_and_trace_the_wave(
     monkeypatch.setattr(settings, "campaign_max_cycles", 2)
     monkeypatch.setattr(settings, "campaign_cycle_concurrency", 2)
     actor_id = await _actor(client)
-    project_id = await _project(client, "camp-parallel-cycles")
+    project_id = await _project(client, "camp-parallel-cycles", actor_id=actor_id)
     t1 = await _thread(client, project_id, actor_id)
     t2 = await _thread(client, project_id, actor_id)
     await _claim(client, t1, actor_id, "First.")
@@ -443,7 +443,7 @@ async def test_concurrent_cycles_cannot_oversell_the_pot(
     monkeypatch.setattr(settings, "campaign_max_cycles", 4)
     monkeypatch.setattr(settings, "campaign_cycle_concurrency", 2)
     actor_id = await _actor(client)
-    project_id = await _project(client, "camp-race-cycles")
+    project_id = await _project(client, "camp-race-cycles", actor_id=actor_id)
     t1 = await _thread(client, project_id, actor_id)
     t2 = await _thread(client, project_id, actor_id)
     await _claim(client, t1, actor_id, "Spender.")
@@ -476,7 +476,7 @@ async def test_cancel_flags_every_in_flight_cycle_and_skips_the_next_wave(
     monkeypatch.setattr(settings, "campaign_max_cycles", 8)
     monkeypatch.setattr(settings, "campaign_cycle_concurrency", 2)
     actor_id = await _actor(client)
-    project_id = await _project(client, "camp-cancel-wave")
+    project_id = await _project(client, "camp-cancel-wave", actor_id=actor_id)
     threads = []
     for title in ("One.", "Two.", "Three.", "Four."):
         thread_id = await _thread(client, project_id, actor_id)

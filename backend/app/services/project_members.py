@@ -23,9 +23,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
 from app.models.actor import Actor
+from app.models.branch import Branch
+from app.models.claim import Claim
 from app.models.enums import ProjectRole
 from app.models.project import Project
 from app.models.project_member import ProjectMember
+from app.models.thread import Thread
 from app.schemas.account import AccountSummary
 from app.schemas.project import ProjectMemberRead
 
@@ -111,6 +114,45 @@ async def ensure_is_member(db: AsyncSession, project_id: UUID, actor: Actor) -> 
             detail="You are not a member of this project",
         )
     return project
+
+
+async def ensure_member_of_thread(db: AsyncSession, thread_id: UUID, actor: Actor) -> Thread:
+    """Resolve ``thread_id``, then authorize membership on its project.
+
+    Nested write routes (``POST /threads/{id}/claims``) have no project id in the path.
+    Missing thread → ``404``; signed-in non-member of the thread's project → ``403``.
+    """
+    thread = await db.get(Thread, thread_id)
+    if thread is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
+    await ensure_is_member(db, thread.project_id, actor)
+    return thread
+
+
+async def ensure_member_of_claim(db: AsyncSession, claim_id: UUID, actor: Actor) -> Claim:
+    """Resolve ``claim_id``, then authorize membership on its project.
+
+    Nested write routes (``POST /claims/{id}/evidence``) have no project id in the path.
+    Missing claim → ``404``; signed-in non-member → ``403``.
+    """
+    claim = await db.get(Claim, claim_id)
+    if claim is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Claim not found")
+    await ensure_is_member(db, claim.project_id, actor)
+    return claim
+
+
+async def ensure_member_of_branch(db: AsyncSession, branch_id: UUID, actor: Actor) -> Branch:
+    """Resolve ``branch_id``, then authorize membership on its project.
+
+    Nested write routes (``POST /branches/{id}/close``) have no project id in the path.
+    Missing branch → ``404``; signed-in non-member → ``403``.
+    """
+    branch = await db.get(Branch, branch_id)
+    if branch is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branch not found")
+    await ensure_is_member(db, branch.project_id, actor)
+    return branch
 
 
 async def list_members(db: AsyncSession, project_id: UUID) -> list[ProjectMemberRead]:

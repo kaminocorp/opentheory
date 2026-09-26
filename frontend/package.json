@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test src/lib/*.test.ts"
+    "test": "node --experimental-strip-types --test src/lib/*.test.ts src/components/workspace/toolbench/outcome-meta.test.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

@@ -40,21 +40,19 @@ _RATE = Decimal("1.00")
 
 
 async def _actor(client: AsyncClient, name: str = "Ada") -> str:
-    resp = await client.post("/api/v1/actors", json={"type": "human", "display_name": name})
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
+    from tests.principals import make_dev_principal
+
+    return await make_dev_principal(client, display_name=name)
 
 
-async def _project(client: AsyncClient, slug: str) -> str:
-    author = await client.post("/api/v1/actors", json={"type": "human", "display_name": "Author"})
-    assert author.status_code == 201, author.text
-    resp = await client.post(
-        "/api/v1/projects",
-        json={"title": "Budget", "slug": slug, "question": "What is X?"},
-        headers={"X-Dev-Actor-Id": author.json()["id"]},
-    )
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
+async def _project(
+    client: AsyncClient, slug: str = "test-project", actor_id: str | None = None
+) -> str:
+    from tests.principals import create_owned_project, make_dev_principal
+
+    if actor_id is None:
+        actor_id = await make_dev_principal(client, display_name="Author")
+    return await create_owned_project(client, actor_id, slug)
 
 
 async def _thread(client: AsyncClient, project_id: str, actor_id: str) -> str:
@@ -160,7 +158,7 @@ async def test_available_drops_after_a_pass_by_the_metered_amount(
     client: AsyncClient, session_factory: async_sessionmaker, unit_rate: Decimal
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "budget-drop")
+    project_id = await _project(client, "budget-drop", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     await _thread_checkpoint(client, project_id, thread_id, actor_id)
     await _assign_model(session_factory, project_id)
@@ -213,7 +211,7 @@ async def test_exhausted_budget_refuses_to_start_and_mints_nothing(
     client: AsyncClient, session_factory: async_sessionmaker, unit_rate: Decimal
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "budget-empty")
+    project_id = await _project(client, "budget-empty", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     await _thread_checkpoint(client, project_id, thread_id, actor_id)
     await _assign_model(session_factory, project_id)
@@ -262,7 +260,7 @@ async def test_mid_pass_stop_skips_remaining_runs_when_planning_exhausts_the_rem
     instrument step is skipped with ``budget_exhausted``; no branch is forked.
     """
     actor_id = await _actor(client)
-    project_id = await _project(client, "budget-mid")
+    project_id = await _project(client, "budget-mid", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     await _thread_checkpoint(client, project_id, thread_id, actor_id)
     await _assign_model(session_factory, project_id)
@@ -303,7 +301,7 @@ async def test_agent_pass_never_writes_a_funding_allocation_or_validation(
     client: AsyncClient, session_factory: async_sessionmaker, unit_rate: Decimal
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "budget-roles")
+    project_id = await _project(client, "budget-roles", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     await _thread_checkpoint(client, project_id, thread_id, actor_id)
     await _assign_model(session_factory, project_id)
@@ -333,7 +331,7 @@ async def test_compute_debit_is_append_only(
     client: AsyncClient, session_factory: async_sessionmaker, unit_rate: Decimal
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "budget-append")
+    project_id = await _project(client, "budget-append", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     await _assign_model(session_factory, project_id)
     await _grant_budget(session_factory, project_id, amount="10.00")
@@ -367,7 +365,7 @@ async def test_debit_is_idempotent_for_the_same_pass(
     from app.services.compute import record_compute_debit
 
     actor_id = await _actor(client)
-    project_id = await _project(client, "budget-once")
+    project_id = await _project(client, "budget-once", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     await _assign_model(session_factory, project_id)
     await _grant_budget(session_factory, project_id, amount="10.00")

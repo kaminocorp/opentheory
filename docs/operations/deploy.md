@@ -4,10 +4,11 @@ This is the runbook for the first live deploy: **backend → Fly.io**, **fronten
 pointing at the **existing live Supabase database**. It assumes the scaffolding in this repo
 (`backend/Dockerfile`, `backend/fly.toml`, `backend/.dockerignore`).
 
-> ⚠️ **No authentication yet.** `X-Dev-Actor-Id` is not a credential — it just claims "act as
-> actor X". A publicly reachable backend is therefore fully open: anyone with the URL can read
-> and write to the database it points at. That's an accepted trade-off for this preview (real
-> auth lands in `0.6.0`). Don't put anything sensitive in the live DB until then.
+> Production writes require a verified Supabase bearer JWT (`0.6.0`; Account-owns-Actor in
+> `0.7.0`). Public GETs stay public. Research writes are membership-gated
+> (`ensure_is_member` — `401` unauthenticated, `404` missing project, `403` non-member).
+> `X-Dev-Actor-Id` is local/test only (`auth_dev_header_enabled`, default **off**). Do not
+> enable the dev header on a publicly reachable Fly app.
 
 ## Topology
 

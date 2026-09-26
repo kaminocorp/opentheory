@@ -18,7 +18,7 @@ import {
 } from "@/components/console";
 import { closeBranch, createBranch, listBranches, listCheckpoints, mergeBranches } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
-import { useActingIdentity } from "@/lib/use-identity";
+import { useProjectWriteAccess } from "@/lib/use-project-write-access";
 import { cn } from "@/lib/cn";
 import type { BranchCloseOutcome, BranchStatus, MergeResolution } from "@/types/research";
 
@@ -49,7 +49,7 @@ type BranchBarProps = {
 // D4 re-skin: console tokens + primitives only. Every hook, mutation, and the
 // fork/close write flows below are unchanged — presentation, not behaviour.
 export function BranchBar({ projectId, selectedBranchId, onSelectBranch }: BranchBarProps) {
-  const { canWrite } = useActingIdentity();
+  const { canWrite } = useProjectWriteAccess(projectId);
   const queryClient = useQueryClient();
   const [forking, setForking] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -204,6 +204,7 @@ export function BranchBar({ projectId, selectedBranchId, onSelectBranch }: Branc
 
       {closing && selectedBranch ? (
         <CloseBranchForm
+          projectId={projectId}
           branchId={selectedBranch.id}
           branchName={selectedBranch.name}
           onClosed={() => {
@@ -268,7 +269,7 @@ function ForkBranchForm({
   projectId: string;
   onCreated: (branchId: string) => void;
 }) {
-  const { canWrite } = useActingIdentity();
+  const { canWrite } = useProjectWriteAccess(projectId);
   const [name, setName] = useState("");
   const [reason, setReason] = useState("");
   const [fromCheckpointId, setFromCheckpointId] = useState("");
@@ -352,15 +353,17 @@ function ForkBranchForm({
 }
 
 function CloseBranchForm({
+  projectId,
   branchId,
   branchName,
   onClosed,
 }: {
+  projectId: string;
   branchId: string;
   branchName: string;
   onClosed: () => void;
 }) {
-  const { canWrite } = useActingIdentity();
+  const { canWrite } = useProjectWriteAccess(projectId);
   const [outcome, setOutcome] = useState<BranchCloseOutcome>("dead_end");
   const [reason, setReason] = useState("");
 
@@ -433,7 +436,7 @@ function MergeBranchesForm({
   selectedBranchId: string | null;
   onMerged: (targetBranchId: string | null) => void;
 }) {
-  const { canWrite } = useActingIdentity();
+  const { canWrite } = useProjectWriteAccess(projectId);
   const defaultSource =
     selectedBranchId && openBranches.some((b) => b.id === selectedBranchId)
       ? selectedBranchId

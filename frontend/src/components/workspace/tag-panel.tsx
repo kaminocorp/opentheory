@@ -7,7 +7,7 @@ import { useState } from "react";
 import { Action, Bay, BayHeader, Icon, Input, Select } from "@/components/console";
 import { createTag, listCheckpoints, listTags } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
-import { useActingIdentity } from "@/lib/use-identity";
+import { useProjectWriteAccess } from "@/lib/use-project-write-access";
 import type { TagKind } from "@/types/research";
 
 import { PanelEmpty, PanelError, PanelLoading } from "./panel-state";
@@ -23,7 +23,7 @@ type TagPanelProps = {
 };
 
 export function TagPanel({ projectId }: TagPanelProps) {
-  const { canWrite } = useActingIdentity();
+  const { canWrite } = useProjectWriteAccess(projectId);
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
 
@@ -123,7 +123,7 @@ function CreateTagForm({
   projectId: string;
   onCreated: () => void;
 }) {
-  const { canWrite } = useActingIdentity();
+  const { canWrite } = useProjectWriteAccess(projectId);
   const [name, setName] = useState("");
   const [kind, setKind] = useState<TagKind>("milestone");
   const [notes, setNotes] = useState("");

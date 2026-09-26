@@ -22,7 +22,7 @@ import type {
 } from "@/types/agent-run";
 
 import { groundingHeadlineLabel } from "../grounding-chip";
-import { outcomeMeta } from "../toolbench/outcome";
+import { resolveOutcomeMeta } from "../toolbench/outcome";
 
 const short = (id: string | null | undefined, n = 8): string => (id ? id.slice(0, n) : "—");
 
@@ -63,7 +63,7 @@ function Chip({ children, title }: { children: React.ReactNode; title?: string }
  * renders in the timeline below — the step itself does not carry the blame tuple to re-render it).
  */
 function LandedStep({ step }: { step: AgentRunStep }) {
-  const meta = outcomeMeta(step.outcome ?? undefined);
+  const meta = resolveOutcomeMeta(step.instrument, step.outcome ?? "", {});
   return (
     <div className="grid gap-1.5 rounded-built bg-panel-2 p-3" style={{ border: "1px solid var(--hairline)" }}>
       <div className="flex flex-wrap items-center gap-2">

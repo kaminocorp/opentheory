@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 OpenTheory is a platform for continuous, agent-driven research. A **project** poses a research question that is decomposed into **threads** worked in parallel; every meaningful state change is written to an append-only, git-shaped **research ledger** with full provenance. Funding, intellectual contribution, and validation are deliberately kept as separate concerns (a funder finances, a contributor produces, a validator assesses — these roles must not be conflated in the data model).
 
-The product is currently a *human-operable* research ledger. Agents are explicitly modeled as a future `Actor` type that will use the **same** APIs, permissions, and provenance rules as humans — never a parallel data model. When adding capabilities, make them human-usable through the API first.
+The product is currently a *human-operable* research ledger. Agents are a shipped `Actor` type (`0.12`+) that use the **same** APIs, permissions, and provenance rules as humans — never a parallel data model. When adding capabilities, make them human-usable through the API first.
 
 `docs/` is the source of truth for intent, split by whether a doc describes **what is** or **what's meant**:
 
@@ -65,7 +65,7 @@ Invariants that must be preserved in code:
 
 All enums live in `models/enums.py` as `StrEnum` and map to **named** Postgres enum types (e.g. `Enum(ClaimStatus, name="claim_status")`) — keep the `name=` stable, since it becomes the DB type name. Note metadata columns are named `<entity>_metadata` (e.g. `claim_metadata`) to avoid SQLAlchemy's reserved `metadata` attribute.
 
-**The acting actor.** Every write resolves an `Actor` from the `X-Dev-Actor-Id` request header via the `ActingActor` dependency (`api/deps.py`); the handler passes it down so the service can attribute the `Contribution`. There is no auth yet (real identity is planned for `0.6.0`) — a missing/malformed header or unknown actor id is rejected, so write endpoints must declare the dependency rather than inventing an actor.
+**The acting actor.** Every write resolves an `Actor` via the `ActingActor` dependency (`api/deps.py`). Production uses a verified Supabase bearer JWT: token `sub` → `Account` (JIT-provisioned) → that account's primary `human` `Actor` (`0.6.0` auth, `0.7.0` Account-owns-Actor). When `auth_dev_header_enabled` is on (local + tests; **off** in production), a request without a bearer may carry `X-Dev-Actor-Id` instead. A missing/invalid credential is `401`. Research writes then authorize project membership (`ensure_is_member` → `404` missing project / `403` non-member) before the service acts. Write endpoints must declare the dependency rather than inventing an actor.
 
 ### Frontend (`frontend/src/`)
 

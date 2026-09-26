@@ -47,6 +47,154 @@ export function outcomeMeta(status: string | undefined): OutcomeMeta {
 }
 
 /**
+ * Instrument-honest chrome. Generic `outcomeMeta("result")` is `ok`; several instruments
+ * produce a `result` that is *not* a pass (weak support, a proof without `proven`,
+ * a finite table hold). Proof / satisfy instruments fall through to **warn** unless
+ * the machine-checked flag is true — a missing `proven` must never read as a pass.
+ */
+export function resolveOutcomeMeta(
+  instrumentName: string,
+  status: string,
+  output: Record<string, unknown> = {},
+): OutcomeMeta {
+  if (
+    instrumentName === "counterexample.search" &&
+    status === "result" &&
+    output.found === false
+  ) {
+    return {
+      tone: "warn",
+      label: "No witness",
+      gloss: "Weak support only — absence in this search space is not proof.",
+    };
+  }
+  if (instrumentName === "z3.prove") {
+    if (status === "result" && output.proven === true) {
+      return {
+        tone: "ok",
+        label: "Proven",
+        gloss: "Machine-checked: the goal holds for all assignments under the hypotheses.",
+      };
+    }
+    if (status === "refuted" && output.refuted === true) {
+      return {
+        tone: "fail",
+        label: "Refuted",
+        gloss: "Counter-model — a concrete assignment breaks the goal.",
+      };
+    }
+    return {
+      tone: "warn",
+      label: "Undecided",
+      gloss: "Z3 could not decide — recorded, never a pass.",
+    };
+  }
+  if (instrumentName === "z3.satisfy") {
+    if (status === "result" && output.satisfied === true) {
+      return {
+        tone: "ok",
+        label: "Satisfiable",
+        gloss: "A concrete assignment satisfies the constraints.",
+      };
+    }
+    if (status === "refuted" && output.unsatisfiable === true) {
+      return {
+        tone: "fail",
+        label: "Unsatisfiable",
+        gloss: "No model exists — the constraints cannot be satisfied.",
+      };
+    }
+    return {
+      tone: "warn",
+      label: "Undecided",
+      gloss: "Z3 could not decide — recorded, never a fabricated model.",
+    };
+  }
+  if (instrumentName === "lean.prove") {
+    if (status === "result" && output.proven === true) {
+      return {
+        tone: "ok",
+        label: "Proven",
+        gloss: "Lean kernel accepted the snippet — machine-checked proof.",
+      };
+    }
+    if (output.outcome === "failed") {
+      return {
+        tone: "warn",
+        label: "Failed",
+        gloss: "Lean rejected the snippet — not a proof, not a refutation.",
+      };
+    }
+    return {
+      tone: "warn",
+      label: "Undecided",
+      gloss: "Lean unavailable or timed out — recorded, never a pass.",
+    };
+  }
+  if (instrumentName === "table.derive_column") {
+    if (status === "refuted") {
+      return {
+        tone: "fail",
+        label: "Refuted",
+        gloss: "A computed row falsifies the relation — exact witness.",
+      };
+    }
+    if (status === "result" && output.is_relation === true) {
+      return {
+        tone: "warn",
+        label: "Holds on this table",
+        gloss: "Finite support only — every row holding is not a proof.",
+      };
+    }
+    if (status === "undecided") {
+      return {
+        tone: "warn",
+        label: "Undecided",
+        gloss: "A row could not be settled exactly — recorded, never a pass.",
+      };
+    }
+  }
+  if (instrumentName === "interval.eval") {
+    if (status === "result") {
+      return {
+        tone: "ok",
+        label: "Enclosure",
+        gloss: "Proven bound — not a machine-checked proof.",
+      };
+    }
+    if (status === "refuted") {
+      return {
+        tone: "fail",
+        label: "Refuted",
+        gloss: "The enclosure misses the claimed value.",
+      };
+    }
+    if (status === "undecided") {
+      return {
+        tone: "warn",
+        label: "Undecided",
+        gloss: "Overlap, timeout, or could not enclose — never a fabricated bound.",
+      };
+    }
+  }
+  if (instrumentName === "plot.function" || instrumentName === "plot.points") {
+    if (status === "undecided") {
+      return {
+        tone: "warn",
+        label: "Undecided",
+        gloss: "Not enough real samples — recorded, never a fabricated plot.",
+      };
+    }
+    return {
+      tone: "ok",
+      label: "Plot",
+      gloss: "Visualization only — not evidence.",
+    };
+  }
+  return outcomeMeta(status);
+}
+
+/**
  * Flatten the free-form assumption map into human-readable chips so assumptions are *visible* on the
  * record, not a hidden flag (plan Phase 7.4). Two shapes ride in the same map:
  * - a per-symbol SymPy flag set — `{ x: { positive: true } }` → `x: positive`;

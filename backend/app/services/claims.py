@@ -43,6 +43,37 @@ def compute_signal(validations: list[ValidationRead]) -> ClaimSignal:
     return "none"
 
 
+def claim_is_open_work(signal: ClaimSignal) -> bool:
+    """A claim is still planner/orchestrator open work on the *validation* axis.
+
+    ``signal == "validated"`` means a human assessor settled it (``passed``, and no live
+    contradiction). Grounding (proven / refuted) is a separate axis — ``claim_is_raisable``
+    owns that. Do **not** consult ``Claim.status``: nothing writes ``validated``/``retracted``
+    onto that column; the stored value is create-time only.
+    """
+    return signal != "validated"
+
+
+async def open_claims_for_planner(db: AsyncSession, thread_id: UUID) -> list[Claim]:
+    """Thread claims still in play on the validation axis, oldest first.
+
+    Used by the agent pass and the project orchestrator. A human ``Validation(passed)``
+    removes the claim from this set even though ``Claim.status`` stays ``proposed``.
+    """
+    result = await db.execute(
+        select(Claim).where(Claim.thread_id == thread_id).order_by(Claim.created_at)
+    )
+    claims = list(result.scalars())
+    if not claims:
+        return []
+    by_claim = await validation_service.validations_by_claim(db, [claim.id for claim in claims])
+    return [
+        claim
+        for claim in claims
+        if claim_is_open_work(compute_signal(by_claim.get(claim.id, [])))
+    ]
+
+
 def _to_read(
     claim: Claim,
     validations: list[ValidationRead],

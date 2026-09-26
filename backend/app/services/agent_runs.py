@@ -46,13 +46,14 @@ from app.models.actor import Actor
 from app.models.agent_run import AgentRun
 from app.models.branch import Branch
 from app.models.claim import Claim
-from app.models.enums import AgentRunStatus, BranchStatus, ClaimStatus
+from app.models.enums import AgentRunStatus, BranchStatus
 from app.models.project import Project
 from app.models.thread import Thread
 from app.schemas.branch import BranchCreate
 from app.schemas.claim import ClaimGrounding
 from app.services import branches as branch_service
 from app.services import checkpoints as checkpoint_service
+from app.services import claims as claim_service
 from app.services import compute as compute_service
 from app.services import funding as funding_service
 from app.services.agent_actors import get_or_create_project_agent_actor
@@ -63,10 +64,6 @@ from app.toolbench.catalog import build_catalog
 from app.toolbench.registry import registry
 
 logger = logging.getLogger(__name__)
-
-# Claim statuses that are "settled" — the planner is not offered these (a retracted claim is
-# withdrawn; a validated one is done). Everything else on the thread is an open claim.
-_SETTLED_CLAIM_STATUSES = (ClaimStatus.RETRACTED, ClaimStatus.VALIDATED)
 
 # The planner is injectable (a canned callable in tests). Its shape mirrors ``agent.planner.plan``.
 PlannerFn = Callable[..., Awaitable[PlanResult]]
@@ -92,16 +89,8 @@ class BudgetPolicy(Protocol):
 
 
 async def _open_claims(db: AsyncSession, thread_id: UUID) -> list[Claim]:
-    """The thread's claims that are still in play (not retracted/validated), oldest first."""
-    result = await db.execute(
-        select(Claim)
-        .where(
-            Claim.thread_id == thread_id,
-            Claim.status.notin_(_SETTLED_CLAIM_STATUSES),
-        )
-        .order_by(Claim.created_at)
-    )
-    return list(result.scalars())
+    """The thread's claims still in play on the validation axis (signal ≠ validated)."""
+    return await claim_service.open_claims_for_planner(db, thread_id)
 
 
 async def select_agent_branch(

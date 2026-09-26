@@ -5,6 +5,7 @@ from fastapi import APIRouter, status
 from app.api.deps import ActingActor, DbSession
 from app.schemas.claim import ClaimCreate, ClaimRead
 from app.services import claims as claim_service
+from app.services.project_members import ensure_member_of_thread
 
 router = APIRouter()
 
@@ -21,6 +22,7 @@ async def create_claim(
     db: DbSession,
     actor: ActingActor,
 ) -> ClaimRead:
+    await ensure_member_of_thread(db, thread_id, actor)
     return await claim_service.create_claim(db, thread_id, payload, actor)
 
 
