@@ -9,7 +9,6 @@ import { createThread, listThreads } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { queryKeys } from "@/lib/query-keys";
 import { normalizeGroundingRollup } from "@/lib/safe-reads";
-import { useActingIdentity } from "@/lib/use-identity";
 import { useProjectWriteAccess } from "@/lib/use-project-write-access";
 
 import { formatGroundingRollup } from "./grounding-chip";
