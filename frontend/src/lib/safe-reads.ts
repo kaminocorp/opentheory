@@ -57,3 +57,19 @@ export function normalizeThreadSummaries(rows: unknown): ThreadSummary[] {
     };
   });
 }
+
+/** The `listTags` contract: 404 / empty envelope → `[]`; other errors propagate. */
+export async function readTagList(load: () => Promise<unknown>): Promise<ResearchTag[]> {
+  try {
+    return normalizeTagList(await load());
+  } catch (error) {
+    return emptyOnNotFound(error, []);
+  }
+}
+
+/** The `listThreads` contract: missing `grounding_rollup` still has a defined `.total`. */
+export async function readThreadSummaries(
+  load: () => Promise<unknown>,
+): Promise<ThreadSummary[]> {
+  return normalizeThreadSummaries(await load());
+}
