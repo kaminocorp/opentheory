@@ -25,7 +25,7 @@ from app.models.artifact import Artifact
 from app.models.enums import ResultStatus
 from app.models.evidence import Evidence
 from app.models.links import ClaimEvidenceLink
-from app.services.tool_runs import run_instrument
+from app.services.tool_runs import _strip_latex_keys, run_instrument
 from app.toolbench.instruments import (
     CALC_EVAL,
     COORDINATE_MEASURE,
@@ -51,19 +51,21 @@ from app.toolbench.retrieval import Retrieval
 
 
 async def _actor(client: AsyncClient) -> str:
-    from tests.principals import make_dev_principal
+    resp = await client.post("/api/v1/actors", json={"type": "human", "display_name": "Ada"})
+    assert resp.status_code == 201, resp.text
+    return resp.json()["id"]
 
-    return await make_dev_principal(client)
 
-
-async def _project(
-    client: AsyncClient, slug: str = "test-project", actor_id: str | None = None
-) -> str:
-    from tests.principals import create_owned_project, make_dev_principal
-
-    if actor_id is None:
-        actor_id = await make_dev_principal(client, display_name="Author")
-    return await create_owned_project(client, actor_id, slug)
+async def _project(client: AsyncClient, slug: str) -> str:
+    author = await client.post("/api/v1/actors", json={"type": "human", "display_name": "Author"})
+    assert author.status_code == 201, author.text
+    resp = await client.post(
+        "/api/v1/projects",
+        json={"title": "Toolbench", "slug": slug, "question": "What is X?"},
+        headers={"X-Dev-Actor-Id": author.json()["id"]},
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()["id"]
 
 
 async def _thread(client: AsyncClient, project_id: str, actor_id: str) -> str:
@@ -93,7 +95,7 @@ async def test_calc_eval_lands_a_result_with_the_engine_pinned(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "instr-calc-result", actor_id=actor_id)
+    project_id = await _project(client, "instr-calc-result")
     pid = UUID(project_id)
 
     async with session_factory() as session:
@@ -117,7 +119,7 @@ async def test_calc_eval_false_relation_weakens_the_claim_as_a_counterexample(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "instr-calc-refute", actor_id=actor_id)
+    project_id = await _project(client, "instr-calc-refute")
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id, "5 = 7 (a deliberately false claim).")
     pid = UUID(project_id)
@@ -149,7 +151,7 @@ async def test_geometry_corner_records_its_assumption_on_the_artifact(
 ) -> None:
     """The flagship: 'measuring across a corner' lands dist=5, angle=90°, and the assumption."""
     actor_id = await _actor(client)
-    project_id = await _project(client, "instr-geo-corner", actor_id=actor_id)
+    project_id = await _project(client, "instr-geo-corner")
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id, "The corner spans 5 across a right angle.")
     pid = UUID(project_id)
@@ -181,13 +183,10 @@ async def test_geometry_corner_records_its_assumption_on_the_artifact(
     assert entry["engine_version"] == ENGINE_VERSION
     assert entry["assumptions"] == assumptions
     assert entry["output"]["distances"] == {"A-C": "5"}
-    angle = entry["output"]["angles"]["A-B-C"]
-    assert angle["radians"] == "pi/2"
-    assert angle["degrees"] == "90"
-    # 0.10.4 latex companions ride on the output; they are render hints, not the measurement.
-    assert entry["output"]["distances_latex"]["A-C"] == "5"
-    assert angle["radians_latex"]
-    assert angle["degrees_latex"] == "90"
+    # 0.10.4 added *_latex companions; presentation must not change the measurement.
+    assert _strip_latex_keys(entry["output"]["angles"]) == {
+        "A-B-C": {"radians": "pi/2", "degrees": "90"}
+    }
 
 
 # --- Phase 0.10.2: counterexample.search --------------------------------------------------------
@@ -202,7 +201,7 @@ async def test_counterexample_search_refutes_a_claim_as_a_counterexample(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "instr-ce-refute", actor_id=actor_id)
+    project_id = await _project(client, "instr-ce-refute")
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(
         client, thread_id, actor_id, "Return distance equals the sum of the legs."
@@ -244,7 +243,7 @@ async def test_counterexample_search_no_find_supports_weakly(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "instr-ce-weak", actor_id=actor_id)
+    project_id = await _project(client, "instr-ce-weak")
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id, "Addition commutes on small integers.")
     pid = UUID(project_id)
@@ -319,7 +318,7 @@ async def test_oeis_search_lands_a_pinned_external_evidence(
 ) -> None:
     """An async retrieval composes through the same chokepoint as the sync compute instruments."""
     actor_id = await _actor(client)
-    project_id = await _project(client, "instr-oeis", actor_id=actor_id)
+    project_id = await _project(client, "instr-oeis")
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id, "This sequence is the Fibonacci numbers.")
     pid = UUID(project_id)
@@ -417,7 +416,7 @@ async def test_crossref_lookup_lands_a_pinned_external_evidence(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "instr-crossref", actor_id=actor_id)
+    project_id = await _project(client, "instr-crossref")
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id, "Deep learning is a Nature paper.")
     pid = UUID(project_id)
@@ -450,7 +449,7 @@ async def test_arxiv_lookup_lands_a_pinned_external_evidence(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "instr-arxiv", actor_id=actor_id)
+    project_id = await _project(client, "instr-arxiv")
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id, "Attention Is All You Need is on arXiv.")
     pid = UUID(project_id)
@@ -481,7 +480,7 @@ async def test_openalex_lookup_lands_a_pinned_external_evidence(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "instr-openalex", actor_id=actor_id)
+    project_id = await _project(client, "instr-openalex")
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id, "This work is in OpenAlex.")
     pid = UUID(project_id)
@@ -519,7 +518,7 @@ async def test_z3_prove_lands_a_proof_with_the_z3_engine_pinned(
     SymPy) + version in the blame tuple — the reproduce-exactly contract for a verifier result.
     """
     actor_id = await _actor(client)
-    project_id = await _project(client, "instr-z3-proof", actor_id=actor_id)
+    project_id = await _project(client, "instr-z3-proof")
     pid = UUID(project_id)
 
     async with session_factory() as session:
@@ -557,7 +556,7 @@ async def test_z3_prove_refutation_weakens_the_claim_as_a_counterexample(
     """A counter-model refutes the goal → a ``counterexample`` artifact weakening the linked claim,
     exactly like the other falsifiers (outcome-derived ``weaken`` relation)."""
     actor_id = await _actor(client)
-    project_id = await _project(client, "instr-z3-refute", actor_id=actor_id)
+    project_id = await _project(client, "instr-z3-refute")
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id, "x*x is never equal to x.")
     pid = UUID(project_id)
@@ -599,7 +598,7 @@ async def test_z3_satisfy_lands_a_model_with_the_z3_engine_pinned(
 ) -> None:
     """A sat assignment composes through ``run_instrument`` as a ``model`` artifact, Z3-pinned."""
     actor_id = await _actor(client)
-    project_id = await _project(client, "instr-z3-sat", actor_id=actor_id)
+    project_id = await _project(client, "instr-z3-sat")
     pid = UUID(project_id)
 
     async with session_factory() as session:
@@ -639,7 +638,7 @@ async def test_z3_satisfy_unsat_weakens_the_claim_with_no_model(
 ) -> None:
     """Unsat means no model exists → ``refuted`` / ``proof`` artifact, never a fake assignment."""
     actor_id = await _actor(client)
-    project_id = await _project(client, "instr-z3-unsat", actor_id=actor_id)
+    project_id = await _project(client, "instr-z3-unsat")
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id, "x is both positive and negative.")
     pid = UUID(project_id)
@@ -687,7 +686,7 @@ async def test_lean_prove_sorry_lands_undecided_never_a_proof(
     Classification is in-process (banned-construct scan) so this does not need ``lean`` installed.
     """
     actor_id = await _actor(client)
-    project_id = await _project(client, "instr-lean-sorry", actor_id=actor_id)
+    project_id = await _project(client, "instr-lean-sorry")
     pid = UUID(project_id)
 
     async with session_factory() as session:
@@ -730,7 +729,7 @@ async def test_lean_prove_proof_lands_through_chokepoint_when_sandbox_in_thread(
         ),
     )
     actor_id = await _actor(client)
-    project_id = await _project(client, "instr-lean-proof", actor_id=actor_id)
+    project_id = await _project(client, "instr-lean-proof")
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id, "1 + 1 = 2")
     pid = UUID(project_id)
@@ -769,7 +768,7 @@ async def test_lean_prove_mathlib_import_without_opt_in_lands_undecided(
 ) -> None:
     """Mathlib import without the opt-in is a recorded failed check — never Grade A."""
     actor_id = await _actor(client)
-    project_id = await _project(client, "instr-lean-mathlib-import", actor_id=actor_id)
+    project_id = await _project(client, "instr-lean-mathlib-import")
     pid = UUID(project_id)
 
     async with session_factory() as session:
@@ -813,7 +812,7 @@ async def test_lean_prove_mathlib_proof_lands_through_chokepoint_when_sandbox_in
         ),
     )
     actor_id = await _actor(client)
-    project_id = await _project(client, "instr-lean-mathlib-proof", actor_id=actor_id)
+    project_id = await _project(client, "instr-lean-mathlib-proof")
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id, "(2 : ℝ) + 2 = 4")
     pid = UUID(project_id)
@@ -867,7 +866,7 @@ async def test_table_create_lands_a_table_artifact(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "instr-table-create", actor_id=actor_id)
+    project_id = await _project(client, "instr-table-create")
     pid = UUID(project_id)
 
     async with session_factory() as session:
@@ -891,7 +890,7 @@ async def test_table_derive_column_refute_weakens_the_claim(
 ) -> None:
     """d == a+b is false on 3-4-5 — exact witness through the chokepoint."""
     actor_id = await _actor(client)
-    project_id = await _project(client, "instr-table-derive", actor_id=actor_id)
+    project_id = await _project(client, "instr-table-derive")
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id, "d equals a plus b")
     pid = UUID(project_id)
@@ -928,7 +927,7 @@ async def test_plot_function_lands_a_plot_artifact(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "instr-plot-fn", actor_id=actor_id)
+    project_id = await _project(client, "instr-plot-fn")
     pid = UUID(project_id)
 
     async with session_factory() as session:
@@ -968,7 +967,7 @@ async def test_interval_eval_lands_an_enclosure_with_the_engine_pinned(
     from app.toolbench.instruments._interval_support import ENGINE_VERSION as INTERVAL_VERSION
 
     actor_id = await _actor(client)
-    project_id = await _project(client, "instr-interval-enc", actor_id=actor_id)
+    project_id = await _project(client, "instr-interval-enc")
     pid = UUID(project_id)
 
     async with session_factory() as session:
@@ -996,7 +995,7 @@ async def test_interval_eval_refute_weakens_the_claim(
 ) -> None:
     """sqrt(2) == 2 is entirely off — proven miss through the chokepoint."""
     actor_id = await _actor(client)
-    project_id = await _project(client, "instr-interval-refute", actor_id=actor_id)
+    project_id = await _project(client, "instr-interval-refute")
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id, "sqrt(2) equals 2")
     pid = UUID(project_id)

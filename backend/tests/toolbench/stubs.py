@@ -73,31 +73,29 @@ class BlobInstrument:
         )
 
 
-_SLEEP = SleepInstrument()
-_BLOB = BlobInstrument()
-
-
-class WritePathStubInput(BaseModel):
+class WritePathInput(BaseModel):
     value: int
 
 
-class WritePathStubOutput(BaseModel):
+class WritePathOutput(BaseModel):
     value: int
 
 
-class WritePathStub:
-    """Write-path composition stub. Registered under ``test.stub*`` so the sandbox
-    worker cannot confuse it with production ``calc.eval`` (which requires
-    ``expression`` and has run through the worker since 0.11.3).
+class WritePathInstrument:
+    """In-process / spawn-safe stub for ``test_write_path`` ledger mechanics.
+
+    The sandbox worker looks instruments up by name (never pickles the caller's
+    object). Naming a stub ``calc.eval`` therefore runs the *real* instrument.
+    These ``test.write*`` names stay off the production catalog.
     """
 
     namespace = "test"
     version = "0.1.0"
-    engine = "builtin"
-    engine_version = "1.0"
-    description = "Write-path composition stub (not a production instrument)."
-    InputModel = WritePathStubInput
-    OutputModel = WritePathStubOutput
+    engine = "sympy"
+    engine_version = "1.13.2"
+    description = "Write-path stub (not a production instrument)."
+    InputModel = WritePathInput
+    OutputModel = WritePathOutput
 
     def __init__(
         self,
@@ -107,14 +105,12 @@ class WritePathStub:
         artifact_kind: str = "derivation",
         raises: bool = False,
     ) -> None:
-        if not name.startswith("test."):
-            raise ValueError("write-path stubs must use a test.* name, not a production instrument")
         self.name = name
         self._status = status
         self._kind = artifact_kind
         self._raises = raises
 
-    def run(self, inputs: WritePathStubInput, assumptions: dict[str, Any]) -> InstrumentResult:
+    def run(self, inputs: WritePathInput, assumptions: dict[str, Any]) -> InstrumentResult:
         if self._raises:
             raise RuntimeError("engine exploded")
         return InstrumentResult(
@@ -124,21 +120,19 @@ class WritePathStub:
         )
 
 
-WRITE_PATH_STUB = WritePathStub("test.stub")
-WRITE_PATH_STUB_REFUTED = WritePathStub(
-    "test.stub_refuted",
+_SLEEP = SleepInstrument()
+_BLOB = BlobInstrument()
+WRITE = WritePathInstrument("test.write")
+WRITE_REFUTE = WritePathInstrument(
+    "test.write_refute",
     status=ResultStatus.REFUTED,
     artifact_kind="counterexample",
 )
-WRITE_PATH_STUB_UNDECIDED = WritePathStub("test.stub_undecided", status=ResultStatus.UNDECIDED)
-WRITE_PATH_STUB_BOOM = WritePathStub("test.stub_boom", raises=True)
-
-_WRITE_PATH_STUBS = (
-    WRITE_PATH_STUB,
-    WRITE_PATH_STUB_REFUTED,
-    WRITE_PATH_STUB_UNDECIDED,
-    WRITE_PATH_STUB_BOOM,
+WRITE_UNDECIDED = WritePathInstrument(
+    "test.write_undecided",
+    status=ResultStatus.UNDECIDED,
 )
+WRITE_BOOM = WritePathInstrument("test.write_boom", raises=True)
 
 
 def register_test_instruments() -> None:
@@ -146,18 +140,23 @@ def register_test_instruments() -> None:
         registry.register(_SLEEP)
     if "test.blob" not in registry:
         registry.register(_BLOB)
-    for stub in _WRITE_PATH_STUBS:
-        if stub.name not in registry:
-            registry.register(stub)
+    if "test.write" not in registry:
+        registry.register(WRITE)
+    if "test.write_refute" not in registry:
+        registry.register(WRITE_REFUTE)
+    if "test.write_undecided" not in registry:
+        registry.register(WRITE_UNDECIDED)
+    if "test.write_boom" not in registry:
+        registry.register(WRITE_BOOM)
 
 
 __all__ = [
     "BlobInstrument",
     "SleepInstrument",
-    "WRITE_PATH_STUB",
-    "WRITE_PATH_STUB_BOOM",
-    "WRITE_PATH_STUB_REFUTED",
-    "WRITE_PATH_STUB_UNDECIDED",
-    "WritePathStub",
+    "WRITE",
+    "WRITE_BOOM",
+    "WRITE_REFUTE",
+    "WRITE_UNDECIDED",
+    "WritePathInstrument",
     "register_test_instruments",
 ]

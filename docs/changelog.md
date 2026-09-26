@@ -134,6 +134,11 @@ Sits on shipped `0.36.0` (`71a8929`, #21) and the R1 assessment
   `build`. npm cache on the lockfile.
 - **Honest skips.** Lean / Mathlib are not installed. Missing
   toolchain stays `undecided`. No repository secrets.
+- **Test rot the first Postgres run exposed.** Write-path stubs were
+  named `calc.eval` / `expr.compare`, so the sandbox child ran the
+  real instrument and 422'd. They now register as `test.write*`.
+  Geometry write-path assertion strips `*_latex` companions (`0.10.4`).
+  Tests only — no production code.
 
 ```bash
 # CI equivalent (local):

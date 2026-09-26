@@ -25,6 +25,10 @@ and the R1 assessment (`375733a`, #22). Does not claim `0.36.1` /
 - **Honest skips stay honest.** Lean / Mathlib are not installed.
   `INSTALL_LEAN` / `INSTALL_MATHLIB` stay unset. Tests that need a
   `lean` binary or a Mathlib cache continue to skip. No secrets.
+- **First-run test rot (tests only).** Write-path stubs named
+  `calc.eval` / `expr.compare` were looked up in the sandbox child as
+  the real instruments. They now register as `test.write*`. The
+  geometry write-path assertion strips `*_latex` companions.
 
 The pytest fixtures still `DROP SCHEMA public CASCADE` and
 `Base.metadata.create_all` — they do not consume the Alembic-migrated
