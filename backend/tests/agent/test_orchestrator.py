@@ -171,7 +171,8 @@ def _stub_planner(
     calls = {"n": 0}
 
     async def _planner(
-        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None,
+        observations=None, signals=None,
     ):
         calls["n"] += 1
         if seen is not None:
@@ -195,7 +196,8 @@ def _stub_planner(
 
 def _raising_planner(exc: Exception):
     async def _planner(
-        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None,
+        observations=None, signals=None,
     ):
         raise exc
 
@@ -206,7 +208,8 @@ def _always_planner(plan_result: PlanResult, *, seen: dict | None = None):
     """A stub that keeps proposing the same batch — used to prove the max-replan stop."""
 
     async def _planner(
-        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None,
+        observations=None, signals=None,
     ):
         if seen is not None:
             seen.setdefault("n", 0)
@@ -796,7 +799,8 @@ async def test_replan_failure_after_a_landed_step_completes_the_pass(
     calls = {"n": 0}
 
     async def _planner(
-        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None,
+        observations=None, signals=None,
     ):
         calls["n"] += 1
         if calls["n"] == 1:

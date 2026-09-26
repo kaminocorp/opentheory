@@ -33,7 +33,7 @@ from app.agent.observe import Observation
 from app.agent.prompts import build_messages
 from app.models.claim import Claim
 from app.models.thread import Thread
-from app.schemas.claim import ClaimGrounding
+from app.schemas.claim import ClaimGrounding, ClaimSignal
 from app.schemas.instrument import InstrumentDescriptor
 from app.services.evidence import RELATION_KINDS
 from app.toolbench.registry import InstrumentRegistry
@@ -139,6 +139,7 @@ async def plan(
     max_runs: int,
     grounding: dict[UUID, ClaimGrounding] | None = None,
     observations: list[Observation] | None = None,
+    signals: dict[UUID, ClaimSignal] | None = None,
     registry: InstrumentRegistry | None = None,
     timeout: float | None = None,
 ) -> PlanResult:
@@ -150,10 +151,12 @@ async def plan(
     per-version batch budget, not a free-form limit).
 
     ``grounding`` (0.16.1) is each open claim's evidence rung, so the model plans to *raise* one
-    rather than to look busy. ``observations`` (0.20.0) are server-derived outcomes from earlier
-    batches in this pass. Both are **optional and read-only context**: omitting them degrades the
-    plan's quality but changes no validation rule, and nothing the model returns can set a grade
-    — grounding remains derived from what actually runs.
+    rather than to look busy. ``signals`` is each open claim's validation-axis derivation
+    (``compute_signal`` — the same field the claim read already serializes). ``observations``
+    (0.20.0) are server-derived outcomes from earlier batches in this pass. All three are
+    **optional and read-only context**: omitting them degrades the plan's quality but changes
+    no validation rule, and nothing the model returns can set a grade or a signal — both
+    remain derived from what actually ran.
     """
     reg = registry if registry is not None else _production_registry
     open_claim_ids = {claim.id for claim in open_claims}
@@ -161,7 +164,12 @@ async def plan(
     response = await llm.complete(
         model=model,
         messages=build_messages(
-            thread, open_claims, catalog, grounding, observations=observations
+            thread,
+            open_claims,
+            catalog,
+            grounding,
+            observations=observations,
+            signals=signals,
         ),
         response_format=_JSON_RESPONSE_FORMAT,
         timeout=timeout,

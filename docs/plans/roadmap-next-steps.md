@@ -1,5 +1,8 @@
 # Roadmap Next Steps
 
+> **Last updated:** 2026-09-26 · **Current release line:** `0.36.3`
+> (honesty polish on shipped `0.36.0` blame), sitting on shipped `0.36.0`
+> (`71a8929`) and shipped `0.35.0`
 > **Last updated:** 2026-09-26 · **Current release line:** `0.38.0`
 > (Z3 boolean connectives), sitting on shipped `0.36.0`
 > (research-git blame, `71a8929`) and shipped `0.35.0`
@@ -26,6 +29,7 @@
 > (project-budget metering), `0.18.0` (Tier-1 literature pins), `0.17.0`
 > (review is opt-in) and `0.16.3` (thread/project grounding rollup). For the
 > per-phase ledger see `docs/changelog.md`; for the line just closed see
+> `docs/completions/honesty-polish-0.36.3.md`. The deepdive line
 > `docs/completions/z3-boolean-connectives-0.38.0.md`. The deepdive line
 > `docs/completions/github-actions-ci-0.37.0.md`. The deepdive line
 > (A–D) is closed; the archive plan is at
@@ -40,6 +44,10 @@
 > ~~Blame-as-an-op~~ ✅ shipped as `0.36.0`. ~~CI + Postgres~~ ✅
 > shipped as `0.37.0`. `0.33.0`–`0.36.0` are on `main`.
 > **Next after this line:** the still-owed browser eyeball pass. Unmerged
+> work is not claimed as shipped (`0.36.1` / `0.36.2` / `0.37.0` /
+> `0.38.0` remain open PRs). Lean REPL / LeanDojo remain later.
+> ~~Blame-as-an-op~~ ✅ shipped as `0.36.0` on `main`. `0.33.0`–`0.36.0`
+> are on `main`.
 > work is not claimed as shipped (`0.36.1` / `0.36.2` are stacked
 > branches, not `main`). Lean REPL / LeanDojo remain later. Remaining
 > R1/R2 P2s (file splits, CI, naming, confidence chrome) stay deferred.
@@ -466,6 +474,17 @@ migration.** Sits on `0.35.0`. See
 auto-validate / auto-fund / auto-merge; content-addressed commit ids;
 rewriting claim field history; browser eyeball.
 
+### `0.36.3` — Honesty polish ✅ **this branch**
+
+Delivered: `BranchCreate` / `ValidationCreate` OpenAPI copy describes
+the signed-in JWT actor, not the local-only header; the planner prompt
+prints `compute_signal` instead of stored `Claim.status`. Auth
+assistant/ops copy matches. **No schema, no migration.** Off `main`
+(`0.36.0`). Does not claim `0.36.1` / `0.36.2` / `0.37.0` / `0.38.0`.
+See `docs/completions/honesty-polish-0.36.3.md`.
+
+**Not in this release:** membership gating; planner open-claim filter
+rewrite; Lean / Z3 expansion; browser eyeball.
 ### `0.37.x` — GitHub Actions CI with Postgres ✅ **shipped** (`0.37.0`)
 
 Delivered: `.github/workflows/ci.yml` runs `ruff` + `pytest` against a

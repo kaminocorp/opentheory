@@ -179,6 +179,27 @@ async def test_grounding_context_reaches_the_planning_call() -> None:
     user_message = llm.calls[0]["messages"][1]["content"]
     assert "grounding: B" in user_message
     assert "to raise: run one of [lean.prove, z3.prove, z3.satisfy]" in user_message
+    # Stored Claim.status is not the validation axis the model is shown.
+    assert "  status:" not in user_message
+    assert "signal: none" in user_message
+
+
+async def test_signal_context_reaches_the_planning_call() -> None:
+    """A ``compute_signal`` result passed to ``plan`` is what the LLM sees, not stored status."""
+    claim = make_claim()
+    llm = StubLlm(_content([]))
+    await plan(
+        make_thread(),
+        [claim],
+        CATALOG,
+        "m",
+        llm=llm,
+        max_runs=5,
+        signals={claim.id: "validated"},
+    )
+    user_message = llm.calls[0]["messages"][1]["content"]
+    assert "signal: validated" in user_message
+    assert "  status:" not in user_message
 
 
 async def test_observations_reach_the_planning_call() -> None:

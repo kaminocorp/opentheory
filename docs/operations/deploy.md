@@ -5,6 +5,9 @@ pointing at the **existing live Supabase database**. It assumes the scaffolding 
 (`backend/Dockerfile`, `backend/fly.toml`, `backend/.dockerignore`).
 
 > Production writes require a verified Supabase bearer JWT (`0.6.0`; Account-owns-Actor in
+> `0.7.0`). Public GETs stay public. The local/test header path is off unless
+> `auth_dev_header_enabled` is explicitly enabled (default **off**). Do not enable that
+> path on a publicly reachable Fly app.
 > `0.7.0`). Public GETs stay public. Research writes are membership-gated
 > (`ensure_is_member` — `401` unauthenticated, `404` missing project, `403` non-member).
 > `X-Dev-Actor-Id` is local/test only (`auth_dev_header_enabled`, default **off**). Do not
