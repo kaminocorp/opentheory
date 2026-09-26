@@ -1,5 +1,10 @@
 # Roadmap Next Steps
 
+> **Last updated:** 2026-09-26 · **Current release line:** `0.42.0`
+> (OpenRouter gateway + turn supervision), sitting on shipped `0.41.0`
+> (live OpenTheory MCP domain door, `06cfeab`, #34) on current `main`.
+> See `docs/completions/openrouter-gateway-0.42.0.md`.
+>
 > **Last updated:** 2026-09-26 · **Current release line:** `0.41.0`
 > (live OpenTheory MCP domain door), sitting on shipped `0.40.0`
 > (external DeepSeek Harness M0, `901b3de`, #33) on current `main`.
@@ -52,10 +57,10 @@
 > (A–D) is closed; the archive plan is at
 > `docs/archive/project-deepdive-tabs-0.14.md`.
 >
-> **Next after this line:** OpenRouter gateway + turn supervision
-> (`0.42.0`) on the external harness path; the still-owed browser
-> eyeball pass.
-> ~~Live OT MCP binding~~ ✅ this branch as `0.41.0`.
+> **Next after this line:** a reference campaign on the external
+> harness path; the still-owed browser eyeball pass.
+> ~~OpenRouter gateway + turn supervision~~ ✅ this branch as `0.42.0`.
+> ~~Live OT MCP binding~~ ✅ shipped as `0.41.0` (`06cfeab`, #34).
 > ~~External harness M0~~ ✅ shipped as `0.40.0` (`901b3de`, #33).
 > ~~Quantifiers on Z3~~ ✅ shipped as `0.39.0`. Lean REPL / LeanDojo remain later.
 > Does not claim `0.36.1` / `0.36.2` / `0.37.0`. `0.33.0`–`0.36.0` are
@@ -182,7 +187,7 @@ the optional `[harness]` extra. FastAPI does not import the package.
 turn supervision (`0.42.0`); reference campaign; ops dashboard;
 lighting the built-in planner.
 
-### `0.41.x` — Live OT MCP binding ✅ **this branch** (`0.41.0`)
+### `0.41.x` — Live OT MCP binding ✅ **shipped** (`0.41.0`)
 
 Delivered: the M0 stems bound to the live ledger. JWT Actor (file-path
 injection, never logged) + `ensure_is_member` + real `run_instrument` /
@@ -195,11 +200,21 @@ for M0 probes. FastAPI still does not import the package.
 (`0.42.0`); reference campaign; ops dashboard; lighting the built-in
 planner.
 
-### `0.42.x` — OpenRouter gateway + turn supervision (next on this line)
+### `0.42.x` — OpenRouter gateway + turn supervision ✅ **this branch** (`0.42.0`)
 
-Provider allowlist, `allow_fallbacks: false`, `require_parameters: true`,
-`data_collection: deny`. Token spend debits `ComputeDebit` the same way
-the built-in planner does. Still no `AGENT_LOOP_ENABLED` flip.
+Delivered: fail-closed OpenRouter gateway (provider allowlist,
+`allow_fallbacks: false`, `require_parameters: true`,
+`data_collection: deny`; no raw DeepSeek API) and bounded turn
+supervision. Token spend debits `ComputeDebit` through
+`record_compute_debit` (no `AgentRun`; notes `harness_gateway_turn`)
+on successful and attempted turns; a refused start writes nothing.
+Opt-in live probe; default CI stays green without a key or `dsh`.
+FastAPI still does not import the package. `AGENT_LOOP_ENABLED` stays
+dark. **No schema, no migration.** See
+`docs/completions/openrouter-gateway-0.42.0.md`.
+
+**Not in this release:** a reference campaign; ops dashboard; daily
+caps; lighting the built-in planner.
 
 ### `0.32.x` — Concurrent campaign cycles under project budget ✅ **shipped** (`0.32.0`)
 
@@ -773,11 +788,16 @@ shipped `0.38.0` (`e0e118b`).
 docs + fail-closed Cordis composition + fixture MCP probe. No live
 ledger binding in that slice.
 
-**`0.41.0` (live OT MCP domain door)** is this branch: JWT Actor +
-`ensure_is_member` + real `run_instrument` / `create_checkpoint` +
-claim / thread / budget reads. Fixture kept for M0 probes. No
+**`0.41.0` (live OT MCP domain door)** is shipped (`06cfeab`, #34):
+JWT Actor + `ensure_is_member` + real `run_instrument` /
+`create_checkpoint` + claim / thread / budget reads. Fixture kept
+for M0 probes. No `AGENT_LOOP_ENABLED` flip. No schema, no migration.
+
+**`0.42.0` (OpenRouter gateway + turn supervision)** is this branch:
+fail-closed OpenRouter path + bounded turns + `ComputeDebit` for LLM
+tokens. Live MCP stays the only domain door. No
 `AGENT_LOOP_ENABLED` flip. No schema, no migration.
 
-**Next product step:** `0.42.0` OpenRouter gateway + turn supervision.
-The still-owed browser eyeball pass remains. Lean REPL / LeanDojo
-remain later. `If` / ite remain later.
+**Next product step:** a reference campaign on the external harness
+path. The still-owed browser eyeball pass remains. Lean REPL /
+LeanDojo remain later. `If` / ite remain later.

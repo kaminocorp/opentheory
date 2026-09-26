@@ -1,8 +1,9 @@
 # External DeepSeek Harness — implementation plan
 
-> **Status — `0.41.0` Milestone 1 is this slice** (live MCP door), sitting
-> on shipped `0.40.0` Milestone 0. Not a product loop. Not enabled on Fly.
-> Does not light `AGENT_LOOP_ENABLED`.
+> **Status — `0.42.0` Milestone 2 is this slice** (OpenRouter gateway +
+> turn supervision), sitting on shipped `0.41.0` live MCP and `0.40.0`
+> composition. Not a product loop. Not enabled on Fly. Does not light
+> `AGENT_LOOP_ENABLED`.
 
 The external agent adapter lives **outside** the built-in OpenRouter planner
 (`0.12.x`–`0.32.0`). DeepSeek Harness SDK + an OpenRouter gateway own the
@@ -27,14 +28,16 @@ ownership of the session.
 
 Milestone 0 pinned the composition so a later binding cannot quietly grow
 a shell. Milestone 1 (`0.41.0`) binds the live APIs through that door.
+Milestone 2 (`0.42.0`) puts OpenRouter behind a fail-closed gateway and
+meters token spend.
 
 ## Milestones
 
 | Slice | What ships | What must stay out |
 | --- | --- | --- |
 | **0 — `0.40.0`** | Docs, `opentheory.cordis.yml`, composition verify, fixture MCP (`echo_nonce` + stub domain tools), probe that skips without a key / SDK | Live ledger writes; gateway; Fly enablement; `AGENT_LOOP_ENABLED` |
-| **1 — `0.41.0` (this)** | Live MCP binding: JWT Actor + `ensure_is_member` + real `run_instrument` / `create_checkpoint` + claim/thread/budget reads | Gateway supervision; campaigns; a second settlement path |
-| **2 — `0.42.0`** | OpenRouter gateway + turn supervision in the API (provider allowlist, `allow_fallbacks: false`, `require_parameters: true`, `data_collection: deny`) | Lighting the built-in planner; daily caps |
+| **1 — `0.41.0`** | Live MCP binding: JWT Actor + `ensure_is_member` + real `run_instrument` / `create_checkpoint` + claim/thread/budget reads | Gateway supervision; campaigns; a second settlement path |
+| **2 — `0.42.0` (this)** | OpenRouter gateway + turn supervision (provider allowlist, `allow_fallbacks: false`, `require_parameters: true`, `data_collection: deny`); `ComputeDebit` for LLM tokens | Lighting the built-in planner; daily caps; Fly enablement |
 | **3 — later** | Reference campaign (odd perfect numbers) on the external path | Auto-validate / auto-fund / auto-merge |
 | **4 — later** | Perpetual ops dashboard; daily turn/request caps | Lean REPL / LeanDojo (separate line) |
 
@@ -55,6 +58,7 @@ tree*, the way `create_checkpoint` is the chokepoint for ledger writes:
 - Research-contributor persona — no hospitality / SQL voice
 
 Drift raises `CompositionError`. Tests mutate the patch and expect reject.
+Turn supervision re-runs `verify()` before every turn.
 
 ## Optional `[harness]` extra
 
@@ -65,10 +69,12 @@ Default `uv sync --group dev` (CI) must not need the DeepSeek SDK or a
 
 ## Probe
 
-`python -m app.harness` always verifies composition + fixture inventory.
+`python -m app.harness` always verifies composition + fixture.
 A live OpenRouter round-trip is opt-in (`OPENTHEORY_HARNESS_LIVE=1`) and
-still **not implemented** — missing key / missing runtime skip cleanly.
-The live *MCP* door is `python -m app.harness.live_mcp` (`0.41.0`).
+runs one fail-closed gateway completion when a key is present. Missing
+key / unset flag skip cleanly. The live *MCP* door is
+`python -m app.harness.live_mcp` (`0.41.0`). The HTTP gateway child is
+`python -m app.harness.gateway` (`0.42.0`).
 
 ## Invariants this line must not break
 
@@ -77,3 +83,4 @@ The live *MCP* door is `python -m app.harness.live_mcp` (`0.41.0`).
 - Account ≠ Actor; funder ≠ contributor ≠ validator
 - JWT Actor + membership + `ComputeDebit` — same API humans use
 - Built-in `AGENT_LOOP_ENABLED` stays dark; this path does not flip it
+- Secrets never in `fly.toml [env]`

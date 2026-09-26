@@ -1,10 +1,14 @@
-"""Probe skips live OpenRouter unless explicitly opted in with a runtime."""
+"""Probe skips live OpenRouter unless explicitly opted in with a key."""
 
 from __future__ import annotations
 
+import json
+
+import httpx
 import pytest
 
 from app.harness.composition import VERSION
+from app.harness.gateway import DEFAULT_MODEL, GatewayClient
 from app.harness.probe import (
     LIVE_FLAG,
     OPENROUTER_KEY_ENV,
@@ -41,29 +45,58 @@ def test_live_skips_without_key() -> None:
     assert OPENROUTER_KEY_ENV in reason
 
 
-def test_live_skips_without_runtime() -> None:
+def test_live_openrouter_does_not_require_dsh() -> None:
+    """The 0.42.0 gateway path is OT code — missing dsh is not a skip."""
     reason = live_probe_skip_reason(
         {LIVE_FLAG: "1", OPENROUTER_KEY_ENV: "sk-test"},
         dsh_on_path=False,
         sdk_importable=False,
     )
-    assert reason is not None
-    assert "[harness]" in reason
+    assert reason is None
 
 
-def test_live_opt_in_with_runtime_is_not_implemented() -> None:
-    """M0 must not invent a live gateway. Opt-in + runtime still refuses."""
-    from app.harness import probe
+def test_live_opt_in_runs_fail_closed_gateway(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(LIVE_FLAG, "1")
+    monkeypatch.setenv(OPENROUTER_KEY_ENV, "sk-test")
 
-    original = probe.live_probe_skip_reason
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        assert body["provider"]["allow_fallbacks"] is False
+        assert body["provider"]["require_parameters"] is True
+        assert body["provider"]["data_collection"] == "deny"
+        assert body["model"] == DEFAULT_MODEL
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": "pong"}}],
+                "usage": {"total_tokens": 3, "prompt_tokens": 2, "completion_tokens": 1},
+            },
+        )
 
-    def _never_skip(*_args: object, **_kwargs: object) -> None:
-        return None
-
-    probe.live_probe_skip_reason = _never_skip  # type: ignore[method-assign]
-    try:
-        with pytest.raises(RuntimeError, match="not implemented in 0.40.0"):
-            run_probe()
-    finally:
-        probe.live_probe_skip_reason = original  # type: ignore[method-assign]
+    gateway = GatewayClient(
+        api_key="sk-test",
+        base_url="https://openrouter.ai/api/v1",
+        transport=httpx.MockTransport(handler),
+    )
+    report = run_probe(live_gateway=gateway)
+    assert report.skipped_live is False
+    assert report.composition == "ok"
+    assert report.fixture == "ok"
+    assert "ok tokens=3" in report.live
     assert VERSION == "0.1.5rc1"
+
+
+def test_live_opt_in_failure_is_honest(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(LIVE_FLAG, "1")
+    monkeypatch.setenv(OPENROUTER_KEY_ENV, "sk-test")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, json={"error": "down"})
+
+    gateway = GatewayClient(
+        api_key="sk-test",
+        base_url="https://openrouter.ai/api/v1",
+        transport=httpx.MockTransport(handler),
+    )
+    with pytest.raises(Exception, match="OpenRouter returned 503"):
+        run_probe(live_gateway=gateway)

@@ -85,7 +85,7 @@ async def _refuse_if_exhausted(db: AsyncSession, project_id: UUID) -> None:
 
     Unfunded projects (``funded == 0``) are not exhausted — humans can still run
     instruments there, and this door does not invent a parallel debit. A later
-    gateway (``0.42.0``) bills tokens through ``record_compute_debit``.
+    gateway (``0.42.0``) bills LLM tokens through ``record_compute_debit``.
     """
     budget = await funding_service.project_budget(db, project_id)
     if budget.funded > 0 and budget.available <= 0:
