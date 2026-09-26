@@ -9,8 +9,9 @@ dressed as exact, and it must never stamp Grade A by itself.
 **Shape.** One human-first instrument on the existing spine:
 `interval.eval`. Same `Instrument` protocol, code registry, conformance
 harness, `run_instrument` → `create_checkpoint` chokepoint, sandbox
-dispatch, Instruments drive/show UI. Sits on `0.34.0` (stacked — #19;
-`0.33.0` is on `main`). **No schema, no migration** —
+dispatch, Instruments drive/show UI. Sits on shipped `0.34.0`
+(`a7cd946`, #19 squash-merged). Does not claim `0.35.0` as on `main`.
+**No schema, no migration** —
 `Artifact.kind` already holds `derivation` / `counterexample`.
 
 `formula.render` is **not** reintroduced.

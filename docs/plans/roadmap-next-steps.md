@@ -1,8 +1,8 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-09-25 · **Current release line:** `0.35.0`
-> (`interval.eval` proven enclosures), sitting on `0.34.0`
-> (Bench 6 tables & Vega-Lite plots — #19, not on `main`), shipped `0.33.0`
+> **Last updated:** 2026-09-26 · **Current release line:** `0.35.0`
+> (`interval.eval` proven enclosures), sitting on shipped `0.34.0`
+> (Bench 6 tables & Vega-Lite plots, `a7cd946`) and shipped `0.33.0`
 > (`z3.satisfy` model-finding, `e3a07ea`) and shipped `0.32.0`
 > (concurrent campaign cycles under project budget), `0.31.0` (deepdive Phase D — shareable Research deep links), `0.30.0`
 > (Phase C polish — historical alias `0.14.2`), `0.29.0`
@@ -21,9 +21,9 @@
 > `docs/archive/project-deepdive-tabs-0.14.md`.
 >
 > **Next after this line:** the still-owed browser eyeball pass. Unmerged
-> work is not claimed as shipped (`0.35.0` / `0.34.0` are this stack, not
-> `main`). Lean REPL / LeanDojo remain later. Blame-as-an-op remains later.
-> `0.33.0` is on `main`. #19 may still be unmerged.
+> work is not claimed as shipped (`0.35.0` is this branch, not `main`).
+> Lean REPL / LeanDojo remain later. Blame-as-an-op remains later.
+> `0.34.0` and `0.33.0` are on `main`.
 
 ## Where we are
 
@@ -429,8 +429,8 @@ after the old falsify-and-render appendix B was removed. **No schema, no
 migration.** Sits on `0.34.0`. See
 `docs/completions/interval-eval-0.35.0.md`.
 
-**Not in this release:** merging #19; Lean REPL / LeanDojo;
-boolean Z3 parser; blame-as-an-op; browser eyeball.
+**Not in this release:** Lean REPL / LeanDojo; boolean Z3 parser;
+blame-as-an-op; browser eyeball.
 
 ### Deferred / deprioritized
 

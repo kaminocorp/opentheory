@@ -2,8 +2,8 @@
 
 ## Index
 
-- `0.35.0` — **`interval.eval` — proven numeric enclosures.** Evaluate a closed-form real expression to a proven `[lo, hi]` via python-flint / Arb (mpmath.iv fallback if the C extension fails to import). Successful enclosure is `result` (Grade C — a bound, not a proof). A relation the enclosure entirely misses is `refuted` (Grade B witness). Overlap / timeout / domain / free symbols / missing library is honest `undecided` — never a fabricated bound, never Grade A. Quiet Instruments drive/show. **No schema, no migration.** Sits on `0.34.0` Bench 6 (stacked — #19 may still be unmerged). Does not claim this line or `0.34.0` as on `main`.
-- `0.34.0` — **Bench 6 tables & plots.** `table.create` / `table.derive_column` / `table.render` / `plot.function` / `plot.points` — typed grids, a *computed* column with calc-spine honesty, and Vega-Lite specs (not rasters). Tables are the falsification grid; plots are optional viz and never Grade-A evidence. `formula.render` is not reintroduced (`*_latex` + KaTeX already covers it). Quiet Instruments drive/show. **No schema, no migration.** Sits on shipped `0.33.0` `z3.satisfy` (`e3a07ea`). Does not claim this line as on `main`.
+- `0.35.0` — **`interval.eval` — proven numeric enclosures.** Evaluate a closed-form real expression to a proven `[lo, hi]` via python-flint / Arb (mpmath.iv fallback if the C extension fails to import). Successful enclosure is `result` (Grade C — a bound, not a proof). A relation the enclosure entirely misses is `refuted` (Grade B witness). Overlap / timeout / domain / free symbols / missing library is honest `undecided` — never a fabricated bound, never Grade A. Quiet Instruments drive/show. **No schema, no migration.** Sits on shipped `0.34.0` Bench 6 (`a7cd946`). Does not claim this line as on `main`.
+- `0.34.0` — **Bench 6 tables & plots.** `table.create` / `table.derive_column` / `table.render` / `plot.function` / `plot.points` — typed grids, a *computed* column with calc-spine honesty, and Vega-Lite specs (not rasters). Tables are the falsification grid; plots are optional viz and never Grade-A evidence. `formula.render` is not reintroduced (`*_latex` + KaTeX already covers it). Quiet Instruments drive/show. **No schema, no migration.** Sits on shipped `0.33.0` `z3.satisfy` (`e3a07ea`). On `main` as `a7cd946` (#19 squash).
 - `0.33.0` — **`z3.satisfy` — model-finding as the primary instrument output.** The deferred verifier-wave follow-on to shipped `z3.prove`: typed constraints go to Z3 and come back as a concrete assignment (`result` / `artifact_kind="model"`), an honest no-model (`refuted` / `unsat` certificate), or `undecided` on timeout / unknown. Same `_z3_support` translator, same safety bounds, same soft-timeout-under-wall-clock honesty. No boolean connectives, no quantifiers. Quiet Instruments drive form + result card. **No schema, no migration.** Sits on shipped `0.32.0`.
 - `0.32.0` — **Concurrent campaign cycles under project budget.** A `0.25.0` campaign may run a bounded number of `0.22.0` orchestrations at once against the shared `ComputeDebit` pot (`campaign_cycle_concurrency`, default 1 = sequential, hard-capped at 4). Cycle starts reuse the `0.27.0` project-row reservation lock; live OpenRouter quotes (`0.28.0`) stay the source for hold + debit. Trace records overlapping cycles, skips, and stop reasons (including cancel). Same `AGENT_LOOP_ENABLED` gate. One campaign per project still (`409`). Never auto-validates, auto-funds, or auto-merges. Overview shows "N cycles at a time". Migration `0021_concurrent_campaign_cycles` (additive). Sits on shipped `0.31.0`.
 - `0.31.0` — **Deepdive Phase D.** Shareable Research deep links (`?tab=research&thread=<id>&branch=<id>`) restore selection via `router.replace`. A quiet "Pass running" cue on the strip and CommandRail lights from the existing keep-alive newest-run flag — no new fetch — and clears when idle. Rail-only nav recorded; no sidecar. Historically the optional deepdive Phase D (after `0.14.0` / `0.24.0` / `0.30.0`). Sits on shipped `0.30.0`. Frontend-only — no backend, schema, or migration.
@@ -113,8 +113,9 @@ originally sketched as optional `0.10.6+` (the old falsify-and-render
 appendix B is gone, so this line re-specs from `maths-toolbox.md`). An
 interval is a **proven enclosure**, not a float dressed as exact. **No
 schema, no migration** — `Artifact.kind` already holds `derivation` /
-`counterexample`. Sits on `0.34.0` (stacked — #19; not yet on `main`).
-Does not reintroduce `formula.render`. `0.33.0` is on `main`.
+`counterexample`. Sits on shipped `0.34.0` (`a7cd946`, #19 squash-merged).
+Does not reintroduce `formula.render`. Rebased after that merge —
+does not claim `0.35.0` as on `main`.
 
 - **Value mode.** `sqrt(2)` / `pi` / `1/3+1/6` → `[lo, hi]` with
   working `precision_bits` (default 64, 16–1024) and `method` (`arb` or
@@ -149,9 +150,9 @@ cd frontend && npm test             # 29 passed
 
 See `docs/completions/interval-eval-0.35.0.md`.
 
-**Not in this release:** merging #19; auto-validate / auto-fund /
-auto-merge; Lean REPL / LeanDojo; boolean Z3 parser; blame-as-op; a
-browser eyeball pass; `formula.render`.
+**Not in this release:** auto-validate / auto-fund / auto-merge; Lean
+REPL / LeanDojo; boolean Z3 parser; blame-as-op; a browser eyeball
+pass; `formula.render`.
 
 ---
 
@@ -163,8 +164,8 @@ workspace surface after `0.33.0` `z3.satisfy`: build a typed table, add a
 `y = f(x)` or a point list as a Vega-Lite spec. **No schema, no
 migration** — `Artifact.kind` is already a free-form string; `table` and
 `plot` fit. Sits on shipped `0.33.0` (`e3a07ea`, #18 squash-merged).
-Does not reintroduce `formula.render`. Rebased after that merge —
-does not claim `0.34.0` as on `main`.
+Does not reintroduce `formula.render`. On `main` as `a7cd946`
+(#19 squash-merged).
 
 - **`table.create`.** Columns + rows → a `table` artifact. Exact integers /
   rationals / expressions, or opaque labels. A JSON float or `0.5` is a
