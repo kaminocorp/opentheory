@@ -33,24 +33,19 @@ OUTCOMES = [
 
 
 async def _actor(client: AsyncClient) -> str:
-    resp = await client.post("/api/v1/actors", json={"type": "human", "display_name": "Ada"})
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
+    from tests.principals import make_dev_principal
+
+    return await make_dev_principal(client)
 
 
-async def _project(client: AsyncClient, slug: str = "test-project") -> str:
-    # Project creation now requires an acting actor; bootstrap a dev actor for the header.
-    actor = await client.post(
-        "/api/v1/actors", json={"type": "human", "display_name": "Author"}
-    )
-    assert actor.status_code == 201, actor.text
-    resp = await client.post(
-        "/api/v1/projects",
-        json={"title": "Test Project", "slug": slug, "question": "What is X?"},
-        headers={"X-Dev-Actor-Id": actor.json()["id"]},
-    )
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
+async def _project(
+    client: AsyncClient, slug: str = "test-project", actor_id: str | None = None
+) -> str:
+    from tests.principals import create_owned_project, make_dev_principal
+
+    if actor_id is None:
+        actor_id = await make_dev_principal(client, display_name="Author")
+    return await create_owned_project(client, actor_id, slug)
 
 
 async def _thread(client: AsyncClient, project_id: str, actor_id: str) -> str:
@@ -110,7 +105,7 @@ async def test_validate_claim_mints_checkpoint_with_refs_and_contribution(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id)
 
@@ -150,7 +145,7 @@ async def test_validate_claim_mints_checkpoint_with_refs_and_contribution(
 
 async def test_validate_checkpoint_target(client: AsyncClient) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     checkpoint_id = await _checkpoint(client, project_id, actor_id)
 
     code, body = await _validate(
@@ -169,7 +164,7 @@ async def test_validate_branch_target(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
 
     # Branches have no write path until 0.4.2; insert one directly to exercise the target.
     async with session_factory() as session:
@@ -190,7 +185,7 @@ async def test_validate_branch_target(
 
 async def test_all_outcomes_accepted_and_listed(client: AsyncClient) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id)
 
@@ -214,7 +209,7 @@ async def test_all_outcomes_accepted_and_listed(client: AsyncClient) -> None:
 
 async def test_validation_error_cases(client: AsyncClient) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     other_project_id = await _project(client, slug="other-project")
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id)
@@ -238,11 +233,12 @@ async def test_validation_error_cases(client: AsyncClient) -> None:
     )
     assert code == 404
 
-    # target belongs to a different project -> 400
+    # Writing another project's ledger is membership-denied first (403), not a
+    # 400 target-mismatch — authorize before act.
     code, _ = await _validate(
         client, other_project_id, actor_id, target_type="claim", target_id=claim_id,
     )
-    assert code == 400
+    assert code == 403
 
     # missing project -> 404
     resp = await client.post(
@@ -264,7 +260,7 @@ async def test_validation_is_append_only(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id)
     code, body = await _validate(

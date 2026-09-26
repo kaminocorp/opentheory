@@ -6,6 +6,7 @@ from app.api.deps import ActingActor, DbSession
 from app.models.thread import Thread
 from app.schemas.thread import ThreadCreate, ThreadRead, ThreadSummary
 from app.services import threads as thread_service
+from app.services.project_members import ensure_is_member
 
 router = APIRouter()
 
@@ -22,6 +23,7 @@ async def create_thread(
     db: DbSession,
     actor: ActingActor,
 ) -> Thread:
+    await ensure_is_member(db, project_id, actor)
     return await thread_service.create_thread(db, project_id, payload, actor)
 
 

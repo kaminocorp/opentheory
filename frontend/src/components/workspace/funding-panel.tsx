@@ -19,6 +19,7 @@ import {
 import { createFunding, getProjectBudget, listFunding } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import { useActingIdentity } from "@/lib/use-identity";
+import { useProjectWriteAccess } from "@/lib/use-project-write-access";
 import type { FundingKind, FundingSource, FundingStatus } from "@/types/research";
 
 // Native funding kinds offered in the top-up UI (refund/adjustment are corrections, not here).
@@ -55,7 +56,8 @@ const fundingStatusTone: Record<FundingStatus, StateTone> = {
 // D4 re-skin: console tokens + primitives only. Every hook, the fund mutation, the
 // money/date formatters, and the role-gating (canFund) below are unchanged.
 export function FundingPanel({ projectId }: { projectId: string }) {
-  const { canWrite, isInternal } = useActingIdentity();
+  const { isInternal } = useActingIdentity();
+  const { canWrite } = useProjectWriteAccess(projectId);
   const queryClient = useQueryClient();
   const [funding, setFunding] = useState(false);
   const [amount, setAmount] = useState("");

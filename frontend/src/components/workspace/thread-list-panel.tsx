@@ -8,7 +8,7 @@ import { Action, Bay, BayHeader, Icon, Input } from "@/components/console";
 import { createThread, listThreads } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { queryKeys } from "@/lib/query-keys";
-import { useActingIdentity } from "@/lib/use-identity";
+import { useProjectWriteAccess } from "@/lib/use-project-write-access";
 
 import { formatGroundingRollup } from "./grounding-chip";
 import { PanelEmpty, PanelError, PanelLoading } from "./panel-state";
@@ -26,7 +26,7 @@ export function ThreadListPanel({
   selectedThreadId,
   onSelectThread,
 }: ThreadListPanelProps) {
-  const { canWrite, hydrated, signInHint } = useActingIdentity();
+  const { canWrite, hydrated, signInHint } = useProjectWriteAccess(projectId);
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");

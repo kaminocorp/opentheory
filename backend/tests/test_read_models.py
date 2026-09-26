@@ -29,24 +29,19 @@ from app.toolbench.instruments import (
 
 
 async def _actor(client: AsyncClient, name: str = "Ada") -> str:
-    resp = await client.post("/api/v1/actors", json={"type": "human", "display_name": name})
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
+    from tests.principals import make_dev_principal
+
+    return await make_dev_principal(client, display_name=name)
 
 
-async def _project(client: AsyncClient, slug: str = "test-project") -> str:
-    # Project creation now requires an acting actor; bootstrap a dev actor for the header.
-    actor = await client.post(
-        "/api/v1/actors", json={"type": "human", "display_name": "Author"}
-    )
-    assert actor.status_code == 201, actor.text
-    resp = await client.post(
-        "/api/v1/projects",
-        json={"title": "Test Project", "slug": slug, "question": "What is X?"},
-        headers={"X-Dev-Actor-Id": actor.json()["id"]},
-    )
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
+async def _project(
+    client: AsyncClient, slug: str = "test-project", actor_id: str | None = None
+) -> str:
+    from tests.principals import create_owned_project, make_dev_principal
+
+    if actor_id is None:
+        actor_id = await make_dev_principal(client, display_name="Author")
+    return await create_owned_project(client, actor_id, slug)
 
 
 async def _thread(client: AsyncClient, project_id: str, actor_id: str, title: str = "T") -> str:
@@ -114,7 +109,7 @@ async def _branch(
 
 async def test_project_overview_counts(client: AsyncClient) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     thread_a = await _thread(client, project_id, actor_id, "A")
     await _thread(client, project_id, actor_id, "B")
     claim_id = await _claim(client, thread_a, actor_id, "X causes Y")
@@ -147,7 +142,7 @@ async def test_overview_missing_project_404(client: AsyncClient) -> None:
 
 async def test_thread_list_includes_claim_count(client: AsyncClient) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     busy = await _thread(client, project_id, actor_id, "busy")
     await _thread(client, project_id, actor_id, "empty")
     await _claim(client, busy, actor_id, "c1")
@@ -169,7 +164,7 @@ async def test_thread_list_includes_claim_count(client: AsyncClient) -> None:
 
 async def test_checkpoint_read_is_enriched(client: AsyncClient) -> None:
     actor_id = await _actor(client, name="Grace")
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id, "X is caused by Y")
     evidence_id = await _evidence(client, claim_id, actor_id, "Smith 2024")
@@ -211,7 +206,7 @@ async def test_checkpoint_read_is_enriched(client: AsyncClient) -> None:
 
 async def test_claim_read_validation_history_and_signal(client: AsyncClient) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     passing = await _claim(client, thread_id, actor_id, "well-supported claim")
     contested = await _claim(client, thread_id, actor_id, "shaky claim")
@@ -244,7 +239,7 @@ async def test_claim_read_validation_history_and_signal(client: AsyncClient) -> 
 
 async def test_overview_branch_and_validation_summaries(client: AsyncClient) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id, "contested claim")
     fork = await _checkpoint(client, project_id, actor_id)
@@ -273,7 +268,7 @@ async def test_overview_branch_and_validation_summaries(client: AsyncClient) -> 
 
 async def test_branch_list_includes_checkpoint_count(client: AsyncClient) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     fork = await _checkpoint(client, project_id, actor_id)
     # the fork checkpoint is recorded on the branch
     branch_id = await _branch(client, project_id, actor_id, fork)
@@ -299,7 +294,7 @@ async def test_thread_and_overview_grounding_rollup(client: AsyncClient) -> None
     a second empty thread stays ``total=0``. The project overview sums the same headlines.
     """
     actor_id = await _actor(client)
-    project_id = await _project(client, "rollup-overview")
+    project_id = await _project(client, "rollup-overview", actor_id=actor_id)
     busy = await _thread(client, project_id, actor_id, "busy")
     empty = await _thread(client, project_id, actor_id, "empty")
     grounded_a = await _claim(client, busy, actor_id, "asserted a")
@@ -382,7 +377,7 @@ async def test_z3_proof_grounds_a_claim_as_proven_without_any_validation(
     on its own axis with **zero** validations recorded.
     """
     actor_id = await _actor(client)
-    project_id = await _project(client, "ground-proven")
+    project_id = await _project(client, "ground-proven", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id, "x + y > 0 for positive x, y.")
 
@@ -416,7 +411,7 @@ async def test_exact_counterexample_refutes_despite_supporting_runs(
 ) -> None:
     """Acceptance 2 (D8) — a counter at A/B dominates any amount of support, end to end."""
     actor_id = await _actor(client)
-    project_id = await _project(client, "ground-refuted")
+    project_id = await _project(client, "ground-refuted", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id, "x*x is never equal to x.")
 
@@ -455,7 +450,7 @@ async def test_undecided_run_leaves_grounding_untouched(
     makes it an unreliable fixture — the same reason 0.13.5 unit-tested that mapping directly.)
     """
     actor_id = await _actor(client)
-    project_id = await _project(client, "ground-undecided")
+    project_id = await _project(client, "ground-undecided", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id, "sqrt(x^2) = x")
 
@@ -495,7 +490,7 @@ async def test_undecided_run_leaves_grounding_untouched(
 async def test_hand_attached_evidence_grades_d(client: AsyncClient) -> None:
     """Acceptance 4 (honesty rule 2) — D is the absence of a tool, and it is a legitimate rung."""
     actor_id = await _actor(client)
-    project_id = await _project(client, "ground-human")
+    project_id = await _project(client, "ground-human", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id, "asserted, not computed")
 
@@ -510,7 +505,7 @@ async def test_finite_grid_support_grades_c_not_b(
 ) -> None:
     """The asymmetric row, proven through the real write path: sampling settles nothing."""
     actor_id = await _actor(client)
-    project_id = await _project(client, "ground-sampled")
+    project_id = await _project(client, "ground-sampled", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id, "a + b == b + a for small integers")
 
@@ -540,7 +535,7 @@ async def test_grounding_does_not_mutate_claim_status_or_confidence(
     ``confidence``: confidence stays explainable through history, never a value the system sets.
     """
     actor_id = await _actor(client)
-    project_id = await _project(client, "ground-nomutate")
+    project_id = await _project(client, "ground-nomutate", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id, "status must not move")
 
@@ -576,7 +571,7 @@ async def test_claim_list_grounding_is_batch_loaded(
     on ``validations_by_claim``.
     """
     actor_id = await _actor(client)
-    project_id = await _project(client, "ground-batch")
+    project_id = await _project(client, "ground-batch", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     claim_ids = [await _claim(client, thread_id, actor_id, f"claim {n}") for n in range(6)]
     # Ground half of them so the loader has real rows to aggregate, not just an empty result.

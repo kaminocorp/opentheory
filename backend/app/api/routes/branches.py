@@ -11,6 +11,7 @@ from app.schemas.branch import (
     BranchSummary,
 )
 from app.services import branches as branch_service
+from app.services.project_members import ensure_is_member, ensure_member_of_branch
 
 router = APIRouter()
 
@@ -27,6 +28,7 @@ async def create_branch(
     db: DbSession,
     actor: ActingActor,
 ) -> BranchRead:
+    await ensure_is_member(db, project_id, actor)
     return await branch_service.create_branch(db, project_id, payload, actor)
 
 
@@ -55,4 +57,5 @@ async def close_branch(
     db: DbSession,
     actor: ActingActor,
 ) -> BranchRead:
+    await ensure_member_of_branch(db, branch_id, actor)
     return await branch_service.close_branch(db, branch_id, payload, actor)

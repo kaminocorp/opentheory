@@ -5,6 +5,7 @@ from fastapi import APIRouter, status
 from app.api.deps import ActingActor, DbSession
 from app.schemas.funding import FundingCreate, FundingRead, ProjectBudget
 from app.services import funding as funding_service
+from app.services.project_members import ensure_is_member
 
 router = APIRouter()
 
@@ -21,8 +22,10 @@ async def create_funding(
     db: DbSession,
     actor: ActingActor,
 ) -> FundingRead:
-    # Requires authentication (ActingActor). Native funding additionally requires the
-    # `internal` role, enforced in the service since it depends on payload.source.
+    # Membership first (research-adjacent write — not a platform-wide comp), then
+    # authentication is already on ActingActor. Native funding still requires the
+    # `internal` role in the service (depends on payload.source).
+    await ensure_is_member(db, project_id, actor)
     return await funding_service.create_funding(db, project_id, payload, actor)
 
 

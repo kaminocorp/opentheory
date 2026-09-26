@@ -123,20 +123,14 @@ def test_verifier_rejects_when_auth_unconfigured(monkeypatch: pytest.MonkeyPatch
         verify_bearer_token(_mint("sub"))
 
 
-async def _project(client: AsyncClient, slug: str = "auth-project") -> str:
-    # Project creation now requires an acting actor; bootstrap a dev actor for the header
-    # (auth_dev_header_enabled is True process-wide in tests — see conftest).
-    actor = await client.post(
-        "/api/v1/actors", json={"type": "human", "display_name": "Author"}
-    )
-    assert actor.status_code == 201, actor.text
-    resp = await client.post(
-        "/api/v1/projects",
-        json={"title": "Auth Project", "slug": slug, "question": "What is X?"},
-        headers={"X-Dev-Actor-Id": actor.json()["id"]},
-    )
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
+async def _project(
+    client: AsyncClient, slug: str = "auth-project", actor_id: str | None = None
+) -> str:
+    from tests.principals import create_owned_project, make_dev_principal
+
+    if actor_id is None:
+        actor_id = await make_dev_principal(client, display_name="Author")
+    return await create_owned_project(client, actor_id, slug, title="Auth Project")
 
 
 async def test_valid_token_jit_provisions_one_actor_and_is_idempotent(
@@ -240,10 +234,9 @@ async def test_write_flow_attributes_to_jit_actor(
     client: AsyncClient, session_factory: async_sessionmaker, auth_settings
 ) -> None:
     token = _mint("idp-writer", email="writer@example.com", name="Grace")
-    project_id = await _project(client)
-
     me = await client.get("/api/v1/me", headers=_bearer(token))
     actor_id = me.json()["id"]
+    project_id = await _project(client, actor_id=actor_id)
 
     thread = await client.post(
         f"/api/v1/projects/{project_id}/threads",
@@ -283,7 +276,9 @@ async def test_dev_header_path_survives_behind_flag(
         json={"title": "T", "question": "q?"},
         headers={"X-Dev-Actor-Id": actor_id},
     )
-    assert thread.status_code == 201, thread.text
+    # Header still authenticates (not 401). Account-less actors cannot hold
+    # membership, so a research write is 403.
+    assert thread.status_code == 403, thread.text
 
 
 async def test_actor_bootstrap_disabled_when_flag_off(

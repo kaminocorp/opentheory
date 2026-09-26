@@ -86,7 +86,7 @@ async def test_empty_project_exits_cleanly_with_no_open_work(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "orch-empty")
+    project_id = await _project(client, "orch-empty", actor_id=actor_id)
     await _assign_model(session_factory, project_id)
     orch_id = await _start(session_factory, project_id, actor_id)
 
@@ -116,7 +116,7 @@ async def test_thread_without_claims_is_skipped(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "orch-noclaim")
+    project_id = await _project(client, "orch-noclaim", actor_id=actor_id)
     await _thread(client, project_id, actor_id)
     await _assign_model(session_factory, project_id)
     orch_id = await _start(session_factory, project_id, actor_id)
@@ -136,7 +136,7 @@ async def test_closed_thread_is_skipped(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "orch-closed")
+    project_id = await _project(client, "orch-closed", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     await _claim(client, thread_id, actor_id, "A closed line.")
     await _assign_model(session_factory, project_id)
@@ -158,7 +158,7 @@ async def test_multiple_threads_each_get_a_pass(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "orch-multi")
+    project_id = await _project(client, "orch-multi", actor_id=actor_id)
     t1 = await _thread(client, project_id, actor_id)
     t2 = await _thread(client, project_id, actor_id)
     await _claim(client, t1, actor_id, "First thread claim.")
@@ -191,7 +191,7 @@ async def test_budget_stops_orchestration_before_a_second_thread(
     """A pot that covers one planning debit commissions the first thread and skips the rest."""
     monkeypatch.setattr(settings, "agent_token_rate_usd_per_1k", Decimal("1.00"))
     actor_id = await _actor(client)
-    project_id = await _project(client, "orch-budget")
+    project_id = await _project(client, "orch-budget", actor_id=actor_id)
     t1 = await _thread(client, project_id, actor_id)
     t2 = await _thread(client, project_id, actor_id)
     await _claim(client, t1, actor_id, "Spender.")
@@ -229,7 +229,7 @@ async def test_unfunded_project_with_work_stops_on_budget(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "orch-broke")
+    project_id = await _project(client, "orch-broke", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     await _claim(client, thread_id, actor_id, "Would raise.")
     # Assign a model but grant no budget (available = 0).
@@ -264,7 +264,7 @@ async def test_failed_subpass_does_not_corrupt_the_ledger(
 ) -> None:
     """A planner failure on thread 1 still lets thread 2 land; no Validation / fund write."""
     actor_id = await _actor(client)
-    project_id = await _project(client, "orch-fail")
+    project_id = await _project(client, "orch-fail", actor_id=actor_id)
     fail_id = await _thread(client, project_id, actor_id)
     ok_id = await _thread(client, project_id, actor_id)
     await _claim(client, fail_id, actor_id, "This pass will fail.")
@@ -339,7 +339,7 @@ async def test_max_passes_cap_skips_remaining_threads(
 ) -> None:
     monkeypatch.setattr(settings, "orchestration_max_passes", 1)
     actor_id = await _actor(client)
-    project_id = await _project(client, "orch-cap")
+    project_id = await _project(client, "orch-cap", actor_id=actor_id)
     t1 = await _thread(client, project_id, actor_id)
     t2 = await _thread(client, project_id, actor_id)
     await _claim(client, t1, actor_id, "First.")
@@ -392,7 +392,7 @@ async def test_concurrent_subpasses_overlap_and_trace_the_wave(
 ) -> None:
     monkeypatch.setattr(settings, "orchestration_concurrency", 2)
     actor_id = await _actor(client)
-    project_id = await _project(client, "orch-parallel")
+    project_id = await _project(client, "orch-parallel", actor_id=actor_id)
     t1 = await _thread(client, project_id, actor_id)
     t2 = await _thread(client, project_id, actor_id)
     await _claim(client, t1, actor_id, "First thread claim.")
@@ -425,7 +425,7 @@ async def test_concurrency_one_is_sequential(
 ) -> None:
     monkeypatch.setattr(settings, "orchestration_concurrency", 1)
     actor_id = await _actor(client)
-    project_id = await _project(client, "orch-seq")
+    project_id = await _project(client, "orch-seq", actor_id=actor_id)
     t1 = await _thread(client, project_id, actor_id)
     t2 = await _thread(client, project_id, actor_id)
     await _claim(client, t1, actor_id, "First.")
@@ -454,7 +454,7 @@ async def test_cancel_skips_remaining_threads_after_the_current_wave(
 ) -> None:
     monkeypatch.setattr(settings, "orchestration_concurrency", 2)
     actor_id = await _actor(client)
-    project_id = await _project(client, "orch-cancel")
+    project_id = await _project(client, "orch-cancel", actor_id=actor_id)
     t1 = await _thread(client, project_id, actor_id)
     t2 = await _thread(client, project_id, actor_id)
     t3 = await _thread(client, project_id, actor_id)
@@ -507,7 +507,7 @@ async def test_concurrent_reserve_cannot_oversell(
     monkeypatch.setattr(settings, "agent_token_rate_usd_per_1k", Decimal("1.00"))
     monkeypatch.setattr(settings, "agent_pass_max_tokens", 1000)
     actor_id = await _actor(client)
-    project_id = await _project(client, "orch-race")
+    project_id = await _project(client, "orch-race", actor_id=actor_id)
     t1 = await _thread(client, project_id, actor_id)
     t2 = await _thread(client, project_id, actor_id)
     await _assign_model(session_factory, project_id, budget=None)

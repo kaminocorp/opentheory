@@ -81,8 +81,8 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
     queryFn: () => getProject(projectId),
   });
 
-  // Membership drives the client-side capability gate (the backend still authorizes every write):
-  // an actor can manage iff its account holds a membership row. Public read, so it loads for anyone.
+  // Membership drives the client-side capability gate. The backend authorizes every write
+  // (`ensure_is_member` on research POSTs; `ensure_can_manage` on stewardship). Public read.
   const membersQuery = useQuery({
     queryKey: queryKeys.members(projectId),
     queryFn: () => listProjectMembers(projectId),

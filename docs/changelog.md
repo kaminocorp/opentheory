@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.36.1` — **Assessment R1 remediation.** Membership on original ledger writes (`ensure_is_member`); planner open-claims use validation signal, not the dead `Claim.status` column; `ClaimCreate` rejects client-stamped settlement fields; agent-trace pills share instrument-honest chrome; orchestrator mid-pass budget uses the reservation quote; CLAUDE.md / deploy.md auth drift corrected. **No schema, no migration.** Sits on shipped `0.36.0` (`71a8929`) and the R1 assessment (`375733a`, #22).
 - `0.36.0` — **Research-git blame.** A derived ledger read walks the checkpoints, actors, and tool invocations that produced or evidence-grounded a claim (`GET /projects/{id}/claims/{claim_id}/blame`). Deterministic. Mints nothing. Quiet Blame bay next to Compare on Research. **No schema, no migration.** Sits on shipped `0.35.0` interval.eval (`1ca7116`, #20 squash). Does not claim 0.36 as on `main`. `0.33.0`–`0.35.0` are on `main`.
 - `0.35.0` — **`interval.eval` — proven numeric enclosures.** Evaluate a closed-form real expression to a proven `[lo, hi]` via python-flint / Arb (mpmath.iv fallback if the C extension fails to import). Successful enclosure is `result` (Grade C — a bound, not a proof). A relation the enclosure entirely misses is `refuted` (Grade B witness). Overlap / timeout / domain / free symbols / missing library is honest `undecided` — never a fabricated bound, never Grade A. Quiet Instruments drive/show. **No schema, no migration.** Sits on shipped `0.34.0` Bench 6 (`a7cd946`). On `main` as `1ca7116` (#20 squash).
 - `0.34.0` — **Bench 6 tables & plots.** `table.create` / `table.derive_column` / `table.render` / `plot.function` / `plot.points` — typed grids, a *computed* column with calc-spine honesty, and Vega-Lite specs (not rasters). Tables are the falsification grid; plots are optional viz and never Grade-A evidence. `formula.render` is not reintroduced (`*_latex` + KaTeX already covers it). Quiet Instruments drive/show. **No schema, no migration.** Sits on shipped `0.33.0` `z3.satisfy` (`e3a07ea`). On `main` as `a7cd946` (#19 squash).
@@ -104,6 +105,56 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.36.1
+
+**Assessment R1 remediation — membership on the original ledger writes, plus
+planner and honesty fixes.** The ledger core held (append-only, single
+chokepoint, instrument failure-split). The P0 was authorization drift:
+pre-`0.9` research POSTs authenticated and wrote with no
+`ensure_is_member`. A signed-in non-member could mint checkpoints, validate
+someone else's claim, or merge their branches. Instruments / agent /
+campaign already gated; this release mirrors that on checkpoint / claim /
+validation / thread / evidence / branch / close / merge / tag / funding.
+**No schema, no migration.** Sits on shipped `0.36.0` (`71a8929`, #21) and
+the assessment doc (`375733a`, #22).
+
+- **P0 — membership.** Route-level `ensure_is_member` (nested paths resolve
+  `project_id` from the loaded row first). Services that agents compose
+  (`create_checkpoint`, `create_branch`) stay ungated so an agent Actor
+  can still land work. Native funding stays `internal`-gated **and** now
+  requires membership — platform comps are not a write against a project
+  you have not joined. UI `canWrite` on project surfaces is membership
+  (`useProjectWriteAccess`); creating a project stays "signed in".
+- **P1 — open claims.** `_open_claims` uses `compute_signal`, not
+  `Claim.status`. A human `Validation(passed)` removes the claim from the
+  planner. The stored status column is untouched (still create-time
+  `proposed`).
+- **P1 — `ClaimCreate`.** `status` and `confidence` are rejected
+  (`extra="forbid"`). The server owns settlement fields.
+- **P1 — honesty chrome.** `resolveOutcomeMeta` lives next to
+  `outcomeMeta` and is reused by the agent-trace pills. Proof / satisfy
+  instruments fall through to **warn** unless the machine-checked flag is
+  true.
+- **P1 — reservation rate.** Orchestrator `_policy_from_reservation`
+  uses the live/fallback quote that sized the hold, not
+  `rate_for_model`.
+- **P1 — docs.** `CLAUDE.md` and `docs/operations/deploy.md` describe
+  JWT + membership. Agents are a shipped `Actor` type.
+
+```bash
+cd backend && uv run ruff check . && uv run pytest -q
+# DB-backed membership / open-claims tests skip without TEST_DATABASE_URL
+cd frontend && npm run typecheck && npm run lint && npm test
+```
+
+See `docs/completions/assessment-r1-remediation-0.36.1.md`.
+
+**Not in this release:** merging this PR; P2 file splits; GitHub Actions;
+renaming `canManageProject`; hiding the claim confidence percentage;
+durable reservation-rate column.
 
 ---
 

@@ -48,8 +48,8 @@ export function useActingIdentity(): ActingIdentity {
 
   return {
     hydrated: identitySettled,
-    // Require a *resolved* backend actor — the same source of truth as isInternal — so the UI
-    // never enables a write before /me confirms the identity (or after that resolution fails).
+    // Signed-in + `/me` resolved. Correct for creating a *new* project. Project-scoped
+    // ledger writes use `useProjectWriteAccess` (membership), matching `ensure_is_member`.
     canWrite: isAuthed && meQuery.isSuccess,
     isAuthed,
     me,

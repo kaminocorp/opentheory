@@ -100,8 +100,20 @@ class ClaimBase(BaseModel):
     claim_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-class ClaimCreate(ClaimBase):
-    """Create payload. ``thread_id`` (and the derived ``project_id``) come from the path."""
+class ClaimCreate(BaseModel):
+    """Create payload. ``thread_id`` (and the derived ``project_id``) come from the path.
+
+    Settlement fields (``status``, ``confidence``) are server-owned — a client cannot stamp
+    ``validated`` without a ``Validation`` row, or invent a naked confidence score. Extra
+    keys are rejected so a ``curl`` cannot sneak them through.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: ClaimKind
+    statement: str = Field(min_length=1)
+    rationale: str | None = None
+    claim_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ClaimRead(ClaimBase):

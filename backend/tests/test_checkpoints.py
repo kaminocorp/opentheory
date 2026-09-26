@@ -21,26 +21,19 @@ MISSING_ID = "00000000-0000-0000-0000-000000000000"
 
 
 async def _actor(client: AsyncClient) -> str:
-    resp = await client.post(
-        "/api/v1/actors", json={"type": "human", "display_name": "Ada"}
-    )
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
+    from tests.principals import make_dev_principal
+
+    return await make_dev_principal(client)
 
 
-async def _project(client: AsyncClient, slug: str = "test-project") -> str:
-    # Project creation now requires an acting actor; bootstrap a dev actor for the header.
-    actor = await client.post(
-        "/api/v1/actors", json={"type": "human", "display_name": "Author"}
-    )
-    assert actor.status_code == 201, actor.text
-    resp = await client.post(
-        "/api/v1/projects",
-        json={"title": "Test Project", "slug": slug, "question": "What is X?"},
-        headers={"X-Dev-Actor-Id": actor.json()["id"]},
-    )
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
+async def _project(
+    client: AsyncClient, slug: str = "test-project", actor_id: str | None = None
+) -> str:
+    from tests.principals import create_owned_project, make_dev_principal
+
+    if actor_id is None:
+        actor_id = await make_dev_principal(client, display_name="Author")
+    return await create_owned_project(client, actor_id, slug)
 
 
 async def _thread(client: AsyncClient, project_id: str, actor_id: str) -> str:
@@ -75,7 +68,7 @@ async def _evidence(client: AsyncClient, claim_id: str, actor_id: str) -> str:
 
 async def test_create_checkpoint_with_refs_and_parent(client: AsyncClient) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id)
     evidence_id = await _evidence(client, claim_id, actor_id)
@@ -132,7 +125,7 @@ async def test_create_checkpoint_with_refs_and_parent(client: AsyncClient) -> No
 
 async def test_duplicate_parent_ids_are_deduplicated(client: AsyncClient) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     root = await client.post(
         f"/api/v1/projects/{project_id}/checkpoints",
         json={"summary": "root"},
@@ -153,7 +146,7 @@ async def test_duplicate_parent_ids_are_deduplicated(client: AsyncClient) -> Non
 
 async def test_checkpoint_stage_optional(client: AsyncClient) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     resp = await client.post(
         f"/api/v1/projects/{project_id}/checkpoints",
         json={"summary": "A stageless checkpoint"},
@@ -175,7 +168,7 @@ async def test_checkpoint_requires_dev_actor_header(client: AsyncClient) -> None
 
 async def test_checkpoint_validation_errors(client: AsyncClient) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     other_project_id = await _project(client, slug="other-project")
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id)
@@ -212,7 +205,7 @@ async def test_checkpoint_validation_errors(client: AsyncClient) -> None:
     )
     assert r.status_code == 404
 
-    # ref target belongs to a different project
+    # Writing another project's ledger is membership-denied first (403).
     r = await client.post(
         f"/api/v1/projects/{other_project_id}/checkpoints",
         json={
@@ -221,7 +214,7 @@ async def test_checkpoint_validation_errors(client: AsyncClient) -> None:
         },
         headers=headers,
     )
-    assert r.status_code == 400
+    assert r.status_code == 403
 
     # parent does not exist
     r = await client.post(
@@ -231,20 +224,20 @@ async def test_checkpoint_validation_errors(client: AsyncClient) -> None:
     )
     assert r.status_code == 404
 
-    # thread from a different project
+    # thread from a different project — also a non-member write on that project.
     r = await client.post(
         f"/api/v1/projects/{other_project_id}/checkpoints",
         json={"summary": "s", "thread_id": thread_id},
         headers=headers,
     )
-    assert r.status_code == 400
+    assert r.status_code == 403
 
 
 async def test_checkpoint_is_append_only(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     created = await client.post(
         f"/api/v1/projects/{project_id}/checkpoints",
         json={
@@ -301,7 +294,7 @@ async def test_checkpoint_ref_is_append_only(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     created = await client.post(
         f"/api/v1/projects/{project_id}/checkpoints",
@@ -331,7 +324,7 @@ async def test_contribution_recorded_for_all_create_flows(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id)
     await _evidence(client, claim_id, actor_id)

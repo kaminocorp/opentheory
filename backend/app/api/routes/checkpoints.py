@@ -5,6 +5,7 @@ from fastapi import APIRouter, status
 from app.api.deps import ActingActor, DbSession
 from app.schemas.checkpoint import CheckpointCreate, CheckpointRead
 from app.services import checkpoints as checkpoint_service
+from app.services.project_members import ensure_is_member
 
 router = APIRouter()
 
@@ -21,6 +22,7 @@ async def create_checkpoint(
     db: DbSession,
     actor: ActingActor,
 ) -> CheckpointRead:
+    await ensure_is_member(db, project_id, actor)
     return await checkpoint_service.create_checkpoint(db, project_id, payload, actor)
 
 

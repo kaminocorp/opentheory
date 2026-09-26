@@ -336,7 +336,6 @@ export type ClaimCreate = {
   kind: ClaimKind;
   statement: string;
   rationale?: string | null;
-  confidence?: number | null;
 };
 
 export type EvidenceCreate = {

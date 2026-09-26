@@ -5,6 +5,7 @@ from fastapi import APIRouter, status
 from app.api.deps import ActingActor, DbSession
 from app.schemas.tag import TagCreate, TagRead
 from app.services import tags as tag_service
+from app.services.project_members import ensure_is_member
 
 router = APIRouter()
 
@@ -21,6 +22,7 @@ async def create_tag(
     db: DbSession,
     actor: ActingActor,
 ) -> TagRead:
+    await ensure_is_member(db, project_id, actor)
     return await tag_service.create_tag(db, project_id, payload, actor)
 
 

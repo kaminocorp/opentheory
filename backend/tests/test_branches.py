@@ -19,24 +19,19 @@ MISSING_ID = "00000000-0000-0000-0000-000000000000"
 
 
 async def _actor(client: AsyncClient) -> str:
-    resp = await client.post("/api/v1/actors", json={"type": "human", "display_name": "Ada"})
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
+    from tests.principals import make_dev_principal
+
+    return await make_dev_principal(client)
 
 
-async def _project(client: AsyncClient, slug: str = "test-project") -> str:
-    # Project creation now requires an acting actor; bootstrap a dev actor for the header.
-    actor = await client.post(
-        "/api/v1/actors", json={"type": "human", "display_name": "Author"}
-    )
-    assert actor.status_code == 201, actor.text
-    resp = await client.post(
-        "/api/v1/projects",
-        json={"title": "Test Project", "slug": slug, "question": "What is X?"},
-        headers={"X-Dev-Actor-Id": actor.json()["id"]},
-    )
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
+async def _project(
+    client: AsyncClient, slug: str = "test-project", actor_id: str | None = None
+) -> str:
+    from tests.principals import create_owned_project, make_dev_principal
+
+    if actor_id is None:
+        actor_id = await make_dev_principal(client, display_name="Author")
+    return await create_owned_project(client, actor_id, slug)
 
 
 async def _checkpoint(
@@ -72,7 +67,7 @@ async def test_fork_branch_from_checkpoint(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     fork = (await _checkpoint(client, project_id, actor_id))["body"]
     fork_id = fork["id"]
 
@@ -105,7 +100,7 @@ async def test_fork_branch_from_checkpoint(
 
 async def test_branch_scoped_vs_main_line_checkpoints(client: AsyncClient) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     fork = (await _checkpoint(client, project_id, actor_id))["body"]
     branch = (await _branch(client, project_id, actor_id, fork["id"]))["body"]
     branch_id = branch["id"]
@@ -133,7 +128,7 @@ async def test_close_branch_dead_end(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     fork = (await _checkpoint(client, project_id, actor_id))["body"]
     branch = (await _branch(client, project_id, actor_id, fork["id"]))["body"]
     branch_id = branch["id"]
@@ -169,7 +164,7 @@ async def test_close_branch_dead_end(
 
 async def test_branch_error_cases(client: AsyncClient) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client)
+    project_id = await _project(client, actor_id=actor_id)
     other_project_id = await _project(client, slug="other-project")
     fork = (await _checkpoint(client, project_id, actor_id))["body"]
 
@@ -191,13 +186,13 @@ async def test_branch_error_cases(client: AsyncClient) -> None:
     )
     assert r.status_code == 404
 
-    # fork checkpoint from a different project
+    # fork checkpoint from a different project — membership denied first
     r = await client.post(
         f"/api/v1/projects/{other_project_id}/branches",
         json={"from_checkpoint_id": fork["id"], "name": "b"},
         headers=headers,
     )
-    assert r.status_code == 400
+    assert r.status_code == 403
 
     # branch create requires the dev-actor header
     r = await client.post(

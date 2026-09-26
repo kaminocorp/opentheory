@@ -50,21 +50,19 @@ _GEOMETRY_STORY_SEARCH = {
 
 
 async def _actor(client: AsyncClient, name: str = "Ada") -> str:
-    resp = await client.post("/api/v1/actors", json={"type": "human", "display_name": name})
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
+    from tests.principals import make_dev_principal
+
+    return await make_dev_principal(client, display_name=name)
 
 
-async def _project(client: AsyncClient, slug: str) -> str:
-    author = await client.post("/api/v1/actors", json={"type": "human", "display_name": "Author"})
-    assert author.status_code == 201, author.text
-    resp = await client.post(
-        "/api/v1/projects",
-        json={"title": "Agent", "slug": slug, "question": "What is X?"},
-        headers={"X-Dev-Actor-Id": author.json()["id"]},
-    )
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
+async def _project(
+    client: AsyncClient, slug: str = "test-project", actor_id: str | None = None
+) -> str:
+    from tests.principals import create_owned_project, make_dev_principal
+
+    if actor_id is None:
+        actor_id = await make_dev_principal(client, display_name="Author")
+    return await create_owned_project(client, actor_id, slug)
 
 
 async def _thread(client: AsyncClient, project_id: str, actor_id: str) -> str:
@@ -226,7 +224,7 @@ async def test_pass_lands_attributed_checkpoint_and_evidence_on_the_agent_branch
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "agent-happy")
+    project_id = await _project(client, "agent-happy", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id, "Return distance equals the sum of legs.")
     await _thread_checkpoint(client, project_id, thread_id, actor_id)  # fork point
@@ -293,7 +291,7 @@ async def test_pass_records_the_rung_it_moved(
     receives, so the state the model reasons about is the state the yield is measured against.
     """
     actor_id = await _actor(client)
-    project_id = await _project(client, "agent-yield")
+    project_id = await _project(client, "agent-yield", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id, "Return distance equals the sum of legs.")
     await _thread_checkpoint(client, project_id, thread_id, actor_id)
@@ -348,7 +346,7 @@ async def test_a_pass_that_mints_a_checkpoint_but_moves_no_rung_says_so(
     ``ran_count`` beside ``moved: 0``.
     """
     actor_id = await _actor(client)
-    project_id = await _project(client, "agent-noyield")
+    project_id = await _project(client, "agent-noyield", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     await _claim(client, thread_id, actor_id, "Some untouched open claim.")
     await _thread_checkpoint(client, project_id, thread_id, actor_id)
@@ -381,7 +379,7 @@ async def test_failure_split_one_bad_step_does_not_abort_the_pass(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "agent-failsplit")
+    project_id = await _project(client, "agent-failsplit", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     await _thread_checkpoint(client, project_id, thread_id, actor_id)
     await _assign_model(session_factory, project_id)
@@ -425,7 +423,7 @@ async def test_safety_cap_truncates_to_max_runs(
     client: AsyncClient, session_factory: async_sessionmaker, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "agent-cap")
+    project_id = await _project(client, "agent-cap", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     await _thread_checkpoint(client, project_id, thread_id, actor_id)
     await _assign_model(session_factory, project_id)
@@ -452,7 +450,7 @@ async def test_branch_is_reused_across_passes_then_reforked_after_close(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "agent-reuse")
+    project_id = await _project(client, "agent-reuse", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     await _thread_checkpoint(client, project_id, thread_id, actor_id)
     await _assign_model(session_factory, project_id)
@@ -492,7 +490,7 @@ async def test_main_line_fallback_when_thread_has_no_checkpoint(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "agent-fallback")
+    project_id = await _project(client, "agent-fallback", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     await _assign_model(session_factory, project_id)  # NOTE: no checkpoint on the thread
     run_id = await _make_run(session_factory, project_id, thread_id, actor_id)
@@ -519,7 +517,7 @@ async def test_unassigned_role_fails_and_mints_nothing(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "agent-norole")
+    project_id = await _project(client, "agent-norole", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     # Deliberately do NOT assign a model to "researcher".
     run_id = await _make_run(session_factory, project_id, thread_id, actor_id)
@@ -547,7 +545,7 @@ async def test_planner_failure_is_a_recorded_failed_trace(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "agent-plannerfail")
+    project_id = await _project(client, "agent-plannerfail", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     await _thread_checkpoint(client, project_id, thread_id, actor_id)
     await _assign_model(session_factory, project_id)
@@ -581,7 +579,7 @@ async def test_replan_after_observe_runs_the_second_batch(
 ) -> None:
     """The first batch's outcomes are what the second plan is allowed to know."""
     actor_id = await _actor(client)
-    project_id = await _project(client, "agent-replan")
+    project_id = await _project(client, "agent-replan", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id, "1 + 1 equals 2.")
     await _thread_checkpoint(client, project_id, thread_id, actor_id)
@@ -647,7 +645,7 @@ async def test_max_replans_stops_even_when_runs_remain(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "agent-maxreplan")
+    project_id = await _project(client, "agent-maxreplan", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     await _thread_checkpoint(client, project_id, thread_id, actor_id)
     await _assign_model(session_factory, project_id)
@@ -683,7 +681,7 @@ async def test_settled_grounding_reaches_the_replan(
 ) -> None:
     """A claim the first batch refutes is marked settled on the next planning call."""
     actor_id = await _actor(client)
-    project_id = await _project(client, "agent-replan-settled")
+    project_id = await _project(client, "agent-replan-settled", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id, "Return distance equals the sum of legs.")
     await _thread_checkpoint(client, project_id, thread_id, actor_id)
@@ -726,7 +724,7 @@ async def test_failed_instrument_does_not_poison_the_replan(
 ) -> None:
     """A failed first step mints nothing and the next plan can still land."""
     actor_id = await _actor(client)
-    project_id = await _project(client, "agent-replan-fail")
+    project_id = await _project(client, "agent-replan-fail", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     await _thread_checkpoint(client, project_id, thread_id, actor_id)
     await _assign_model(session_factory, project_id)
@@ -784,7 +782,7 @@ async def test_replan_failure_after_a_landed_step_completes_the_pass(
 ) -> None:
     """A bad replan must not invert 'one bad step never aborts the pass'."""
     actor_id = await _actor(client)
-    project_id = await _project(client, "agent-replan-llmfail")
+    project_id = await _project(client, "agent-replan-llmfail", actor_id=actor_id)
     thread_id = await _thread(client, project_id, actor_id)
     await _thread_checkpoint(client, project_id, thread_id, actor_id)
     await _assign_model(session_factory, project_id)
