@@ -675,6 +675,72 @@ async def test_z3_satisfy_unsat_weakens_the_claim_with_no_model(
     assert entry["output"]["certificate"] == "unsat"
 
 
+# --- 0.38.0: boolean connectives through the chokepoint ------------------------------------------
+
+
+async def test_z3_prove_boolean_tautology_lands_a_proof(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """(P ∧ Q) → P — a formula split_relation could not express — still a real proof artifact."""
+    actor_id = await _actor(client)
+    project_id = await _project(client, "instr-z3-bool-proof")
+    pid = UUID(project_id)
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        run = await run_instrument(
+            session,
+            pid,
+            Z3_PROVE,
+            actor,
+            inputs={
+                "variables": {"P": "bool", "Q": "bool"},
+                "constraints": [],
+                "goal": "Implies(And(P, Q), P)",
+            },
+        )
+
+    assert run.status is ResultStatus.RESULT
+    async with session_factory() as session:
+        artifact = await session.get(Artifact, run.artifact_id)
+        assert artifact.kind == "proof"
+    entry = run.checkpoint.tool_invocations[0]
+    assert entry["instrument"] == "z3.prove"
+    assert entry["engine"] == "z3"
+    assert entry["output"]["proven"] is True
+    assert entry["output"]["certificate"] == "unsat"
+
+
+async def test_z3_satisfy_boolean_unsat_weakens_with_no_model(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """And(P, Not(P)) is unsat — proof artifact, never a fabricated bool assignment."""
+    actor_id = await _actor(client)
+    project_id = await _project(client, "instr-z3-bool-unsat")
+    thread_id = await _thread(client, project_id, actor_id)
+    claim_id = await _claim(client, thread_id, actor_id, "P and not P is satisfiable.")
+    pid = UUID(project_id)
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        run = await run_instrument(
+            session,
+            pid,
+            Z3_SATISFY,
+            actor,
+            inputs={"variables": {"P": "bool"}, "constraints": ["And(P, Not(P))"]},
+            claim_id=UUID(claim_id),
+        )
+
+    assert run.status is ResultStatus.REFUTED
+    async with session_factory() as session:
+        artifact = await session.get(Artifact, run.artifact_id)
+        assert artifact.kind == "proof"
+    entry = run.checkpoint.tool_invocations[0]
+    assert entry["output"]["unsatisfiable"] is True
+    assert entry["output"]["model"] is None
+
+
 # --- 0.23.0: lean.prove through the chokepoint ----------------------------------------------------
 
 

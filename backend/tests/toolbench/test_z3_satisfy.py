@@ -187,7 +187,7 @@ def test_input_rejects_blank_constraint() -> None:
 
 
 def test_input_rejects_non_relation_constraint() -> None:
-    with pytest.raises(ValidationError, match="relational operator"):
+    with pytest.raises(ValidationError, match="relation or boolean formula"):
         Z3_SATISFY.InputModel.model_validate(
             {"variables": {"x": "int"}, "constraints": ["x + 1"]}
         )

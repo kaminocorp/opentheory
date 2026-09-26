@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.38.0` — **Boolean connectives for `z3.prove` / `z3.satisfy`.** Closed allow-list of `And` / `Or` / `Not` / `Implies` / `Xor` / `Equivalent` plus a `bool` sort, through the existing instruments — no parallel language, no `eval`, no quantifiers. `(P ∧ Q) → P` is now a real Z3 proof. Vacuous-hypotheses guard and timeout→undecided stay. Quiet drive-form sort + hint update. **No schema, no migration.** Sits on shipped `0.36.0` blame (`71a8929`). Does not claim `0.36.1` / `0.36.2` / `0.37.0`.
 - `0.37.0` — **GitHub Actions CI with Postgres.** `ruff` + `pytest` against a throwaway Postgres 16 service (`TEST_DATABASE_URL` so the DB-gated suite actually runs) and frontend `typecheck` / `lint` / `test` / `build` on every pull request and push to `main`. Lean / Mathlib stay off. No secrets. Infra only — **no schema, no migration, no application code.** Sits on shipped `0.36.0` (`71a8929`) + R1 assessment (`375733a`). Does not claim `0.36.1` / `0.36.2`.
 - `0.36.2` — **Assessment R2 P2 bugfixes.** `ThreadCreate` rejects client-stamped `status` (server default `open`); agent-trace pills pass the recorded display map into `resolveOutcomeMeta` so chrome matches ResultView; write-path stubs register as `test.stub*` (not `calc.eval`) and geometry write-path assertions accept `*_latex` companions. **No schema, no migration.** Sits on `0.36.1` (#23 tip `80495c0`). Does not claim `0.36.1` on `main`.
 - `0.36.1` — **Assessment R1 remediation.** Membership on original ledger writes (`ensure_is_member`); planner open-claims use validation signal, not the dead `Claim.status` column; `ClaimCreate` rejects client-stamped settlement fields; agent-trace pills share instrument-honest chrome; orchestrator mid-pass budget uses the reservation quote; CLAUDE.md / deploy.md auth drift corrected. **No schema, no migration.** Sits on shipped `0.36.0` (`71a8929`) and the R1 assessment (`375733a`, #22).
@@ -110,6 +111,46 @@
 
 ---
 
+## 0.38.0
+
+**Boolean connectives for `z3.prove` / `z3.satisfy`.** The deferred
+verifier-wave follow-on after shipped `z3.satisfy` (`0.33.0`): a
+proposition can carry `And` / `Or` / `Not` / `Implies` (and `Xor` /
+`Equivalent`) instead of a single top-level relation. Same InputModel,
+same sandbox, same honesty contract. A dedicated formula AST walker —
+the shared SymPy `parse_expr` gate is **not** widened. **No schema, no
+migration.** Sits on shipped `0.36.0` (`71a8929`, on `main`). Does not
+claim `0.36.1` / `0.36.2` / `0.37.0`. Does not weaken the
+vacuous-hypotheses guard.
+
+- **Closed allow-list.** Function-call connectives plus Python
+  `and` / `or` / `not`. `bool` sort. Bare bool variables and
+  `True` / `False`. Relational atoms still work. Quantifiers / `If`
+  raise (422, mint nothing).
+- **No false-proof path.** Grade A / `proven` only on a real Z3 `unsat`
+  of `H ∧ ¬goal` after hypotheses-sat. `And(P, Not(P))` as a hypothesis
+  is `contradictory_hypotheses`. Timeout / `unknown` is `undecided`.
+  Parse / injection / float / undeclared raise and mint nothing.
+- **Same write path.** Lands only through `run_instrument` → the
+  checkpoint chokepoint. Soft timeout stays under the subprocess
+  wall-clock.
+- **Frontend.** `bool` on the sort dropdown; hints mention a relation
+  or a boolean formula. Result cards unchanged (`P=true` chips).
+  Sentence case, no AI chrome.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 665 passed, 222 skipped (no TEST_DATABASE_URL)
+# Write-path boolean round-trips are DB-gated (skip without Postgres)
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
+cd frontend && npm test             # 35 passed
+```
+
+See `docs/completions/z3-boolean-connectives-0.38.0.md`.
+
+**Not in this release:** quantifiers; full replayable proof terms;
+Lean REPL / LeanDojo; `0.36.1` / `0.36.2` / `0.37.0`; a browser
+eyeball pass.
 ## 0.37.0
 
 **GitHub Actions CI with Postgres — the contribution contract, actually

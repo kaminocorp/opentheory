@@ -634,7 +634,7 @@ function CounterexampleSearchForm({ onInputs, disabled }: FormProps) {
 
 // --- z3.prove ---------------------------------------------------------------
 
-type Z3Sort = "int" | "real";
+type Z3Sort = "int" | "real" | "bool";
 type Z3VarRow = { id: string; name: string; sort: Z3Sort };
 type Z3ConstraintRow = { id: string; value: string };
 
@@ -709,7 +709,7 @@ function Z3ProveForm({ onInputs, disabled }: FormProps) {
     <div className="grid gap-3">
       <Field
         label="Variables"
-        hint="Declare free variables and their sorts (int or real). Max 8."
+        hint="Declare free variables and their sorts (int, real, or bool). Max 8."
       >
         <ul className="grid gap-1.5">
           {variables.map((row, index) => (
@@ -735,6 +735,7 @@ function Z3ProveForm({ onInputs, disabled }: FormProps) {
               >
                 <option value="real">real</option>
                 <option value="int">int</option>
+                <option value="bool">bool</option>
               </Select>
               <RemoveButton
                 onClick={() => setVariables((rows) => rows.filter((_, i) => i !== index))}
@@ -753,7 +754,7 @@ function Z3ProveForm({ onInputs, disabled }: FormProps) {
 
       <Field
         label="Hypotheses"
-        hint="Each is a single top-level relation (e.g. x > 0). Conjoined. Leave empty to prove unconditionally."
+        hint="Each is a relation or a boolean formula (And/Or/Not/Implies). Conjoined. Leave empty to prove unconditionally."
       >
         <ul className="grid gap-1.5">
           {constraints.map((row, index) => (
@@ -788,7 +789,7 @@ function Z3ProveForm({ onInputs, disabled }: FormProps) {
 
       <Field
         label="Goal"
-        hint="The relation to prove under the hypotheses — ==, !=, <, <=, >, >= at top level."
+        hint="A relation or boolean formula to prove — e.g. x + y > 0, or Implies(And(P, Q), P)."
       >
         <Input
           mono
@@ -855,7 +856,7 @@ function Z3SatisfyForm({ onInputs, disabled }: FormProps) {
     <div className="grid gap-3">
       <Field
         label="Variables"
-        hint="Declare free variables and their sorts (int or real). Max 8."
+        hint="Declare free variables and their sorts (int, real, or bool). Max 8."
       >
         <ul className="grid gap-1.5">
           {variables.map((row, index) => (
@@ -881,6 +882,7 @@ function Z3SatisfyForm({ onInputs, disabled }: FormProps) {
               >
                 <option value="real">real</option>
                 <option value="int">int</option>
+                <option value="bool">bool</option>
               </Select>
               <RemoveButton
                 onClick={() => setVariables((rows) => rows.filter((_, i) => i !== index))}
@@ -899,7 +901,7 @@ function Z3SatisfyForm({ onInputs, disabled }: FormProps) {
 
       <Field
         label="Constraints"
-        hint="Each is a single top-level relation (e.g. x > 0). Conjoined. Leave empty for any assignment of the declared sorts."
+        hint="Each is a relation or a boolean formula (And/Or/Not/Implies). Conjoined. Leave empty for any assignment of the declared sorts."
       >
         <ul className="grid gap-1.5">
           {constraints.map((row, index) => (

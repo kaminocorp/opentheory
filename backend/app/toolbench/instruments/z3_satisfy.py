@@ -1,42 +1,40 @@
 """``z3.satisfy`` — machine-checked model-finding under linear (and honest nonlinear) arithmetic.
 
-Given typed variables and a set of top-level relational constraints, ask Z3 whether a
-concrete assignment exists:
+Given typed variables (``int`` / ``real`` / ``bool``) and constraints — each a relation or
+a quantifier-free boolean formula — ask Z3 whether a concrete assignment exists:
 
 - **``result``** (``artifact_kind="model"``) — ``sat``: a concrete assignment of the declared
-  variables (exact ints / rationals as strings).
+  variables (exact ints / rationals / ``true``/``false`` as strings).
 - **``refuted``** (``artifact_kind="proof"``) — ``unsat``: no model exists. The satisfiability
   question is answered no; this is not a fabricated assignment.
 - **``undecided``** (``artifact_kind="derivation"``) — ``unknown``, timeout, or solver
   incompleteness.
 
 Unlike ``z3.prove``, there is no goal and no vacuous-hypotheses guard: ``unsat`` *is* the
-honest no-model outcome. Top-level relations only in v1 — no boolean-connective parser,
-no quantifiers.
+honest no-model outcome. Quantifiers stay out of scope.
 """
 
 from __future__ import annotations
 
 import re
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.core.config import settings
 from app.models.enums import ResultStatus
 from app.toolbench.adapter import InstrumentResult
-from app.toolbench.instruments._sympy_support import (
-    attach_latex,
-    relation_to_latex,
-    split_relation,
-)
+from app.toolbench.instruments._sympy_support import attach_latex
 from app.toolbench.instruments._z3_support import (
     ENGINE,
     ENGINE_VERSION,
+    RESERVED_NAMES,
+    Z3SortName,
+    assert_formula_shape,
     declare,
-    relation_to_z3,
+    formula_to_latex,
+    formula_to_z3,
     satisfy,
-    symbol_flags_for,
 )
 
 _MAX_VAR_NAME_LEN = 32
@@ -46,25 +44,24 @@ _MAX_RELATION_LEN = 500
 
 
 class Z3SatisfyInput(BaseModel):
-    variables: dict[str, Literal["int", "real"]] = Field(
+    variables: dict[str, Z3SortName] = Field(
         min_length=1,
         max_length=8,
-        description="Declared free variables and their sorts (int or real).",
+        description="Declared free variables and their sorts (int, real, or bool).",
     )
     constraints: list[str] = Field(
         default_factory=list,
         max_length=_MAX_CONSTRAINTS,
         description=(
-            "Constraints — each a single top-level relation (lhs OP rhs). Conjoined. "
+            "Constraints — each a relation or a boolean formula "
+            "(And/Or/Not/Implies/Xor/Equivalent). Conjoined. "
             "Empty means any assignment of the declared sorts is a model."
         ),
     )
 
     @field_validator("variables")
     @classmethod
-    def _variable_names_are_safe(
-        cls, value: dict[str, Literal["int", "real"]]
-    ) -> dict[str, Literal["int", "real"]]:
+    def _variable_names_are_safe(cls, value: dict[str, Z3SortName]) -> dict[str, Z3SortName]:
         for name in value:
             if len(name) > _MAX_VAR_NAME_LEN:
                 raise ValueError(
@@ -74,6 +71,10 @@ class Z3SatisfyInput(BaseModel):
                 raise ValueError(
                     f"invalid variable name {name!r} — use a simple identifier "
                     r"(e.g. x, y1, side_a)"
+                )
+            if name in RESERVED_NAMES:
+                raise ValueError(
+                    f"variable name {name!r} is reserved for the formula language"
                 )
         return value
 
@@ -93,12 +94,12 @@ class Z3SatisfyInput(BaseModel):
         return cleaned
 
     @model_validator(mode="after")
-    def _constraints_are_relational(self) -> Z3SatisfyInput:
+    def _constraints_are_formulas(self) -> Z3SatisfyInput:
         for c in self.constraints:
-            if split_relation(c) is None:
-                raise ValueError(
-                    f"constraint must contain a top-level relational operator: {c!r}"
-                )
+            try:
+                assert_formula_shape(c)
+            except ValueError as exc:
+                raise ValueError(f"constraint {c!r}: {exc}") from exc
         return self
 
 
@@ -116,17 +117,19 @@ class Z3SatisfyOutput(BaseModel):
 
 
 class Z3Satisfy:
-    """Machine-checked model-finding over quantifier-free linear (honest nonlinear) arithmetic."""
+    """Machine-checked model-finding over QF arithmetic and propositional connectives."""
 
     name = "z3.satisfy"
     namespace = "z3"
-    version = "0.1.0"
+    version = "0.2.0"
     engine = ENGINE
     engine_version = ENGINE_VERSION
     description = (
-        "Find a concrete model of typed linear-arithmetic constraints via Z3. "
+        "Find a concrete model of typed constraints via Z3. "
+        "Sorts: int, real, bool. Connectives: And, Or, Not, Implies, Xor, Equivalent. "
         "sat yields an exact assignment; unsat is a machine-checked proof that no model "
-        "exists; unknown is honest undecided — never a fabricated model."
+        "exists; unknown is honest undecided — never a fabricated model. "
+        "Quantifiers are out of scope."
     )
     InputModel = Z3SatisfyInput
     OutputModel = Z3SatisfyOutput
@@ -135,13 +138,12 @@ class Z3Satisfy:
         if assumptions:
             raise ValueError("z3.satisfy does not accept assumptions in v1")
 
-        flags = symbol_flags_for(dict(inputs.variables))
         env = {name: declare(name, sort) for name, sort in inputs.variables.items()}
 
         pairs: list[tuple[str, Any]] = []
         for index, constraint in enumerate(inputs.constraints):
             track = f"c{index}:{constraint}"
-            pairs.append((track, relation_to_z3(constraint, env, flags)))
+            pairs.append((track, formula_to_z3(constraint, env)))
 
         outcome = satisfy(
             pairs,
@@ -150,7 +152,7 @@ class Z3Satisfy:
         )
 
         variables_out = {name: sort for name, sort in inputs.variables.items()}
-        latex_kwargs = _latex_hints(inputs, flags)
+        latex_kwargs = _latex_hints(inputs)
 
         if outcome.kind == "sat":
             payload = Z3SatisfyOutput(
@@ -195,12 +197,10 @@ class Z3Satisfy:
         )
 
 
-def _latex_hints(
-    inputs: Z3SatisfyInput, flags: dict[str, dict[str, bool]]
-) -> dict[str, str | list[str] | None]:
+def _latex_hints(inputs: Z3SatisfyInput) -> dict[str, str | list[str] | None]:
     constraints_l: list[str] = []
     for c in inputs.constraints:
-        cl = relation_to_latex(c, flags)
+        cl = formula_to_latex(c)
         constraints_l.append(cl if cl is not None else c)
     return {
         "constraints_latex": constraints_l if constraints_l else None,

@@ -67,7 +67,8 @@ Evidence/Artifact (`0.9.1` migration `0012_toolbench_provenance`), AST-gated Sym
 
 **Not shipped as standalone instruments:** `expr.parse`, `formula.render` (UI need met by
 `*_latex` + KaTeX — do not reintroduce), `sample.grid`, `pattern.find_relation`.
-Lean REPL / LeanDojo remain later. Boolean connectives / quantifiers on Z3 remain later.
+Lean REPL / LeanDojo remain later. Boolean connectives / `bool` sort on Z3
+shipped as `0.38.0`. Quantifiers remain later.
 
 ## The picture
 
@@ -292,7 +293,8 @@ through the *same* API.
   undecided; vacuous-hypotheses guard). **`z3.satisfy` shipped in `0.33.0`**
   (model-finding). **Lean (`lean.prove`) shipped in `0.23.0`**
   for prelude/Init snippets and **`0.26.0`** for optional Mathlib / offline `lake`;
-  REPL / LeanDojo still deferred. Follow-ons: bool connectives, quantifiers.
+  REPL / LeanDojo still deferred. Follow-ons: ~~bool connectives~~ ✅ `0.38.0`;
+  quantifiers.
 - **Physics tools** — units & dimensional analysis, constants, statistics, tensors/GR, QM
   → *deferred* (math-first). Units + constants are the cheapest physics re-entry point.
 - **Heavy compute** (DFT / MD / PDE / FEM) → *deferred*, a separate GPU/HPC job service.
@@ -307,7 +309,7 @@ through the *same* API.
   `0.35.0`; grades & stamped result-kind stay **out** (derived from the
   recorded instrument).
 - **Next instrument candidates** — see `docs/plans/roadmap-next-steps.md`:
-  bool connectives / quantifiers. Lean REPL / LeanDojo later.
+  quantifiers. Boolean connectives shipped as `0.38.0`. Lean REPL / LeanDojo later.
   `interval.eval` shipped in `0.35.0`. Bench 6 tables/plots shipped in `0.34.0`.
   Tier 1 literature pins shipped in `0.18.0`.
 
