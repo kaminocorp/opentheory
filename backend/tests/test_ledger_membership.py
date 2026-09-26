@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.core.config import settings
 from app.models.checkpoint import Checkpoint
 from app.schemas.claim import ClaimCreate
+from app.schemas.thread import ThreadCreate
 from app.services.claims import claim_is_open_work
 from app.services.orchestration import _policy_from_reservation
 from tests.principals import create_owned_project, make_dev_principal
@@ -97,6 +98,24 @@ def test_claim_create_accepts_statement_only() -> None:
     dumped = payload.model_dump()
     assert "status" not in dumped
     assert "confidence" not in dumped
+
+
+@pytest.mark.parametrize("status", ["closed", "dead_end", "blocked", "active"])
+def test_thread_create_rejects_client_stamped_status(status: str) -> None:
+    with pytest.raises(ValidationError):
+        ThreadCreate.model_validate({"title": "T", "question": "q?", "status": status})
+
+
+def test_thread_create_rejects_unknown_settlement_keys() -> None:
+    with pytest.raises(ValidationError):
+        ThreadCreate.model_validate({"title": "T", "question": "q?", "closed": True})
+
+
+def test_thread_create_accepts_title_and_question_only() -> None:
+    payload = ThreadCreate.model_validate({"title": "T", "question": "q?"})
+    dumped = payload.model_dump()
+    assert "status" not in dumped
+    assert dumped["stage"] == "decompose"
 
 
 def test_validated_signal_is_not_open_work() -> None:

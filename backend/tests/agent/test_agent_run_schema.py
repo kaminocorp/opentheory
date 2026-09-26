@@ -12,11 +12,17 @@ two: the client's ``measure !== undefined`` guard could never be false, and a pr
 """
 
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from uuid import uuid4
 
 from app.models.enums import AgentRunStatus
 from app.schemas.agent_run import AgentRunSummary, PassYield
-from app.services.agent_runs import requires_review
+from app.services.agent_runs import (
+    _executed_step,
+    _invocation_output,
+    _trace_display_output,
+    requires_review,
+)
 
 
 def _row(**overrides):
@@ -124,3 +130,65 @@ def test_lifecycle_has_no_awaiting_review_state() -> None:
 def test_service_requires_review_is_always_false() -> None:
     assert requires_review() is False
     assert requires_review(None) is False
+
+
+# --- 0.36.2: landed steps carry trimmed display output for honest chrome -------------------------
+
+
+def _planned() -> SimpleNamespace:
+    return SimpleNamespace(
+        instrument="z3.prove",
+        inputs={},
+        claim_id=None,
+        relation_kind=None,
+        rationale="prove it",
+    )
+
+
+def test_trace_display_output_keeps_only_chrome_flags() -> None:
+    trimmed = _trace_display_output(
+        {
+            "proven": True,
+            "certificate": "unsat",
+            "goal": "forall x. P(x)",
+            "found": False,
+            "is_relation": True,
+            "rows": [{"n": 1}],
+        }
+    )
+    assert trimmed == {"proven": True, "found": False, "is_relation": True}
+
+
+def test_trace_display_output_empty_on_missing_or_malformed() -> None:
+    assert _trace_display_output(None) == {}
+    assert _trace_display_output("not-a-dict") == {}
+    assert _trace_display_output({}) == {}
+
+
+def test_invocation_output_reads_the_blame_tuple() -> None:
+    class _Checkpoint:
+        tool_invocations = [{"output": {"proven": True, "certificate": "unsat"}}]
+
+    class _Result:
+        checkpoint = _Checkpoint()
+
+    assert _invocation_output(_Result()) == {"proven": True, "certificate": "unsat"}
+    assert _invocation_output(object()) == {}
+
+
+def test_executed_step_records_trimmed_output() -> None:
+    step = _executed_step(
+        0,
+        _planned(),
+        status="landed",
+        outcome="result",
+        output=_trace_display_output({"proven": True, "certificate": "unsat"}),
+    )
+    assert step["instrument"] == "z3.prove"
+    assert step["outcome"] == "result"
+    assert step["output"] == {"proven": True}
+
+
+def test_executed_step_defaults_output_to_empty_map() -> None:
+    step = _executed_step(1, _planned(), status="failed", error="boom")
+    assert step["output"] == {}

@@ -195,6 +195,19 @@ export function resolveOutcomeMeta(
 }
 
 /**
+ * Agent-trace chrome for one landed step. Uses the recorded display map when the
+ * pass persisted one (0.36.2+); pre-0.36.2 rows have no `output` and fall through
+ * the same honesty rules as ResultView with an empty map.
+ */
+export function landedStepMeta(step: {
+  instrument: string;
+  outcome?: string | null;
+  output?: Record<string, unknown> | null;
+}): OutcomeMeta {
+  return resolveOutcomeMeta(step.instrument, step.outcome ?? "", step.output ?? {});
+}
+
+/**
  * Flatten the free-form assumption map into human-readable chips so assumptions are *visible* on the
  * record, not a hidden flag (plan Phase 7.4). Two shapes ride in the same map:
  * - a per-symbol SymPy flag set — `{ x: { positive: true } }` → `x: positive`;

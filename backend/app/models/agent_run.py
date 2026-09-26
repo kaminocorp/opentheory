@@ -26,8 +26,13 @@ Step JSON shape (each entry in ``steps``)::
      "claim_id": str | None, "relation_kind": str | None, "rationale": str,
      "status": "landed" | "failed" | "dropped_invalid" | "skipped" | "plan" | "replan",
      "checkpoint_id": str | None, "evidence_id": str | None,
-     "outcome": str | None, "error": str | None, "reason": str | None,
+     "outcome": str | None, "output": dict,
+     "error": str | None, "reason": str | None,
      "plan_version": int | None, "observe_summary": str | None}
+
+``output`` is a trimmed display map (``proven`` / ``found`` / ``is_relation`` / …) so the
+trace pills can reuse toolbench chrome without re-fetching the checkpoint. Absent on
+pre-0.36.2 rows — those fall through via the shared ``resolveOutcomeMeta`` rules.
 
 ``status="plan"`` / ``"replan"`` are narrative rows (0.20.0): a plan version and, on a replan,
 the observe summary that caused it. They mint nothing. ``plan`` JSON also carries a ``versions``

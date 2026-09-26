@@ -77,11 +77,87 @@ _SLEEP = SleepInstrument()
 _BLOB = BlobInstrument()
 
 
+class WritePathStubInput(BaseModel):
+    value: int
+
+
+class WritePathStubOutput(BaseModel):
+    value: int
+
+
+class WritePathStub:
+    """Write-path composition stub. Registered under ``test.stub*`` so the sandbox
+    worker cannot confuse it with production ``calc.eval`` (which requires
+    ``expression`` and has run through the worker since 0.11.3).
+    """
+
+    namespace = "test"
+    version = "0.1.0"
+    engine = "builtin"
+    engine_version = "1.0"
+    description = "Write-path composition stub (not a production instrument)."
+    InputModel = WritePathStubInput
+    OutputModel = WritePathStubOutput
+
+    def __init__(
+        self,
+        name: str,
+        *,
+        status: ResultStatus = ResultStatus.RESULT,
+        artifact_kind: str = "derivation",
+        raises: bool = False,
+    ) -> None:
+        if not name.startswith("test."):
+            raise ValueError("write-path stubs must use a test.* name, not a production instrument")
+        self.name = name
+        self._status = status
+        self._kind = artifact_kind
+        self._raises = raises
+
+    def run(self, inputs: WritePathStubInput, assumptions: dict[str, Any]) -> InstrumentResult:
+        if self._raises:
+            raise RuntimeError("engine exploded")
+        return InstrumentResult(
+            output={"value": inputs.value},
+            status=self._status,
+            artifact_kind=self._kind,
+        )
+
+
+WRITE_PATH_STUB = WritePathStub("test.stub")
+WRITE_PATH_STUB_REFUTED = WritePathStub(
+    "test.stub_refuted",
+    status=ResultStatus.REFUTED,
+    artifact_kind="counterexample",
+)
+WRITE_PATH_STUB_UNDECIDED = WritePathStub("test.stub_undecided", status=ResultStatus.UNDECIDED)
+WRITE_PATH_STUB_BOOM = WritePathStub("test.stub_boom", raises=True)
+
+_WRITE_PATH_STUBS = (
+    WRITE_PATH_STUB,
+    WRITE_PATH_STUB_REFUTED,
+    WRITE_PATH_STUB_UNDECIDED,
+    WRITE_PATH_STUB_BOOM,
+)
+
+
 def register_test_instruments() -> None:
     if "test.sleep" not in registry:
         registry.register(_SLEEP)
     if "test.blob" not in registry:
         registry.register(_BLOB)
+    for stub in _WRITE_PATH_STUBS:
+        if stub.name not in registry:
+            registry.register(stub)
 
 
-__all__ = ["BlobInstrument", "SleepInstrument", "register_test_instruments"]
+__all__ = [
+    "BlobInstrument",
+    "SleepInstrument",
+    "WRITE_PATH_STUB",
+    "WRITE_PATH_STUB_BOOM",
+    "WRITE_PATH_STUB_REFUTED",
+    "WRITE_PATH_STUB_UNDECIDED",
+    "WritePathStub",
+    "register_test_instruments",
+]

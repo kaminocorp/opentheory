@@ -39,6 +39,9 @@ export type AgentRunStep = {
   checkpoint_id: string | null;
   evidence_id: string | null;
   outcome: ResultStatus | string | null;
+  // Trimmed display flags from the landed invocation (proven / found / is_relation / …).
+  // Absent on pre-0.36.2 traces — pills then use resolveOutcomeMeta fallthrough.
+  output?: Record<string, unknown> | null;
   error: string | null;
   reason: string | null;
   plan_version?: number | null;

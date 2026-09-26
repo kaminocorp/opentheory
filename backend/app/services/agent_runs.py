@@ -146,10 +146,44 @@ async def select_agent_branch(
     return branch.id
 
 
+# Keys ``resolveOutcomeMeta`` (and ResultView) consult on instrument output. The full
+# blame-tuple output can be large (tables, plots); the trace only needs the flags that
+# decide chrome. Legacy steps without ``output`` stay honest via proof/satisfy fallthrough.
+_TRACE_DISPLAY_KEYS = frozenset(
+    {
+        "proven",
+        "refuted",
+        "satisfied",
+        "unsatisfiable",
+        "found",
+        "is_relation",
+        "outcome",
+    }
+)
+
+
+def _trace_display_output(output: Any) -> dict[str, Any]:
+    """Trim a landed invocation output to the display flags the agent-trace pills need."""
+    if not isinstance(output, dict):
+        return {}
+    return {key: output[key] for key in _TRACE_DISPLAY_KEYS if key in output}
+
+
+def _invocation_output(result: Any) -> dict[str, Any]:
+    """The blame-tuple output of a landed ``run_instrument`` result, if present."""
+    invocations = getattr(getattr(result, "checkpoint", None), "tool_invocations", None) or []
+    if not invocations:
+        return {}
+    first = invocations[0]
+    candidate = first.get("output") if isinstance(first, dict) else getattr(first, "output", None)
+    return candidate if isinstance(candidate, dict) else {}
+
+
 def _executed_step(
     index: int, run: Any, *, status: str, plan_version: int = 0, **extra: Any
 ) -> dict[str, Any]:
     """A per-step trace entry (landed/failed), in the documented ``AgentRun`` step shape."""
+    raw_output = extra.get("output")
     return {
         "index": index,
         "instrument": run.instrument,
@@ -161,6 +195,7 @@ def _executed_step(
         "checkpoint_id": extra.get("checkpoint_id"),
         "evidence_id": extra.get("evidence_id"),
         "outcome": extra.get("outcome"),
+        "output": raw_output if isinstance(raw_output, dict) else {},
         "error": extra.get("error"),
         "reason": extra.get("reason"),
         "plan_version": plan_version,
@@ -620,6 +655,7 @@ async def _execute(
                     checkpoint_id=str(result.checkpoint.id),
                     evidence_id=str(result.evidence_id) if result.evidence_id is not None else None,
                     outcome=result.status.value,
+                    output=_trace_display_output(_invocation_output(result)),
                 )
             )
             step_index += 1
