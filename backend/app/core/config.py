@@ -59,6 +59,12 @@ class Settings(BaseSettings):
     # than being killed by the subprocess wall-clock (mints nothing). The wall-clock/RLIMIT_AS
     # remain the hard backstop if a pathological case ignores the soft timeout.
     toolbench_z3_timeout_ms: int = 10_000
+    # Soft timeout for ``interval.eval`` (ms). Must stay strictly below
+    # toolbench_wall_timeout_s so a pathological enclosure records honest
+    # undecided rather than a sandbox kill that mints nothing. python-flint
+    # is a locked wheel; if the C extension fails to import the instrument
+    # degrades to mpmath.iv, then to undecided — never a fabricated bound.
+    toolbench_interval_timeout_ms: int = 8_000
     # Soft timeout for a ``lean.prove`` typecheck (ms). Must stay strictly below
     # toolbench_wall_timeout_s so a slow snippet records honest undecided rather
     # than a sandbox kill that mints nothing. Lean is optional: a missing binary

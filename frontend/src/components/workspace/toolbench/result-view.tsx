@@ -130,6 +130,21 @@ function FailedProofCard({ caption, children }: { caption: string; children: Rea
   );
 }
 
+/**
+ * Proven enclosure — quiet bound, never styled like a proof badge.
+ * An interval is numeric-with-radius, not a kernel/SMT check.
+ */
+function EnclosureCard({ caption, children }: { caption: string; children: ReactNode }) {
+  return (
+    <div className="relative rounded-built bg-panel p-3 pl-4" style={{ border: "1px solid var(--hairline)" }}>
+      <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-text-soft" />
+      <p className="text-[12px] font-medium text-text-soft">Enclosure · proven bound</p>
+      <div className="mt-1.5">{children}</div>
+      <p className="mt-1.5 text-[12px] leading-[1.5] text-text-mute">{caption}</p>
+    </div>
+  );
+}
+
 /** Honest undecided card — warn edge, never a pass. */
 function UndecidedCard({ caption, children }: { caption: string; children: ReactNode }) {
   return (
@@ -142,6 +157,88 @@ function UndecidedCard({ caption, children }: { caption: string; children: React
       <div className="mt-1.5">{children}</div>
       <p className="mt-1.5 text-[12px] leading-[1.5] text-text-mute">{caption}</p>
     </div>
+  );
+}
+
+// --- interval.eval ----------------------------------------------------------
+
+function IntervalEvalBody({ output, status }: { output: Record<string, unknown>; status: string }) {
+  const expression = asString(output.expression);
+  const expressionLatex = asLatex(output.expression_latex);
+  const method = asString(output.method);
+  const bits = asString(output.precision_bits);
+  const reason = asString(output.status_reason);
+  const methodLine = [bits && `${bits}-bit working precision`, method].filter(Boolean).join(" · ");
+
+  if (output.is_relation) {
+    const left = `${asString(output.left_lo)}, ${asString(output.left_hi)}`;
+    const right = `${asString(output.right_lo)}, ${asString(output.right_hi)}`;
+    const sides = (
+      <div className="grid gap-1.5">
+        <Formula expr={expression} latex={expressionLatex} className="text-[15px]" />
+        {output.left_lo != null ? (
+          <p className="font-mono text-[12px] text-text-faint">
+            left ∈ [{left}]
+            {output.right_lo != null ? ` · right ∈ [${right}]` : null}
+          </p>
+        ) : null}
+        {methodLine ? <p className="text-[12px] text-text-mute">{methodLine}</p> : null}
+      </div>
+    );
+    if (status === "refuted") {
+      return (
+        <CounterexampleCard caption="The enclosure misses the claimed value — settled as a bound, not a kernel proof.">
+          {sides}
+        </CounterexampleCard>
+      );
+    }
+    if (status === "undecided") {
+      const gloss =
+        reason === "overlap"
+          ? "The intervals overlap — not enough to prove or refute equality."
+          : reason
+            ? `Could not enclose (${reason}) — recorded, never a fabricated bound.`
+            : "Could not decide — recorded, never a pass.";
+      return <UndecidedCard caption={gloss}>{sides}</UndecidedCard>;
+    }
+    return (
+      <EnclosureCard caption="The relation holds for every value in both enclosures — still not a proof.">
+        {sides}
+      </EnclosureCard>
+    );
+  }
+
+  const lo = asString(output.lo);
+  const hi = asString(output.hi);
+  if (status === "undecided" || !lo || !hi) {
+    const gloss = reason
+      ? `Could not enclose (${reason}) — recorded, never a fabricated bound.`
+      : "Could not enclose — recorded, never a fabricated bound.";
+    return (
+      <UndecidedCard caption={gloss}>
+        <Formula expr={expression} latex={expressionLatex} className="text-[15px]" />
+      </UndecidedCard>
+    );
+  }
+  return (
+    <EnclosureCard caption="A proven enclosure, not a machine-checked proof.">
+      <div className="grid gap-1.5">
+        <KeyValue k="Contains">
+          <span className="flex flex-wrap items-baseline gap-2">
+            <Formula expr={expression} latex={expressionLatex} className="text-[15px]" />
+            <span aria-hidden className="text-text-mute">
+              ∈
+            </span>
+            <Formula
+              expr={`[${lo}, ${hi}]`}
+              latex={asLatex(output.enclosure_latex)}
+              className="text-[15px]"
+            />
+          </span>
+        </KeyValue>
+        {methodLine ? <p className="text-[12px] text-text-mute">{methodLine}</p> : null}
+      </div>
+    </EnclosureCard>
   );
 }
 
@@ -1203,6 +1300,29 @@ function resolveOutcomeMeta(
       };
     }
   }
+  if (instrumentName === "interval.eval") {
+    if (status === "result") {
+      return {
+        tone: "ok",
+        label: "Enclosure",
+        gloss: "Proven bound — not a machine-checked proof.",
+      };
+    }
+    if (status === "refuted") {
+      return {
+        tone: "fail",
+        label: "Refuted",
+        gloss: "The enclosure misses the claimed value.",
+      };
+    }
+    if (status === "undecided") {
+      return {
+        tone: "warn",
+        label: "Undecided",
+        gloss: "Overlap, timeout, or could not enclose — never a fabricated bound.",
+      };
+    }
+  }
   if (instrumentName === "plot.function" || instrumentName === "plot.points") {
     if (status === "undecided") {
       return {
@@ -1281,6 +1401,8 @@ function ResultBody({
     case "plot.function":
     case "plot.points":
       return <PlotBody output={output} status={status} instrumentName={name} />;
+    case "interval.eval":
+      return <IntervalEvalBody output={output} status={status} />;
     default:
       return (
         <pre className="overflow-x-auto rounded-built bg-panel p-3 font-mono text-[12px] text-text-soft">

@@ -14,6 +14,7 @@ from app.toolbench.instruments.counterexample_search import COUNTEREXAMPLE_SEARC
 from app.toolbench.instruments.crossref_lookup import CROSSREF_LOOKUP
 from app.toolbench.instruments.expr_compare import EXPR_COMPARE
 from app.toolbench.instruments.geometry_measure import COORDINATE_MEASURE
+from app.toolbench.instruments.interval_eval import INTERVAL_EVAL
 from app.toolbench.instruments.lean_prove import LEAN_PROVE
 from app.toolbench.instruments.oeis_search import OEIS_SEARCH
 from app.toolbench.instruments.openalex_lookup import OPENALEX_LOOKUP
@@ -34,6 +35,7 @@ INSTRUMENTS = (
     CROSSREF_LOOKUP,
     EXPR_COMPARE,
     COORDINATE_MEASURE,
+    INTERVAL_EVAL,
     LEAN_PROVE,
     OEIS_SEARCH,
     OPENALEX_LOOKUP,
@@ -56,6 +58,7 @@ __all__ = [
     "COORDINATE_MEASURE",
     "CROSSREF_LOOKUP",
     "EXPR_COMPARE",
+    "INTERVAL_EVAL",
     "LEAN_PROVE",
     "OEIS_SEARCH",
     "OPENALEX_LOOKUP",

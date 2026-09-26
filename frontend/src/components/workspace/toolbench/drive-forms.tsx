@@ -70,6 +70,49 @@ function RemoveButton({ onClick, disabled, label }: { onClick: () => void; disab
   );
 }
 
+// --- interval.eval ----------------------------------------------------------
+
+function IntervalEvalForm({ onInputs, disabled }: FormProps) {
+  const [expression, setExpression] = useState("sqrt(2)");
+  const [precision, setPrecision] = useState("64");
+  const emit = useEmit(onInputs);
+  useEffect(() => {
+    const expr = expression.trim();
+    const bits = Number.parseInt(precision, 10);
+    if (!expr || !Number.isInteger(bits) || bits < 16 || bits > 1024) {
+      emit.current(null);
+      return;
+    }
+    emit.current({ expression: expr, precision_bits: bits });
+  }, [expression, precision, emit]);
+
+  return (
+    <div className="grid gap-3">
+      <Field
+        label="Expression or relation"
+        hint="A proven enclosure, not a float. Equality that only overlaps is undecided; a miss is refuted."
+      >
+        <Input
+          mono
+          value={expression}
+          onChange={(event) => setExpression(event.target.value)}
+          placeholder="sqrt(2)"
+          disabled={disabled}
+        />
+      </Field>
+      <Field label="Working precision (bits)" hint="16–1024. Default 64. Recorded with the bound.">
+        <Input
+          mono
+          value={precision}
+          onChange={(event) => setPrecision(event.target.value)}
+          placeholder="64"
+          disabled={disabled}
+        />
+      </Field>
+    </div>
+  );
+}
+
 // --- calc.eval --------------------------------------------------------------
 
 function CalcEvalForm({ onInputs, disabled }: FormProps) {
@@ -1370,6 +1413,8 @@ export function DriveForm({
       return <PlotFunctionForm onInputs={onInputs} disabled={disabled} />;
     case "plot.points":
       return <PlotPointsForm onInputs={onInputs} disabled={disabled} />;
+    case "interval.eval":
+      return <IntervalEvalForm onInputs={onInputs} disabled={disabled} />;
     default:
       return <JsonForm descriptor={descriptor} onInputs={onInputs} disabled={disabled} />;
   }

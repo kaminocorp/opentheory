@@ -92,6 +92,17 @@ _MATRIX: dict[str, dict[ResultStatus, EvidenceGrade | None]] = {
         ResultStatus.REFUTED: EvidenceGrade.B,
         ResultStatus.UNDECIDED: None,
     },
+    # Proven numeric enclosure (Arb / interval arithmetic). A supporting bound is
+    # numeric-with-radius, **not** exact symbolic and **not** a kernel/SMT proof —
+    # Grade C. A relation the enclosure *entirely* misses is a proven witness that
+    # the claimed equality (or inequality) is false (**B**), same honesty as
+    # ``calc.eval`` / ``counterexample.search`` ``refuted``. Overlap / timeout /
+    # missing library contribute nothing. Never Grade A from an interval alone.
+    "interval.eval": {
+        ResultStatus.RESULT: EvidenceGrade.C,
+        ResultStatus.REFUTED: EvidenceGrade.B,
+        ResultStatus.UNDECIDED: None,
+    },
     # Exact coordinate measurement (the flagship ``dist(A,C)=5`` / ``angle(A,B,C)=90°``), never a
     # float. It measures; it has no refutation path — hence the explicit n/a.
     "geometry.coordinate_measure": {
