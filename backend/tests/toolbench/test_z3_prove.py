@@ -282,7 +282,7 @@ def test_input_rejects_empty_goal() -> None:
 
 
 def test_input_rejects_non_relation_goal() -> None:
-    with pytest.raises(ValidationError, match="relational operator"):
+    with pytest.raises(ValidationError, match="relation or boolean formula"):
         Z3_PROVE.InputModel.model_validate(
             {"variables": {"x": "int"}, "constraints": [], "goal": "x + 1"}
         )

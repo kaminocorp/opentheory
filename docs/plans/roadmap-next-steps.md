@@ -1,5 +1,8 @@
 # Roadmap Next Steps
 
+> **Last updated:** 2026-09-26 · **Current release line:** `0.38.0`
+> (Z3 boolean connectives), sitting on shipped `0.36.0`
+> (research-git blame, `71a8929`) and shipped `0.35.0`
 > **Last updated:** 2026-09-26 · **Current release line:** `0.37.0`
 > (GitHub Actions CI with Postgres), sitting on shipped `0.36.0`
 > (research-git blame, `71a8929`) and the R1 assessment (`375733a`)
@@ -23,11 +26,15 @@
 > (project-budget metering), `0.18.0` (Tier-1 literature pins), `0.17.0`
 > (review is opt-in) and `0.16.3` (thread/project grounding rollup). For the
 > per-phase ledger see `docs/changelog.md`; for the line just closed see
+> `docs/completions/z3-boolean-connectives-0.38.0.md`. The deepdive line
 > `docs/completions/github-actions-ci-0.37.0.md`. The deepdive line
 > (A–D) is closed; the archive plan is at
 > `docs/archive/project-deepdive-tabs-0.14.md`.
 >
 > **Next after this line:** the still-owed browser eyeball pass.
+> Quantifiers on Z3 remain later. Lean REPL / LeanDojo remain later.
+> Does not claim `0.36.1` / `0.36.2` / `0.37.0`. `0.33.0`–`0.36.0` are
+> on `main`. ~~Boolean connectives / `bool` sort~~ ✅ shipped as `0.38.0`.
 > Unmerged assessment remediations (`0.36.1` / `0.36.2`) are not
 > claimed as shipped. Lean REPL / LeanDojo remain later.
 > ~~Blame-as-an-op~~ ✅ shipped as `0.36.0`. ~~CI + Postgres~~ ✅
@@ -427,7 +434,7 @@ no false-proof path exists.
 **Natural follow-ons (verifier wave remainder):**
 
 - ~~`z3.satisfy` — model-finding as the primary output.~~ ✅ shipped as `0.33.0`.
-- Boolean connectives / `bool` sort (needs a parser beyond `split_relation`).
+- ~~Boolean connectives / `bool` sort (needs a parser beyond `split_relation`).~~ ✅ shipped as `0.38.0`.
 - Quantifiers; full replayable proof terms (out of scope for v1).
 - **Lean + Mathlib** (Tier 2 remainder) — `lean.prove` shipped in `0.23.0`
   (prelude / `Init`) and `0.26.0` (optional Mathlib / offline `lake`). REPL /
@@ -443,8 +450,8 @@ after the old falsify-and-render appendix B was removed. **No schema, no
 migration.** Sits on `0.34.0`. See
 `docs/completions/interval-eval-0.35.0.md`.
 
-**Not in this release:** Lean REPL / LeanDojo; boolean Z3 parser;
-blame-as-an-op; browser eyeball.
+**Not in this release:** Lean REPL / LeanDojo; boolean Z3 parser
+(later `0.38.0`); blame-as-an-op; browser eyeball.
 
 ### `0.36.x` — Research-git blame ✅ **shipped** (`0.36.0`)
 
@@ -535,8 +542,9 @@ changing branch protection.
     toolchain, prelude/Init) and `0.26.0` (Mathlib / offline `lake` opt-in).
     **REPL / LeanDojo** remain later.
 17. ~~**`z3.satisfy` model-finding**~~ ✅ shipped as `0.33.0` — sat → concrete
-    model; unsat → honest no-model; unknown/timeout → undecided. Boolean
-    connectives / quantifiers remain later.
+    model; unsat → honest no-model; unknown/timeout → undecided.
+    ~~Boolean connectives / `bool` sort~~ ✅ shipped as `0.38.0`.
+    Quantifiers remain later.
 18. ~~**`interval.eval` proven enclosures**~~ ✅ shipped as `0.35.0` — Arb
     ball / mpmath.iv fallback; Grade C support, B on a definitive miss;
     never A. Overlap is honest `undecided`.
@@ -582,6 +590,7 @@ changing branch protection.
 | `0.34.x` | Bench 6 tables & plots — typed grids, derived columns, Vega-Lite specs (not rasters) |
 | `0.35.x` | `interval.eval` — proven numeric enclosures (Arb / mpmath.iv; never Grade A alone) |
 | `0.36.x` | Research-git blame — derived checkpoint / actor / instrument chain for a claim |
+| `0.38.x` | Boolean connectives + `bool` sort on `z3.prove` / `z3.satisfy` |
 | `0.37.x` | GitHub Actions CI with Postgres — ruff / pytest (DB-gated) + frontend typecheck/lint/test/build |
 
 ## Success criteria for the next milestone
@@ -651,8 +660,9 @@ auto-validates or auto-funds.
 
 **`0.33.0` (`z3.satisfy`)** is shipped: model-finding as a first-class
 instrument. `sat` lands a concrete model; `unsat` is an honest no-model
-(`refuted`); timeout / `unknown` is `undecided`. No boolean connectives
-or quantifiers. Lean REPL / LeanDojo remain later.
+(`refuted`); timeout / `unknown` is `undecided`. Boolean connectives
+shipped later as `0.38.0`. Quantifiers remain later. Lean REPL /
+LeanDojo remain later.
 
 **`0.34.0` (Bench 6 tables & plots)** is shipped: typed tables, a computed
 column with calc-spine honesty, a render artifact, and Vega-Lite specs
@@ -664,6 +674,12 @@ evaluates to a proven `[lo, hi]`. Supporting enclosure is Grade C;
 a definitive miss is `refuted` / B; overlap / timeout is `undecided`.
 Never Grade A from an interval alone. Sits on `0.34.0`.
 
-**Next product step:** the still-owed browser eyeball pass. Blame-as-an-op
-remains later. Boolean connectives / quantifiers on Z3 remain later.
-Lean REPL / LeanDojo remain later.
+**`0.38.0` (Z3 boolean connectives)** is shipped: `z3.prove` /
+`z3.satisfy` accept `And` / `Or` / `Not` / `Implies` / `Xor` /
+`Equivalent` and a `bool` sort on the existing InputModel. Grade A
+only on a real Z3 success; vacuous hypotheses stay undecided.
+Quantifiers are not in this release. Does not claim `0.36.1` /
+`0.36.2` / `0.37.0`.
+
+**Next product step:** the still-owed browser eyeball pass.
+Quantifiers on Z3 remain later. Lean REPL / LeanDojo remain later.

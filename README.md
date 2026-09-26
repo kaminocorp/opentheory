@@ -115,8 +115,8 @@ ship today, each landing an attributed checkpoint through the same chokepoint:
 | `geometry.coordinate_measure` | exact coordinate geometry (distances, angles) |
 | `counterexample.search` | deterministic grid search for a falsifying witness |
 | `oeis.search` | identify an integer sequence — lands a *pinned* citation |
-| `z3.prove` | machine-checked validity — proof, exact counter-model, or honest `undecided` |
-| `z3.satisfy` | machine-checked model-finding — exact assignment, unsat / no model, or honest `undecided` |
+| `z3.prove` | machine-checked validity — proof, exact counter-model, or honest `undecided`; `bool` + `And`/`Or`/`Not`/`Implies` (`0.38.0`) |
+| `z3.satisfy` | machine-checked model-finding — exact assignment, unsat / no model, or honest `undecided`; same boolean surface (`0.38.0`) |
 | `lean.prove` | Lean 4 kernel check — Grade A only on a real proof; optional Lean + optional Mathlib / `lake` |
 | `crossref.lookup` / `arxiv.lookup` / `openalex.lookup` | Tier-1 literature pins |
 | `table.create` / `table.derive_column` / `table.render` | typed falsification grid; derived columns are exact compute |
@@ -439,6 +439,9 @@ opentheory/
 | `0.32.x` | Concurrent campaign cycles under the shared project budget — reserved slices, no oversell |
 | `0.33.x` | `z3.satisfy` — model-finding (sat assignment / unsat no-model / honest undecided) |
 | `0.34.x` | Bench 6 tables & plots — typed grids, derived columns, Vega-Lite specs |
+| `0.35.x` | `interval.eval` — proven numeric enclosures (Arb / mpmath.iv; never Grade A alone) |
+| `0.36.x` | Research-git blame — derived checkpoint / actor / instrument chain for a claim |
+| `0.38.x` | Boolean connectives + `bool` sort on `z3.prove` / `z3.satisfy` |
 
 **Honest caveats:**
 

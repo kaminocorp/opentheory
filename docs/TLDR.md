@@ -75,8 +75,8 @@ and invariants live in `docs/blueprints/primitives.md`.)
   Research first, shareable via `?thread=` / `?branch=`, contested header items
   land on that claim, tab badges from existing reads, a quiet live cue while a
   pass runs. Seventeen deterministic instruments ship, including machine-checked
-  `z3.prove` / `z3.satisfy` (`0.33.0`), Bench 6 tables/plots (`0.34.0`),
-  `interval.eval` (`0.35.0`), and optional `lean.prove`.
+  `z3.prove` / `z3.satisfy` (`0.33.0`, boolean connectives `0.38.0`), Bench 6
+  tables/plots (`0.34.0`), `interval.eval` (`0.35.0`), and optional `lean.prove`.
 
 **Shipped on the agent path (Phase 1 autonomy `0.17.0` + replan `0.20.0` +
 orchestrator `0.22.0` / `0.27.0` + continuous campaign `0.25.0` /

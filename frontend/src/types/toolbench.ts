@@ -62,7 +62,7 @@ export type ToolRunResult = {
 // stay honest about the three outcomes (proof / counter-model / undecided).
 export type Z3ProveOutput = {
   goal: string;
-  variables: Record<string, "int" | "real" | string>;
+  variables: Record<string, "int" | "real" | "bool" | string>;
   constraints: string[];
   proven: boolean;
   refuted: boolean;
@@ -76,7 +76,7 @@ export type Z3ProveOutput = {
 
 // Output shape of `z3.satisfy` (0.33.0) — sat model / unsat / undecided.
 export type Z3SatisfyOutput = {
-  variables: Record<string, "int" | "real" | string>;
+  variables: Record<string, "int" | "real" | "bool" | string>;
   constraints: string[];
   satisfied: boolean;
   unsatisfiable: boolean;
