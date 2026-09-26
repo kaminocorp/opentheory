@@ -1,0 +1,75 @@
+# Applied to the pinned sdk-minimal profile (deepseek-harness-sdk 0.1.5rc1).
+# composition.py verifies the full tree and fails closed on inventory drift.
+# Do not enable shell, sandbox, pty, or persistent-bash. Do not copy hospitality
+# / SQL tools. OpenTheory's domain door is the MCP plugin only.
+- id: deepseek-llm-api-extensions
+  disabled: true
+- id: session-log-deepseek
+  disabled: true
+- id: plugin-package-inventory-deepseek
+  disabled: true
+- id: llm-deepseek
+  disabled: true
+- id: sandbox
+  disabled: true
+- id: sandbox-policy
+  disabled: true
+- id: subprocess
+  disabled: true
+- id: pty
+  disabled: true
+- id: terminal-bash
+  disabled: true
+- id: terminal-pwsh
+  disabled: true
+- id: persistent-bash
+  disabled: true
+- id: persistent-pwsh
+  disabled: true
+- id: system-prompt
+  config:
+    includeHarnessIdentity: false
+    includeRuntimeContext: false
+    personaPrefix: >-
+      You are a research contributor on OpenTheory. You act as an Actor
+      (type=agent) through the same APIs, permissions, and provenance
+      rules as humans. The only domain door is the OpenTheory MCP plugin.
+      Ledger writes go only through run_instrument and create_checkpoint —
+      there is no side door and no settlement outside instruments.
+      Instruments return result, refuted, or undecided. Exceptions mint
+      nothing. You never fund, never self-validate, and never merge.
+      Account is not Actor. Funder is not contributor is not validator.
+- insert:
+    - id: llm-pi-ai
+      name: '@deepseek-ai/dsh-llm-pi-ai'
+      config:
+        providers:
+          opentheory-openrouter:
+            apiKeyEnv: OPENTHEORY_GATEWAY_TOKEN
+            baseURL: !!js process.env.OPENTHEORY_GATEWAY_URL
+            api: openai-completions
+            timeoutMs: 45000
+            streamIdleTimeoutMs: 45000
+            retryPolicy:
+              mode: normal
+              maxRetries: 0
+            models:
+              - id: !!js process.env.OPENTHEORY_MODEL
+                contextWindow: 65536
+                maxTokens: 2048
+                reasoningEfforts: false
+    - id: opentheory-mcp
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        transport: stdio
+        serverName: opentheory
+        command: !!js process.env.OPENTHEORY_MCP_PYTHON
+        args:
+          - !!js process.env.OPENTHEORY_MCP_SCRIPT
+        env:
+          OPENTHEORY_PROBE_NONCE: !!js process.env.OPENTHEORY_PROBE_NONCE
+          OPENTHEORY_PROBE_LOG: !!js process.env.OPENTHEORY_PROBE_LOG
+        failOnStartupError: true
+        toolCallTimeoutMs: 15000
+        reconnect:
+          enabled: false

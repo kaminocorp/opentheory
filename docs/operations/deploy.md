@@ -255,8 +255,15 @@ run in production until both of these are set.
 | Flag `true`, no `OPENROUTER_API_KEY` | A commissioned pass fails cleanly (`422`/`503`), never a `500` |
 | Flag `true` **and** the key set | The loop is live |
 
-Leave `AGENT_LOOP_ENABLED=false` until you intend to take live agent traffic. Local
-dev copies the same pair from `backend/.env.example`. Per-pass **safety** caps
+Leave `AGENT_LOOP_ENABLED=false` until you intend to take live agent traffic.
+
+The **external DeepSeek Harness** path (`0.40.0`) is a different owner of
+the session. Milestone 0 is docs + composition + a fixture MCP — it is
+**not** enabled on Fly, FastAPI does not import it, and it must not be
+turned on by flipping `AGENT_LOOP_ENABLED`. Do not set harness gateway
+tokens in `fly.toml [env]`. See `docs/harness/compatibility.md`.
+
+Local dev copies the same pair from `backend/.env.example`. Per-pass **safety** caps
 (`AGENT_PASS_MAX_RUNS`, `AGENT_PASS_MAX_REPLANS`, `AGENT_PASS_MAX_BATCH_RUNS`,
 `AGENT_PASS_MAX_TOKENS`) already bound blast radius — they are not budget. Full
 project-budget metering shipped in `0.19.0` (historical `0.12.5`) and is **not**

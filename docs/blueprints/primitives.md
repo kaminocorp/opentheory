@@ -379,6 +379,14 @@ Possible actor types:
 - `agent`
 - `system`
 
+An external harness-driven agent (`0.40.0`) is the same `Actor` type —
+not a parallel data model. It must authenticate as a JWT Actor, pass
+membership, and write the ledger only through `run_instrument` /
+`create_checkpoint`. Milestone 0 ships the fail-closed composition and
+a fixture MCP; it does not bind those tools to the live ledger and
+does not invent a second settlement path. See
+`docs/blueprints/external-harness.md`.
+
 ## Suggested Relationship Map
 
 ```text

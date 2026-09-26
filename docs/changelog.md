@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.40.0` — **External DeepSeek Harness Milestone 0.** Docs + fail-closed Cordis composition + fixture MCP probe scaffolding. The external adapter lives outside the product loop; OpenTheory's only domain door is a thin MCP plugin (`run_instrument`, `create_checkpoint`, context/budget reads). M0 does not bind those tools to the live ledger, does not light `AGENT_LOOP_ENABLED`, and does not enable the harness on Fly. Default CI stays green without `OPENROUTER_API_KEY` or the optional `[harness]` extra (`deepseek-harness-sdk==0.1.5rc1`). **Backend + docs — no schema, no migration.** Sits on shipped `0.39.0` (`00b20bc`, #31) / current `main` `921cdd1`.
 - `0.39.0` — **First-order quantifiers for `z3.prove` / `z3.satisfy`.** Closed allow-list grows `ForAll` / `Exists` on the existing 0.38.0 formula AST — dedicated walker, no `eval`, no widening of the shared SymPy gate, no new AST node types for binders. `∀x. x + 0 = x` is now a real Z3 proof. Vacuous-hypotheses guard and timeout→undecided stay. Quiet drive-form hint update. **No schema, no migration.** On `main` as `00b20bc` (#31). Sits on shipped `0.38.0` (`e0e118b`, #28).
 - `0.38.0` — **Boolean connectives for `z3.prove` / `z3.satisfy`.** Closed allow-list of `And` / `Or` / `Not` / `Implies` / `Xor` / `Equivalent` plus a `bool` sort, through the existing instruments — no parallel language, no `eval`, no quantifiers. `(P ∧ Q) → P` is now a real Z3 proof. Vacuous-hypotheses guard and timeout→undecided stay. Quiet drive-form sort + hint update. **No schema, no migration.** On `main` as `e0e118b` (#28). Sits on shipped `0.36.0` blame (`71a8929`, #21).
 - `0.37.0` — **GitHub Actions CI with Postgres.** `ruff` + `pytest` against a throwaway Postgres 16 service (`TEST_DATABASE_URL` so the DB-gated suite actually runs) and frontend `typecheck` / `lint` / `test` / `build` on every pull request and push to `main`. Lean / Mathlib stay off. No secrets. Infra only — **no schema, no migration, no application code.** On `main` as `e93ca47` (#27). Sits on shipped `0.36.0` (`71a8929`, #21) + R1 assessment (`375733a`, #22).
@@ -111,6 +112,54 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.40.0
+
+**External DeepSeek Harness Milestone 0.** First slice of the external
+agent adapter, modeled on Mission Systems OpenWorld (OpenAir is prior
+art; Launchpad Bubbles is not the reference). Docs, a fail-closed
+Cordis composition, and a fixture MCP so the capability tree can be
+tested without a key or a `dsh` binary. The harness owns the session;
+OpenTheory owns the ledger door. **No schema, no migration.** Sits on
+shipped `0.39.0` (`00b20bc`, #31) / current `main` `921cdd1`. Does not
+flip `AGENT_LOOP_ENABLED`. Does not invent a parallel settlement path.
+
+- **Docs.** `docs/harness/` (plan, compatibility, tool contracts,
+  backend note, prior-art citation). Blueprint
+  `docs/blueprints/external-harness.md`: humans and agents stay on the
+  same primitives — JWT Actor + membership + `ComputeDebit`; no side
+  door. Roadmap + this changelog. Completing note
+  `docs/completions/external-harness-m0-0.40.0.md`.
+- **Fail-closed composition.** `backend/app/harness/opentheory.cordis.yml`
+  strips sandbox / pty / persistent shell / DeepSeek-native LLM extras
+  and inserts exactly `llm-pi-ai` + `opentheory-mcp`.
+  `composition.py` pins runtime `0.1.5rc1` and rejects inventory,
+  persona, or version drift. Research-contributor voice — no
+  hospitality / SQL tools.
+- **Fixture MCP + probe.** Stdio JSON-RPC with `echo_nonce` and stub
+  domain tools that return `minted: false`. `python -m app.harness`
+  always verifies composition + fixture. Live OpenRouter is opt-in
+  (`OPENTHEORY_HARNESS_LIVE`) and **not implemented** — missing key /
+  missing runtime skip; opt-in still refuses. FastAPI does not import
+  the package.
+- **Optional extra.** `[harness]` documents
+  `deepseek-harness-sdk==0.1.5rc1`. Default `uv sync --group dev` (CI)
+  does not install it.
+
+```bash
+cd backend && uv run ruff check .   # recorded after the local run
+cd backend && uv run pytest -q      # recorded after the local run
+# Frontend untouched — no typecheck/lint/build required for this slice
+```
+
+See `docs/completions/external-harness-m0-0.40.0.md`.
+
+**Not in this release:** live MCP binding to `run_instrument` /
+`create_checkpoint` with JWT (`0.41.0`); OpenRouter gateway + turn
+supervision (`0.42.0`); a reference campaign; perpetual ops dashboard;
+Lean REPL / LeanDojo; lighting `AGENT_LOOP_ENABLED`.
 
 ---
 
