@@ -156,7 +156,7 @@ landed around it). Does not weaken the vacuous-hypotheses guard.
 ```bash
 cd backend && uv run ruff check .   # clean
 cd backend && uv run pytest -q      # 722 passed, 227 skipped (no TEST_DATABASE_URL)
-# Write-path quantifier round-trips are DB-gated (skip without Postgres)
+# CI (0.37.0, TEST_DATABASE_URL): 945 passed, 4 skipped — write-path included
 cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
 cd frontend && npm test             # 55 passed
 ```

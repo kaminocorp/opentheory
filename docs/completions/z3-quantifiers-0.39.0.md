@@ -88,14 +88,14 @@ gate, and **not** `ast.List` / `ast.Lambda` binders.
   / injection rejects, 0.38.0 and-elim and 0.13.x arithmetic regressions,
   killable-subprocess identity, and the existing `z3.prove` /
   `z3.satisfy` / `z3.boolean` suites.
-- Write-path quantifier `run_instrument` tests are written and skip
-  without Postgres.
+- Write-path quantifier `run_instrument` tests ran in CI.
 - Frontend `typecheck` / `lint` / `build` clean (9/9 static pages).
   `npm test` **55 passed**.
+- GitHub Actions CI on this branch: **945 passed, 4 skipped**
+  (Postgres write-path included). Frontend job green. Vercel preview
+  green.
 
 ## Unverified
 
-- DB-gated write-path tests skip without `TEST_DATABASE_URL`. CI
-  (`0.37.0`) has Postgres and should run them.
 - No pixel-level browser walk of the Instruments drive form (no
   signed-in session against a live backend in this environment).
