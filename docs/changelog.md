@@ -146,6 +146,12 @@ landed around it). Does not weaken the vacuous-hypotheses guard.
   undecided`.
 - **Frontend.** Drive-form hints mention ForAll/Exists. Result cards
   unchanged. Sentence case, no AI chrome.
+- **Write-path test harness.** `_actor` / `_project` in the two
+  toolbench write-path files now use `tests/principals.py` so the
+  HTTP actor owns the project. Pre-existing on `main` after `0.36.1`
+  membership: account-less Ada + a different project author made
+  `_thread` 403 in CI (`20 failed` on current `main`). Test-only;
+  not a production change.
 
 ```bash
 cd backend && uv run ruff check .   # clean
