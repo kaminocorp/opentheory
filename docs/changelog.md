@@ -148,11 +148,11 @@ landed around it). Does not weaken the vacuous-hypotheses guard.
   unchanged. Sentence case, no AI chrome.
 
 ```bash
-cd backend && uv run ruff check .   # pending verification
-cd backend && uv run pytest -q      # pending verification
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 722 passed, 227 skipped (no TEST_DATABASE_URL)
 # Write-path quantifier round-trips are DB-gated (skip without Postgres)
-cd frontend && npm run typecheck && npm run lint && npm run build
-cd frontend && npm test
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
+cd frontend && npm test             # 55 passed
 ```
 
 See `docs/completions/z3-quantifiers-0.39.0.md`.

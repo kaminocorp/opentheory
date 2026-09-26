@@ -784,7 +784,9 @@ async def test_z3_satisfy_exists_contradiction_weakens_with_no_model(
     actor_id = await _actor(client)
     project_id = await _project(client, "instr-z3-exists-unsat")
     thread_id = await _thread(client, project_id, actor_id)
-    claim_id = await _claim(client, thread_id, actor_id, "Some integer is both positive and negative.")
+    claim_id = await _claim(
+        client, thread_id, actor_id, "Some integer is both positive and negative."
+    )
     pid = UUID(project_id)
 
     async with session_factory() as session:

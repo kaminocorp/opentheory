@@ -77,10 +77,23 @@ gate, and **not** `ast.List` / `ast.Lambda` binders.
 
 ## Verification
 
-Recorded after the local suite runs (see changelog).
+- `ruff check .` clean.
+- Default pytest (no `TEST_DATABASE_URL`): **722 passed, 227 skipped**.
+  Includes `ForAll(x, x + 0 == x)`, successor `ForAll`/`Exists`, bool
+  `ForAll(P, Or(P, Not(P)))`, multi-binder commutativity, `ForAll(x, x > 0)`
+  / least-integer / contradictory `Exists` refutations, vacuous false
+  `ForAll` never a proof, sat/unsat quantified models, `If` / list binder
+  / injection rejects, 0.38.0 and-elim and 0.13.x arithmetic regressions,
+  killable-subprocess identity, and the existing `z3.prove` /
+  `z3.satisfy` / `z3.boolean` suites.
+- Write-path quantifier `run_instrument` tests are written and skip
+  without Postgres.
+- Frontend `typecheck` / `lint` / `build` clean (9/9 static pages).
+  `npm test` **55 passed**.
 
 ## Unverified
 
-- DB-gated write-path tests skip without `TEST_DATABASE_URL`.
+- DB-gated write-path tests skip without `TEST_DATABASE_URL`. CI
+  (`0.37.0`) has Postgres and should run them.
 - No pixel-level browser walk of the Instruments drive form (no
   signed-in session against a live backend in this environment).
