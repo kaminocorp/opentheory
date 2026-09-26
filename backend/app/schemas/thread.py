@@ -16,8 +16,22 @@ class ThreadBase(BaseModel):
     thread_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-class ThreadCreate(ThreadBase):
-    """Create payload. ``project_id`` is taken from the path, not the body."""
+class ThreadCreate(BaseModel):
+    """Create payload. ``project_id`` is taken from the path, not the body.
+
+    ``status`` is server-owned — the column default remains ``open``. A client cannot
+    stamp ``closed`` / ``dead_end`` / ``blocked`` and hide the thread from the
+    orchestrator (which only commissions ``open`` | ``active``). Extra keys are
+    rejected so a ``curl`` cannot sneak them through. Create-time ``stage`` stays
+    allowed: it is workflow metadata, not settlement.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1, max_length=240)
+    question: str = Field(min_length=1)
+    stage: ThreadStage = ThreadStage.DECOMPOSE
+    thread_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ThreadRead(ThreadBase):

@@ -10,11 +10,12 @@ from app.schemas.checkpoint import ActorSummary
 class ValidationCreate(BaseModel):
     """Create payload for a validation.
 
-    ``project_id`` comes from the path and ``actor_id`` from the ``X-Dev-Actor-Id``
-    header. The target is polymorphic: ``target_type`` is one of ``claim`` /
-    ``checkpoint`` / ``branch`` / ``artifact`` (validated in the service layer against
-    ``VALIDATION_TARGET_TYPES``) and ``target_id`` is the row it assesses. The service
-    maps the pair onto the matching typed FK column on ``Validation``.
+    ``project_id`` comes from the path. The acting actor is the bearer JWT
+    (or the ``X-Dev-Actor-Id`` header when ``auth_dev_header_enabled``). The
+    target is polymorphic: ``target_type`` is one of ``claim`` / ``checkpoint``
+    / ``branch`` / ``artifact`` (validated in the service layer against
+    ``VALIDATION_TARGET_TYPES``) and ``target_id`` is the row it assesses. The
+    service maps the pair onto the matching typed FK column on ``Validation``.
     """
 
     target_type: str = Field(min_length=1, max_length=20)

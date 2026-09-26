@@ -22,7 +22,7 @@ import type {
 } from "@/types/agent-run";
 
 import { groundingHeadlineLabel } from "../grounding-chip";
-import { resolveOutcomeMeta } from "../toolbench/outcome";
+import { landedStepMeta } from "../toolbench/outcome";
 
 const short = (id: string | null | undefined, n = 8): string => (id ? id.slice(0, n) : "—");
 
@@ -59,11 +59,12 @@ function Chip({ children, title }: { children: React.ReactNode; title?: string }
 
 /**
  * One landed step — the honest outcome vocabulary reused from the toolbench (`refuted` = fail,
- * `undecided` = warn, never a pass), plus a link-by-id to the checkpoint (its full result card
- * renders in the timeline below — the step itself does not carry the blame tuple to re-render it).
+ * `undecided` = warn, never a pass). Chrome uses the trimmed display map recorded on the
+ * step (`proven` / `found` / `is_relation` / …), the same flags ResultView reads — the
+ * step does not re-fetch the checkpoint to re-parse the blame tuple.
  */
 function LandedStep({ step }: { step: AgentRunStep }) {
-  const meta = resolveOutcomeMeta(step.instrument, step.outcome ?? "", {});
+  const meta = landedStepMeta(step);
   return (
     <div className="grid gap-1.5 rounded-built bg-panel-2 p-3" style={{ border: "1px solid var(--hairline)" }}>
       <div className="flex flex-wrap items-center gap-2">

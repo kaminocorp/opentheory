@@ -1,8 +1,9 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-09-26 · **Current release line:** `0.36.1`
-> (assessment R1 remediation — membership + planner honesty), sitting on
-> shipped `0.36.0` (research-git blame) and shipped `0.35.0`
+> **Last updated:** 2026-09-26 · **Current release line:** `0.36.2`
+> (assessment R2 P2 bugfixes — ThreadCreate + agent-trace honesty +
+> write-path suite), sitting on `0.36.1` (assessment R1 remediation,
+> #23) and shipped `0.36.0` (research-git blame) and shipped `0.35.0`
 > (`interval.eval` proven enclosures, `1ca7116`) and shipped `0.34.0`
 > (Bench 6 tables & Vega-Lite plots, `a7cd946`) and shipped `0.33.0`
 > (`z3.satisfy` model-finding, `e3a07ea`) and shipped `0.32.0`
@@ -23,9 +24,9 @@
 > `docs/archive/project-deepdive-tabs-0.14.md`.
 >
 > **Next after this line:** the still-owed browser eyeball pass. Unmerged
-> work is not claimed as shipped (`0.36.1` is this branch, not `main`).
-> Lean REPL / LeanDojo remain later. P2 items from assessment R1
-> (file splits, CI, naming) stay deferred.
+> work is not claimed as shipped (`0.36.1` / `0.36.2` are stacked
+> branches, not `main`). Lean REPL / LeanDojo remain later. Remaining
+> R1/R2 P2s (file splits, CI, naming, confidence chrome) stay deferred.
 > ~~Blame-as-an-op~~ ✅ shipped as `0.36.0` on `main` (`71a8929`).
 > `0.33.0`–`0.36.0` are on `main`.
 

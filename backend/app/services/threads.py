@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.actor import Actor
 from app.models.claim import Claim
+from app.models.enums import ThreadStatus
 from app.models.project import Project
 from app.models.thread import Thread
 from app.schemas.thread import ThreadCreate, ThreadRead, ThreadSummary
@@ -23,7 +24,11 @@ async def create_thread(
             detail="Project not found",
         )
 
-    thread = Thread(project_id=project_id, **payload.model_dump())
+    thread = Thread(
+        project_id=project_id,
+        status=ThreadStatus.OPEN,
+        **payload.model_dump(),
+    )
     db.add(thread)
     await db.flush()  # assign thread.id before recording the contribution
     contributions.record_contribution(

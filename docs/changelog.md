@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.36.2` — **Assessment R2 P2 bugfixes.** `ThreadCreate` rejects client-stamped `status` (server default `open`); agent-trace pills pass the recorded display map into `resolveOutcomeMeta` so chrome matches ResultView; write-path stubs register as `test.stub*` (not `calc.eval`) and geometry write-path assertions accept `*_latex` companions. **No schema, no migration.** Sits on `0.36.1` (#23 tip `80495c0`). Does not claim `0.36.1` on `main`.
 - `0.36.1` — **Assessment R1 remediation.** Membership on original ledger writes (`ensure_is_member`); planner open-claims use validation signal, not the dead `Claim.status` column; `ClaimCreate` rejects client-stamped settlement fields; agent-trace pills share instrument-honest chrome; orchestrator mid-pass budget uses the reservation quote; CLAUDE.md / deploy.md auth drift corrected. **No schema, no migration.** Sits on shipped `0.36.0` (`71a8929`) and the R1 assessment (`375733a`, #22).
 - `0.36.0` — **Research-git blame.** A derived ledger read walks the checkpoints, actors, and tool invocations that produced or evidence-grounded a claim (`GET /projects/{id}/claims/{claim_id}/blame`). Deterministic. Mints nothing. Quiet Blame bay next to Compare on Research. **No schema, no migration.** Sits on shipped `0.35.0` interval.eval (`1ca7116`, #20 squash). Does not claim 0.36 as on `main`. `0.33.0`–`0.35.0` are on `main`.
 - `0.35.0` — **`interval.eval` — proven numeric enclosures.** Evaluate a closed-form real expression to a proven `[lo, hi]` via python-flint / Arb (mpmath.iv fallback if the C extension fails to import). Successful enclosure is `result` (Grade C — a bound, not a proof). A relation the enclosure entirely misses is `refuted` (Grade B witness). Overlap / timeout / domain / free symbols / missing library is honest `undecided` — never a fabricated bound, never Grade A. Quiet Instruments drive/show. **No schema, no migration.** Sits on shipped `0.34.0` Bench 6 (`a7cd946`). On `main` as `1ca7116` (#20 squash).
@@ -105,6 +106,53 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.36.2
+
+**Assessment R2 P2 bugfixes — thread settlement, agent-trace honesty, write-path
+suite honesty.** The R1 P0/P1s stay closed. This slice closes the three
+bug-like residuals from `docs/plans/codebase-assessment-2026-09-26-r2.md`
+(PR #24): a client can no longer stamp `Thread.status`; agent-trace pills
+stop passing `{}` into `resolveOutcomeMeta`; the DB-backed write-path suite
+stops naming stubs `calc.eval` and stops exact-matching geometry output
+without the `*_latex` companions the instruments have emitted since 0.10.4.
+**No schema, no migration.** Stacked on `0.36.1` (`80495c0`, #23). Does not
+claim `0.36.1` or this line on `main`.
+
+- **`ThreadCreate`.** Standalone model (`extra="forbid"`). `status` is
+  server-owned — `create_thread` stamps `open`. Create-time `stage` stays
+  allowed. Same shape as `ClaimCreate` in 0.36.1, lower blast radius.
+- **Agent-trace chrome.** Landed steps persist a trimmed display map
+  (`proven` / `found` / `is_relation` / …). `landedStepMeta` feeds it to
+  `resolveOutcomeMeta`, so a successful proof reads Proven and weak-support
+  `counterexample.search` reads No witness — matching ResultView. The step
+  does not re-fetch the checkpoint. Pre-0.36.2 rows without `output` keep
+  the proof/satisfy fallthrough (warn).
+- **Write-path suite.** Stubs register as `test.stub*` via
+  `tests/toolbench/stubs.py` so the 0.11.3 sandbox worker cannot confuse
+  them with production `calc.eval`. Geometry write-path asserts the
+  measurement *and* the latex companions. Instruments unchanged.
+- **`ValidationCreate` docstring.** Acting actor is the bearer JWT (dev
+  header only when enabled).
+
+```bash
+cd backend && uv run ruff check . && uv run pytest -q
+# ruff clean. Without a DB: 664 passed, 222 skipped
+# (+15 DB-free ThreadCreate / trace-display / write-path stub tests).
+# With TEST_DATABASE_URL the previous 7 write-path failures are the ones
+# this release repairs; they were not re-run here (no Postgres).
+cd frontend && npm run typecheck && npm run lint && npm test
+# typecheck + lint clean; 45 tests passed (includes landedStepMeta).
+```
+
+See `docs/completions/assessment-r2-p2-bugfixes-0.36.2.md`.
+
+**Not in this release:** merging this PR or #23; file splits of
+`drive-forms.tsx` / `result-view.tsx`; GitHub Actions CI; renaming
+`canManageProject`; hiding the claim confidence percentage; fat project
+PATCH; dual-fork race docs; `visitedTabs`.
 
 ---
 

@@ -1,21 +1,21 @@
 """Phase 3 — the tool-run write path, composed through the checkpoint chokepoint.
 
-DB-backed (skip without ``TEST_DATABASE_URL``). Drives ``run_instrument`` with stub instruments and
-asserts against the ledger directly: a no-claim run mints artifact + checkpoint + one ``tool_run``
-contribution atomically and the blame tuple round-trips; a claim-targeted run also mints evidence +
-both links with the outcome-derived relation; ``undecided`` is recorded (not an error); and a forced
-engine error leaves zero rows.
+DB-backed (skip without ``TEST_DATABASE_URL``). Drives ``run_instrument`` with registered
+``test.stub*`` instruments (never production names — the 0.11.3 sandbox worker looks the
+name up in the real registry) and asserts against the ledger directly: a no-claim run mints
+artifact + checkpoint + one ``tool_run`` contribution atomically and the blame tuple
+round-trips; a claim-targeted run also mints evidence + both links with the outcome-derived
+relation; ``undecided`` is recorded (not an error); and a forced engine error leaves zero
+rows.
 
 See ``docs/executing/toolbench-provenance-and-first-instruments.md`` Phase 3.
 """
 
-from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
 from fastapi import HTTPException
 from httpx import AsyncClient
-from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -28,50 +28,15 @@ from app.models.enums import ActorType, BranchStatus, ResultStatus
 from app.models.evidence import Evidence
 from app.models.links import CheckpointRef, ClaimEvidenceLink, EvidenceArtifactLink
 from app.services.tool_runs import _canonical_output_hash, run_instrument
-from app.toolbench.adapter import InstrumentResult
-
-# --- stub instruments (test-only) -----------------------------------------------------------------
-
-
-class _StubInputs(BaseModel):
-    value: int
-
-
-class _StubOutput(BaseModel):
-    value: int
-
-
-class Stub:
-    """A configurable conforming instrument: pick its outcome / artifact kind, or make it raise."""
-
-    version = "0.1.0"
-    engine = "sympy"
-    engine_version = "1.13.2"
-    description = "A stub instrument for the write-path tests."
-    InputModel = _StubInputs
-    OutputModel = _StubOutput
-
-    def __init__(
-        self,
-        name: str,
-        *,
-        status: ResultStatus = ResultStatus.RESULT,
-        artifact_kind: str = "derivation",
-        raises: bool = False,
-    ) -> None:
-        self.name = name
-        self.namespace = name.split(".", 1)[0]
-        self._status = status
-        self._kind = artifact_kind
-        self._raises = raises
-
-    def run(self, inputs: _StubInputs, assumptions: dict[str, Any]) -> InstrumentResult:
-        if self._raises:
-            raise RuntimeError("engine exploded")
-        return InstrumentResult(
-            output={"value": inputs.value}, status=self._status, artifact_kind=self._kind
-        )
-
+from app.toolbench.execution.runner import execute_instrument
+from tests.toolbench.stubs import (
+    WRITE_PATH_STUB,
+    WRITE_PATH_STUB_BOOM,
+    WRITE_PATH_STUB_REFUTED,
+    WRITE_PATH_STUB_UNDECIDED,
+    WritePathStub,
+    register_test_instruments,
+)
 
 # --- HTTP bootstrap helpers -----------------------------------------------------------------------
 
@@ -133,7 +98,7 @@ async def test_run_with_no_claim_mints_artifact_checkpoint_contribution(
         run = await run_instrument(
             session,
             pid,
-            Stub("calc.eval"),
+            WRITE_PATH_STUB,
             actor,
             inputs={"value": 25},
             assumptions={"positive": True},
@@ -170,8 +135,8 @@ async def test_run_with_no_claim_mints_artifact_checkpoint_contribution(
     tuples = run.checkpoint.tool_invocations
     assert len(tuples) == 1
     entry = tuples[0]
-    assert entry["instrument"] == "calc.eval"
-    assert entry["engine_version"] == "1.13.2"
+    assert entry["instrument"] == "test.stub"
+    assert entry["engine_version"] == "1.0"
     assert entry["status"] == "result"
     assert entry["assumptions"] == {"positive": True}
     assert entry["produced_artifact_id"] == str(artifact.id)
@@ -192,7 +157,7 @@ async def test_run_targeting_claim_mints_evidence_and_links(
         run = await run_instrument(
             session,
             pid,
-            Stub("calc.eval", status=ResultStatus.REFUTED, artifact_kind="counterexample"),
+            WRITE_PATH_STUB_REFUTED,
             actor,
             inputs={"value": 7},
             claim_id=UUID(claim_id),
@@ -252,7 +217,7 @@ async def test_relation_kind_override_is_honoured(
         run = await run_instrument(
             session,
             pid,
-            Stub("calc.eval"),  # a RESULT would default to "support"
+            WRITE_PATH_STUB,  # a RESULT would default to "support"
             actor,
             inputs={"value": 25},
             claim_id=UUID(claim_id),
@@ -284,7 +249,7 @@ async def test_undecided_is_a_recorded_outcome(
         run = await run_instrument(
             session,
             pid,
-            Stub("expr.compare", status=ResultStatus.UNDECIDED),
+            WRITE_PATH_STUB_UNDECIDED,
             actor,
             inputs={"value": 1},
             claim_id=UUID(claim_id),
@@ -317,7 +282,7 @@ async def test_engine_error_leaves_zero_rows(
         actor = await session.get(Actor, UUID(actor_id))
         with pytest.raises(HTTPException) as exc_info:
             await run_instrument(
-                session, pid, Stub("boom.fail", raises=True), actor, inputs={"value": 1}
+                session, pid, WRITE_PATH_STUB_BOOM, actor, inputs={"value": 1}
             )
         assert exc_info.value.status_code == 422
 
@@ -358,7 +323,7 @@ async def test_run_records_the_checkpoint_on_a_branch(
     async with session_factory() as session:
         actor = await session.get(Actor, UUID(actor_id))
         run = await run_instrument(
-            session, pid, Stub("calc.eval"), actor, inputs={"value": 4}, branch_id=branch_id
+            session, pid, WRITE_PATH_STUB, actor, inputs={"value": 4}, branch_id=branch_id
         )
 
     assert run.checkpoint.branch_id == branch_id
@@ -382,7 +347,7 @@ async def test_run_on_a_sealed_branch_is_rejected_and_mints_nothing(
         actor = await session.get(Actor, UUID(actor_id))
         with pytest.raises(HTTPException) as exc_info:
             await run_instrument(
-                session, pid, Stub("calc.eval"), actor, inputs={"value": 4}, branch_id=branch_id
+                session, pid, WRITE_PATH_STUB, actor, inputs={"value": 4}, branch_id=branch_id
             )
         assert exc_info.value.status_code == 400
 
@@ -408,7 +373,7 @@ async def test_thread_id_conflicting_with_the_claim_thread_is_422(
             await run_instrument(
                 session,
                 pid,
-                Stub("calc.eval"),
+                WRITE_PATH_STUB,
                 actor,
                 inputs={"value": 4},
                 claim_id=UUID(claim_id),
@@ -441,7 +406,7 @@ async def test_engine_error_raises_422_without_touching_the_session() -> None:
         await run_instrument(
             _NoDbSession(),  # type: ignore[arg-type]
             uuid4(),
-            Stub("boom.fail", raises=True),
+            WRITE_PATH_STUB_BOOM,
             _detached_actor(),
             inputs={"value": 1},
         )
@@ -453,7 +418,7 @@ async def test_invalid_inputs_raise_422_without_touching_the_session() -> None:
         await run_instrument(
             _NoDbSession(),  # type: ignore[arg-type]
             uuid4(),
-            Stub("calc.eval"),
+            WRITE_PATH_STUB,
             _detached_actor(),
             inputs={"value": "not-an-int"},  # fails InputModel validation
         )
@@ -466,6 +431,48 @@ def test_canonical_output_hash_is_stable_and_key_order_independent() -> None:
     assert h1 == h2
     assert len(h1) == 64  # sha256 hexdigest
     assert _canonical_output_hash({"a": 1}) != h1
+
+
+def test_write_path_stub_refuses_a_production_name() -> None:
+    with pytest.raises(ValueError, match=r"test\."):
+        WritePathStub("calc.eval")
+
+
+def test_write_path_stubs_are_test_names_not_calc_eval() -> None:
+    for stub in (
+        WRITE_PATH_STUB,
+        WRITE_PATH_STUB_REFUTED,
+        WRITE_PATH_STUB_UNDECIDED,
+        WRITE_PATH_STUB_BOOM,
+    ):
+        assert stub.name.startswith("test.")
+        assert stub.name != "calc.eval"
+        assert stub.namespace == "test"
+
+
+async def test_write_path_stub_dispatches_through_sandbox_by_registered_name() -> None:
+    """The worker looks the name up in the real registry. A stub named calc.eval
+    would run production calc.eval against {value: 25} — the 0.11.3 drift.
+    """
+    register_test_instruments()
+    outcome = await execute_instrument(
+        WRITE_PATH_STUB,
+        WRITE_PATH_STUB.InputModel(value=25),
+        {},
+    )
+    assert outcome.result.status is ResultStatus.RESULT
+    assert outcome.result.output == {"value": 25}
+
+
+async def test_write_path_stub_refuted_dispatches_configured_outcome() -> None:
+    register_test_instruments()
+    outcome = await execute_instrument(
+        WRITE_PATH_STUB_REFUTED,
+        WRITE_PATH_STUB_REFUTED.InputModel(value=7),
+        {},
+    )
+    assert outcome.result.status is ResultStatus.REFUTED
+    assert outcome.result.artifact_kind == "counterexample"
 
 
 def test_canonical_output_hash_ignores_latex_companions() -> None:

@@ -181,7 +181,13 @@ async def test_geometry_corner_records_its_assumption_on_the_artifact(
     assert entry["engine_version"] == ENGINE_VERSION
     assert entry["assumptions"] == assumptions
     assert entry["output"]["distances"] == {"A-C": "5"}
-    assert entry["output"]["angles"] == {"A-B-C": {"radians": "pi/2", "degrees": "90"}}
+    angle = entry["output"]["angles"]["A-B-C"]
+    assert angle["radians"] == "pi/2"
+    assert angle["degrees"] == "90"
+    # 0.10.4 latex companions ride on the output; they are render hints, not the measurement.
+    assert entry["output"]["distances_latex"]["A-C"] == "5"
+    assert angle["radians_latex"]
+    assert angle["degrees_latex"] == "90"
 
 
 # --- Phase 0.10.2: counterexample.search --------------------------------------------------------
