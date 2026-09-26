@@ -428,8 +428,10 @@ tradeoffs, and the blast radius. Look at `git log` for the house style.
   proven `source.pin` shape. `z3.prove` shipped in `0.13.x`. `z3.satisfy` shipped
   in `0.33.0`. Bench 6 `table.*` / `plot.*` shipped in `0.34.0`. `lean.prove` shipped
   in `0.23.0` (optional Lean, prelude/Init only). `interval.eval` shipped in
-  `0.35.0`. Boolean connectives on Z3 shipped as `0.38.0`. Next cheap
-  adds: quantifiers on Z3. Mathlib / `lake` are not a first contribution.
+  `0.35.0`. Boolean connectives on Z3 shipped as `0.38.0`. Quantifiers
+  on Z3 shipped as `0.39.0`. Next cheap adds: none on the Z3 walker —
+  Lean REPL / `If` are not a first contribution. Mathlib / `lake` are
+  not a first contribution.
 - **Read-model surfaces** — the workspace has more ledger structure available than it
   currently shows.
 - **Tests** — particularly DB-free gate tests for security controls, and invariant

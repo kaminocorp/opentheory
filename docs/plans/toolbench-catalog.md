@@ -1,6 +1,6 @@
 # Toolbench Catalog — The Buildable Tool List, Sorted by Integration Cost
 
-> **Status — working catalog (updated 2026-09-26), partially shipped (`0.9.x`–`0.38.0`).** A
+> **Status — working catalog (updated 2026-09-26), partially shipped (`0.9.x`–`0.39.0`).** A
 > concrete, buildable companion to the design proposal in
 > `docs/plans/agent-research-tools.md`. That doc argues *why* the bench exists and *what
 > each tool is for* (the four families: Compute / Verify / Retrieve / Visualize). This doc
@@ -18,8 +18,9 @@
 > provenance spine, workspace UI, KaTeX render, execution sandbox. See
 > `docs/plans/maths-toolbox.md` §Shipped in production.
 >
-> **Not shipped:** Lean REPL / LeanDojo, quantifiers on Z3.
+> **Not shipped:** Lean REPL / LeanDojo.
 > Boolean connectives / `bool` sort shipped as `0.38.0`.
+> First-order `ForAll` / `Exists` shipped as `0.39.0`.
 > `formula.render` remains covered by `*_latex` + KaTeX (do not reintroduce).
 
 ## The organizing principle
@@ -165,21 +166,22 @@ Claim 5 has a prelude/Init Grade-A path (`0.23.0`) and an optional Mathlib
 path (`0.26.0`) when the image is rebuilt with `INSTALL_MATHLIB=1`.
 
 ```text
-Shipped (0.9.x–0.38.0):
+Shipped (0.9.x–0.39.0):
   SymPy     — calc.eval, expr.compare, geometry.coordinate_measure, counterexample.search
               table.create, table.derive_column, table.render
               plot.function, plot.points (Vega-Lite spec; viz only)
   OEIS      — oeis.search (Tier 1, pinned retrieval)
   Z3        — z3.prove (validity: proof / counter-model / undecided;
-              bool + And/Or/Not/Implies/Xor/Equivalent in 0.38.0)
-              z3.satisfy (model-finding: assignment / unsat / undecided; same boolean surface)
+              bool + And/Or/Not/Implies/Xor/Equivalent in 0.38.0;
+              ForAll/Exists in 0.39.0)
+              z3.satisfy (model-finding: assignment / unsat / undecided; same formula surface)
   Arb       — interval.eval (0.35.0; python-flint wheel + mpmath.iv fallback)
   Literature — crossref.lookup, arxiv.lookup, openalex.lookup (0.18.0)
   Lean      — lean.prove (0.23.0 prelude/Init; 0.26.0 optional Mathlib / lake)
 
 Next adds:
-  quantifiers — remaining verifier-wave follow-on
   Lean REPL / LeanDojo — only if a thread actually needs tactic interaction
+  If / ite / replayable proof terms — later, not this slice
 ```
 
 **Mathlib** is the heavier optional image (`INSTALL_MATHLIB=1`, oleans cache,
@@ -200,7 +202,8 @@ Next adds:
   `unknown` → `undecided`.
 - **Resolved (`0.38.0`):** boolean connectives + `bool` sort on `z3.prove` /
   `z3.satisfy` (`And` / `Or` / `Not` / `Implies` / `Xor` / `Equivalent`).
-  Quantifiers remain later.
+- **Resolved (`0.39.0`):** first-order `ForAll` / `Exists` on the same
+  closed formula AST. Binders are declared names. `If` / ite remain later.
 - **Resolved (`0.34.0`):** Bench 6 **`table.*` / `plot.*`**. Tables are the
   falsification grid; plots emit Vega-Lite specs and never grade. No
   `formula.render` instrument (`*_latex` + KaTeX). No migration.

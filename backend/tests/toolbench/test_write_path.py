@@ -29,6 +29,7 @@ from app.models.evidence import Evidence
 from app.models.links import CheckpointRef, ClaimEvidenceLink, EvidenceArtifactLink
 from app.services.tool_runs import _canonical_output_hash, run_instrument
 from app.toolbench.adapter import InstrumentResult
+from tests.principals import create_owned_project, make_dev_principal
 from tests.toolbench.stubs import WRITE, WRITE_REFUTE, WRITE_UNDECIDED
 
 # --- stub instruments (test-only) -----------------------------------------------------------------
@@ -78,23 +79,13 @@ class Stub:
 
 
 async def _actor(client: AsyncClient) -> str:
-    resp = await client.post("/api/v1/actors", json={"type": "human", "display_name": "Ada"})
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
+    return await make_dev_principal(client, display_name="Ada")
 
 
-async def _project(client: AsyncClient, slug: str) -> str:
-    author = await client.post(
-        "/api/v1/actors", json={"type": "human", "display_name": "Author"}
+async def _project(client: AsyncClient, actor_id: str, slug: str) -> str:
+    return await create_owned_project(
+        client, actor_id, slug, title="Toolbench", question="What is X?"
     )
-    assert author.status_code == 201, author.text
-    resp = await client.post(
-        "/api/v1/projects",
-        json={"title": "Toolbench", "slug": slug, "question": "What is X?"},
-        headers={"X-Dev-Actor-Id": author.json()["id"]},
-    )
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
 
 
 async def _thread(client: AsyncClient, project_id: str, actor_id: str) -> str:
@@ -130,7 +121,7 @@ async def test_run_with_no_claim_mints_artifact_checkpoint_contribution(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "toolrun-no-claim")
+    project_id = await _project(client, actor_id, "toolrun-no-claim")
     pid = UUID(project_id)
 
     async with session_factory() as session:
@@ -187,7 +178,7 @@ async def test_run_targeting_claim_mints_evidence_and_links(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "toolrun-claim")
+    project_id = await _project(client, actor_id, "toolrun-claim")
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id)
     pid = UUID(project_id)
@@ -247,7 +238,7 @@ async def test_relation_kind_override_is_honoured(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "toolrun-relation-override")
+    project_id = await _project(client, actor_id, "toolrun-relation-override")
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id)
     pid = UUID(project_id)
@@ -279,7 +270,7 @@ async def test_undecided_is_a_recorded_outcome(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "toolrun-undecided")
+    project_id = await _project(client, actor_id, "toolrun-undecided")
     thread_id = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_id, actor_id)
     pid = UUID(project_id)
@@ -315,7 +306,7 @@ async def test_engine_error_leaves_zero_rows(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
     actor_id = await _actor(client)
-    project_id = await _project(client, "toolrun-boom")
+    project_id = await _project(client, actor_id, "toolrun-boom")
     pid = UUID(project_id)
 
     async with session_factory() as session:
@@ -356,7 +347,7 @@ async def test_run_records_the_checkpoint_on_a_branch(
 ) -> None:
     # 0.9.8 (F1): a branch_id lands the produced checkpoint on that line, not silently on main.
     actor_id = await _actor(client)
-    project_id = await _project(client, "toolrun-branch")
+    project_id = await _project(client, actor_id, "toolrun-branch")
     pid = UUID(project_id)
     branch_id = await _open_branch(session_factory, pid, status=BranchStatus.OPEN)
 
@@ -379,7 +370,7 @@ async def test_run_on_a_sealed_branch_is_rejected_and_mints_nothing(
     # This also pins the *post-flush* atomic rollback: the artifact is flushed before the chokepoint
     # validates the branch, so a clean 400 here proves the flushed artifact rolls back (no orphan).
     actor_id = await _actor(client)
-    project_id = await _project(client, "toolrun-sealed-branch")
+    project_id = await _project(client, actor_id, "toolrun-sealed-branch")
     pid = UUID(project_id)
     branch_id = await _open_branch(session_factory, pid, status=BranchStatus.CLOSED)
 
@@ -401,7 +392,7 @@ async def test_thread_id_conflicting_with_the_claim_thread_is_422(
     # A claim carries its own thread; passing a *different* thread_id would mislead about where the
     # result landed, so it is a 422 (not silently ignored).
     actor_id = await _actor(client)
-    project_id = await _project(client, "toolrun-thread-conflict")
+    project_id = await _project(client, actor_id, "toolrun-thread-conflict")
     thread_a = await _thread(client, project_id, actor_id)
     other_thread = await _thread(client, project_id, actor_id)
     claim_id = await _claim(client, thread_a, actor_id)

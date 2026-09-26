@@ -754,7 +754,7 @@ function Z3ProveForm({ onInputs, disabled }: FormProps) {
 
       <Field
         label="Hypotheses"
-        hint="Each is a relation or a boolean formula (And/Or/Not/Implies). Conjoined. Leave empty to prove unconditionally."
+        hint="Each is a relation, a boolean formula (And/Or/Not/Implies), or ForAll/Exists. Conjoined. Leave empty to prove unconditionally."
       >
         <ul className="grid gap-1.5">
           {constraints.map((row, index) => (
@@ -789,7 +789,7 @@ function Z3ProveForm({ onInputs, disabled }: FormProps) {
 
       <Field
         label="Goal"
-        hint="A relation or boolean formula to prove — e.g. x + y > 0, or Implies(And(P, Q), P)."
+        hint="A relation, boolean formula, or quantifier to prove — e.g. x + y > 0, Implies(And(P, Q), P), or ForAll(x, x + 0 == x)."
       >
         <Input
           mono
@@ -901,7 +901,7 @@ function Z3SatisfyForm({ onInputs, disabled }: FormProps) {
 
       <Field
         label="Constraints"
-        hint="Each is a relation or a boolean formula (And/Or/Not/Implies). Conjoined. Leave empty for any assignment of the declared sorts."
+        hint="Each is a relation, a boolean formula (And/Or/Not/Implies), or ForAll/Exists. Conjoined. Leave empty for any assignment of the declared sorts."
       >
         <ul className="grid gap-1.5">
           {constraints.map((row, index) => (
