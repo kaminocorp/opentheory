@@ -137,10 +137,12 @@ and this branch is off `main`, not stacked on them.
   Checkpoint writer. No assessor-loop restart, no Lean / Z3 expansion.
 
 ```bash
-cd backend && uv run ruff check .
-cd backend && uv run pytest tests/agent/test_prompts.py tests/agent/test_planner.py
-# plus the default suite
-cd frontend && npm run typecheck && npm run lint
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 638 passed, 220 skipped (no TEST_DATABASE_URL)
+# Prompt/planner extras: 32 passed (includes signal-not-status cases)
+# DB-backed ledger/agent suite skipped — no Postgres in this environment
+cd frontend && npm run typecheck && npm run lint   # clean
+cd frontend && npm test             # 35 passed
 ```
 
 See `docs/completions/honesty-polish-0.36.3.md`.

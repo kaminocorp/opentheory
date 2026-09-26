@@ -56,7 +56,8 @@ def _per_call_sleeping_planner(*, hold: float):
     n = {"i": 0}
 
     async def _planner(
-        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None, signals=None
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None,
+        observations=None, signals=None,
     ):
         if observations is not None:
             return PlanResult(runnable=[], proposed_count=0, tokens_used=0)
@@ -71,7 +72,8 @@ def _per_call_sleeping_planner(*, hold: float):
 
 
 async def _per_pass_calc(
-    thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None, signals=None
+    thread, open_claims, catalog, model, *, llm, max_runs, grounding=None,
+    observations=None, signals=None,
 ):
     """One calc per pass (initial plan), empty on replan — safe across campaign cycles."""
     if observations is None:
@@ -111,7 +113,8 @@ async def test_empty_project_stops_on_no_open_work(
     called = {"n": 0}
 
     async def _boom(
-        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None, signals=None
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None,
+        observations=None, signals=None,
     ):
         called["n"] += 1
         raise AssertionError("planner must not run when there is no open work")
@@ -146,7 +149,8 @@ async def test_unfunded_project_with_work_stops_on_budget(
     called = {"n": 0}
 
     async def _boom(
-        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None, signals=None
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None,
+        observations=None, signals=None,
     ):
         called["n"] += 1
         raise AssertionError("planner must not run when the project pot is empty")
@@ -268,7 +272,8 @@ async def test_cancel_after_first_cycle_stops_before_the_next(
     ok_stub = _stub_planner(_one_calc())
 
     async def _planner(
-        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None, signals=None
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None,
+        observations=None, signals=None,
     ):
         async with session_factory() as inner:
             await request_cancel(inner, campaign_id)
@@ -489,7 +494,8 @@ async def test_cancel_flags_every_in_flight_cycle_and_skips_the_next_wave(
     started = asyncio.Event()
 
     async def _planner(
-        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None, signals=None
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None,
+        observations=None, signals=None,
     ):
         started.set()
         await asyncio.sleep(0.2)

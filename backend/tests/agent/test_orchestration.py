@@ -93,7 +93,8 @@ async def test_empty_project_exits_cleanly_with_no_open_work(
     called = {"n": 0}
 
     async def _boom(
-        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None, signals=None
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None,
+        observations=None, signals=None,
     ):
         called["n"] += 1
         raise AssertionError("planner must not run when there is no open work")
@@ -242,7 +243,8 @@ async def test_unfunded_project_with_work_stops_on_budget(
     called = {"n": 0}
 
     async def _boom(
-        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None, signals=None
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None,
+        observations=None, signals=None,
     ):
         called["n"] += 1
         raise AssertionError("planner must not run when the project pot is empty")
@@ -287,7 +289,8 @@ async def test_failed_subpass_does_not_corrupt_the_ledger(
     ok_stub = _stub_planner(_one_calc())
 
     async def _planner(
-        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None, signals=None
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None,
+        observations=None, signals=None,
     ):
         if str(thread.id) == fail_id:
             raise AgentLlmError("planner failed on purpose")
@@ -366,7 +369,8 @@ def _sleeping_planner(*, hold: float, tokens_used: int = 10):
     marks: dict[str, dict[str, float]] = {}
 
     async def _planner(
-        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None, signals=None
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None,
+        observations=None, signals=None,
     ):
         tid = str(thread.id)
         marks[tid] = {"start": time.monotonic()}
@@ -470,7 +474,8 @@ async def test_cancel_skips_remaining_threads_after_the_current_wave(
     started = asyncio.Event()
 
     async def _planner(
-        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None, signals=None
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None,
+        observations=None, signals=None,
     ):
         started.set()
         await asyncio.sleep(0.2)

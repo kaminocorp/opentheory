@@ -125,7 +125,8 @@ def _stub_planner(plan_result: PlanResult):
     calls = {"n": 0}
 
     async def _planner(
-        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None, signals=None
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None,
+        observations=None, signals=None,
     ):
         calls["n"] += 1
         if calls["n"] == 1:
@@ -221,7 +222,8 @@ async def test_exhausted_budget_refuses_to_start_and_mints_nothing(
     called = {"planner": False}
 
     async def _boom(
-        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None, observations=None, signals=None
+        thread, open_claims, catalog, model, *, llm, max_runs, grounding=None,
+        observations=None, signals=None,
     ):
         called["planner"] = True
         raise AssertionError("planner must not run when the project budget is exhausted")

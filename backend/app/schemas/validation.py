@@ -14,10 +14,6 @@ class ValidationCreate(BaseModel):
     principal (verified Supabase bearer JWT). The target is polymorphic:
     ``target_type`` is one of ``claim`` / ``checkpoint`` / ``branch`` /
     ``artifact`` (validated in the service layer against
-    ``project_id`` comes from the path. The acting actor is the bearer JWT
-    (or the ``X-Dev-Actor-Id`` header when ``auth_dev_header_enabled``). The
-    target is polymorphic: ``target_type`` is one of ``claim`` / ``checkpoint``
-    / ``branch`` / ``artifact`` (validated in the service layer against
     ``VALIDATION_TARGET_TYPES``) and ``target_id`` is the row it assesses. The
     service maps the pair onto the matching typed FK column on ``Validation``.
     """
