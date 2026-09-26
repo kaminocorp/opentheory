@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.37.0` — **GitHub Actions CI with Postgres.** `ruff` + `pytest` against a throwaway Postgres 16 service (`TEST_DATABASE_URL` so the DB-gated suite actually runs) and frontend `typecheck` / `lint` / `test` / `build` on every pull request and push to `main`. Lean / Mathlib stay off. No secrets. Infra only — **no schema, no migration, no application code.** Sits on shipped `0.36.0` (`71a8929`) + R1 assessment (`375733a`). Does not claim `0.36.1` / `0.36.2`.
 - `0.36.2` — **Assessment R2 P2 bugfixes.** `ThreadCreate` rejects client-stamped `status` (server default `open`); agent-trace pills pass the recorded display map into `resolveOutcomeMeta` so chrome matches ResultView; write-path stubs register as `test.stub*` (not `calc.eval`) and geometry write-path assertions accept `*_latex` companions. **No schema, no migration.** Sits on `0.36.1` (#23 tip `80495c0`). Does not claim `0.36.1` on `main`.
 - `0.36.1` — **Assessment R1 remediation.** Membership on original ledger writes (`ensure_is_member`); planner open-claims use validation signal, not the dead `Claim.status` column; `ClaimCreate` rejects client-stamped settlement fields; agent-trace pills share instrument-honest chrome; orchestrator mid-pass budget uses the reservation quote; CLAUDE.md / deploy.md auth drift corrected. **No schema, no migration.** Sits on shipped `0.36.0` (`71a8929`) and the R1 assessment (`375733a`, #22).
 - `0.36.0` — **Research-git blame.** A derived ledger read walks the checkpoints, actors, and tool invocations that produced or evidence-grounded a claim (`GET /projects/{id}/claims/{claim_id}/blame`). Deterministic. Mints nothing. Quiet Blame bay next to Compare on Research. **No schema, no migration.** Sits on shipped `0.35.0` interval.eval (`1ca7116`, #20 squash). Does not claim 0.36 as on `main`. `0.33.0`–`0.35.0` are on `main`.
@@ -109,6 +110,49 @@
 
 ---
 
+## 0.37.0
+
+**GitHub Actions CI with Postgres — the contribution contract, actually
+enforced.** Assessment R1 called the missing `.github/` tree the
+highest-value remaining P2: without a Postgres service, membership /
+ClaimCreate / write-path closures stay "verified only on the agent's
+laptop," and a default pytest is green-but-hollow. This release adds
+the workflow only. **No schema, no migration, no application code.**
+Sits on shipped `0.36.0` (`71a8929`, #21) and the R1 assessment
+(`375733a`, #22). Does not claim `0.36.1` / `0.36.2`.
+
+- **`.github/workflows/ci.yml`.** Runs on `pull_request` and `push` to
+  `main`. Two parallel jobs. `contents: read`. Stale runs on the same
+  ref are cancelled.
+- **Backend.** `uv sync --frozen --group dev`, `ruff check .` (fails
+  the job), `alembic upgrade head` against empty Postgres (proves
+  revisions apply), then `pytest` with
+  `TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/opentheory_test`.
+  Fixtures still `DROP SCHEMA` + `create_all` — they do not consume the
+  migrated schema. Python 3.12, uv cache, Postgres 16 service.
+- **Frontend.** Node 22, `npm ci`, `typecheck`, `lint`, `test`,
+  `build`. npm cache on the lockfile.
+- **Honest skips.** Lean / Mathlib are not installed. Missing
+  toolchain stays `undecided`. No repository secrets.
+- **Test rot the first Postgres run exposed.** Write-path stubs were
+  named `calc.eval` / `expr.compare`, so the sandbox child ran the
+  real instrument and 422'd. They now register as `test.write*`.
+  Geometry write-path assertion strips `*_latex` companions (`0.10.4`).
+  Tests only — no production code.
+
+```bash
+# CI equivalent (local):
+cd backend && uv run ruff check . && uv run alembic upgrade head && \
+  TEST_DATABASE_URL='postgresql+asyncpg://postgres:postgres@localhost:5432/opentheory_test' \
+  uv run pytest
+cd frontend && npm ci && npm run typecheck && npm run lint && npm test && npm run build
+```
+
+See `docs/completions/github-actions-ci-0.37.0.md`.
+
+**Not in this release:** Lean / Mathlib in CI; assessment remediations
+(`0.36.1` / `0.36.2`); changing branch protection; a durable job
+queue; a browser eyeball pass.
 ## 0.36.2
 
 **Assessment R2 P2 bugfixes — thread settlement, agent-trace honesty, write-path

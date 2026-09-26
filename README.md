@@ -246,7 +246,9 @@ A root `Makefile` wraps the common tasks — `make dev`, `make migrate`, `make t
 > **The DB-backed test suites skip silently without a database.** Without
 > `TEST_DATABASE_URL` (or `DATABASE_URL`) pointing at a reachable Postgres, `pytest`
 > is green but mostly *skipped* — set it before trusting a passing run for any
-> ledger, service, toolbench, or agent change.
+> ledger, service, toolbench, or agent change. GitHub Actions CI (`0.37.0`)
+> provisions a throwaway Postgres and runs that suite on every PR; a local
+> default `pytest` still skips.
 
 Full contributor workflow, conventions, and do's/don'ts:
 **[CONTRIBUTION-GUIDELINES.md](CONTRIBUTION-GUIDELINES.md)**

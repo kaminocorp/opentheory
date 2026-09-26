@@ -1,0 +1,110 @@
+# OpenTheory CI — the contribution contract, actually enforced.
+#
+# Assessment R1 P2-5: without this file, ruff / pytest / typecheck / lint / build
+# are honor-system, and a default pytest is green-but-hollow (DB-backed suites
+# skip). This workflow provisions a throwaway Postgres and sets TEST_DATABASE_URL
+# so the ledger / membership / toolbench / agent write-path tests run.
+#
+# Lean / Mathlib stay off. Missing toolchain is honest undecided; do not install
+# either just to go green (INSTALL_LEAN / INSTALL_MATHLIB remain unset).
+# No repository secrets are required.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Explicit opt-in — conftest trusts TEST_DATABASE_URL for any host. The
+  # fixtures DROP SCHEMA public CASCADE; this is a throwaway service DB.
+  TEST_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/opentheory_test
+  DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/opentheory_test
+
+jobs:
+  backend:
+    name: Backend (ruff + pytest + Postgres)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: opentheory_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv (Python 3.12)
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Sync backend deps (locked, including dev)
+        run: uv sync --frozen --group dev
+
+      - name: Ruff
+        run: uv run ruff check .
+
+      # Cheap honesty check that Alembic revisions apply to empty Postgres.
+      # The pytest fixtures then DROP SCHEMA + Base.metadata.create_all — they
+      # do not consume this migrated schema (see tests/conftest.py).
+      - name: Apply Alembic migrations
+        run: uv run alembic upgrade head
+
+      - name: Pytest (DB-backed suite included)
+        run: uv run pytest --tb=short
+
+  frontend:
+    name: Frontend (typecheck + lint + test + build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node (LTS)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
