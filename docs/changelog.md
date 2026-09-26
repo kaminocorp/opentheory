@@ -139,10 +139,12 @@ claim `0.36.1` or this line on `main`.
 
 ```bash
 cd backend && uv run ruff check . && uv run pytest -q
-# Without a DB: see this PR's verification commit.
+# ruff clean. Without a DB: 664 passed, 222 skipped
+# (+15 DB-free ThreadCreate / trace-display / write-path stub tests).
 # With TEST_DATABASE_URL the previous 7 write-path failures are the ones
-# this release repairs; they were not re-run here if Postgres is absent.
+# this release repairs; they were not re-run here (no Postgres).
 cd frontend && npm run typecheck && npm run lint && npm test
+# typecheck + lint clean; 45 tests passed (includes landedStepMeta).
 ```
 
 See `docs/completions/assessment-r2-p2-bugfixes-0.36.2.md`.

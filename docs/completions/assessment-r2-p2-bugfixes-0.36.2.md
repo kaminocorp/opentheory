@@ -42,9 +42,11 @@ migration.**
   write-path stubs refuse a production name and dispatch through the
   sandbox as `test.stub` (not `calc.eval`); `landedStepMeta` matches
   ResultView for proof / weak-support / finite-table hold.
+- Default pytest (no Postgres): **664 passed**, 222 skipped. Frontend:
+  typecheck, lint, **45** tests, `next build` (15.5.15) all pass.
 - DB-gated write-path tests (skip without Postgres) now use the
   registered stubs and the latex-aware geometry assertion. They were
-  the 7 failures recorded on 0.36.1.
+  the 7 failures recorded on 0.36.1 and were not re-executed here.
 
 ## What did not change
 
