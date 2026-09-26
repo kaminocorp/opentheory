@@ -43,6 +43,7 @@ confused about this project:
 | **`docs/vision/`** | Target state and design intent. | **What's meant — not what's built.** Each doc carries a status banner. |
 | **`docs/operations/`** | Runbooks for deploying and operating the live system. | How to run it. |
 | **`docs/plans/`** | Versioned implementation plans and the roadmap. | What's coming, and what's deferred on purpose. |
+| **`docs/harness/`** | External DeepSeek Harness adapter (`0.40.0+`). | What the *external* actor path is; not the built-in planner. |
 
 Before non-trivial domain work, read:
 

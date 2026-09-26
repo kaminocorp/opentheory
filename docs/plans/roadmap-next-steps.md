@@ -1,5 +1,10 @@
 # Roadmap Next Steps
 
+> **Last updated:** 2026-09-26 · **Current release line:** `0.40.0`
+> (external DeepSeek Harness Milestone 0), sitting on shipped `0.39.0`
+> (Z3 first-order quantifiers, `00b20bc`, #31) on current `main`
+> (`921cdd1`). See `docs/completions/external-harness-m0-0.40.0.md`.
+>
 > **Last updated:** 2026-09-26 · **Current release line:** `0.39.0`
 > (Z3 first-order quantifiers), sitting on shipped `0.38.0`
 > (boolean connectives, `e0e118b`, #28) on current `main`.
@@ -42,7 +47,9 @@
 > (A–D) is closed; the archive plan is at
 > `docs/archive/project-deepdive-tabs-0.14.md`.
 >
-> **Next after this line:** the still-owed browser eyeball pass.
+> **Next after this line:** live OT MCP binding (`0.41.0`) on the
+> external harness path; the still-owed browser eyeball pass.
+> ~~External harness M0~~ ✅ this branch as `0.40.0`.
 > ~~Quantifiers on Z3~~ ✅ shipped as `0.39.0`. Lean REPL / LeanDojo remain later.
 > Does not claim `0.36.1` / `0.36.2` / `0.37.0`. `0.33.0`–`0.36.0` are
 > on `main`. ~~Boolean connectives / `bool` sort~~ ✅ shipped as `0.38.0`.
@@ -152,6 +159,28 @@ who changed it, and what evidence or artifacts were involved — then extend it 
 bypassing the checkpoint chokepoint or conflating funder / contributor / validator roles.
 
 ## Recommended next releases
+
+### `0.40.x` — External DeepSeek Harness Milestone 0 ✅ **this branch** (`0.40.0`)
+
+Delivered: docs (`docs/harness/`, blueprint
+`docs/blueprints/external-harness.md`), fail-closed Cordis composition
+(`opentheory.cordis.yml` + `composition.py`, pin `0.1.5rc1`), fixture
+MCP (stub `run_instrument` / `create_checkpoint` / context / budget +
+`echo_nonce`), and a probe that skips live OpenRouter without a key or
+the optional `[harness]` extra. FastAPI does not import the package.
+`AGENT_LOOP_ENABLED` stays dark. **No schema, no migration.** See
+`docs/completions/external-harness-m0-0.40.0.md`.
+
+**Not in this release:** live JWT MCP binding (`0.41.0`); gateway +
+turn supervision (`0.42.0`); reference campaign; ops dashboard;
+lighting the built-in planner.
+
+### `0.41.x` — Live OT MCP binding (next on this line)
+
+Wire the fixture stems to the real APIs: verified JWT Actor,
+`ensure_is_member`, `run_instrument` / `create_checkpoint` chokepoints,
+plus claim / thread / budget reads. Still no gateway, still no
+`AGENT_LOOP_ENABLED` flip, still no settlement outside instruments.
 
 ### `0.32.x` — Concurrent campaign cycles under project budget ✅ **shipped** (`0.32.0`)
 
@@ -582,6 +611,9 @@ changing branch protection.
 20. ~~**GitHub Actions CI with Postgres**~~ ✅ shipped as `0.37.0` —
     the contribution contract on every PR, with the DB-gated suite
     actually running. Lean / Mathlib stay off.
+21. ~~**External DeepSeek Harness Milestone 0**~~ ✅ this branch as
+    `0.40.0` — docs + fail-closed Cordis + fixture MCP. **Next on
+    this line:** live JWT MCP binding (`0.41.0`). Gateway later.
 
 ## Shipped milestones (reference)
 
@@ -622,6 +654,7 @@ changing branch protection.
 | `0.38.x` | Boolean connectives + `bool` sort on `z3.prove` / `z3.satisfy` |
 | `0.37.x` | GitHub Actions CI with Postgres — ruff / pytest (DB-gated) + frontend typecheck/lint/test/build |
 | `0.39.x` | First-order `ForAll` / `Exists` on the same closed Z3 formula AST |
+| `0.40.x` | External DeepSeek Harness Milestone 0 — docs, fail-closed Cordis, fixture MCP |
 
 ## Success criteria for the next milestone
 
@@ -716,5 +749,11 @@ Quantifiers shipped later as `0.39.0`. Does not claim `0.36.1` /
 `If` / ite / replayable proof terms are not in this release. Sits on
 shipped `0.38.0` (`e0e118b`).
 
-**Next product step:** the still-owed browser eyeball pass.
-Lean REPL / LeanDojo remain later. `If` / ite remain later.
+**`0.40.0` (external DeepSeek Harness M0)** is this branch: docs +
+fail-closed Cordis composition + fixture MCP probe. No live ledger
+binding. No `AGENT_LOOP_ENABLED` flip. No schema, no migration.
+
+**Next product step:** `0.41.0` live OT MCP binding (JWT Actor +
+membership + `run_instrument` / `create_checkpoint`). The still-owed
+browser eyeball pass remains. Lean REPL / LeanDojo remain later.
+`If` / ite remain later.

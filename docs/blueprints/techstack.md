@@ -81,6 +81,12 @@ Backend responsibilities:
 
 The backend is the source of truth. It should enforce invariants even if the frontend is bypassed.
 
+The **external DeepSeek Harness** adapter (`0.40.0`) is an optional
+package under `backend/app/harness/`. It is not a second backend and is
+not imported by FastAPI. The optional `[harness]` extra pins
+`deepseek-harness-sdk==0.1.5rc1`; default CI does not install it. See
+`docs/blueprints/external-harness.md`.
+
 ## Database
 
 Use `Supabase Postgres` as the primary database.

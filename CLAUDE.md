@@ -15,6 +15,8 @@ The product is currently a *human-operable* research ledger. Agents are a shippe
   - `docs/blueprints/conceptual-model.md` — the mental model on one screen.
   - `docs/blueprints/techstack.md` — stack choices and the rationale/boundaries behind them.
   - `docs/blueprints/design-system.md` — the OpenTheory Console design language.
+  - `docs/blueprints/external-harness.md` — external DeepSeek Harness actor path (`0.40.0`; M0 is composition + fixture, not a live loop).
+- **`docs/harness/`** — external adapter plan, compatibility pin, MCP tool contracts. Not the built-in `AGENT_LOOP_ENABLED` planner.
 - **`docs/vision/`** — *target* state and design intent. **Do not read as current build.** Each doc carries a status banner saying what is and isn't shipped.
   - `docs/vision/research-git.md` — target git-for-research ledger semantics; operations are annotated *(built)* / *(planned)* (commit/branch/merge/tag/log/semantic diff/blame are built).
   - `docs/vision/research-flow.md` — the stage skeleton for the future agent-execution layer; **not** the current build.
