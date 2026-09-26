@@ -79,8 +79,18 @@ migration.** Independent of unmerged `0.36.1` / `0.36.2` / `0.37.0`.
 
 ## Verification
 
-Recorded after the full suite in this environment. See the changelog
-body for counts.
+- `ruff check .` clean.
+- Default pytest (no `TEST_DATABASE_URL`): **665 passed, 222 skipped**.
+  Includes `(P ∧ Q) → P`, Python `and`/`or`/`not`, modus ponens,
+  excluded middle, mixed arithmetic+bool, chained comparison, vacuous
+  `And(P, Not(P))` never a proof, sat/unsat bool models, quantifier /
+  If / injection / float / `sin` rejects, 0.13.x arithmetic regression,
+  killable-subprocess tautology, and the existing `z3.prove` /
+  `z3.satisfy` suites.
+- Write-path boolean `run_instrument` tests are written and skip
+  without Postgres.
+- Frontend `typecheck` / `lint` / `build` clean (9/9 static pages).
+  `npm test` **35 passed**.
 
 ## Unverified
 

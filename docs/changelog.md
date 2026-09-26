@@ -140,9 +140,10 @@ vacuous-hypotheses guard.
 
 ```bash
 cd backend && uv run ruff check .   # clean
-cd backend && uv run pytest -q      # see verification below
+cd backend && uv run pytest -q      # 665 passed, 222 skipped (no TEST_DATABASE_URL)
 # Write-path boolean round-trips are DB-gated (skip without Postgres)
-cd frontend && npm run typecheck && npm run lint && npm run build
+cd frontend && npm run typecheck && npm run lint && npm run build   # all clean
+cd frontend && npm test             # 35 passed
 ```
 
 See `docs/completions/z3-boolean-connectives-0.38.0.md`.
