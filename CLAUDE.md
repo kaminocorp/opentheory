@@ -91,6 +91,8 @@ uv run pytest tests/test_app.py::test_health_endpoint   # single test
 # test_research_flow) auto-skip unless TEST_DATABASE_URL (or DATABASE_URL) points at a
 # reachable Postgres — see tests/conftest.py. Without one, pytest is green but mostly
 # skipped; set the env var before trusting a passing run for ledger/service changes.
+# CI (0.37.0, .github/workflows/ci.yml) provisions Postgres and sets TEST_DATABASE_URL
+# so the DB-gated suite runs on every PR. Lean / Mathlib stay off.
 
 uv run alembic revision --autogenerate -m "message"     # create migration
 uv run alembic upgrade head                             # apply migrations

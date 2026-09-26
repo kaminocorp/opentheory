@@ -1,5 +1,9 @@
 # Roadmap Next Steps
 
+> **Last updated:** 2026-09-26 · **Current release line:** `0.37.0`
+> (GitHub Actions CI with Postgres), sitting on shipped `0.36.0`
+> (research-git blame, `71a8929`) and the R1 assessment (`375733a`)
+> and shipped `0.35.0`
 > **Last updated:** 2026-09-26 · **Current release line:** `0.36.2`
 > (assessment R2 P2 bugfixes — ThreadCreate + agent-trace honesty +
 > write-path suite), sitting on `0.36.1` (assessment R1 remediation,
@@ -19,10 +23,15 @@
 > (project-budget metering), `0.18.0` (Tier-1 literature pins), `0.17.0`
 > (review is opt-in) and `0.16.3` (thread/project grounding rollup). For the
 > per-phase ledger see `docs/changelog.md`; for the line just closed see
-> `docs/completions/research-git-blame-0.36.0.md`. The deepdive line
+> `docs/completions/github-actions-ci-0.37.0.md`. The deepdive line
 > (A–D) is closed; the archive plan is at
 > `docs/archive/project-deepdive-tabs-0.14.md`.
 >
+> **Next after this line:** the still-owed browser eyeball pass.
+> Unmerged assessment remediations (`0.36.1` / `0.36.2`) are not
+> claimed as shipped. Lean REPL / LeanDojo remain later.
+> ~~Blame-as-an-op~~ ✅ shipped as `0.36.0`. ~~CI + Postgres~~ ✅
+> shipped as `0.37.0`. `0.33.0`–`0.36.0` are on `main`.
 > **Next after this line:** the still-owed browser eyeball pass. Unmerged
 > work is not claimed as shipped (`0.36.1` / `0.36.2` are stacked
 > branches, not `main`). Lean REPL / LeanDojo remain later. Remaining
@@ -450,6 +459,18 @@ migration.** Sits on `0.35.0`. See
 auto-validate / auto-fund / auto-merge; content-addressed commit ids;
 rewriting claim field history; browser eyeball.
 
+### `0.37.x` — GitHub Actions CI with Postgres ✅ **shipped** (`0.37.0`)
+
+Delivered: `.github/workflows/ci.yml` runs `ruff` + `pytest` against a
+throwaway Postgres 16 service (`TEST_DATABASE_URL` so the DB-gated
+suite actually runs) and frontend `typecheck` / `lint` / `test` /
+`build` on every pull request and push to `main`. Lean / Mathlib stay
+off. No secrets. Infra only — **no schema, no migration.** Sits on
+`0.36.0`. See `docs/completions/github-actions-ci-0.37.0.md`.
+
+**Not in this release:** Lean / Mathlib in CI; `0.36.1` / `0.36.2`;
+changing branch protection.
+
 ### Deferred / deprioritized
 
 | Item | Notes |
@@ -521,6 +542,9 @@ rewriting claim field history; browser eyeball.
     never A. Overlap is honest `undecided`.
 19. ~~**Research-git blame**~~ ✅ shipped as `0.36.0` — derived claim
     provenance read; mints nothing; not an instrument.
+20. ~~**GitHub Actions CI with Postgres**~~ ✅ shipped as `0.37.0` —
+    the contribution contract on every PR, with the DB-gated suite
+    actually running. Lean / Mathlib stay off.
 
 ## Shipped milestones (reference)
 
@@ -558,6 +582,7 @@ rewriting claim field history; browser eyeball.
 | `0.34.x` | Bench 6 tables & plots — typed grids, derived columns, Vega-Lite specs (not rasters) |
 | `0.35.x` | `interval.eval` — proven numeric enclosures (Arb / mpmath.iv; never Grade A alone) |
 | `0.36.x` | Research-git blame — derived checkpoint / actor / instrument chain for a claim |
+| `0.37.x` | GitHub Actions CI with Postgres — ruff / pytest (DB-gated) + frontend typecheck/lint/test/build |
 
 ## Success criteria for the next milestone
 

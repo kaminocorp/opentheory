@@ -227,6 +227,13 @@ cd backend  && uv run ruff check . && uv run pytest
 cd frontend && npm run typecheck && npm run lint && npm run build
 ```
 
+CI (`.github/workflows/ci.yml`, since `0.37.0`) runs the same checks on
+every pull request and on push to `main`, with a throwaway Postgres so
+`TEST_DATABASE_URL` is set and the DB-backed suite actually runs. Lean /
+Mathlib are **not** installed — missing toolchain is honest `undecided`.
+A local `pytest` without that env var still skips; do not treat that as
+the gate.
+
 ---
 
 ## Testing (read this part)
