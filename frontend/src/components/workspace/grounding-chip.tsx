@@ -1,4 +1,5 @@
 import { cn } from "@/lib/cn";
+import { normalizeGroundingRollup } from "@/lib/safe-reads";
 import type { ClaimGrounding, GroundingHeadline, GroundingRollup } from "@/types/research";
 
 /**
@@ -115,9 +116,10 @@ export function groundingHeadlineLabel(headline: GroundingHeadline): string {
  * Empty rollups return `""` — the caller decides whether to hide the line, rather than
  * inventing `"0 ungrounded"`.
  */
-export function formatGroundingRollup(rollup: GroundingRollup): string {
-  if (rollup.total === 0) return "";
-  return rollup.buckets.map(formatGroundingBucket).join(", ");
+export function formatGroundingRollup(rollup: GroundingRollup | null | undefined): string {
+  const normalized = normalizeGroundingRollup(rollup);
+  if (normalized.total === 0) return "";
+  return normalized.buckets.map(formatGroundingBucket).join(", ");
 }
 
 function formatGroundingBucket(bucket: GroundingRollup["buckets"][number]): string {

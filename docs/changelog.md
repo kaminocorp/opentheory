@@ -2,6 +2,8 @@
 
 ## Index
 
+- `0.36.1` — **Project open no longer white-screens.** Live Fly is behind current `main` (`GET /projects/{id}/tags` 404; thread rows omit `grounding_rollup`). The Research keep-alive then threw `undefined.total` and gated Instruments / Blame. FE treats tags 404 / empty envelope as `[]` and always defines rollup `total`. Backend list stays a bare array (`200 []` on an existing project; `404` if the project is missing). **No schema, no migration.** Sits on shipped `0.36.0` (`71a8929`, #21). Does not claim unmerged `0.37` / `0.38`.
+- `0.36.0` — **Research-git blame.** A derived ledger read walks the checkpoints, actors, and tool invocations that produced or evidence-grounded a claim (`GET /projects/{id}/claims/{claim_id}/blame`). Deterministic. Mints nothing. Quiet Blame bay next to Compare on Research. **No schema, no migration.** Sits on shipped `0.35.0` interval.eval (`1ca7116`, #20 squash). On `main` as `71a8929` (#21 squash). `0.33.0`–`0.36.0` are on `main`.
 - `0.36.3` — **Honesty polish.** `BranchCreate` / `ValidationCreate` OpenAPI copy no longer advertises the local-only actor header; the planner prompt prints validation-axis `signal` (`compute_signal`) instead of the dead stored `Claim.status`. Auth assistant/ops copy matches JWT. **No schema, no migration.** Sits on shipped `0.36.0` (`71a8929` / #21). Does not claim `0.36.1` / `0.36.2` / `0.37.0` / `0.38.0` (open PRs).
 - `0.38.0` — **Boolean connectives for `z3.prove` / `z3.satisfy`.** Closed allow-list of `And` / `Or` / `Not` / `Implies` / `Xor` / `Equivalent` plus a `bool` sort, through the existing instruments — no parallel language, no `eval`, no quantifiers. `(P ∧ Q) → P` is now a real Z3 proof. Vacuous-hypotheses guard and timeout→undecided stay. Quiet drive-form sort + hint update. **No schema, no migration.** Sits on shipped `0.36.0` blame (`71a8929`). Does not claim `0.36.1` / `0.36.2` / `0.37.0`.
 - `0.37.0` — **GitHub Actions CI with Postgres.** `ruff` + `pytest` against a throwaway Postgres 16 service (`TEST_DATABASE_URL` so the DB-gated suite actually runs) and frontend `typecheck` / `lint` / `test` / `build` on every pull request and push to `main`. Lean / Mathlib stay off. No secrets. Infra only — **no schema, no migration, no application code.** Sits on shipped `0.36.0` (`71a8929`) + R1 assessment (`375733a`). Does not claim `0.36.1` / `0.36.2`.
@@ -112,6 +114,45 @@
 
 ---
 
+## 0.36.1
+
+**Opening a project no longer white-screens when tags are missing.** Confirmed
+on live `opentheory.vercel.app`: home cards load, opening an Active project
+hits `GET /api/v1/projects/{id}/tags` → **404**, then the client throws
+`TypeError: Cannot read properties of undefined (reading 'total')`. Research
+is keep-alive, so that exception unmounts the whole workspace — Instruments
+and Blame are unreachable behind it. **No schema, no migration.** Sits on
+shipped `0.36.0` (`71a8929`, #21). Does not claim unmerged `0.37` / `0.38`.
+
+- **Root cause.** Live Fly OpenAPI has no `/tags` paths (pre-`0.21.0`) and
+  thread rows omit `grounding_rollup` (pre-`0.16.3`). Current Vercel FE
+  calls tags and reads `thread.grounding_rollup.total` unconditionally.
+  Tags are a real shipped surface on `main` (`0.21.0`, bare array — not
+  `{ items, total }`). The `.total` crash is the missing rollup, not a
+  paginated tags payload.
+- **Frontend.** `listTags` treats 404 as `[]` and accepts either a bare
+  array or an empty `{ items, total }` envelope without reading
+  `undefined.total`. `listThreads` / `formatGroundingRollup` always
+  normalize to `{ buckets: [], total: 0 }`. A missing optional field is
+  not a client exception.
+- **Backend.** `GET /projects/{id}/tags` already exists on `main`.
+  `list_tags` now 404s an unknown project (`Project not found`) and
+  returns `200 []` for an existing project with no tags. No new table;
+  tagging is not re-announced as a feature. `create_checkpoint` is still
+  the only Checkpoint writer.
+- **Honest empty.** A 404 from a missing *route* (stale Fly) is empty,
+  not a pretend tagging product. A missing *project* stays 404.
+
+```bash
+cd frontend && npm test             # includes safe-reads / tags 404
+cd frontend && npm run typecheck && npm run lint
+cd backend && uv run ruff check .
+cd backend && uv run pytest tests/test_wiring.py tests/test_tags.py -q
+```
+
+**Not in this release:** redeploying Fly (the live 404 disappears only
+when the backend that already has `/tags` is shipped); a new tagging
+UX; schema/migration; auto-validate / auto-fund / auto-merge.
 ## 0.36.3
 
 **Honesty polish on two leftover lies** noted after the 0.36.x assessor

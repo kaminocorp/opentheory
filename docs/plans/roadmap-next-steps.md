@@ -1,5 +1,7 @@
 # Roadmap Next Steps
 
+> **Last updated:** 2026-09-26 · **Current release line:** `0.36.1`
+> (research-git blame), sitting on shipped `0.35.0`
 > **Last updated:** 2026-09-26 · **Current release line:** `0.36.3`
 > (honesty polish on shipped `0.36.0` blame), sitting on shipped `0.36.0`
 > (`71a8929`) and shipped `0.35.0`
@@ -44,6 +46,9 @@
 > ~~Blame-as-an-op~~ ✅ shipped as `0.36.0`. ~~CI + Postgres~~ ✅
 > shipped as `0.37.0`. `0.33.0`–`0.36.0` are on `main`.
 > **Next after this line:** the still-owed browser eyeball pass. Unmerged
+> work is not claimed as shipped (`0.36.1` is this patch). Lean REPL /
+> LeanDojo remain later.
+> ~~Blame-as-an-op~~ ✅ shipped as `0.36.0` (`71a8929`). `0.33.0`–`0.36.0`
 > work is not claimed as shipped (`0.36.1` / `0.36.2` / `0.37.0` /
 > `0.38.0` remain open PRs). Lean REPL / LeanDojo remain later.
 > ~~Blame-as-an-op~~ ✅ shipped as `0.36.0` on `main`. `0.33.0`–`0.36.0`

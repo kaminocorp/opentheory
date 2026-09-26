@@ -56,6 +56,7 @@ import type {
 } from "@/types/research";
 
 import { friendlyInstrumentRunError } from "@/lib/instrument-run-errors";
+import { readTagList, readThreadSummaries } from "@/lib/safe-reads";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
 
@@ -241,11 +242,17 @@ export function declineInvitation(invitationId: string): Promise<ProjectInvitati
 // --- Threads ----------------------------------------------------------------
 
 export function listThreads(projectId: string): Promise<ThreadSummary[]> {
-  return request<ThreadSummary[]>(`/projects/${projectId}/threads`);
+  return readThreadSummaries(() => request<unknown>(`/projects/${projectId}/threads`));
 }
 
-export function getThread(threadId: string): Promise<ThreadSummary> {
-  return request<ThreadSummary>(`/threads/${threadId}`);
+export async function getThread(threadId: string): Promise<ThreadSummary> {
+  const [normalized] = await readThreadSummaries(async () => [
+    await request<unknown>(`/threads/${threadId}`),
+  ]);
+  if (!normalized) {
+    throw new Error("Thread payload was empty");
+  }
+  return normalized;
 }
 
 export function createThread(projectId: string, payload: ThreadCreate): Promise<Thread> {
@@ -313,7 +320,10 @@ export function mergeBranches(projectId: string, payload: MergeCreate): Promise<
 }
 
 export function listTags(projectId: string): Promise<ResearchTag[]> {
-  return request<ResearchTag[]>(`/projects/${projectId}/tags`);
+  // Tags are a real 0.21.0 surface (bare array). A missing route (live Fly
+  // still pre-0.21) or an empty `{ items, total }` envelope must not throw —
+  // Research is keep-alive, and a client exception gates Instruments / Blame.
+  return readTagList(() => request<unknown>(`/projects/${projectId}/tags`));
 }
 
 export function createTag(projectId: string, payload: TagCreate): Promise<ResearchTag> {
