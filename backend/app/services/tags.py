@@ -176,6 +176,15 @@ async def create_tag(
 
 
 async def list_tags(db: AsyncSession, project_id: UUID) -> list[TagRead]:
+    # Existing project → 200 + a (possibly empty) list. Unknown project → 404,
+    # not a silent empty that pretends the project exists. The client treats a
+    # missing *route* as empty; a missing *project* stays a 404.
+    project = await db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
     result = await db.execute(
         select(Tag).where(Tag.project_id == project_id).order_by(Tag.created_at.desc())
     )

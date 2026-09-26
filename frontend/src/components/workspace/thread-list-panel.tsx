@@ -8,6 +8,8 @@ import { Action, Bay, BayHeader, Icon, Input } from "@/components/console";
 import { createThread, listThreads } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { queryKeys } from "@/lib/query-keys";
+import { normalizeGroundingRollup } from "@/lib/safe-reads";
+import { useActingIdentity } from "@/lib/use-identity";
 import { useProjectWriteAccess } from "@/lib/use-project-write-access";
 
 import { formatGroundingRollup } from "./grounding-chip";
@@ -161,7 +163,7 @@ export function ThreadListPanel({
                     <p className="mt-2 text-[12px] capitalize text-text-mute">
                       {thread.stage} · {thread.status.replace("_", " ")}
                     </p>
-                    {thread.grounding_rollup.total > 0 ? (
+                    {normalizeGroundingRollup(thread.grounding_rollup).total > 0 ? (
                       <p className="mt-1 text-[11px] leading-[1.45] text-text-faint">
                         {formatGroundingRollup(thread.grounding_rollup)}
                       </p>

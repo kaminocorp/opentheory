@@ -56,6 +56,11 @@ import type {
 } from "@/types/research";
 
 import { friendlyInstrumentRunError } from "@/lib/instrument-run-errors";
+import {
+  emptyOnNotFound,
+  normalizeTagList,
+  normalizeThreadSummaries,
+} from "@/lib/safe-reads";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
 
@@ -240,12 +245,15 @@ export function declineInvitation(invitationId: string): Promise<ProjectInvitati
 
 // --- Threads ----------------------------------------------------------------
 
-export function listThreads(projectId: string): Promise<ThreadSummary[]> {
-  return request<ThreadSummary[]>(`/projects/${projectId}/threads`);
+export async function listThreads(projectId: string): Promise<ThreadSummary[]> {
+  const rows = await request<unknown>(`/projects/${projectId}/threads`);
+  return normalizeThreadSummaries(rows);
 }
 
-export function getThread(threadId: string): Promise<ThreadSummary> {
-  return request<ThreadSummary>(`/threads/${threadId}`);
+export async function getThread(threadId: string): Promise<ThreadSummary> {
+  const row = await request<ThreadSummary>(`/threads/${threadId}`);
+  const [normalized] = normalizeThreadSummaries([row]);
+  return normalized ?? { ...row, grounding_rollup: { buckets: [], total: 0 } };
 }
 
 export function createThread(projectId: string, payload: ThreadCreate): Promise<Thread> {
@@ -312,8 +320,15 @@ export function mergeBranches(projectId: string, payload: MergeCreate): Promise<
   return request<MergeRead>(`/projects/${projectId}/merges`, writeInit(payload));
 }
 
-export function listTags(projectId: string): Promise<ResearchTag[]> {
-  return request<ResearchTag[]>(`/projects/${projectId}/tags`);
+export async function listTags(projectId: string): Promise<ResearchTag[]> {
+  // Tags are a real 0.21.0 surface (bare array). A missing route (live Fly
+  // still pre-0.21) or an empty `{ items, total }` envelope must not throw —
+  // Research is keep-alive, and a client exception gates Instruments / Blame.
+  try {
+    return normalizeTagList(await request<unknown>(`/projects/${projectId}/tags`));
+  } catch (error) {
+    return emptyOnNotFound(error, []);
+  }
 }
 
 export function createTag(projectId: string, payload: TagCreate): Promise<ResearchTag> {

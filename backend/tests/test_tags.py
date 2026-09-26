@@ -144,6 +144,18 @@ async def test_tag_is_append_only(
             await session.flush()
 
 
+async def test_list_tags_empty_existing_project_not_404(client: AsyncClient) -> None:
+    """An existing project with no tags is `[]`, never a missing-route 404."""
+    project_id = await _project(client, slug="tag-empty")
+    listed = await client.get(f"/api/v1/projects/{project_id}/tags")
+    assert listed.status_code == 200
+    assert listed.json() == []
+
+    missing = await client.get(f"/api/v1/projects/{MISSING_ID}/tags")
+    assert missing.status_code == 404
+    assert missing.json()["detail"] == "Project not found"
+
+
 async def test_tag_error_cases(client: AsyncClient) -> None:
     actor_id = await _actor(client)
     project_id = await _project(client, slug="tag-errors", actor_id=actor_id)
