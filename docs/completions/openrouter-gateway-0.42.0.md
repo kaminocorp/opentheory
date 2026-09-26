@@ -70,6 +70,10 @@ shipped `0.41.0` (`06cfeab`, #34).
   refuse, probe skip/opt-in. +3 skipped (ledger suite).
 - With `TEST_DATABASE_URL`: **1015 passed, 4 skipped** — +26 vs `0.41.0`
   (989). Lean / Mathlib stay off. Frontend untouched.
+- GitHub Actions on this PR (`#35`, run `36247684989`): backend
+  **1015 passed, 4 skipped**; frontend typecheck / lint / test / build
+  green. Four skips remain the optional Lean / Mathlib paths. No
+  `OPENROUTER_API_KEY` and no `dsh` binary were required.
 
 ## Unverified
 

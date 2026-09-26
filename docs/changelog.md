@@ -156,6 +156,7 @@ cd backend && uv run ruff check .   # clean
 cd backend && uv run pytest -q      # 779 passed, 240 skipped (no TEST_DATABASE_URL)
 # +23 vs shipped 0.41.0 (756) — gateway + turns + probe; +3 skipped (ledger suite)
 # CI / local with TEST_DATABASE_URL: 1015 passed, 4 skipped — +26 vs 0.41.0 (989)
+# GitHub Actions on this PR (#35): same 1015 / 4; frontend typecheck/lint/test/build green
 # Frontend untouched — typecheck/lint/test/build unchanged
 ```
 
