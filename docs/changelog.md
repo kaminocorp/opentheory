@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.44.0` — **Fail-closed metered harness composition.** The composition `dsh` would boot can no longer start the bare unmetered `python -m app.harness.gateway` proxy. `llm-pi-ai` launches `python -m app.harness.campaign` (refuses when unbound) and passes `OPENTHEORY_PROJECT_ID` as an operator-supplied env name (same pattern as `OPENTHEORY_ACTOR_JWT_FILE` — never a UUID or secret in the file). `composition.verify` rejects a bare gateway child, a literal project id, and `OPENTHEORY_HARNESS_UNMETERED_PROBE` on the campaign patch. An explicit unmetered probe may remain behind that flag; it is not the campaign composition. Turn index stays process-local. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + docs — no schema, no migration.** Sits on shipped `0.43.0` (`51368da`, #36).
 - `0.43.0` — **Harness session owner + odd-perfect reference campaign.** One owner (`HarnessSession`) for an external harness run. `ComputeDebit`, the turn cap, and pre-LLM exhaust (funded and `available <= 0` refuses, mints nothing, does not call the model) sit on the path that owner actually runs: `dsh → llm-pi-ai → create_gateway_app`, not only on the `supervise_turn` library. Live MCP stays the domain door. Human sets question, roster, and budget; the harness is instrument-only. Unfunded ≠ exhausted. Extra-body `models`/`route` dropped. Fixture logs use `protocol.maybe_log`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway child on Fly. Secrets never in `fly.toml [env]`. **Backend + docs — no schema, no migration.** Sits on shipped `0.42.0` (`a61affd`, #35).
 - `0.42.0` — **OpenRouter gateway + turn supervision.** The external DeepSeek Harness path talks to OpenRouter only, through a fail-closed gateway (provider allowlist, `allow_fallbacks: false`, `require_parameters: true`, `data_collection: deny`). Bounded turns refuse on composition drift or an exhausted funded pot. LLM tokens debit `ComputeDebit` via the existing writer (no `AgentRun`; notes `harness_gateway_turn`) on successful and attempted turns; a refused start writes nothing. Live MCP from `0.41.0` stays the only domain door. Opt-in live probe (`OPENTHEORY_HARNESS_LIVE`); default CI stays green without `OPENROUTER_API_KEY` or a `dsh` binary. Secrets never in `fly.toml [env]`. Does not light `AGENT_LOOP_ENABLED`. **Backend + docs — no schema, no migration.** Sits on shipped `0.41.0` (`06cfeab`, #34).
 - `0.41.0` — **Live OpenTheory MCP domain door.** The M0 stems bind to the existing chokepoints: JWT Actor (file-path injection, never logged) + `ensure_is_member` → real `run_instrument` / `create_checkpoint`, plus claim / thread / budget reads. Fixture MCP stays for M0 probe tests. FastAPI still does not import the package. Does not light `AGENT_LOOP_ENABLED`. A funded exhausted pot refuses and mints nothing; standalone instrument runs still do not debit (same as humans). **Backend + docs — no schema, no migration.** Sits on shipped `0.40.0` (`901b3de`, #33).
@@ -115,6 +116,50 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.44.0
+
+**Fail-closed metered harness composition.** Fifth slice of the
+external agent adapter. `0.43.0` put `HarnessSession` on
+`create_gateway_app`, but the authored Cordis patch still pointed
+`llm-pi-ai` at a URL whose child was the bare
+`python -m app.harness.gateway` proxy — unbound, unmetered. This slice
+fails that closed. Live MCP from `0.41.0` stays the only ledger
+writer. **No schema, no migration.** Sits on shipped `0.43.0`
+(`51368da`, #36). Does not flip `AGENT_LOOP_ENABLED`. Does not enable
+the gateway or MCP child on Fly.
+
+- **Campaign child.** `opentheory.cordis.yml` launches
+  `python -m app.harness.campaign` from `llm-pi-ai` (`command` /
+  `args`). That module already refuses to serve when
+  `OPENTHEORY_PROJECT_ID` is unset.
+- **Env-name binding.** Both `llm-pi-ai` and `opentheory-mcp` pass
+  `OPENTHEORY_PROJECT_ID: !!js process.env.OPENTHEORY_PROJECT_ID`.
+  Same pattern as the JWT file path. A literal UUID is drift.
+- **`verify()`.** Rejects the bare `app.harness.gateway` module, a
+  missing or literal project id, a JWT bearer / OpenRouter key /
+  gateway token in Cordis env, and `OPENTHEORY_HARNESS_UNMETERED_PROBE`
+  on the campaign patch.
+- **Process refuse.** `python -m app.harness.gateway` exits unless
+  session-owned or the explicit unmetered-probe flag is set. In-process
+  tests may still construct an unbound app.
+- **Turn index.** Still process-local. A restart starts at 0. No
+  campaign table. Counting existing `ComputeDebit` rows would conflate
+  concurrent runs and miss a debit-less refuse.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # counts recorded after the run
+# Frontend untouched — typecheck/lint/test/build unchanged
+```
+
+See `docs/completions/fail-closed-metered-composition-0.44.0.md`.
+
+**Not in this release:** Fly enablement of the gateway or MCP child;
+lighting `AGENT_LOOP_ENABLED`; perpetual ops dashboard; daily caps;
+Lean REPL / LeanDojo.
 
 ---
 

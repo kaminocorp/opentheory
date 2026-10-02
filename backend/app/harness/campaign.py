@@ -1,4 +1,4 @@
-"""Reference campaign for the external DeepSeek Harness path (0.43.0).
+"""Reference campaign for the external DeepSeek Harness path (0.43.0 / 0.44.0).
 
 Odd perfect numbers. The **human** sets the research question, the
 research-crew roster (``project.agent_models``), and the budget
@@ -9,8 +9,9 @@ not merge. Dead ends stay.
 The campaign's only runtime job is to **own the session**: bind a
 :class:`~app.harness.session.HarnessSession` to the human's project and
 hand that owner to the fail-closed gateway the Cordis ``llm-pi-ai``
-plugin actually calls. Domain writes stay on ``live_mcp`` →
-``run_instrument`` / ``create_checkpoint``.
+plugin actually calls. ``0.44.0`` makes this module the authored
+composition child — it refuses to serve when unbound. Domain writes
+stay on ``live_mcp`` → ``run_instrument`` / ``create_checkpoint``.
 
 Does not light ``AGENT_LOOP_ENABLED``. Does not reuse
 ``ResearchCampaign``. FastAPI does not import this package. Fly does
@@ -105,6 +106,18 @@ def create_metered_gateway_app(
     return create_gateway_app(env=env, gateway=gateway, session=session)
 
 
+def require_bound_session(
+    env: Mapping[str, str] | None = None,
+) -> HarnessSession:
+    """Refuse to serve the campaign child when no project is bound."""
+    session = session_from_env(env)
+    if session is None:
+        raise SystemExit(
+            f"session=unbound ({PROJECT_ID_ENV} unset) — not starting gateway"
+        )
+    return session
+
+
 def main() -> None:
     spec = reference_spec()
     print(f"campaign={spec['slug']}")
@@ -114,10 +127,7 @@ def main() -> None:
     print("may_validate=false may_fund=false may_merge=false")
     print(f"session_owner={spec['session_owner']}")
     print(f"domain_door={spec['domain_door']}")
-    session = session_from_env()
-    if session is None:
-        print(f"session=unbound ({PROJECT_ID_ENV} unset) — not starting gateway")
-        return
+    session = require_bound_session()
     print(
         f"session=owned project_id={session.project_uuid} "
         f"max_turns={session.resolved_max_turns()}"

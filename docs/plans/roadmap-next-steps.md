@@ -1,5 +1,11 @@
 # Roadmap Next Steps
 
+> **Last updated:** 2026-10-02 · **Current release line:** `0.44.0`
+> (fail-closed metered harness composition), sitting on shipped
+> `0.43.0` (HarnessSession + odd-perfect reference campaign,
+> `51368da`, #36) on current `main`. See
+> `docs/completions/fail-closed-metered-composition-0.44.0.md`.
+>
 > **Last updated:** 2026-10-02 · **Current release line:** `0.43.0`
 > (harness session owner + odd-perfect reference campaign), sitting on
 > shipped `0.42.0` (OpenRouter gateway + turn supervision, `a61affd`,
@@ -66,7 +72,8 @@
 > **Next after this line:** perpetual ops dashboard / daily caps;
 > the still-owed browser eyeball pass. Does not enable the gateway
 > child on Fly. Does not light `AGENT_LOOP_ENABLED`.
-> ~~Session owner + odd-perfect reference campaign~~ ✅ this branch as `0.43.0`.
+> ~~Fail-closed metered composition~~ ✅ this branch as `0.44.0`.
+> ~~Session owner + odd-perfect reference campaign~~ ✅ shipped as `0.43.0`.
 > ~~OpenRouter gateway + turn supervision~~ ✅ shipped as `0.42.0`.
 > ~~Live OT MCP binding~~ ✅ shipped as `0.41.0` (`06cfeab`, #34).
 > ~~External harness M0~~ ✅ shipped as `0.40.0` (`901b3de`, #33).

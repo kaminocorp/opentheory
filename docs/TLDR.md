@@ -98,8 +98,9 @@ chokepoint humans use. A successful pass **stands without a mandatory human
 gate** — accept / reject / fork remain opt-in audit. The loop is still dark
 in production until `AGENT_LOOP_ENABLED` + `OPENROUTER_API_KEY` are flipped
 (see `docs/operations/deploy.md`). An **external DeepSeek Harness** adapter
-is sketched in `0.40.0` (fail-closed Cordis + fixture MCP; not enabled;
-not a second settlement path — `docs/harness/`). A durable job queue is not shipped (a lost
+is sketched in `0.40.0`–`0.44.0` (fail-closed Cordis + live MCP +
+session-owned campaign child; not enabled on Fly; not a second
+settlement path — `docs/harness/`). A durable job queue is not shipped (a lost
 worker is swept honestly). Project-budget metering shipped in `0.19.0`
 (historical alias `0.12.5`); live OpenRouter prompt/completion rates
 shipped in `0.28.0` (blended fallback when the price catalog is down).

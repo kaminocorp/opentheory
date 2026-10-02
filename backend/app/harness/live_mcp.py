@@ -85,8 +85,9 @@ async def _refuse_if_exhausted(db: AsyncSession, project_id: UUID) -> None:
 
     Unfunded projects (``funded == 0``) are not exhausted — humans can still run
     instruments there, and this door does not invent a parallel debit. LLM
-    tokens are billed by the 0.43.0 session owner
-    (``HarnessSession`` / ``create_gateway_app``) through
+    tokens are billed by the session owner
+    (``HarnessSession`` / session-owned ``create_gateway_app``, 0.43.0 /
+    0.44.0 fail-closed campaign child) through
     ``record_compute_debit``.
     """
     budget = await funding_service.project_budget(db, project_id)

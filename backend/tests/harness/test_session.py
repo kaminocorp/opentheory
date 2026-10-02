@@ -1,4 +1,4 @@
-"""Session owner + reference campaign (0.43.0) — DB-free, no live key, no dsh."""
+"""Session owner + fail-closed campaign composition (0.44.0) — no live key, no dsh."""
 
 from __future__ import annotations
 
@@ -19,7 +19,9 @@ from app.harness.campaign import (
     create_metered_gateway_app,
     open_session,
     reference_spec,
+    require_bound_session,
 )
+from app.harness.composition import UNMETERED_PROBE_ENV
 from app.harness.gateway import (
     ALLOWED_EXTRA_BODY_KEYS,
     DEFAULT_MODEL,
@@ -27,8 +29,10 @@ from app.harness.gateway import (
     REFUSED_EXTRA_BODY_KEYS,
     VERSION,
     GatewayClient,
+    assert_process_may_serve,
     build_fail_closed_body,
     create_gateway_app,
+    unmetered_probe_enabled,
 )
 from app.harness.session import (
     DEFAULT_MAX_TURNS,
@@ -174,8 +178,33 @@ def test_fixture_probe_log_uses_protocol_maybe_log() -> None:
             assert node.name != "_write_message"
 
 
-def test_gateway_version_is_session_owner_release() -> None:
-    assert VERSION == "0.43.0"
+def test_gateway_version_is_fail_closed_composition_release() -> None:
+    assert VERSION == "0.44.0"
+
+
+def test_gateway_process_refuses_unmetered_without_flag() -> None:
+    with pytest.raises(SystemExit, match="refusing unmetered gateway child"):
+        assert_process_may_serve({})
+    with pytest.raises(SystemExit, match=PROJECT_ID_ENV):
+        require_bound_session({})
+
+
+def test_gateway_process_allows_explicit_unmetered_probe() -> None:
+    assert unmetered_probe_enabled({}) is False
+    assert unmetered_probe_enabled({UNMETERED_PROBE_ENV: "1"}) is True
+    assert assert_process_may_serve({UNMETERED_PROBE_ENV: "true"}) is None
+
+
+def test_gateway_process_serves_when_session_owned() -> None:
+    owned = assert_process_may_serve(
+        {PROJECT_ID_ENV: "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"}
+    )
+    assert owned is not None
+    assert str(owned.project_uuid) == "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
+    campaign = require_bound_session(
+        {PROJECT_ID_ENV: "ffffffff-ffff-ffff-ffff-ffffffffffff"}
+    )
+    assert str(campaign.project_uuid) == "ffffffff-ffff-ffff-ffff-ffffffffffff"
 
 
 async def test_http_gateway_turn_cap_refuses_before_llm() -> None:
@@ -213,7 +242,7 @@ async def test_health_reports_bound_session() -> None:
     async with AsyncClient(transport=ASGITransport(app=unbound), base_url="http://gw") as client:
         health = await client.get("/health")
     assert health.json()["session_owned"] is False
-    assert health.json()["version"] == "0.43.0"
+    assert health.json()["version"] == "0.44.0"
 
     session = open_session("dddddddd-dddd-dddd-dddd-dddddddddddd", max_turns=3)
     owned = create_metered_gateway_app(session, env=env)
