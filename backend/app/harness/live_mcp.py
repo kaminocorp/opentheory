@@ -84,8 +84,10 @@ async def _refuse_if_exhausted(db: AsyncSession, project_id: UUID) -> None:
     """Refuse a write when a funded project has no remaining ComputeDebit pot.
 
     Unfunded projects (``funded == 0``) are not exhausted — humans can still run
-    instruments there, and this door does not invent a parallel debit. A later
-    gateway (``0.42.0``) bills LLM tokens through ``record_compute_debit``.
+    instruments there, and this door does not invent a parallel debit. LLM
+    tokens are billed by the 0.43.0 session owner
+    (``HarnessSession`` / ``create_gateway_app``) through
+    ``record_compute_debit``.
     """
     budget = await funding_service.project_budget(db, project_id)
     if budget.funded > 0 and budget.available <= 0:

@@ -1,6 +1,6 @@
 # External harness — compatibility
 
-> **Status — `0.42.0` OpenRouter gateway + turn supervision.** Pin is
+> **Status — `0.43.0` session owner + reference campaign.** Pin is
 > unchanged. Live OpenRouter probe is implemented behind
 > `OPENTHEORY_HARNESS_LIVE`. Default CI does not install the SDK and
 > does not need `OPENROUTER_API_KEY`.
@@ -46,7 +46,8 @@ to go green.
 | `OPENTHEORY_GATEWAY_URL` | Gateway base URL (`/v1/chat/completions`) | no |
 | `OPENTHEORY_GATEWAY_PROVIDERS` | Comma-separated OpenRouter `provider.only` (default `DeepSeek`) | no |
 | `OPENTHEORY_MODEL` | Model id (must be in the OT catalog + allowlist) | no |
-| `OPENTHEORY_HARNESS_MAX_TURNS` | Supervised-turn cap (default 4) | no |
+| `OPENTHEORY_HARNESS_MAX_TURNS` | Session-owned turn cap (default 4) | no |
+| `OPENTHEORY_PROJECT_ID` | Binds `HarnessSession` on the gateway child | no — unset leaves the probe proxy unmetered |
 | `OPENTHEORY_MCP_PYTHON` / `OPENTHEORY_MCP_SCRIPT` | Fixture or live MCP stdio command | no |
 | `OPENTHEORY_PROBE_NONCE` / `OPENTHEORY_PROBE_LOG` | Probe echo + optional log | no |
 | `OPENTHEORY_ACTOR_JWT_FILE` | Path to a `0600` file holding the member JWT | no — live writes need one of the three |
@@ -90,7 +91,8 @@ optional extra; that is not this slice.
 
 A green default pytest is not a live OpenRouter proof. The live *MCP*
 door is covered by `tests/harness/test_live_mcp*.py` and does not need
-a model key. Turn metering is covered by `test_turns*.py`.
+a model key. Turn metering is covered by `test_turns*.py` and
+`test_session*.py` (session-owned HTTP path).
 
 ## Fail-closed gateway
 
@@ -102,6 +104,9 @@ OpenWorld used a gateway in front of OpenRouter. OT does the same:
 - `data_collection: deny`
 - Upstream host must be `openrouter.ai`. `api.deepseek.com` is refused.
 - A client `provider` block is overwritten, never honored.
+- Extra-body `models` / `route` / `transforms` are dropped (0.43.0).
+- A bound `HarnessSession` (or `OPENTHEORY_PROJECT_ID`) is the
+  session owner for debit / turn cap / exhaust.
 
 The HTTP surface (`python -m app.harness.gateway`) authenticates the
 child with `OPENTHEORY_GATEWAY_TOKEN` and forwards with
@@ -127,3 +132,4 @@ upstream key.
 - A live model call succeeded in default CI (it is skipped without a key).
 - The built-in agent loop is on.
 - Daily turn/request caps or an ops dashboard.
+- Fly enablement of the gateway or MCP child.

@@ -35,7 +35,7 @@ the product — the product is the domain door and the ledger.
 | MCP `query` / `describe_schema` / `render_figure` | MCP `run_instrument`, `create_checkpoint`, list/context + budget |
 | Reader DSN + RLS | JWT Actor + `ensure_is_member`; ledger chokepoints |
 | Cordis strip coding tools | Same disabled set; OT names on inserts |
-| OpenRouter gateway | Same pattern (`0.42.0`); built-in `AGENT_LOOP_ENABLED` stays dark |
+| OpenRouter gateway | Same pattern (`0.42.0`); session owner on that path (`0.43.0`); built-in `AGENT_LOOP_ENABLED` stays dark |
 | Append-only `assistant.message` | Append-only checkpoint ledger |
 | Daily turn/request caps | Later (phase 2 campaigns) |
 

@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.43.0` — **Harness session owner + odd-perfect reference campaign.** One owner (`HarnessSession`) for an external harness run. `ComputeDebit`, the turn cap, and pre-LLM exhaust (funded and `available <= 0` refuses, mints nothing, does not call the model) sit on the path that owner actually runs: `dsh → llm-pi-ai → create_gateway_app`, not only on the `supervise_turn` library. Live MCP stays the domain door. Human sets question, roster, and budget; the harness is instrument-only. Unfunded ≠ exhausted. Extra-body `models`/`route` dropped. Fixture logs use `protocol.maybe_log`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway child on Fly. Secrets never in `fly.toml [env]`. **Backend + docs — no schema, no migration.** Sits on shipped `0.42.0` (`a61affd`, #35).
 - `0.42.0` — **OpenRouter gateway + turn supervision.** The external DeepSeek Harness path talks to OpenRouter only, through a fail-closed gateway (provider allowlist, `allow_fallbacks: false`, `require_parameters: true`, `data_collection: deny`). Bounded turns refuse on composition drift or an exhausted funded pot. LLM tokens debit `ComputeDebit` via the existing writer (no `AgentRun`; notes `harness_gateway_turn`) on successful and attempted turns; a refused start writes nothing. Live MCP from `0.41.0` stays the only domain door. Opt-in live probe (`OPENTHEORY_HARNESS_LIVE`); default CI stays green without `OPENROUTER_API_KEY` or a `dsh` binary. Secrets never in `fly.toml [env]`. Does not light `AGENT_LOOP_ENABLED`. **Backend + docs — no schema, no migration.** Sits on shipped `0.41.0` (`06cfeab`, #34).
 - `0.41.0` — **Live OpenTheory MCP domain door.** The M0 stems bind to the existing chokepoints: JWT Actor (file-path injection, never logged) + `ensure_is_member` → real `run_instrument` / `create_checkpoint`, plus claim / thread / budget reads. Fixture MCP stays for M0 probe tests. FastAPI still does not import the package. Does not light `AGENT_LOOP_ENABLED`. A funded exhausted pot refuses and mints nothing; standalone instrument runs still do not debit (same as humans). **Backend + docs — no schema, no migration.** Sits on shipped `0.40.0` (`901b3de`, #33).
 - `0.40.0` — **External DeepSeek Harness Milestone 0.** Docs + fail-closed Cordis composition + fixture MCP probe scaffolding. The external adapter lives outside the product loop; OpenTheory's only domain door is a thin MCP plugin (`run_instrument`, `create_checkpoint`, context/budget reads). M0 does not bind those tools to the live ledger, does not light `AGENT_LOOP_ENABLED`, and does not enable the harness on Fly. Default CI stays green without `OPENROUTER_API_KEY` or the optional `[harness]` extra (`deepseek-harness-sdk==0.1.5rc1`). **Backend + docs — no schema, no migration.** Sits on shipped `0.39.0` (`00b20bc`, #31) / current `main` `921cdd1`.
@@ -114,6 +115,51 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.43.0
+
+**Harness session owner + odd-perfect reference campaign.** Fourth slice
+of the external agent adapter. `0.42.0` metered `supervise_turn`; the
+composition a campaign would actually run (`dsh → llm-pi-ai →
+python -m app.harness.gateway`) never saw a `project_id` and would have
+spent OpenRouter unmetered. This slice puts one session owner on that
+path. Live MCP from `0.41.0` stays the only ledger writer. **No schema,
+no migration.** Sits on shipped `0.42.0` (`a61affd`, #35). Does not
+flip `AGENT_LOOP_ENABLED`. Does not enable the gateway child on Fly.
+
+- **Session owner.** `backend/app/harness/session.py` —
+  `HarnessSession` binds a human-created project. Before a completion:
+  composition re-verify, `OPENTHEORY_HARNESS_MAX_TURNS` (default 4),
+  funded-pot exhaust (`funded > 0` and `available <= 0`). After a
+  started completion: `record_compute_debit` when `tokens_used > 0`
+  (notes `harness_session_turn`; no `AgentRun`). A refused start writes
+  nothing. Exceptions mint nothing. Does not reuse `ResearchCampaign`.
+- **Metered gateway.** `create_gateway_app(session=...)` or
+  `OPENTHEORY_PROJECT_ID`. The HTTP child applies the owner's
+  authorize / debit / turn advance. A bare child without a project
+  stays the unmetered probe proxy. `python -m app.harness.campaign`
+  starts the metered child only when a project is bound.
+- **Reference campaign.** Odd perfect numbers. Human sets the
+  question, research-crew roster, and `FundingAllocation` pot. The
+  harness is instrument-only (`run_instrument` /
+  `create_checkpoint`). Never funds, never self-validates, never
+  merges. Dead ends stay. Account ≠ Actor. Unfunded ≠ exhausted.
+- **P2.** Extra-body allowlist drops `models` / `route` /
+  `transforms`. Fixture probe logs use `protocol.maybe_log`.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # counts filled after the test run
+# Frontend untouched — typecheck/lint/test/build unchanged
+```
+
+See `docs/completions/harness-session-owner-0.43.0.md`.
+
+**Not in this release:** Fly enablement of the gateway or MCP child;
+lighting `AGENT_LOOP_ENABLED`; perpetual ops dashboard; daily caps;
+Lean REPL / LeanDojo.
 
 ---
 

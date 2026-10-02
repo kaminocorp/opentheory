@@ -1,9 +1,11 @@
-"""External DeepSeek Harness adapter (0.40 composition, 0.41 live MCP, 0.42 gateway).
+"""External DeepSeek Harness adapter (0.40–0.43).
 
-Composition, fixture MCP, the live domain door, and the fail-closed OpenRouter
-gateway + turn supervision. Not imported by the FastAPI app. Does not enable
+Composition, fixture MCP, the live domain door, the fail-closed OpenRouter
+gateway, and the 0.43.0 session owner (``HarnessSession`` + odd-perfect
+reference campaign). Not imported by the FastAPI app. Does not enable
 ``AGENT_LOOP_ENABLED``. Ledger writes go only through ``run_instrument`` /
-``create_checkpoint``. Token spend debits ``ComputeDebit``.
+``create_checkpoint``. Token spend debits ``ComputeDebit`` on the
+session-owned gateway path.
 """
 
 from app.harness.composition import (

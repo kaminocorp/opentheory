@@ -1,5 +1,11 @@
 # Roadmap Next Steps
 
+> **Last updated:** 2026-10-02 · **Current release line:** `0.43.0`
+> (harness session owner + odd-perfect reference campaign), sitting on
+> shipped `0.42.0` (OpenRouter gateway + turn supervision, `a61affd`,
+> #35) on current `main`. See
+> `docs/completions/harness-session-owner-0.43.0.md`.
+>
 > **Last updated:** 2026-09-26 · **Current release line:** `0.42.0`
 > (OpenRouter gateway + turn supervision), sitting on shipped `0.41.0`
 > (live OpenTheory MCP domain door, `06cfeab`, #34) on current `main`.
@@ -57,9 +63,11 @@
 > (A–D) is closed; the archive plan is at
 > `docs/archive/project-deepdive-tabs-0.14.md`.
 >
-> **Next after this line:** a reference campaign on the external
-> harness path; the still-owed browser eyeball pass.
-> ~~OpenRouter gateway + turn supervision~~ ✅ this branch as `0.42.0`.
+> **Next after this line:** perpetual ops dashboard / daily caps;
+> the still-owed browser eyeball pass. Does not enable the gateway
+> child on Fly. Does not light `AGENT_LOOP_ENABLED`.
+> ~~Session owner + odd-perfect reference campaign~~ ✅ this branch as `0.43.0`.
+> ~~OpenRouter gateway + turn supervision~~ ✅ shipped as `0.42.0`.
 > ~~Live OT MCP binding~~ ✅ shipped as `0.41.0` (`06cfeab`, #34).
 > ~~External harness M0~~ ✅ shipped as `0.40.0` (`901b3de`, #33).
 > ~~Quantifiers on Z3~~ ✅ shipped as `0.39.0`. Lean REPL / LeanDojo remain later.
