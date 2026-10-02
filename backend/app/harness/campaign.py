@@ -26,7 +26,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.harness.gateway import create_gateway_app
-from app.harness.session import HarnessSession, PROJECT_ID_ENV, session_from_env
+from app.harness.session import PROJECT_ID_ENV, HarnessSession, session_from_env
 from app.schemas.project import AGENT_ROLE_FIELDS
 
 SLUG = "odd-perfect-numbers"

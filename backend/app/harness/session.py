@@ -148,7 +148,8 @@ class HarnessSession:
         """Refuse before the LLM call on drift, turn cap, or funded exhaust."""
         assert_composition()
         assert_turn_in_budget(self.turn_index, self.resolved_max_turns())
-        async with self._factory() as db:
+        factory = self._factory()
+        async with factory() as db:
             await assert_project_budget(db, self.project_uuid)
 
     async def record_spend(
@@ -163,7 +164,8 @@ class HarnessSession:
         """Debit tokens that moved. ``tokens_used <= 0`` writes nothing."""
         if tokens_used <= 0:
             return False
-        async with self._factory() as db:
+        factory = self._factory()
+        async with factory() as db:
             debit = await compute_service.record_compute_debit(
                 db,
                 project_id=self.project_uuid,

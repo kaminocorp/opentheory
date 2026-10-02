@@ -76,7 +76,12 @@ schema, no migration.** Sits on shipped `0.42.0` (`a61affd`, #35).
 
 ## Verification
 
-Filled after the test run on this branch.
+- `ruff check .` clean.
+- Default pytest (no `TEST_DATABASE_URL`): **795 passed, 245 skipped**.
+  +16 vs shipped `0.42.0` (779) — session owner, campaign spec,
+  extra-body allowlist, fixture `maybe_log`. +5 skipped (ledger suite).
+- With `TEST_DATABASE_URL`: **1036 passed, 4 skipped** — +21 vs `0.42.0`
+  (1015). Lean / Mathlib stay off. Frontend untouched.
 
 ## Unverified
 

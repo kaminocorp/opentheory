@@ -151,7 +151,10 @@ flip `AGENT_LOOP_ENABLED`. Does not enable the gateway child on Fly.
 
 ```bash
 cd backend && uv run ruff check .   # clean
-cd backend && uv run pytest -q      # counts filled after the test run
+cd backend && uv run pytest -q      # 795 passed, 245 skipped (no TEST_DATABASE_URL)
+# +16 vs shipped 0.42.0 (779) — session owner, campaign spec, extra-body, fixture log
+# +5 skipped (session ledger suite)
+# CI / local with TEST_DATABASE_URL: 1036 passed, 4 skipped — +21 vs 0.42.0 (1015)
 # Frontend untouched — typecheck/lint/test/build unchanged
 ```
 

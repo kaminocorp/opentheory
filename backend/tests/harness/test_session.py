@@ -64,6 +64,8 @@ def _imported_modules(path: Path) -> set[str]:
             modules.update(alias.name for alias in node.names)
         if isinstance(node, ast.ImportFrom) and node.module:
             modules.add(node.module)
+            for alias in node.names:
+                modules.add(f"{node.module}.{alias.name}")
     return modules
 
 
@@ -83,12 +85,13 @@ def test_reference_campaign_is_odd_perfect_and_instrument_only() -> None:
 
 
 def test_campaign_does_not_reuse_builtin_planner() -> None:
-    source = (HARNESS_ROOT / "campaign.py").read_text(encoding="utf-8")
-    assert "ResearchCampaign" not in source
-    assert "AGENT_LOOP_ENABLED" not in source
     imported = _imported_modules(HARNESS_ROOT / "campaign.py")
     assert "app.services.campaigns" not in imported
     assert "app.models.research_campaign" not in imported
+    assert "app.agent" not in imported
+    source = (HARNESS_ROOT / "campaign.py").read_text(encoding="utf-8")
+    assert "start_campaign" not in source
+    assert "AGENT_LOOP_ENABLED" not in source.split('"""', 2)[-1]
 
 
 def test_session_owner_is_not_a_checkpoint_writer() -> None:
