@@ -74,7 +74,13 @@ Sits on shipped `0.43.0` (`51368da`, #36).
 
 ## Verification
 
-Recorded after the test run on this branch.
+- `ruff check .` clean.
+- Default pytest (no `TEST_DATABASE_URL`): **804 passed, 245 skipped**.
+  +9 vs shipped `0.43.0` (795) — composition child, env-name binding,
+  process refuse. Skip count unchanged (ledger suite).
+- Ledger suite not run in this environment (`TEST_DATABASE_URL` unset).
+  Session-owner debit / exhaust tests from `0.43.0` were not changed.
+  Lean / Mathlib stay off. Frontend untouched.
 
 ## Unverified
 

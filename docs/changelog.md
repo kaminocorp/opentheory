@@ -151,7 +151,9 @@ the gateway or MCP child on Fly.
 
 ```bash
 cd backend && uv run ruff check .   # clean
-cd backend && uv run pytest -q      # counts recorded after the run
+cd backend && uv run pytest -q      # 804 passed, 245 skipped (no TEST_DATABASE_URL)
+# +9 vs shipped 0.43.0 (795) — composition child, env-name binding, process refuse
+# skip count unchanged (ledger suite)
 # Frontend untouched — typecheck/lint/test/build unchanged
 ```
 
