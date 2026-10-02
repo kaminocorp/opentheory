@@ -1,6 +1,6 @@
 # External harness — backend skeleton
 
-> **Status — `0.43.0` session owner + reference campaign.** Package
+> **Status — `0.44.0` fail-closed metered composition.** Package
 > exists. FastAPI does not import it. Fly does not run it.
 
 ## Where it lives
@@ -29,17 +29,16 @@ The package is **not** mounted on `api/router.py` and is **not** imported
 from `app.main`. Booting the API does not load Cordis, does not start the
 gateway, and does not need the SDK.
 
-## What 0.43.0 will and will not do
+## What 0.44.0 will and will not do
 
 | Will | Will not |
 | --- | --- |
-| Bind a `HarnessSession` to a human-created project | Reuse `ResearchCampaign` or light `AGENT_LOOP_ENABLED` |
-| Apply turn cap + funded-pot exhaust on `create_gateway_app` | Treat unfunded as exhausted |
-| Debit `ComputeDebit` when `tokens_used > 0` | Debit a standalone instrument run (same as humans) |
-| Ship an odd-perfect reference campaign (instrument-only) | Auto-validate / auto-fund / auto-merge |
-| Drop extra-body `models` / `route` / `transforms` | Honor a client block that re-opens routing |
+| Fail closed if the composition launches the bare unmetered proxy | Treat an unmetered probe as the campaign composition |
+| Pass `OPENTHEORY_PROJECT_ID` as an env name (like the JWT file) | Put a project UUID or secret in `opentheory.cordis.yml` |
+| Point `llm-pi-ai` at `python -m app.harness.campaign` | Start `python -m app.harness.gateway` without an explicit probe flag |
+| Keep `HarnessSession` metering / turn cap / exhaust | Add a campaign table or a second Checkpoint writer |
 | Skip the live probe without a key | Require `dsh` / the `[harness]` extra in default CI |
-| Keep FastAPI from importing the package | Enable the gateway child on Fly |
+| Keep FastAPI from importing the package | Enable the gateway / MCP child on Fly or light `AGENT_LOOP_ENABLED` |
 
 ## Commands
 
@@ -48,21 +47,23 @@ cd backend
 uv run python -m app.harness              # composition + fixture; live OpenRouter skipped
 uv run python -m app.harness.live_mcp     # live stdio MCP (needs DB + credentials)
 uv run python -m app.harness.fixture_mcp  # stub stdio MCP (M0 probes)
-uv run python -m app.harness.gateway      # fail-closed proxy (metered if OPENTHEORY_PROJECT_ID)
-uv run python -m app.harness.campaign     # reference spec; metered child only when project-bound
+uv run python -m app.harness.campaign     # session-owned child; refuses when unbound
+uv run python -m app.harness.gateway      # unmetered probe only with OPENTHEORY_HARNESS_UNMETERED_PROBE=1
 uv run pytest tests/harness -q            # default CI shape
 ```
 
 Point Cordis `OPENTHEORY_MCP_SCRIPT` at the live module when you want
 the door; leave it on the fixture for composition probes. Point
-`OPENTHEORY_GATEWAY_URL` at the gateway child. The child holds
-`OPENTHEORY_GATEWAY_TOKEN`; the gateway holds `OPENROUTER_API_KEY`.
-Neither belongs in `fly.toml [env]`.
+`OPENTHEORY_GATEWAY_URL` at the campaign child. Supply
+`OPENTHEORY_PROJECT_ID` and `OPENTHEORY_GATEWAY_PYTHON` as names in
+the environment — never as literals in the Cordis file. The child
+holds `OPENTHEORY_GATEWAY_TOKEN`; the gateway holds
+`OPENROUTER_API_KEY`. Neither belongs in `fly.toml [env]`.
 
 ## Later slices
 
 An ops dashboard and daily turn/request caps are later. This slice
-owns the session: token `ComputeDebit` metering for the gateway path
-a campaign actually runs.
+closes the unmetered-composition hole: the path a campaign actually
+runs cannot start without a session owner.
 
 Do not put settlement, validation, or funding on this package.

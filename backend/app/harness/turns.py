@@ -1,10 +1,12 @@
 """Turn supervision library for the external DeepSeek Harness path.
 
 ``0.42.0`` shipped these helpers; ``0.43.0`` keeps them as a library
-tests and a no-``dsh`` driver can call. The session owner for the path
-a campaign actually runs is :class:`~app.harness.session.HarnessSession`,
+tests and a no-``dsh`` driver can call. ``0.44.0`` fails closed on the
+authored composition: ``dsh → llm-pi-ai`` launches
+``python -m app.harness.campaign``, which refuses when unbound. The
+session owner remains :class:`~app.harness.session.HarnessSession`,
 wired into ``create_gateway_app``. A project-scoped
-:func:`supervise_turn` now composes that owner rather than minting a
+:func:`supervise_turn` composes that owner rather than minting a
 parallel debit path.
 
 A supervised turn: fail-closed composition check → project budget check →

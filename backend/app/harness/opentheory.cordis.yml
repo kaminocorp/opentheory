@@ -2,6 +2,10 @@
 # composition.py verifies the full tree and fails closed on inventory drift.
 # Do not enable shell, sandbox, pty, or persistent-bash. Do not copy hospitality
 # / SQL tools. OpenTheory's domain door is the MCP plugin only.
+# The llm-pi-ai child is the session-owned campaign module — never the bare
+# unmetered gateway proxy. Project binding is an env name the operator
+# supplies (same pattern as OPENTHEORY_ACTOR_JWT_FILE). Never put a UUID,
+# JWT, gateway token, or OpenRouter key in this file.
 - id: deepseek-llm-api-extensions
   disabled: true
 - id: session-log-deepseek
@@ -58,6 +62,14 @@
                 contextWindow: 65536
                 maxTokens: 2048
                 reasoningEfforts: false
+        # Session-owned HTTP child. verify() rejects app.harness.gateway here.
+        command: !!js process.env.OPENTHEORY_GATEWAY_PYTHON
+        args:
+          - -m
+          - app.harness.campaign
+        env:
+          # Name only — never a project UUID. Operator supplies the value.
+          OPENTHEORY_PROJECT_ID: !!js process.env.OPENTHEORY_PROJECT_ID
     - id: opentheory-mcp
       name: '@deepseek-ai/dsh-mcp-client'
       config:
@@ -72,6 +84,8 @@
           # Path only — never interpolate the bearer. See docs/harness/compatibility.md.
           OPENTHEORY_ACTOR_JWT_FILE: !!js process.env.OPENTHEORY_ACTOR_JWT_FILE
           OPENTHEORY_DEV_ACTOR_ID: !!js process.env.OPENTHEORY_DEV_ACTOR_ID
+          # Name only — never a project UUID. Same pattern as the JWT file.
+          OPENTHEORY_PROJECT_ID: !!js process.env.OPENTHEORY_PROJECT_ID
         failOnStartupError: true
         toolCallTimeoutMs: 15000
         reconnect:

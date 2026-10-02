@@ -1,9 +1,9 @@
 # External DeepSeek Harness — implementation plan
 
-> **Status — `0.43.0` Milestone 3 is this slice** (session owner +
-> odd-perfect reference campaign), sitting on shipped `0.42.0`
-> gateway, `0.41.0` live MCP, and `0.40.0` composition. Not a product
-> loop. Not enabled on Fly. Does not light `AGENT_LOOP_ENABLED`.
+> **Status — `0.44.0` Milestone 3b is this slice** (fail-closed
+> metered composition), sitting on shipped `0.43.0` session owner,
+> `0.42.0` gateway, `0.41.0` live MCP, and `0.40.0` composition. Not a
+> product loop. Not enabled on Fly. Does not light `AGENT_LOOP_ENABLED`.
 
 The external agent adapter lives **outside** the built-in OpenRouter planner
 (`0.12.x`–`0.32.0`). DeepSeek Harness SDK + an OpenRouter gateway own the
@@ -38,7 +38,8 @@ meters token spend.
 | **0 — `0.40.0`** | Docs, `opentheory.cordis.yml`, composition verify, fixture MCP (`echo_nonce` + stub domain tools), probe that skips without a key / SDK | Live ledger writes; gateway; Fly enablement; `AGENT_LOOP_ENABLED` |
 | **1 — `0.41.0`** | Live MCP binding: JWT Actor + `ensure_is_member` + real `run_instrument` / `create_checkpoint` + claim/thread/budget reads | Gateway supervision; campaigns; a second settlement path |
 | **2 — `0.42.0`** | OpenRouter gateway + turn supervision (provider allowlist, `allow_fallbacks: false`, `require_parameters: true`, `data_collection: deny`); `ComputeDebit` for LLM tokens | Lighting the built-in planner; daily caps; Fly enablement |
-| **3 — `0.43.0` (this)** | Session owner (`HarnessSession`) on the gateway path a campaign actually runs; odd-perfect reference campaign (human question / roster / budget; instrument-only) | Auto-validate / auto-fund / auto-merge; Fly enablement; `AGENT_LOOP_ENABLED` |
+| **3 — `0.43.0`** | Session owner (`HarnessSession`) on the gateway path a campaign actually runs; odd-perfect reference campaign (human question / roster / budget; instrument-only) | Auto-validate / auto-fund / auto-merge; Fly enablement; `AGENT_LOOP_ENABLED` |
+| **3b — `0.44.0` (this)** | Fail-closed campaign composition: `llm-pi-ai` launches `app.harness.campaign`; `verify()` rejects the bare unmetered proxy; `OPENTHEORY_PROJECT_ID` is an env name | Fly enablement; `AGENT_LOOP_ENABLED`; a campaign table; lighting the built-in planner |
 | **4 — later** | Perpetual ops dashboard; daily turn/request caps | Lean REPL / LeanDojo (separate line) |
 
 Each slice stays small and deployable. A slice that cannot run in default CI
@@ -52,7 +53,8 @@ tree*, the way `create_checkpoint` is the chokepoint for ledger writes:
 - Runtime / SDK pin: **`0.1.5rc1`**
 - Exact disabled set: sandbox, sandbox-policy, subprocess, pty,
   terminal-*, persistent-*, and the DeepSeek-native LLM extras
-- Exact insert set: `llm-pi-ai` (OpenRouter via env) + `opentheory-mcp`
+- Exact insert set: `llm-pi-ai` (OpenRouter via env; session-owned
+  campaign child) + `opentheory-mcp`
 - Exact MCP stems: `run_instrument`, `create_checkpoint`, `list_claims`,
   `get_thread_context`, `get_budget`, plus M0 `echo_nonce`
 - Research-contributor persona — no hospitality / SQL voice
@@ -73,10 +75,11 @@ Default `uv sync --group dev` (CI) must not need the DeepSeek SDK or a
 A live OpenRouter round-trip is opt-in (`OPENTHEORY_HARNESS_LIVE=1`) and
 runs one fail-closed gateway completion when a key is present. Missing
 key / unset flag skip cleanly. The live *MCP* door is
-`python -m app.harness.live_mcp` (`0.41.0`). The HTTP gateway child is
-`python -m app.harness.gateway` (`0.42.0`). The session-owned
-(metered) child is `python -m app.harness.campaign` when
-`OPENTHEORY_PROJECT_ID` is set (`0.43.0`).
+`python -m app.harness.live_mcp` (`0.41.0`). The campaign composition
+child is `python -m app.harness.campaign` (`0.44.0`); it refuses when
+unbound. `python -m app.harness.gateway` is an explicit unmetered
+probe (`OPENTHEORY_HARNESS_UNMETERED_PROBE`) and is not what `verify()`
+accepts.
 
 ## Invariants this line must not break
 

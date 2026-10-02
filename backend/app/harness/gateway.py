@@ -1,4 +1,4 @@
-"""Fail-closed OpenRouter gateway for the external DeepSeek Harness (0.43.0).
+"""Fail-closed OpenRouter gateway for the external DeepSeek Harness (0.44.0).
 
 Mirrors the OpenWorld gateway posture named in ``docs/harness/prior-art.md``:
 provider allowlist, ``allow_fallbacks: false``, ``require_parameters: true``,
@@ -10,8 +10,11 @@ A :class:`~app.harness.session.HarnessSession` bound on this app is the
 session owner: turn cap, funded-pot exhaust, and ``ComputeDebit`` happen
 here — the path ``dsh → llm-pi-ai`` actually hits — not only on the
 ``supervise_turn`` library. Bind via ``session=`` or
-``OPENTHEORY_PROJECT_ID``. A bare child without a session stays the
-unmetered probe proxy and is not the campaign path.
+``OPENTHEORY_PROJECT_ID``. The campaign composition launches
+``python -m app.harness.campaign``, which refuses when unbound. This
+module's process entrypoint refuses the same way unless
+``OPENTHEORY_HARNESS_UNMETERED_PROBE`` is set — that flag is an
+explicit probe, not the campaign composition.
 
 This module is **not** imported by ``app.main`` or ``api/router.py``. It does
 not flip ``AGENT_LOOP_ENABLED``. The built-in planner's ``OpenRouterClient``
@@ -33,9 +36,10 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.openrouter_models import OPENROUTER_MODELS, VALID_MODEL_IDS
 from app.harness.auth import redact
+from app.harness.composition import PROJECT_ID_ENV, UNMETERED_PROBE_ENV
 from app.harness.session import HarnessSession, TurnRefused, session_from_env
 
-VERSION = "0.43.0"
+VERSION = "0.44.0"
 DEFAULT_MODEL = "deepseek/deepseek-chat"
 DEFAULT_PROVIDERS: tuple[str, ...] = ("DeepSeek",)
 ALLOWED_OPENROUTER_HOSTS = frozenset({"openrouter.ai", "www.openrouter.ai"})
@@ -347,8 +351,9 @@ def create_gateway_app(
     Not mounted on the product FastAPI app. ``python -m app.harness.gateway``.
     ``gateway`` is the test injection seam (MockTransport client).
     ``session`` is the 0.43.0 owner — turn cap, exhaust, and debit. When
-    omitted, ``OPENTHEORY_PROJECT_ID`` binds one; a missing project leaves
-    this child as the unmetered probe proxy.
+    omitted, ``OPENTHEORY_PROJECT_ID`` binds one. The process entrypoint
+    refuses an unbound child unless ``OPENTHEORY_HARNESS_UNMETERED_PROBE``
+    is set. In-process tests may still construct an unbound app.
     """
     bound = session if session is not None else session_from_env(env)
 
@@ -456,12 +461,41 @@ def create_gateway_app(
     return app
 
 
+def unmetered_probe_enabled(env: Mapping[str, str] | None = None) -> bool:
+    """Explicit probe flag. ``verify()`` rejects this on the campaign patch."""
+    lookup = env if env is not None else os.environ
+    return (lookup.get(UNMETERED_PROBE_ENV) or "").strip().lower() in {"1", "true", "yes"}
+
+
+def assert_process_may_serve(
+    env: Mapping[str, str] | None = None,
+) -> HarnessSession | None:
+    """Refuse the HTTP child unless session-owned or an explicit unmetered probe.
+
+    A bound ``OPENTHEORY_PROJECT_ID`` is the campaign path. The unmetered
+    flag is a probe only — composition.verify treats it as not the
+    campaign composition. Neither a missing project nor a missing flag
+    may start a child that looks like the harness.
+    """
+    lookup = env if env is not None else os.environ
+    session = session_from_env(lookup)
+    if session is not None:
+        return session
+    if unmetered_probe_enabled(lookup):
+        return None
+    raise SystemExit(
+        f"refusing unmetered gateway child — set {PROJECT_ID_ENV} "
+        f"(campaign composition) or {UNMETERED_PROBE_ENV}=1 (explicit probe)"
+    )
+
+
 def main() -> None:
     import uvicorn
 
+    session = assert_process_may_serve()
     host = os.environ.get("OPENTHEORY_GATEWAY_HOST", "127.0.0.1")
     port = int(os.environ.get("OPENTHEORY_GATEWAY_PORT", "8787"))
-    uvicorn.run(create_gateway_app(), host=host, port=port)
+    uvicorn.run(create_gateway_app(session=session), host=host, port=port)
 
 
 if __name__ == "__main__":

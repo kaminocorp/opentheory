@@ -1,11 +1,13 @@
-"""Session owner for an external DeepSeek Harness run (0.43.0).
+"""Session owner for an external DeepSeek Harness run (0.43.0 / 0.44.0).
 
 One :class:`HarnessSession` owns one campaign-bound run: the project, the
 turn cap, pre-LLM exhaust, and ``ComputeDebit`` for tokens that moved.
-This is the object the composition a later campaign actually runs must
-bind — ``dsh → llm-pi-ai → python -m app.harness.gateway``. Without it,
-``create_gateway_app`` never sees a ``project_id`` and spends OpenRouter
-unmetered.
+This is the object the campaign composition actually runs must bind —
+``dsh → llm-pi-ai → python -m app.harness.campaign``. The authored
+Cordis patch passes ``OPENTHEORY_PROJECT_ID`` as an env name; the
+campaign child refuses to serve when unbound. The bare
+``python -m app.harness.gateway`` proxy is an explicit unmetered probe
+only (``OPENTHEORY_HARNESS_UNMETERED_PROBE``), not the campaign path.
 
 ``live_mcp`` stays the domain door (``run_instrument`` /
 ``create_checkpoint``). This module does not mint a ``Checkpoint``.
@@ -28,12 +30,11 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.harness.composition import CompositionError, verify
+from app.harness.composition import PROJECT_ID_ENV, CompositionError, verify
 from app.models.enums import ComputeDebitKind
 from app.services import compute as compute_service
 from app.services import funding as funding_service
 
-PROJECT_ID_ENV = "OPENTHEORY_PROJECT_ID"
 MAX_TURNS_ENV = "OPENTHEORY_HARNESS_MAX_TURNS"
 DEFAULT_MAX_TURNS = 4
 SESSION_NOTES = "harness_session_turn"
@@ -113,8 +114,11 @@ class HarnessSession:
     Persistence is the existing ledger: the human-authored ``Project``
     (question + roster), ``FundingAllocation`` (budget), and
     ``ComputeDebit`` (spend). Turn index is process-local — a restart
-    starts a new bound session at turn 0. No schema, no second campaign
-    table, no ``AgentRun``.
+    starts a new bound session at turn 0. Counting existing
+    ``ComputeDebit`` rows would conflate concurrent runs on the same
+    project and still would not survive a debit-less refuse, so it stays
+    documented rather than faked. No schema, no second campaign table,
+    no ``AgentRun``.
     """
 
     project_id: UUID | str

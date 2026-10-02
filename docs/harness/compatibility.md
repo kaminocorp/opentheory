@@ -1,9 +1,11 @@
 # External harness — compatibility
 
-> **Status — `0.43.0` session owner + reference campaign.** Pin is
+> **Status — `0.44.0` fail-closed metered composition.** Pin is
 > unchanged. Live OpenRouter probe is implemented behind
-> `OPENTHEORY_HARNESS_LIVE`. Default CI does not install the SDK and
-> does not need `OPENROUTER_API_KEY`.
+> `OPENTHEORY_HARNESS_LIVE`. An unmetered HTTP child is opt-in
+> (`OPENTHEORY_HARNESS_UNMETERED_PROBE`) and is not the campaign
+> composition. Default CI does not install the SDK and does not need
+> `OPENROUTER_API_KEY`.
 
 ## Pin
 
@@ -47,7 +49,9 @@ to go green.
 | `OPENTHEORY_GATEWAY_PROVIDERS` | Comma-separated OpenRouter `provider.only` (default `DeepSeek`) | no |
 | `OPENTHEORY_MODEL` | Model id (must be in the OT catalog + allowlist) | no |
 | `OPENTHEORY_HARNESS_MAX_TURNS` | Session-owned turn cap (default 4) | no |
-| `OPENTHEORY_PROJECT_ID` | Binds `HarnessSession` on the gateway child | no — unset leaves the probe proxy unmetered |
+| `OPENTHEORY_PROJECT_ID` | Binds `HarnessSession` on the campaign child | no — campaign child refuses if unset; never a UUID in Cordis |
+| `OPENTHEORY_GATEWAY_PYTHON` | Interpreter for the session-owned `llm-pi-ai` child | no |
+| `OPENTHEORY_HARNESS_UNMETERED_PROBE` | Allows `python -m app.harness.gateway` unbound | no — verify rejects this on the campaign patch |
 | `OPENTHEORY_MCP_PYTHON` / `OPENTHEORY_MCP_SCRIPT` | Fixture or live MCP stdio command | no |
 | `OPENTHEORY_PROBE_NONCE` / `OPENTHEORY_PROBE_LOG` | Probe echo + optional log | no |
 | `OPENTHEORY_ACTOR_JWT_FILE` | Path to a `0600` file holding the member JWT | no — live writes need one of the three |
@@ -107,11 +111,14 @@ OpenWorld used a gateway in front of OpenRouter. OT does the same:
 - Extra-body `models` / `route` / `transforms` are dropped (0.43.0).
 - A bound `HarnessSession` (or `OPENTHEORY_PROJECT_ID`) is the
   session owner for debit / turn cap / exhaust.
+- The authored composition launches `python -m app.harness.campaign`
+  and passes `OPENTHEORY_PROJECT_ID` as an env name only.
+- `python -m app.harness.gateway` refuses unless session-owned or
+  `OPENTHEORY_HARNESS_UNMETERED_PROBE` is set.
 
-The HTTP surface (`python -m app.harness.gateway`) authenticates the
-child with `OPENTHEORY_GATEWAY_TOKEN` and forwards with
-`OPENROUTER_API_KEY`. Two secrets, one job: the child never holds the
-upstream key.
+The HTTP surface the campaign child serves authenticates with
+`OPENTHEORY_GATEWAY_TOKEN` and forwards with `OPENROUTER_API_KEY`.
+Two secrets, one job: the child never holds the upstream key.
 
 ## Open questions (do not pretend they are closed)
 

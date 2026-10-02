@@ -1,10 +1,11 @@
 # External harness actor path
 
-> **What is (`0.43.0`).** Milestone 0 composition + fixture, the live
-> MCP door (`live_mcp.py`), the fail-closed OpenRouter gateway, and a
+> **What is (`0.44.0`).** Milestone 0 composition + fixture, the live
+> MCP door (`live_mcp.py`), the fail-closed OpenRouter gateway, a
 > session owner (`HarnessSession`) plus the odd-perfect reference
-> campaign. Fly enablement is not shipped. If this blueprint disagrees
-> with `backend/app/harness/`, the code wins.
+> campaign, and a fail-closed campaign composition that cannot start
+> the unmetered gateway proxy. Fly enablement is not shipped. If this
+> blueprint disagrees with `backend/app/harness/`, the code wins.
 
 ## The rule
 
@@ -24,7 +25,7 @@ earn a parallel data model.
 - `backend/app/harness/` — composition verify, `opentheory.cordis.yml`,
   fixture MCP (M0 probes), live MCP door, fail-closed OpenRouter
   gateway, turn supervision, `HarnessSession` owner, odd-perfect
-  reference campaign, probe
+  reference campaign (the authored `llm-pi-ai` child), probe
 - JWT-file injection (`OPENTHEORY_ACTOR_JWT_FILE`) so the bearer never
   enters session / probe logs
 - Optional `[harness]` extra for `deepseek-harness-sdk==0.1.5rc1`
@@ -46,7 +47,13 @@ The FastAPI app does not import this package. Fly does not run it.
 The authored Cordis patch strips coding tools (sandbox, pty, persistent
 shell, DeepSeek-native LLM extras) and inserts exactly two plugins:
 OpenRouter-via-env (`llm-pi-ai`) and the OpenTheory MCP client. The
-persona is a research contributor. Composition fails closed on drift.
+persona is a research contributor. Composition fails closed on drift
+and on an unmetered gateway child: `llm-pi-ai` must launch
+`python -m app.harness.campaign` and pass `OPENTHEORY_PROJECT_ID` as
+an operator-supplied env name (same pattern as
+`OPENTHEORY_ACTOR_JWT_FILE`). A composition that launches
+`app.harness.gateway`, or that sets
+`OPENTHEORY_HARNESS_UNMETERED_PROBE`, is not the campaign composition.
 Turn supervision re-verifies the patch before every turn.
 
 ## Settlement
@@ -65,10 +72,11 @@ runs do not debit — same as humans. Token metering is the session
 owner: `HarnessSession` bound on `create_gateway_app` (or
 `OPENTHEORY_PROJECT_ID`) authorizes before the completion and writes a
 `ComputeDebit` (no `AgentRun`; notes `harness_session_turn`) through
-`record_compute_debit` when tokens moved. An attempted completion that
-then failed still debits if tokens moved. A refused start writes
-nothing. `supervise_turn` composes the same owner; it is not a second
-writer.
+`record_compute_debit` when tokens moved. The campaign composition
+cannot start that child unbound. An attempted completion that then
+failed still debits if tokens moved. A refused start writes nothing.
+`supervise_turn` composes the same owner; it is not a second writer.
+Turn index is process-local (a restart starts at 0).
 
 ## Relationship to the built-in planner
 

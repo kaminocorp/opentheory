@@ -1,9 +1,16 @@
 """Fail closed on changes to the pinned runtime's composed capability tree.
 
 Milestone 0 (`0.40.0`) verifies the authored Cordis patch and the exact MCP
-inventory. It does not boot the DeepSeek Harness SDK, does not call
-OpenRouter, and does not write the ledger. The SDK pin lives here so a
-later extra (`[harness]`) cannot silently drift from what we documented.
+inventory. `0.44.0` also fails closed on an unmetered gateway child: the
+campaign composition must launch ``app.harness.campaign`` and pass
+``OPENTHEORY_PROJECT_ID`` as an operator-supplied env name (never a UUID
+or other literal). A composition that launches the bare
+``app.harness.gateway`` proxy, or that sets
+``OPENTHEORY_HARNESS_UNMETERED_PROBE``, is not the campaign composition.
+
+It does not boot the DeepSeek Harness SDK, does not call OpenRouter, and
+does not write the ledger. The SDK pin lives here so a later extra
+(``[harness]``) cannot silently drift from what we documented.
 """
 
 from __future__ import annotations
@@ -17,6 +24,23 @@ VERSION = "0.1.5rc1"
 MCP_SERVER_NAME = "opentheory"
 MCP_CLIENT_PACKAGE = "@deepseek-ai/dsh-mcp-client"
 LLM_PROVIDER_PACKAGE = "@deepseek-ai/dsh-llm-pi-ai"
+PROJECT_ID_ENV = "OPENTHEORY_PROJECT_ID"
+JWT_FILE_ENV = "OPENTHEORY_ACTOR_JWT_FILE"
+JWT_ENV = "OPENTHEORY_ACTOR_JWT"
+UNMETERED_PROBE_ENV = "OPENTHEORY_HARNESS_UNMETERED_PROBE"
+GATEWAY_PYTHON_ENV = "OPENTHEORY_GATEWAY_PYTHON"
+CAMPAIGN_MODULE = "app.harness.campaign"
+GATEWAY_MODULE = "app.harness.gateway"
+CAMPAIGN_CHILD_ARGS = ("-m", CAMPAIGN_MODULE)
+# A literal UUID, bearer, or key in the file is composition drift.
+FORBIDDEN_CORDIS_ENV_KEYS = frozenset(
+    {
+        JWT_ENV,
+        UNMETERED_PROBE_ENV,
+        "OPENROUTER_API_KEY",
+        "OPENTHEORY_GATEWAY_TOKEN",
+    }
+)
 
 # Stems the fixture and the live OT plugin may expose. The harness
 # prefixes MCP tools as mcp__<serverName>__<stem>.
@@ -158,6 +182,8 @@ def verify(*, patch: CordisPatch | None = None, version: str = VERSION) -> None:
     _verify_inserts(loaded)
     _verify_persona(loaded)
     _verify_mcp(loaded)
+    _verify_gateway_child(loaded)
+    _verify_env_bindings(loaded)
 
 
 def _verify_disabled(patch: CordisPatch) -> None:
@@ -211,6 +237,75 @@ def _verify_mcp(patch: CordisPatch) -> None:
     reconnect = config.get("reconnect") or {}
     if reconnect.get("enabled") is not False:
         raise CompositionError("MCP reconnect must be disabled")
+    env = config.get("env")
+    if not isinstance(env, dict):
+        raise CompositionError("MCP env must pass the JWT file path and project binding")
+    _assert_env_interpolation(env, JWT_FILE_ENV, where="opentheory-mcp")
+    _assert_env_interpolation(env, PROJECT_ID_ENV, where="opentheory-mcp")
+
+
+def _verify_gateway_child(patch: CordisPatch) -> None:
+    """Campaign composition launches the session-owned child, not the probe."""
+    llm = next(entry for entry in patch.inserts if entry.id == "llm-pi-ai")
+    config = llm.config or {}
+    command = config.get("command")
+    if not _is_env_interpolation(command, GATEWAY_PYTHON_ENV):
+        raise CompositionError(
+            f"llm-pi-ai command must be {env_interpolation(GATEWAY_PYTHON_ENV)} "
+            "(operator-supplied interpreter; never a secret)"
+        )
+    args = config.get("args")
+    if not isinstance(args, list):
+        raise CompositionError("llm-pi-ai args must launch the session-owned child")
+    joined = tuple(str(part) for part in args)
+    if GATEWAY_MODULE in joined:
+        raise CompositionError(
+            f"llm-pi-ai must not launch the bare unmetered proxy ({GATEWAY_MODULE})"
+        )
+    if joined != CAMPAIGN_CHILD_ARGS:
+        raise CompositionError(
+            f"llm-pi-ai args must be {list(CAMPAIGN_CHILD_ARGS)}, got {list(joined)}"
+        )
+    env = config.get("env")
+    if not isinstance(env, dict):
+        raise CompositionError("llm-pi-ai env must pass the project binding")
+    _assert_env_interpolation(env, PROJECT_ID_ENV, where="llm-pi-ai")
+
+
+def _verify_env_bindings(patch: CordisPatch) -> None:
+    """Secrets and the unmetered-probe flag must not appear in Cordis env."""
+    for entry in patch.inserts:
+        env = (entry.config or {}).get("env")
+        if not isinstance(env, dict):
+            continue
+        forbidden = FORBIDDEN_CORDIS_ENV_KEYS & set(env)
+        if forbidden:
+            key = sorted(forbidden)[0]
+            if key == UNMETERED_PROBE_ENV:
+                raise CompositionError(
+                    f"{UNMETERED_PROBE_ENV} marks an unmetered probe — "
+                    "not the campaign composition"
+                )
+            raise CompositionError(
+                f"{key} must not appear in Cordis env (name / path interpolation only)"
+            )
+
+
+def env_interpolation(name: str) -> str:
+    return f"process.env.{name}"
+
+
+def _is_env_interpolation(value: Any, name: str) -> bool:
+    return value == env_interpolation(name)
+
+
+def _assert_env_interpolation(env: dict[str, Any], name: str, *, where: str) -> None:
+    if name not in env:
+        raise CompositionError(f"{where} env must pass {name} (operator-supplied name)")
+    if not _is_env_interpolation(env[name], name):
+        raise CompositionError(
+            f"{name} must be {env_interpolation(name)} — never a UUID, path, or secret"
+        )
 
 
 def _entry_from_mapping(raw: Any, *, allow_disabled: bool) -> PatchEntry:
