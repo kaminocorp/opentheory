@@ -257,7 +257,7 @@ run in production until both of these are set.
 
 Leave `AGENT_LOOP_ENABLED=false` until you intend to take live agent traffic.
 
-The **external DeepSeek Harness** path (`0.40.0`–`0.44.0`) is a different
+The **external DeepSeek Harness** path (`0.40.0`–`0.46.0`) is a different
 owner of the session. FastAPI does not import the package, Fly does not
 run the gateway or MCP child, and it must not be turned on by flipping
 `AGENT_LOOP_ENABLED`. The 0.43.0 session owner (`HarnessSession`) binds
@@ -265,8 +265,11 @@ a project on that gateway and meters `ComputeDebit` / turn cap /
 funded-pot exhaust there. `0.44.0` fails closed if the composition
 would start that child unbound: the authored patch launches
 `python -m app.harness.campaign` and passes `OPENTHEORY_PROJECT_ID` as
-an env name. The gateway talks to OpenRouter only
-(`allow_fallbacks: false`, `require_parameters: true`,
+an env name. `0.46.0` adds a daily token cap
+(`OPENTHEORY_HARNESS_DAILY_TOKEN_CAP`, default **20_000** tokens per
+UTC day) counted from today's `harness_session_turn` `ComputeDebit`
+rows — a process restart does not reset it. The gateway talks to
+OpenRouter only (`allow_fallbacks: false`, `require_parameters: true`,
 `data_collection: deny`, provider allowlist). Set
 `OPENROUTER_API_KEY` / `OPENTHEORY_GATEWAY_TOKEN` with `fly secrets set`
 if you ever run the child — **never** `fly.toml [env]`. See

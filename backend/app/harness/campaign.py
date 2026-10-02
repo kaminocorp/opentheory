@@ -78,6 +78,7 @@ def open_session(
     *,
     turn_index: int = 0,
     max_turns: int | None = None,
+    daily_token_cap: int | None = None,
     session_factory: async_sessionmaker[AsyncSession] | None = None,
     env: Mapping[str, str] | None = None,
 ) -> HarnessSession:
@@ -90,6 +91,7 @@ def open_session(
         project_id=project_id,
         turn_index=turn_index,
         max_turns=max_turns,
+        daily_token_cap=daily_token_cap,
         session_factory=session_factory,
         env=env,
         extras={"campaign": SLUG},

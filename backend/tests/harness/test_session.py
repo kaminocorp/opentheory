@@ -1,8 +1,9 @@
-"""Session owner + fail-closed campaign composition (0.44.0) — no live key, no dsh."""
+"""Session owner + daily token cap (0.46.0) — no live key, no dsh."""
 
 from __future__ import annotations
 
 import ast
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -35,12 +36,19 @@ from app.harness.gateway import (
     unmetered_probe_enabled,
 )
 from app.harness.session import (
+    DAILY_TOKEN_CAP_ENV,
+    DEFAULT_DAILY_TOKEN_CAP,
     DEFAULT_MAX_TURNS,
     PROJECT_ID_ENV,
+    REASON_DAILY_CAP,
     REASON_TURN_BUDGET,
     SESSION_NOTES,
     HarnessSession,
+    assert_daily_tokens_in_budget,
+    harness_notes_prefix_match,
+    resolve_daily_token_cap,
     session_from_env,
+    utc_day_start,
 )
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -131,7 +139,16 @@ def test_session_from_env_unbound_without_project() -> None:
     assert isinstance(bound, HarnessSession)
     assert str(bound.project_uuid) == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
     assert bound.resolved_max_turns() == DEFAULT_MAX_TURNS
+    assert bound.resolved_daily_token_cap() == DEFAULT_DAILY_TOKEN_CAP
     assert bound.notes == SESSION_NOTES
+    overridden = session_from_env(
+        {
+            PROJECT_ID_ENV: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            DAILY_TOKEN_CAP_ENV: "50",
+        }
+    )
+    assert overridden is not None
+    assert overridden.resolved_daily_token_cap() == 50
 
 
 def test_open_session_does_not_invent_an_actor() -> None:
@@ -178,8 +195,42 @@ def test_fixture_probe_log_uses_protocol_maybe_log() -> None:
             assert node.name != "_write_message"
 
 
-def test_gateway_version_is_fail_closed_composition_release() -> None:
-    assert VERSION == "0.44.0"
+def test_gateway_version_is_daily_cap_release() -> None:
+    assert VERSION == "0.46.0"
+
+
+def test_default_daily_token_cap_is_small_and_overridable() -> None:
+    assert resolve_daily_token_cap({}) == DEFAULT_DAILY_TOKEN_CAP == 20_000
+    assert resolve_daily_token_cap({DAILY_TOKEN_CAP_ENV: "100"}) == 100
+    with pytest.raises(Exception, match="must be an integer"):
+        resolve_daily_token_cap({DAILY_TOKEN_CAP_ENV: "nope"})
+    with pytest.raises(Exception, match="must be >= 1"):
+        resolve_daily_token_cap({DAILY_TOKEN_CAP_ENV: "0"})
+    assert_daily_tokens_in_budget(0, 20_000)
+    assert_daily_tokens_in_budget(19_999, 20_000)
+    with pytest.raises(Exception, match=REASON_DAILY_CAP):
+        assert_daily_tokens_in_budget(20_000, 20_000)
+    with pytest.raises(Exception, match=REASON_DAILY_CAP):
+        assert_daily_tokens_in_budget(20_001, 20_000)
+
+
+def test_utc_day_start_is_inclusive_midnight() -> None:
+    fixed = datetime(2026, 10, 2, 15, 30, 11, tzinfo=UTC)
+    assert utc_day_start(fixed) == datetime(2026, 10, 2, 0, 0, tzinfo=UTC)
+
+
+def test_daily_cap_notes_prefix_like_is_literal() -> None:
+    from sqlalchemy.dialects.postgresql import dialect as pg_dialect
+
+    compiled = harness_notes_prefix_match(SESSION_NOTES).compile(
+        dialect=pg_dialect(),
+        compile_kwargs={"literal_binds": True},
+    )
+    sql = str(compiled)
+    assert "ESCAPE" in sql.upper()
+    assert "harness/_session/_turn" in sql or r"harness\_session\_turn" in sql
+    lookalike = "harness-session-turn extra"
+    assert not lookalike.startswith(SESSION_NOTES)
 
 
 def test_gateway_process_refuses_unmetered_without_flag() -> None:
@@ -242,9 +293,13 @@ async def test_health_reports_bound_session() -> None:
     async with AsyncClient(transport=ASGITransport(app=unbound), base_url="http://gw") as client:
         health = await client.get("/health")
     assert health.json()["session_owned"] is False
-    assert health.json()["version"] == "0.44.0"
+    assert health.json()["version"] == "0.46.0"
 
-    session = open_session("dddddddd-dddd-dddd-dddd-dddddddddddd", max_turns=3)
+    session = open_session(
+        "dddddddd-dddd-dddd-dddd-dddddddddddd",
+        max_turns=3,
+        daily_token_cap=500,
+    )
     owned = create_metered_gateway_app(session, env=env)
     async with AsyncClient(transport=ASGITransport(app=owned), base_url="http://gw") as client:
         health = await client.get("/health")
@@ -252,6 +307,7 @@ async def test_health_reports_bound_session() -> None:
     assert body["session_owned"] is True
     assert body["project_id"] == "dddddddd-dddd-dddd-dddd-dddddddddddd"
     assert body["max_turns"] == 3
+    assert body["daily_token_cap"] == 500
 
 
 def test_fastapi_boot_path_still_ignores_harness() -> None:
