@@ -134,10 +134,12 @@ the gateway or MCP child on Fly.
 
 - **Daily token cap.** Before a completion, `HarnessSession.authorize()`
   sums today's `ComputeDebit.tokens_used` for the project whose notes
-  start with `harness_session_turn` (UTC midnight inclusive). When that
-  sum has already hit `OPENTHEORY_HARNESS_DAILY_TOKEN_CAP` (default
-  **20_000**), the turn is `TurnRefused` (`daily token cap exhausted`).
-  A refused start writes nothing and does not call OpenRouter.
+  start with the literal `harness_session_turn` prefix (UTC midnight
+  inclusive; `_` / `%` are escaped so they are not LIKE wildcards).
+  When that sum has already hit `OPENTHEORY_HARNESS_DAILY_TOKEN_CAP`
+  (default **20_000**), the turn is `TurnRefused`
+  (`daily token cap exhausted`). A refused start writes nothing and
+  does not call OpenRouter.
 - **Restart does not reset it.** The existing ledger is the meter. A new
   `HarnessSession` at `turn_index=0` still refuses if today's harness
   spend has hit the cap. No campaign table.
@@ -152,9 +154,9 @@ the gateway or MCP child on Fly.
 
 ```bash
 cd backend && uv run ruff check .   # clean
-cd backend && uv run pytest -q      # 827 passed, 250 skipped (no TEST_DATABASE_URL)
-# +2 vs shipped 0.45.0 (825) — daily-cap resolve / UTC day start
-# +4 skipped (ledger: restart, yesterday, isolate, unfunded-still-caps)
+cd backend && uv run pytest -q      # 828 passed, 251 skipped (no TEST_DATABASE_URL)
+# +3 vs shipped 0.45.0 (825) — daily-cap resolve / UTC day / literal LIKE prefix
+# +5 skipped (ledger: restart, yesterday, isolate, lookalike-notes, unfunded-still-caps)
 # Frontend untouched — typecheck/lint/test/build unchanged
 ```
 

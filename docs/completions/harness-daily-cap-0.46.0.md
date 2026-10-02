@@ -25,10 +25,13 @@ no campaign table.** Sits on shipped `0.45.0` (`43f419c`, #38).
   refused start writes nothing and does not call OpenRouter.
 - **The ledger is the meter.** `harness_tokens_used_today` sums
   `ComputeDebit.tokens_used` for the project since UTC midnight
-  where notes start with `harness_session_turn` (the 0.43.0 session
-  note; `record_compute_debit` may append a rate-fallback suffix).
-  A new `HarnessSession` at `turn_index=0` still refuses. Yesterday
-  does not count. Agent-pass debits (no harness notes) do not count.
+  where notes start with the literal `harness_session_turn` prefix
+  (`startswith(..., autoescape=True)` — `_` / `%` are not LIKE
+  wildcards). `record_compute_debit` may append a rate-fallback
+  suffix; that still counts. A new `HarnessSession` at
+  `turn_index=0` still refuses. Yesterday does not count.
+  Agent-pass debits and a LIKE-lookalike note
+  (`harness-session-turn extra`) do not count.
 - **Default 20_000 tokens / UTC day.** Small: a handful of short
   planning completions. Not a process-local 4-turn replay after every
   restart. Operators raise `OPENTHEORY_HARNESS_DAILY_TOKEN_CAP`
@@ -66,21 +69,24 @@ no campaign table.** Sits on shipped `0.45.0` (`43f419c`, #38).
 
 - Default 20_000 is documented and overridable; `0` / non-integer
   refuse; UTC day start is midnight inclusive.
+- Compiled notes prefix uses `ESCAPE` / escaped `_` (default CI).
 - Session-from-env reads the override; health reports `daily_token_cap`.
 - Gateway version is `0.46.0`. FastAPI still ignores `app.harness`.
   `fly.toml [env]` has no secrets.
 - DB-backed: today's harness spend at the cap refuses a new session
   (`turn_index=0`) before the LLM call, mints nothing, writes no
-  debit; yesterday's harness spend does not; agent-pass notes do
-  not count; unfunded still hits the daily cap; pot check and
-  `tokens_used > 0` debit stay.
+  debit; yesterday's harness spend does not; `notes=None` and a
+  LIKE-lookalike `harness-session-turn extra` do not count; a sibling
+  with the real prefix plus the rate-fallback suffix does; unfunded
+  still hits the daily cap; pot check and `tokens_used > 0` debit stay.
 
 ## Verification
 
 - `ruff check .` clean.
 - Default pytest (no `TEST_DATABASE_URL`, no `OPENROUTER_API_KEY`):
-  **827 passed, 250 skipped**. +2 vs shipped `0.45.0` (825) —
-  daily-cap resolve / UTC day start. +4 skipped (ledger suite).
+  **828 passed, 251 skipped**. +3 vs shipped `0.45.0` (825) —
+  daily-cap resolve / UTC day start / literal LIKE prefix.
+  +5 skipped (ledger suite).
 - Ledger suite skips without `TEST_DATABASE_URL` (CI Postgres runs
   it). Lean / Mathlib stay off. Frontend untouched.
 

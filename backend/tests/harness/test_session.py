@@ -45,6 +45,7 @@ from app.harness.session import (
     SESSION_NOTES,
     HarnessSession,
     assert_daily_tokens_in_budget,
+    harness_notes_prefix_match,
     resolve_daily_token_cap,
     session_from_env,
     utc_day_start,
@@ -216,6 +217,20 @@ def test_default_daily_token_cap_is_small_and_overridable() -> None:
 def test_utc_day_start_is_inclusive_midnight() -> None:
     fixed = datetime(2026, 10, 2, 15, 30, 11, tzinfo=UTC)
     assert utc_day_start(fixed) == datetime(2026, 10, 2, 0, 0, tzinfo=UTC)
+
+
+def test_daily_cap_notes_prefix_like_is_literal() -> None:
+    from sqlalchemy.dialects.postgresql import dialect as pg_dialect
+
+    compiled = harness_notes_prefix_match(SESSION_NOTES).compile(
+        dialect=pg_dialect(),
+        compile_kwargs={"literal_binds": True},
+    )
+    sql = str(compiled)
+    assert "ESCAPE" in sql.upper()
+    assert "harness/_session/_turn" in sql or r"harness\_session\_turn" in sql
+    lookalike = "harness-session-turn extra"
+    assert not lookalike.startswith(SESSION_NOTES)
 
 
 def test_gateway_process_refuses_unmetered_without_flag() -> None:

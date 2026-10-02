@@ -23,6 +23,7 @@ from app.harness.session import (
     REASON_PROJECT_BUDGET,
     SESSION_NOTES,
     HarnessSession,
+    harness_tokens_used_today,
 )
 from app.models.checkpoint import Checkpoint
 from app.models.compute_debit import ComputeDebit
@@ -475,6 +476,36 @@ async def test_non_harness_debits_do_not_count_toward_daily_cap(
     ok = await _complete(app)
     assert ok.status_code == 200, ok.text
     assert calls["n"] == 1
+
+
+async def test_daily_cap_notes_prefix_is_literal(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """Underscores in harness_session_turn are not LIKE wildcards.
+
+    ``harness-session-turn extra`` would match an unescaped
+    ``notes LIKE 'harness_session_turn%'``. It must not count. A sibling
+    whose notes really start with the marker — including the
+    rate-fallback suffix ``record_compute_debit`` appends — must count.
+    """
+    actor_id = await make_dev_principal(client, display_name="Like", roles=("internal",))
+    project_id = await create_owned_project(client, actor_id, "session-daily-like")
+    lookalike = "harness-session-turn extra"
+    assert "_" not in lookalike
+    await _add_harness_debit(
+        session_factory, project_id, tokens_used=10_000, notes=lookalike
+    )
+    async with session_factory() as session:
+        assert await harness_tokens_used_today(session, UUID(project_id)) == 0
+
+    await _add_harness_debit(
+        session_factory,
+        project_id,
+        tokens_used=7,
+        notes=f"{SESSION_NOTES}; rate fallback: blended_fallback",
+    )
+    async with session_factory() as session:
+        assert await harness_tokens_used_today(session, UUID(project_id)) == 7
 
 
 async def test_unfunded_project_still_hits_daily_cap(

@@ -106,6 +106,11 @@ def utc_day_start(now: datetime | None = None) -> datetime:
     return moment.replace(hour=0, minute=0, second=0, microsecond=0)
 
 
+def harness_notes_prefix_match(notes: str = SESSION_NOTES):
+    """Literal notes prefix. ``_`` / ``%`` in the marker are not LIKE wildcards."""
+    return ComputeDebit.notes.startswith(notes, autoescape=True)
+
+
 def assert_turn_in_budget(turn_index: int, max_turns: int | None = None) -> None:
     cap = max_turns if max_turns is not None else resolve_max_turns()
     if turn_index < 0:
@@ -142,17 +147,18 @@ async def harness_tokens_used_today(
     """Σ tokens_used on today's harness_session_turn ComputeDebit rows.
 
     The existing ledger is the meter — a process restart does not reset
-    this sum. Rows whose notes start with ``harness_session_turn`` count
-    (``record_compute_debit`` may append a rate-fallback suffix). Other
-    project spend (agent-pass debits) does not. Window is UTC midnight
-    inclusive through now.
+    this sum. Rows whose notes start with the literal
+    ``harness_session_turn`` prefix count (``record_compute_debit`` may
+    append a rate-fallback suffix). ``_`` in that marker is not a LIKE
+    wildcard. Other project spend (agent-pass debits) does not. Window
+    is UTC midnight inclusive through now.
     """
     start = utc_day_start(now)
     result = await db.execute(
         select(func.coalesce(func.sum(ComputeDebit.tokens_used), 0)).where(
             ComputeDebit.project_id == project_id,
             ComputeDebit.created_at >= start,
-            ComputeDebit.notes.startswith(notes),
+            harness_notes_prefix_match(notes),
         )
     )
     return int(result.scalar_one() or 0)
