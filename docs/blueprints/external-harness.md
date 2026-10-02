@@ -1,11 +1,13 @@
 # External harness actor path
 
-> **What is (`0.44.0`).** Milestone 0 composition + fixture, the live
+> **What is (`0.46.0`).** Milestone 0 composition + fixture, the live
 > MCP door (`live_mcp.py`), the fail-closed OpenRouter gateway, a
 > session owner (`HarnessSession`) plus the odd-perfect reference
-> campaign, and a fail-closed campaign composition that cannot start
-> the unmetered gateway proxy. Fly enablement is not shipped. If this
-> blueprint disagrees with `backend/app/harness/`, the code wins.
+> campaign, a fail-closed campaign composition that cannot start the
+> unmetered gateway proxy, and a daily token cap counted from today's
+> `harness_session_turn` `ComputeDebit` rows (default 20_000 / UTC
+> day; survives a process restart). Fly enablement is not shipped. If
+> this blueprint disagrees with `backend/app/harness/`, the code wins.
 
 ## The rule
 
@@ -37,7 +39,7 @@ The FastAPI app does not import this package. Fly does not run it.
 
 ## What does not exist yet
 
-- Perpetual ops dashboard / daily caps
+- Perpetual ops dashboard
 - Any new Alembic revision
 - Fly enablement of the gateway or MCP child
 - A live `dsh` loop in production (`AGENT_LOOP_ENABLED` stays false)
@@ -76,7 +78,12 @@ owner: `HarnessSession` bound on `create_gateway_app` (or
 cannot start that child unbound. An attempted completion that then
 failed still debits if tokens moved. A refused start writes nothing.
 `supervise_turn` composes the same owner; it is not a second writer.
-Turn index is process-local (a restart starts at 0).
+Turn index is process-local (a restart starts at 0). The daily token
+cap is not: `authorize()` sums today's `ComputeDebit` rows whose notes
+start with `harness_session_turn` and refuses before the model when
+that sum has already hit `OPENTHEORY_HARNESS_DAILY_TOKEN_CAP`
+(default **20_000** tokens per UTC day). A refused daily-cap start
+mints nothing and does not call OpenRouter.
 
 ## Relationship to the built-in planner
 

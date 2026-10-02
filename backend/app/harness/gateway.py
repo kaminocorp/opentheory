@@ -1,4 +1,4 @@
-"""Fail-closed OpenRouter gateway for the external DeepSeek Harness (0.44.0).
+"""Fail-closed OpenRouter gateway for the external DeepSeek Harness (0.46.0).
 
 Mirrors the OpenWorld gateway posture named in ``docs/harness/prior-art.md``:
 provider allowlist, ``allow_fallbacks: false``, ``require_parameters: true``,
@@ -7,10 +7,10 @@ DeepSeek API. Secrets come from the environment / secrets manager; they must
 never land in ``fly.toml [env]``.
 
 A :class:`~app.harness.session.HarnessSession` bound on this app is the
-session owner: turn cap, funded-pot exhaust, and ``ComputeDebit`` happen
-here — the path ``dsh → llm-pi-ai`` actually hits — not only on the
-``supervise_turn`` library. Bind via ``session=`` or
-``OPENTHEORY_PROJECT_ID``. The campaign composition launches
+session owner: turn cap, daily token cap, funded-pot exhaust, and
+``ComputeDebit`` happen here — the path ``dsh → llm-pi-ai`` actually
+hits — not only on the ``supervise_turn`` library. Bind via ``session=``
+or ``OPENTHEORY_PROJECT_ID``. The campaign composition launches
 ``python -m app.harness.campaign``, which refuses when unbound. This
 module's process entrypoint refuses the same way unless
 ``OPENTHEORY_HARNESS_UNMETERED_PROBE`` is set — that flag is an
@@ -39,7 +39,7 @@ from app.harness.auth import redact
 from app.harness.composition import PROJECT_ID_ENV, UNMETERED_PROBE_ENV
 from app.harness.session import HarnessSession, TurnRefused, session_from_env
 
-VERSION = "0.44.0"
+VERSION = "0.46.0"
 DEFAULT_MODEL = "deepseek/deepseek-chat"
 DEFAULT_PROVIDERS: tuple[str, ...] = ("DeepSeek",)
 ALLOWED_OPENROUTER_HOSTS = frozenset({"openrouter.ai", "www.openrouter.ai"})
@@ -350,10 +350,11 @@ def create_gateway_app(
 
     Not mounted on the product FastAPI app. ``python -m app.harness.gateway``.
     ``gateway`` is the test injection seam (MockTransport client).
-    ``session`` is the 0.43.0 owner — turn cap, exhaust, and debit. When
-    omitted, ``OPENTHEORY_PROJECT_ID`` binds one. The process entrypoint
-    refuses an unbound child unless ``OPENTHEORY_HARNESS_UNMETERED_PROBE``
-    is set. In-process tests may still construct an unbound app.
+    ``session`` is the 0.43.0 / 0.46.0 owner — turn cap, daily token
+    cap, exhaust, and debit. When omitted, ``OPENTHEORY_PROJECT_ID``
+    binds one. The process entrypoint refuses an unbound child unless
+    ``OPENTHEORY_HARNESS_UNMETERED_PROBE`` is set. In-process tests may
+    still construct an unbound app.
     """
     bound = session if session is not None else session_from_env(env)
 
@@ -373,6 +374,9 @@ def create_gateway_app(
             "project_id": str(bound.project_uuid) if bound is not None else None,
             "turn_index": bound.turn_index if bound is not None else None,
             "max_turns": bound.resolved_max_turns() if bound is not None else None,
+            "daily_token_cap": (
+                bound.resolved_daily_token_cap() if bound is not None else None
+            ),
         }
 
     @app.post("/v1/chat/completions")

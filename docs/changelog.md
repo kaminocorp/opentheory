@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.46.0` — **Harness daily token cap.** The session-owned campaign child (`dsh → llm-pi-ai → python -m app.harness.campaign`) refuses before the model when today's `harness_session_turn` `ComputeDebit` token sum has already hit `OPENTHEORY_HARNESS_DAILY_TOKEN_CAP` (default **20_000** tokens per UTC day). A refused start mints nothing and does not call OpenRouter. The process-local turn cap (default 4) still resets to 0 on restart; this ledger sum does not. Project pot check stays (funded and `available <= 0` refuses; unfunded is not exhausted). Debit only when `tokens_used > 0`. No campaign table. No ops dashboard. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + docs — no schema, no migration.** Sits on shipped `0.45.0` (`43f419c`, #38).
 - `0.45.0` — **`source.pin` — bibliographic source pin.** A claim can cite a real paper or work through the existing instrument contract (`result` / `undecided`; exceptions mint nothing). One locator (DOI / arXiv id / OpenAlex `W…` id / bibliographic query) routes to the shipped Crossref / arXiv / OpenAlex fetchers — no second HTTP path, no invented citation. Auto-route: `W…` → OpenAlex, arXiv id → arXiv, DOI → Crossref, free text → Crossref bibliographic. Dedicated `*.lookup` instruments stay. Network is the existing timeout-bounded `RetrievalClient`; default CI stays fixture-backed. Live MCP `run_instrument` already covers the catalog. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + frontend + docs — no schema, no migration.** Sits on shipped `0.44.0` (`6c440ae`, #37).
 - `0.44.0` — **Fail-closed metered harness composition.** The composition `dsh` would boot can no longer start the bare unmetered `python -m app.harness.gateway` proxy. `llm-pi-ai` launches `python -m app.harness.campaign` (refuses when unbound) and passes `OPENTHEORY_PROJECT_ID` as an operator-supplied env name (same pattern as `OPENTHEORY_ACTOR_JWT_FILE` — never a UUID or secret in the file). `composition.verify` rejects a bare gateway child, a literal project id, and `OPENTHEORY_HARNESS_UNMETERED_PROBE` on the campaign patch. An explicit unmetered probe may remain behind that flag; it is not the campaign composition. Turn index stays process-local. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + docs — no schema, no migration.** Sits on shipped `0.43.0` (`51368da`, #36).
 - `0.43.0` — **Harness session owner + odd-perfect reference campaign.** One owner (`HarnessSession`) for an external harness run. `ComputeDebit`, the turn cap, and pre-LLM exhaust (funded and `available <= 0` refuses, mints nothing, does not call the model) sit on the path that owner actually runs: `dsh → llm-pi-ai → create_gateway_app`, not only on the `supervise_turn` library. Live MCP stays the domain door. Human sets question, roster, and budget; the harness is instrument-only. Unfunded ≠ exhausted. Extra-body `models`/`route` dropped. Fixture logs use `protocol.maybe_log`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway child on Fly. Secrets never in `fly.toml [env]`. **Backend + docs — no schema, no migration.** Sits on shipped `0.42.0` (`a61affd`, #35).
@@ -117,6 +118,51 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.46.0
+
+**Harness daily token cap.** The 0.43–0.44 session owner has a
+process-local turn cap (default 4) and a project pot check, but nothing
+stopped a restarted — or long-lived — child from spending the whole pot
+in a day. Turn index resets to 0 on restart, so it is not a daily
+ceiling. This slice adds one. Live MCP from `0.41.0` stays the only
+ledger writer. **No schema, no migration.** Sits on shipped `0.45.0`
+(`43f419c`, #38). Does not flip `AGENT_LOOP_ENABLED`. Does not enable
+the gateway or MCP child on Fly.
+
+- **Daily token cap.** Before a completion, `HarnessSession.authorize()`
+  sums today's `ComputeDebit.tokens_used` for the project whose notes
+  start with `harness_session_turn` (UTC midnight inclusive). When that
+  sum has already hit `OPENTHEORY_HARNESS_DAILY_TOKEN_CAP` (default
+  **20_000**), the turn is `TurnRefused` (`daily token cap exhausted`).
+  A refused start writes nothing and does not call OpenRouter.
+- **Restart does not reset it.** The existing ledger is the meter. A new
+  `HarnessSession` at `turn_index=0` still refuses if today's harness
+  spend has hit the cap. No campaign table.
+- **Pot check stays.** Funded and `available <= 0` still refuses.
+  Unfunded is still not exhausted. Debit only when `tokens_used > 0`.
+  Exceptions mint nothing. `create_checkpoint` remains the only
+  Checkpoint writer.
+- **Operator override.** `OPENTHEORY_HARNESS_DAILY_TOKEN_CAP` (integer
+  `>= 1`). Default 20_000 is a handful of short planning completions —
+  enough to work, not enough to drain a funded pot by bouncing the
+  child. Documented in `.env.example` and `docs/harness/`.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 827 passed, 250 skipped (no TEST_DATABASE_URL)
+# +2 vs shipped 0.45.0 (825) — daily-cap resolve / UTC day start
+# +4 skipped (ledger: restart, yesterday, isolate, unfunded-still-caps)
+# Frontend untouched — typecheck/lint/test/build unchanged
+```
+
+See `docs/completions/harness-daily-cap-0.46.0.md`.
+
+**Not in this release:** an ops dashboard or UI chart; Fly enablement
+of the gateway or MCP child; lighting `AGENT_LOOP_ENABLED`; a campaign
+table; Lean REPL / LeanDojo.
 
 ---
 

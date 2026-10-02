@@ -1,9 +1,10 @@
 # External DeepSeek Harness — implementation plan
 
-> **Status — `0.44.0` Milestone 3b is this slice** (fail-closed
-> metered composition), sitting on shipped `0.43.0` session owner,
-> `0.42.0` gateway, `0.41.0` live MCP, and `0.40.0` composition. Not a
-> product loop. Not enabled on Fly. Does not light `AGENT_LOOP_ENABLED`.
+> **Status — `0.46.0` Milestone 4a is this slice** (daily token cap),
+> sitting on shipped `0.45.0` `source.pin`, `0.44.0` fail-closed
+> composition, `0.43.0` session owner, `0.42.0` gateway, `0.41.0` live
+> MCP, and `0.40.0` composition. Not a product loop. Not enabled on
+> Fly. Does not light `AGENT_LOOP_ENABLED`.
 
 The external agent adapter lives **outside** the built-in OpenRouter planner
 (`0.12.x`–`0.32.0`). DeepSeek Harness SDK + an OpenRouter gateway own the
@@ -39,8 +40,9 @@ meters token spend.
 | **1 — `0.41.0`** | Live MCP binding: JWT Actor + `ensure_is_member` + real `run_instrument` / `create_checkpoint` + claim/thread/budget reads | Gateway supervision; campaigns; a second settlement path |
 | **2 — `0.42.0`** | OpenRouter gateway + turn supervision (provider allowlist, `allow_fallbacks: false`, `require_parameters: true`, `data_collection: deny`); `ComputeDebit` for LLM tokens | Lighting the built-in planner; daily caps; Fly enablement |
 | **3 — `0.43.0`** | Session owner (`HarnessSession`) on the gateway path a campaign actually runs; odd-perfect reference campaign (human question / roster / budget; instrument-only) | Auto-validate / auto-fund / auto-merge; Fly enablement; `AGENT_LOOP_ENABLED` |
-| **3b — `0.44.0` (this)** | Fail-closed campaign composition: `llm-pi-ai` launches `app.harness.campaign`; `verify()` rejects the bare unmetered proxy; `OPENTHEORY_PROJECT_ID` is an env name | Fly enablement; `AGENT_LOOP_ENABLED`; a campaign table; lighting the built-in planner |
-| **4 — later** | Perpetual ops dashboard; daily turn/request caps | Lean REPL / LeanDojo (separate line) |
+| **3b — `0.44.0`** | Fail-closed campaign composition: `llm-pi-ai` launches `app.harness.campaign`; `verify()` rejects the bare unmetered proxy; `OPENTHEORY_PROJECT_ID` is an env name | Fly enablement; `AGENT_LOOP_ENABLED`; a campaign table; lighting the built-in planner |
+| **4a — `0.46.0` (this)** | Daily token cap on the session-owned path: today's `harness_session_turn` `ComputeDebit` sum (default 20_000 / UTC day) refuses before the model; survives a process restart | Ops dashboard; Fly enablement; `AGENT_LOOP_ENABLED`; a campaign table |
+| **4b — later** | Perpetual ops dashboard | Lean REPL / LeanDojo (separate line) |
 
 Each slice stays small and deployable. A slice that cannot run in default CI
 without `OPENROUTER_API_KEY` is not done.

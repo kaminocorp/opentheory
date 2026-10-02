@@ -16,6 +16,10 @@ for tokens that moved → optional live MCP dispatch through the existing
 
 Bounds:
 - ``OPENTHEORY_HARNESS_MAX_TURNS`` (default 4). Crossing it refuses.
+  Process-local — a restart starts at turn 0.
+- ``OPENTHEORY_HARNESS_DAILY_TOKEN_CAP`` (default 20_000 tokens / UTC
+  day). Counted from today's ``ComputeDebit`` rows whose notes start
+  with ``harness_session_turn``. Survives a process restart.
 - Composition drift refuses (``composition.verify``).
 - A funded pot with ``available <= 0`` refuses before the LLM call.
 
@@ -24,8 +28,8 @@ writer the built-in planner uses. Harness turns have no ``AgentRun`` (this
 path does not light ``AGENT_LOOP_ENABLED``), so ``agent_run_id`` is left
 null and ``notes`` carry ``harness_session_turn``. Tokens that moved are
 always billed, including an attempted completion that then failed to parse.
-A refused start (drift / exhausted / turn cap) writes nothing: no tokens
-moved.
+A refused start (drift / exhausted / turn cap / daily cap) writes nothing:
+no tokens moved.
 
 Exceptions still mint nothing. The MCP door is the only ledger writer.
 """
