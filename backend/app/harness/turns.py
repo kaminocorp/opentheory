@@ -1,4 +1,11 @@
-"""Turn supervision for the external DeepSeek Harness path (0.42.0).
+"""Turn supervision library for the external DeepSeek Harness path.
+
+``0.42.0`` shipped these helpers; ``0.43.0`` keeps them as a library
+tests and a no-``dsh`` driver can call. The session owner for the path
+a campaign actually runs is :class:`~app.harness.session.HarnessSession`,
+wired into ``create_gateway_app``. A project-scoped
+:func:`supervise_turn` now composes that owner rather than minting a
+parallel debit path.
 
 A supervised turn: fail-closed composition check → project budget check →
 one OpenRouter completion through :class:`GatewayClient` → ``ComputeDebit``
@@ -13,7 +20,7 @@ Bounds:
 Debit uses :func:`app.services.compute.record_compute_debit` — the same
 writer the built-in planner uses. Harness turns have no ``AgentRun`` (this
 path does not light ``AGENT_LOOP_ENABLED``), so ``agent_run_id`` is left
-null and ``notes`` carry ``harness_gateway_turn``. Tokens that moved are
+null and ``notes`` carry ``harness_session_turn``. Tokens that moved are
 always billed, including an attempted completion that then failed to parse.
 A refused start (drift / exhausted / turn cap) writes nothing: no tokens
 moved.
@@ -23,7 +30,6 @@ Exceptions still mint nothing. The MCP door is the only ledger writer.
 
 from __future__ import annotations
 
-import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
@@ -39,24 +45,40 @@ from app.harness.gateway import (
     GatewayResponse,
     resolve_model,
 )
-from app.models.enums import ComputeDebitKind
-from app.services import compute as compute_service
-from app.services import funding as funding_service
+from app.harness.session import (
+    DEFAULT_MAX_TURNS,
+    MAX_TURNS_ENV,
+    REASON_COMPOSITION,
+    REASON_PROJECT_BUDGET,
+    REASON_TURN_BUDGET,
+    SESSION_NOTES,
+    HarnessSession,
+    TurnRefused,
+    assert_project_budget,
+    assert_turn_in_budget,
+    resolve_max_turns,
+)
 
-TURN_NOTES = "harness_gateway_turn"
-MAX_TURNS_ENV = "OPENTHEORY_HARNESS_MAX_TURNS"
-DEFAULT_MAX_TURNS = 4
-REASON_COMPOSITION = "composition drifted"
-REASON_TURN_BUDGET = "turn budget exhausted"
-REASON_PROJECT_BUDGET = compute_service.BUDGET_EXHAUSTED
+TURN_NOTES = SESSION_NOTES
 
-
-class TurnRefused(Exception):
-    """The turn did not start. No LLM call, no debit, no mint."""
-
-    def __init__(self, reason: str) -> None:
-        super().__init__(reason)
-        self.reason = reason
+__all__ = [
+    "DEFAULT_MAX_TURNS",
+    "MAX_TURNS_ENV",
+    "REASON_COMPOSITION",
+    "REASON_PROJECT_BUDGET",
+    "REASON_TURN_BUDGET",
+    "SESSION_NOTES",
+    "TURN_NOTES",
+    "HarnessSession",
+    "SupervisedTurn",
+    "TurnRefused",
+    "assert_composition",
+    "assert_project_budget",
+    "assert_turn_in_budget",
+    "resolve_max_turns",
+    "supervise_session",
+    "supervise_turn",
+]
 
 
 @dataclass
@@ -79,28 +101,6 @@ class SupervisedTurn:
     extras: dict[str, Any] = field(default_factory=dict)
 
 
-def resolve_max_turns(env: Mapping[str, str] | None = None) -> int:
-    lookup = env if env is not None else os.environ
-    raw = (lookup.get(MAX_TURNS_ENV) or "").strip()
-    if not raw:
-        return DEFAULT_MAX_TURNS
-    try:
-        value = int(raw)
-    except ValueError as exc:
-        raise TurnRefused(f"{MAX_TURNS_ENV} must be an integer") from exc
-    if value < 1:
-        raise TurnRefused(f"{MAX_TURNS_ENV} must be >= 1")
-    return value
-
-
-def assert_turn_in_budget(turn_index: int, max_turns: int | None = None) -> None:
-    cap = max_turns if max_turns is not None else resolve_max_turns()
-    if turn_index < 0:
-        raise TurnRefused(REASON_TURN_BUDGET)
-    if turn_index >= cap:
-        raise TurnRefused(REASON_TURN_BUDGET)
-
-
 def assert_composition(*, version: str | None = None) -> None:
     try:
         if version is None:
@@ -109,45 +109,6 @@ def assert_composition(*, version: str | None = None) -> None:
             verify(version=version)
     except CompositionError as exc:
         raise TurnRefused(f"{REASON_COMPOSITION}: {exc}") from exc
-
-
-async def assert_project_budget(
-    db: AsyncSession,
-    project_id: UUID,
-) -> None:
-    """Refuse when a funded project has no remaining ComputeDebit pot.
-
-    Unfunded projects (``funded == 0``) are not exhausted — same honesty as
-    the live MCP door. The LLM call has not happened yet, so there is
-    nothing to debit.
-    """
-    budget = await funding_service.project_budget(db, project_id)
-    if budget.funded > 0 and budget.available <= 0:
-        raise TurnRefused(REASON_PROJECT_BUDGET)
-
-
-async def _record_harness_debit(
-    db: AsyncSession,
-    *,
-    project_id: UUID,
-    tokens_used: int,
-    model: str | None,
-    prompt_tokens: int | None,
-    completion_tokens: int | None,
-    notes: str | None = None,
-) -> bool:
-    debit = await compute_service.record_compute_debit(
-        db,
-        project_id=project_id,
-        tokens_used=tokens_used,
-        model=model,
-        kind=ComputeDebitKind.PLANNING,
-        notes=notes or TURN_NOTES,
-        prompt_tokens=prompt_tokens,
-        completion_tokens=completion_tokens,
-    )
-    await db.commit()
-    return debit is not None
 
 
 async def supervise_turn(
@@ -182,27 +143,27 @@ async def supervise_turn(
             ok=False, refused=True, reason=reason, model=model, turn_index=turn_index
         )
 
-    project_uuid: UUID | None = None
-    if project_id is not None and str(project_id):
-        project_uuid = project_id if isinstance(project_id, UUID) else UUID(str(project_id))
-
+    owner: HarnessSession | None = None
     factory = session_factory
-    if project_uuid is not None:
-        if factory is None:
-            from app.db.session import AsyncSessionLocal
-
-            factory = AsyncSessionLocal
-        async with factory() as db:
-            try:
-                await assert_project_budget(db, project_uuid)
-            except TurnRefused as exc:
-                return SupervisedTurn(
-                    ok=False,
-                    refused=True,
-                    reason=exc.reason,
-                    model=resolved_model,
-                    turn_index=turn_index,
-                )
+    if project_id is not None and str(project_id):
+        owner = HarnessSession(
+            project_id=project_id,
+            turn_index=turn_index,
+            max_turns=cap,
+            session_factory=session_factory,
+            env=env,
+        )
+        factory = owner.session_factory or session_factory
+        try:
+            await owner.authorize()
+        except TurnRefused as exc:
+            return SupervisedTurn(
+                ok=False,
+                refused=True,
+                reason=exc.reason,
+                model=resolved_model,
+                turn_index=turn_index,
+            )
 
     client = gateway or GatewayClient(env=env)
     response: GatewayResponse | None = None
@@ -229,16 +190,14 @@ async def supervise_turn(
     )
 
     debit_recorded = False
-    if project_uuid is not None and tokens_used > 0 and factory is not None:
-        async with factory() as db:
-            debit_recorded = await _record_harness_debit(
-                db,
-                project_id=project_uuid,
-                tokens_used=tokens_used,
-                model=resolved_model,
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens,
-            )
+    if owner is not None:
+        debit_recorded = await owner.record_spend(
+            tokens_used=tokens_used,
+            model=resolved_model,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+        )
+        owner.advance()
 
     if error is not None:
         return SupervisedTurn(

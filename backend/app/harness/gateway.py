@@ -1,10 +1,17 @@
-"""Fail-closed OpenRouter gateway for the external DeepSeek Harness (0.42.0).
+"""Fail-closed OpenRouter gateway for the external DeepSeek Harness (0.43.0).
 
 Mirrors the OpenWorld gateway posture named in ``docs/harness/prior-art.md``:
 provider allowlist, ``allow_fallbacks: false``, ``require_parameters: true``,
 ``data_collection: deny``. Traffic goes to OpenRouter only — never the raw
 DeepSeek API. Secrets come from the environment / secrets manager; they must
 never land in ``fly.toml [env]``.
+
+A :class:`~app.harness.session.HarnessSession` bound on this app is the
+session owner: turn cap, funded-pot exhaust, and ``ComputeDebit`` happen
+here — the path ``dsh → llm-pi-ai`` actually hits — not only on the
+``supervise_turn`` library. Bind via ``session=`` or
+``OPENTHEORY_PROJECT_ID``. A bare child without a session stays the
+unmetered probe proxy and is not the campaign path.
 
 This module is **not** imported by ``app.main`` or ``api/router.py``. It does
 not flip ``AGENT_LOOP_ENABLED``. The built-in planner's ``OpenRouterClient``
@@ -26,8 +33,9 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.openrouter_models import OPENROUTER_MODELS, VALID_MODEL_IDS
 from app.harness.auth import redact
+from app.harness.session import HarnessSession, TurnRefused, session_from_env
 
-VERSION = "0.42.0"
+VERSION = "0.43.0"
 DEFAULT_MODEL = "deepseek/deepseek-chat"
 DEFAULT_PROVIDERS: tuple[str, ...] = ("DeepSeek",)
 ALLOWED_OPENROUTER_HOSTS = frozenset({"openrouter.ai", "www.openrouter.ai"})
@@ -48,6 +56,25 @@ GATEWAY_URL_ENV = "OPENTHEORY_GATEWAY_URL"
 FAIL_CLOSED_ALLOW_FALLBACKS = False
 FAIL_CLOSED_REQUIRE_PARAMETERS = True
 FAIL_CLOSED_DATA_COLLECTION = "deny"
+
+# Client extras that must never reach OpenRouter — they re-open routing around
+# the fail-closed ``provider`` block (P2, 0.43.0).
+REFUSED_EXTRA_BODY_KEYS = frozenset({"provider", "models", "route", "transforms"})
+ALLOWED_EXTRA_BODY_KEYS = frozenset(
+    {
+        "temperature",
+        "top_p",
+        "stop",
+        "stream",
+        "n",
+        "seed",
+        "frequency_penalty",
+        "presence_penalty",
+        "logit_bias",
+        "response_format",
+        "user",
+    }
+)
 
 
 class GatewayError(Exception):
@@ -162,8 +189,13 @@ def build_fail_closed_body(
     if max_tokens is not None:
         body["max_tokens"] = max_tokens
     if extra:
-        # A caller (or the dsh child) must not be able to re-open fallbacks.
-        sanitized = {key: value for key, value in extra.items() if key != "provider"}
+        # A caller (or the dsh child) must not re-open fallbacks or bypass the
+        # provider allowlist via ``models`` / ``route`` / ``transforms``.
+        sanitized = {
+            key: value
+            for key, value in extra.items()
+            if key in ALLOWED_EXTRA_BODY_KEYS and key not in REFUSED_EXTRA_BODY_KEYS
+        }
         body.update(sanitized)
         body["provider"] = provider_preferences(allowlist)
     return body
@@ -308,12 +340,18 @@ def create_gateway_app(
     *,
     env: Mapping[str, str] | None = None,
     gateway: GatewayClient | None = None,
+    session: HarnessSession | None = None,
 ):
     """Standalone ASGI app the Cordis ``llm-pi-ai`` plugin can point at.
 
     Not mounted on the product FastAPI app. ``python -m app.harness.gateway``.
     ``gateway`` is the test injection seam (MockTransport client).
+    ``session`` is the 0.43.0 owner — turn cap, exhaust, and debit. When
+    omitted, ``OPENTHEORY_PROJECT_ID`` binds one; a missing project leaves
+    this child as the unmetered probe proxy.
     """
+    bound = session if session is not None else session_from_env(env)
+
     app = FastAPI(title="OpenTheory OpenRouter gateway", version=VERSION)
 
     @app.get("/health")
@@ -326,12 +364,20 @@ def create_gateway_app(
             "require_parameters": FAIL_CLOSED_REQUIRE_PARAMETERS,
             "data_collection": FAIL_CLOSED_DATA_COLLECTION,
             "providers": list(resolve_providers(env)),
+            "session_owned": bound is not None,
+            "project_id": str(bound.project_uuid) if bound is not None else None,
+            "turn_index": bound.turn_index if bound is not None else None,
+            "max_turns": bound.resolved_max_turns() if bound is not None else None,
         }
 
     @app.post("/v1/chat/completions")
     async def chat_completions(request: Request) -> JSONResponse:
+        owner = bound
+        started = False
         try:
             _require_gateway_token(request.headers, env=env)
+            if owner is not None:
+                await owner.authorize()
             raw = await request.json()
             if not isinstance(raw, dict):
                 raise GatewayError("body must be a JSON object")
@@ -341,13 +387,34 @@ def create_gateway_app(
                 raise GatewayError("messages must be a list")
             extra = {key: value for key, value in raw.items() if key not in {"model", "messages"}}
             client = gateway or GatewayClient(env=env)
+            started = True
             result = await client.complete(
                 model=str(model) if model else None,
                 messages=messages,
                 max_tokens=extra.pop("max_tokens", None),
                 extra=extra,
             )
+        except TurnRefused as exc:
+            return JSONResponse(
+                status_code=422,
+                content=redact(
+                    {
+                        "error": exc.reason,
+                        "tokens_used": 0,
+                        "minted": False,
+                        "refused": True,
+                    }
+                ),
+            )
         except GatewayError as exc:
+            if owner is not None and started:
+                await owner.record_spend(
+                    tokens_used=exc.tokens_used,
+                    model=None,
+                    prompt_tokens=exc.prompt_tokens,
+                    completion_tokens=exc.completion_tokens,
+                )
+                owner.advance()
             return JSONResponse(
                 status_code=422,
                 content=redact(
@@ -358,6 +425,14 @@ def create_gateway_app(
                     }
                 ),
             )
+        if owner is not None:
+            await owner.record_spend(
+                tokens_used=result.tokens_used,
+                model=result.model,
+                prompt_tokens=result.prompt_tokens,
+                completion_tokens=result.completion_tokens,
+            )
+            owner.advance()
         return JSONResponse(
             {
                 "id": "opentheory-gateway",

@@ -1,9 +1,9 @@
 # External harness — MCP tool contracts
 
-> **Status — `0.42.0` gateway + live door.** Stems are pinned. The
+> **Status — `0.43.0` session owner + live door.** Stems are pinned. The
 > fixture in `backend/app/harness/fixture_mcp.py` still **mints nothing**
 > (M0 probes). The live server is `backend/app/harness/live_mcp.py`.
-> LLM tokens are metered by the gateway / turn supervisor, not by these
+> LLM tokens are metered by the session-owned gateway, not by these
 > stems.
 
 The DeepSeek MCP client prefixes tools as `mcp__opentheory__<stem>`
@@ -43,9 +43,10 @@ hospitality tools and must not appear in this inventory.
   contributor and never a funder. A funded project with `available <= 0`
   refuses writes. Unfunded projects are not treated as exhausted.
   Standalone instrument runs do not debit (same as the human toolbench).
-  Gateway token metering (`0.42.0`) debits `ComputeDebit` for LLM tokens
-  on supervised turns — including attempted completions that spent
-  tokens — or refuses to start.
+  Gateway token metering (`0.43.0` session owner) debits `ComputeDebit`
+  for LLM tokens on the path `dsh → llm-pi-ai → create_gateway_app` —
+  including attempted completions that spent tokens — or refuses to
+  start. Unfunded is not exhausted.
 
 ## Auth injection (do not put the bearer on a tool argument)
 
@@ -123,9 +124,9 @@ Failure (401 / 403 / 422 / unknown instrument): `ok: false`,
   The MCP tool does not wrap that in a second checkpoint.
 - `create_checkpoint` is for explicit research-state notes the instrument
   path does not cover. It is not a dump of the model transcript.
-- Gateway metering (`0.42.0`) debits `ComputeDebit` the same way the
-  built-in planner does — `record_compute_debit`, live-or-fallback rates,
-  notes `harness_gateway_turn`. A refused start (drift / exhausted pot /
+- Gateway metering (`0.43.0`) sits on `HarnessSession` bound to
+  `create_gateway_app` — `record_compute_debit`, live-or-fallback rates,
+  notes `harness_session_turn`. A refused start (drift / exhausted pot /
   turn cap) writes nothing. Do not skip metering when tokens moved.
 
 ## Adding a tool

@@ -1,4 +1,4 @@
-"""Fail-closed OpenRouter gateway (0.42.0) — DB-free, no live key, no dsh."""
+"""Fail-closed OpenRouter gateway (0.42.0 / 0.43.0) — DB-free, no live key, no dsh."""
 
 from __future__ import annotations
 
@@ -71,6 +71,8 @@ def test_body_overwrites_client_provider_block() -> None:
     assert body["provider"]["only"] == ["DeepSeek"]
     assert body["temperature"] == 0
     assert body["model"] == DEFAULT_MODEL
+    assert "models" not in body
+    assert "route" not in body
 
 
 def test_unknown_model_is_refused() -> None:
@@ -199,6 +201,22 @@ async def test_http_gateway_requires_token_and_overwrites_provider() -> None:
         assert payload["usage"]["total_tokens"] == 12
 
 
+def test_body_drops_models_and_route_bypass() -> None:
+    body = build_fail_closed_body(
+        model=DEFAULT_MODEL,
+        messages=[{"role": "user", "content": "hi"}],
+        extra={
+            "models": ["anthropic/claude-sonnet-4"],
+            "route": "fallback",
+            "transforms": ["middle-out"],
+        },
+    )
+    assert "models" not in body
+    assert "route" not in body
+    assert "transforms" not in body
+    assert body["provider"]["allow_fallbacks"] is False
+
+
 def test_fastapi_boot_path_still_ignores_harness() -> None:
     for rel in ("app/main.py", "app/api/router.py"):
         source = (BACKEND_ROOT / rel).read_text(encoding="utf-8")
@@ -230,6 +248,7 @@ def test_fly_toml_env_has_no_secrets() -> None:
         "OPENROUTER_API_KEY",
         "OPENTHEORY_GATEWAY_TOKEN",
         "OPENTHEORY_ACTOR_JWT",
+        "OPENTHEORY_ACTOR_JWT_FILE",
         "DATABASE_URL",
         "AGENT_LOOP_ENABLED",
     ):

@@ -61,6 +61,23 @@ def test_read_helpers_are_empty_stubs() -> None:
     assert call_tool("get_budget", {"project_id": "p"})["available"] is None
 
 
+def test_fixture_probe_log_redacts_secrets(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    log = tmp_path / "probe.jsonl"
+    monkeypatch.setenv("OPENTHEORY_PROBE_LOG", str(log))
+    from app.harness.protocol import write_message
+
+    write_message(
+        {
+            "authorization": "Bearer super-secret-token",
+            "OPENTHEORY_ACTOR_JWT": "eyJhbGciOiJIUzI1NiJ9.aaa",
+        }
+    )
+    text = log.read_text(encoding="utf-8")
+    assert "super-secret-token" not in text
+    assert "eyJhbGciOiJIUzI1NiJ9" not in text
+    assert "***" in text
+
+
 def test_unknown_tool_raises() -> None:
     with pytest.raises(KeyError, match="unknown fixture tool"):
         call_tool("query")

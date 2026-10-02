@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 from collections.abc import Callable
 from typing import Any
 
 from app.harness.composition import DOMAIN_TOOL_STEMS, PROBE_TOOL_STEMS, TOOL_STEMS
+from app.harness.protocol import read_message, write_message
 
 SERVER_NAME = "opentheory"
 PROTOCOL_VERSION = "2024-11-05"
@@ -184,44 +184,6 @@ def assert_inventory() -> None:
         raise RuntimeError("probe stems must stay disjoint from domain stems")
 
 
-def _read_message() -> dict[str, Any] | None:
-    headers: dict[str, str] = {}
-    while True:
-        line = sys.stdin.buffer.readline()
-        if not line:
-            return None
-        if line in {b"\r\n", b"\n"}:
-            break
-        decoded = line.decode("utf-8")
-        if ":" not in decoded:
-            continue
-        key, value = decoded.split(":", 1)
-        headers[key.strip().lower()] = value.strip()
-    length = int(headers.get("content-length", "0"))
-    if length <= 0:
-        return None
-    payload = sys.stdin.buffer.read(length)
-    if not payload:
-        return None
-    return json.loads(payload.decode("utf-8"))
-
-
-def _write_message(message: dict[str, Any]) -> None:
-    payload = json.dumps(message, separators=(",", ":")).encode("utf-8")
-    sys.stdout.buffer.write(f"Content-Length: {len(payload)}\r\n\r\n".encode())
-    sys.stdout.buffer.write(payload)
-    sys.stdout.buffer.flush()
-    _maybe_log(message)
-
-
-def _maybe_log(message: dict[str, Any]) -> None:
-    path = os.environ.get("OPENTHEORY_PROBE_LOG")
-    if not path:
-        return
-    with open(path, "a", encoding="utf-8") as handle:
-        handle.write(json.dumps(message) + "\n")
-
-
 def _handle(message: dict[str, Any]) -> dict[str, Any] | None:
     method = message.get("method")
     msg_id = message.get("id")
@@ -273,12 +235,12 @@ def serve_stdio() -> None:
     """JSON-RPC MCP over stdin/stdout. No SDK, no ledger, no network."""
     assert_inventory()
     while True:
-        message = _read_message()
+        message = read_message()
         if message is None:
             return
         reply = _handle(message)
         if reply is not None:
-            _write_message(reply)
+            write_message(reply)
 
 
 def main() -> None:
