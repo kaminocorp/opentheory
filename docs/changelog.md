@@ -158,8 +158,11 @@ the gateway or MCP child on Fly.
 
 ```bash
 cd backend && uv run ruff check .   # clean
-cd backend && uv run pytest -q      # counts filled after the test pass
-cd frontend && npm run typecheck && npm run lint && npm test
+cd backend && uv run pytest -q      # 825 passed, 246 skipped (no TEST_DATABASE_URL)
+# +21 vs shipped 0.44.0 (804) — source.pin routing / pin / empty-match / fail-closed
+# +1 skip (DB-gated write-path through run_instrument)
+cd frontend && npm run typecheck && npm run lint && npm test && npm run build
+# typecheck/lint/test/build clean; 57 passed
 ```
 
 See `docs/completions/source-pin-instrument-0.45.0.md`.

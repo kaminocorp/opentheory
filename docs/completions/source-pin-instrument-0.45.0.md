@@ -99,7 +99,15 @@ raise path.
 
 ## Verification
 
-Filled after the test pass on this branch.
+- `ruff check .` clean.
+- Default pytest (no `TEST_DATABASE_URL`): **825 passed, 246 skipped**.
+  +21 vs shipped `0.44.0` (804) — routing, pin, empty-match, fetch
+  failure, catalog / grading / async mode. +1 skip (the
+  `source.pin` write-path round-trip).
+- Frontend `typecheck` / `lint` / `test` / `build`: clean; **57 passed**
+  (includes `source.pin` Pinned / No match chrome).
+- Ledger suite not run in this environment (`TEST_DATABASE_URL` unset).
+  Lean / Mathlib stay off. No live Crossref / arXiv / OpenAlex call.
 
 ## Unverified
 

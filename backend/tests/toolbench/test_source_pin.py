@@ -16,10 +16,10 @@ from pydantic import ValidationError
 
 from app.models.enums import ResultStatus
 from app.toolbench.conformance import check_conformance
+from app.toolbench.instruments import SOURCE_PIN
 from app.toolbench.instruments.arxiv_lookup import ArxivLookup
 from app.toolbench.instruments.crossref_lookup import CrossrefLookup
 from app.toolbench.instruments.openalex_lookup import OpenAlexLookup
-from app.toolbench.instruments import SOURCE_PIN
 from app.toolbench.instruments.source_pin import SourcePin, resolve_source_pin_route
 from app.toolbench.pinning import raw_response_hash
 from app.toolbench.registry import registry
