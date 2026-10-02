@@ -119,6 +119,7 @@ ship today, each landing an attributed checkpoint through the same chokepoint:
 | `z3.satisfy` | machine-checked model-finding — exact assignment, unsat / no model, or honest `undecided`; same formula surface (`0.38.0` / `0.39.0`) |
 | `lean.prove` | Lean 4 kernel check — Grade A only on a real proof; optional Lean + optional Mathlib / `lake` |
 | `crossref.lookup` / `arxiv.lookup` / `openalex.lookup` | Tier-1 literature pins |
+| `source.pin` | unified bibliographic pin — routes a DOI / arXiv id / OpenAlex id / query to those catalogs |
 | `table.create` / `table.derive_column` / `table.render` | typed falsification grid; derived columns are exact compute |
 | `plot.function` / `plot.points` | Vega-Lite spec (not a raster) — visualization only, never evidence |
 | `interval.eval` | proven numeric enclosure (Arb / mpmath.iv) — a bound, not a proof |
@@ -423,6 +424,7 @@ opentheory/
 | `0.16.x` | Claim grounding — evidence grade ladder, planner yield measure, post-review hardening, thread/project rollup (`0.16.3`) |
 | `0.17.x` | Phase 1 agent autonomy — a completed pass stands; human accept/reject/fork is opt-in audit |
 | `0.18.x` | Tier-1 literature pins — `crossref.lookup`, `arxiv.lookup`, `openalex.lookup` |
+| `0.45.x` | `source.pin` — unified bibliographic pin on the existing Crossref / arXiv / OpenAlex seam |
 | `0.19.x` | Project-budget metering — agent passes debit `ComputeDebit`; funding spent/available are real |
 | `0.20.x` | Bounded plan → observe → replan inside one agent pass |
 | `0.21.x` | Research-git merge + tag — multi-parent synthesis and named immutable pointers |

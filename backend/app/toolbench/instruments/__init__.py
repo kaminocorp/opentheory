@@ -20,6 +20,7 @@ from app.toolbench.instruments.oeis_search import OEIS_SEARCH
 from app.toolbench.instruments.openalex_lookup import OPENALEX_LOOKUP
 from app.toolbench.instruments.plot_function import PLOT_FUNCTION
 from app.toolbench.instruments.plot_points import PLOT_POINTS
+from app.toolbench.instruments.source_pin import SOURCE_PIN
 from app.toolbench.instruments.table_create import TABLE_CREATE
 from app.toolbench.instruments.table_derive_column import TABLE_DERIVE_COLUMN
 from app.toolbench.instruments.table_render import TABLE_RENDER
@@ -41,6 +42,7 @@ INSTRUMENTS = (
     OPENALEX_LOOKUP,
     PLOT_FUNCTION,
     PLOT_POINTS,
+    SOURCE_PIN,
     TABLE_CREATE,
     TABLE_DERIVE_COLUMN,
     TABLE_RENDER,
@@ -64,6 +66,7 @@ __all__ = [
     "OPENALEX_LOOKUP",
     "PLOT_FUNCTION",
     "PLOT_POINTS",
+    "SOURCE_PIN",
     "TABLE_CREATE",
     "TABLE_DERIVE_COLUMN",
     "TABLE_RENDER",

@@ -45,6 +45,7 @@ from app.toolbench.instruments.arxiv_lookup import ArxivLookup
 from app.toolbench.instruments.crossref_lookup import CrossrefLookup
 from app.toolbench.instruments.oeis_search import OeisSearch
 from app.toolbench.instruments.openalex_lookup import OpenAlexLookup
+from app.toolbench.instruments.source_pin import SourcePin
 from app.toolbench.retrieval import Retrieval
 from tests.principals import create_owned_project, make_dev_principal
 
@@ -501,6 +502,40 @@ async def test_openalex_lookup_lands_a_pinned_external_evidence(
     pin = run.checkpoint.tool_invocations[0]["output"]["pin"]
     assert pin["identifier"] == "W2963682871"
     assert pin["url"] == "https://doi.org/10.1038/nature14539"
+
+
+async def test_source_pin_lands_a_pinned_external_evidence(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """0.45.0 — the unified pin composes through the same chokepoint as the dedicated lookups."""
+    actor_id = await _actor(client)
+    project_id = await _project(client, actor_id, "instr-source-pin")
+    thread_id = await _thread(client, project_id, actor_id)
+    claim_id = await _claim(client, thread_id, actor_id, "Deep learning is a Nature paper.")
+    pid = UUID(project_id)
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        run = await run_instrument(
+            session,
+            pid,
+            SourcePin(crossref=CrossrefLookup(_CrossrefFetcher())),
+            actor,
+            inputs={"locator": "10.1038/nature14539"},
+            claim_id=UUID(claim_id),
+        )
+
+    assert run.status is ResultStatus.RESULT
+    assert run.checkpoint.tool_invocations[0]["instrument"] == "source.pin"
+    async with session_factory() as session:
+        artifact = await session.get(Artifact, run.artifact_id)
+        assert artifact.kind == "pinned_source"
+        evidence = await session.get(Evidence, run.evidence_id)
+        assert evidence.source_type == "crossref"
+    pin = run.checkpoint.tool_invocations[0]["output"]["pin"]
+    assert pin["identifier"] == "10.1038/nature14539"
+    assert pin["url"] == "https://doi.org/10.1038/nature14539"
+    assert run.checkpoint.tool_invocations[0]["output"]["provider"] == "crossref"
 
 
 # --- Phase 0.13.5: z3.prove (the first machine-checked verifier through the chokepoint) -----------

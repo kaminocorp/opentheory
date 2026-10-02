@@ -244,7 +244,8 @@ class EvidenceGrade(StrEnum):
       failure** — it is the baseline the bench exists to climb out of and must never render as an
       error.
 
-    Retrieval (``oeis.search``, ``crossref.lookup``, ``arxiv.lookup``, ``openalex.lookup``) is
+    Retrieval (``oeis.search``, ``crossref.lookup``, ``arxiv.lookup``, ``openalex.lookup``,
+    ``source.pin``) is
     deliberately **off-ladder**: a pin is graded by source authority,
     not by computation, so it reads ``cited`` rather than a letter (plan D7).
 

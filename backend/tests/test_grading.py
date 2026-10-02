@@ -33,6 +33,7 @@ INSTRUMENTS = (
     "crossref.lookup",
     "arxiv.lookup",
     "openalex.lookup",
+    "source.pin",
     "table.create",
     "table.derive_column",
     "table.render",
@@ -79,6 +80,9 @@ MATRIX_CELLS = [
     ("openalex.lookup", ResultStatus.RESULT, None),
     ("openalex.lookup", ResultStatus.REFUTED, None),
     ("openalex.lookup", ResultStatus.UNDECIDED, None),
+    ("source.pin", ResultStatus.RESULT, None),
+    ("source.pin", ResultStatus.REFUTED, None),
+    ("source.pin", ResultStatus.UNDECIDED, None),
     ("table.create", ResultStatus.RESULT, None),
     ("table.create", ResultStatus.REFUTED, None),
     ("table.create", ResultStatus.UNDECIDED, None),
@@ -161,7 +165,7 @@ def test_strongest_of_nothing_is_none() -> None:
 @pytest.mark.parametrize("status", list(ResultStatus))
 @pytest.mark.parametrize(
     "instrument",
-    ("oeis.search", "crossref.lookup", "arxiv.lookup", "openalex.lookup"),
+    ("oeis.search", "crossref.lookup", "arxiv.lookup", "openalex.lookup", "source.pin"),
 )
 def test_retrieval_never_earns_a_letter(status: ResultStatus, instrument: str) -> None:
     """Retrieval is graded by source authority, not computation — it reads ``cited``.
@@ -242,6 +246,7 @@ def test_retrieval_is_never_a_way_to_raise_a_rung() -> None:
         assert "crossref.lookup" not in instruments_reaching(grade)
         assert "arxiv.lookup" not in instruments_reaching(grade)
         assert "openalex.lookup" not in instruments_reaching(grade)
+        assert "source.pin" not in instruments_reaching(grade)
     assert "oeis.search" not in raise_path(None)
     assert "crossref.lookup" not in raise_path(None)
     assert "table.create" not in raise_path(None)

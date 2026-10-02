@@ -74,6 +74,7 @@ const NO_ASSUMPTIONS = new Set([
   "crossref.lookup",
   "arxiv.lookup",
   "openalex.lookup",
+  "source.pin",
   "table.render",
   "plot.points",
   "interval.eval",

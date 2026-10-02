@@ -1186,6 +1186,9 @@ function LiteraturePinBody({
           <span className="text-[13px] text-text-soft">{asString(pin.formula)}</span>
         </KeyValue>
       ) : null}
+      {typeof output.provider === "string" && output.provider ? (
+        <span className="font-mono text-[11px] text-text-faint">{output.provider}</span>
+      ) : null}
       <PinFooter pin={pin} />
     </div>
   );
@@ -1235,6 +1238,14 @@ function ResultBody({
           output={output}
           kindLabel="Work"
           missing="OpenAlex did not identify this work — escalate; never recorded as a missing-paper claim."
+        />
+      );
+    case "source.pin":
+      return (
+        <LiteraturePinBody
+          output={output}
+          kindLabel="Source"
+          missing="The catalog did not identify this work — escalate; never recorded as a missing-paper claim."
         />
       );
     case "counterexample.search":

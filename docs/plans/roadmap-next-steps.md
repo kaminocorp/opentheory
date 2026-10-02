@@ -1,5 +1,11 @@
 # Roadmap Next Steps
 
+> **Last updated:** 2026-10-02 · **Current release line:** `0.45.0`
+> (`source.pin` bibliographic source pin), sitting on shipped
+> `0.44.0` (fail-closed metered harness composition, `6c440ae`, #37)
+> on current `main`. See
+> `docs/completions/source-pin-instrument-0.45.0.md`.
+>
 > **Last updated:** 2026-10-02 · **Current release line:** `0.44.0`
 > (fail-closed metered harness composition), sitting on shipped
 > `0.43.0` (HarnessSession + odd-perfect reference campaign,
@@ -72,7 +78,8 @@
 > **Next after this line:** perpetual ops dashboard / daily caps;
 > the still-owed browser eyeball pass. Does not enable the gateway
 > child on Fly. Does not light `AGENT_LOOP_ENABLED`.
-> ~~Fail-closed metered composition~~ ✅ this branch as `0.44.0`.
+> ~~`source.pin` bibliographic pin~~ ✅ this branch as `0.45.0`.
+> ~~Fail-closed metered composition~~ ✅ shipped as `0.44.0`.
 > ~~Session owner + odd-perfect reference campaign~~ ✅ shipped as `0.43.0`.
 > ~~OpenRouter gateway + turn supervision~~ ✅ shipped as `0.42.0`.
 > ~~Live OT MCP binding~~ ✅ shipped as `0.41.0` (`06cfeab`, #34).
@@ -129,11 +136,12 @@ A signed-in member can today:
 1. Own or collaborate on a project; invite others; assign Research crew models (UI only).
 2. Decompose work into threads; add claims; attach evidence; record checkpoints.
 3. Fork, merge, and close branches; pin tags; record validations; read contradiction signals.
-4. Run **seventeen** production instruments from the workspace — with KaTeX-readable math and bounded
+4. Run **eighteen** production instruments from the workspace — with KaTeX-readable math and bounded
    execution (subprocess isolation, wall-clock/memory caps, concurrency limit):
    `calc.eval`, `expr.compare`, `geometry.coordinate_measure`, `oeis.search`,
    `counterexample.search`, **`z3.prove`**, **`z3.satisfy`**, **`lean.prove`**, plus the literature pins
-   **`crossref.lookup`**, **`arxiv.lookup`**, **`openalex.lookup`**, plus Bench 6
+   **`crossref.lookup`**, **`arxiv.lookup`**, **`openalex.lookup`**, plus **`source.pin`**
+   (`0.45.0` — unified bibliographic pin), plus Bench 6
    **`table.create`**, **`table.derive_column`**, **`table.render`**, **`plot.function`**,
    **`plot.points`**, plus **`interval.eval`** — each landing an
    attributed checkpoint through the chokepoint.
@@ -186,6 +194,21 @@ who changed it, and what evidence or artifacts were involved — then extend it 
 bypassing the checkpoint chokepoint or conflating funder / contributor / validator roles.
 
 ## Recommended next releases
+
+### `0.45.x` — `source.pin` bibliographic source pin ✅ **this branch** (`0.45.0`)
+
+Delivered: `source.pin` on the existing instrument contract. One locator
+routes to the shipped Crossref / arXiv / OpenAlex fetchers (no second
+HTTP path). Auto-route: `W…` → OpenAlex, arXiv id → arXiv, DOI →
+Crossref, free text → Crossref bibliographic. Dedicated `*.lookup`
+instruments stay. Off-ladder (`cited`). Network failures mint nothing;
+an empty match is honest `undecided`. Default CI is fixture-backed.
+Live MCP `run_instrument` already covers the catalog. **No schema, no
+migration.** See `docs/completions/source-pin-instrument-0.45.0.md`.
+
+**Not in this release:** an arbitrary-URL pin; lighting
+`AGENT_LOOP_ENABLED`; Fly enablement of the gateway or MCP child; a
+live dsh campaign run; Lean REPL / LeanDojo; ops dashboard.
 
 ### `0.40.x` — External DeepSeek Harness Milestone 0 ✅ **shipped** (`0.40.0`)
 
@@ -662,7 +685,9 @@ changing branch protection.
     actually running. Lean / Mathlib stay off.
 21. ~~**External DeepSeek Harness Milestone 0**~~ ✅ shipped as
     `0.40.0` (`901b3de`, #33) — docs + fail-closed Cordis + fixture MCP.
-    ~~**Live JWT MCP binding**~~ ✅ this branch as `0.41.0`. Gateway later.
+    ~~**Live JWT MCP binding**~~ ✅ shipped as `0.41.0`. Gateway later.
+    ~~**`source.pin` bibliographic pin**~~ ✅ this branch as `0.45.0` —
+    unified Crossref / arXiv / OpenAlex door on the existing seam.
 
 ## Shipped milestones (reference)
 
@@ -705,6 +730,10 @@ changing branch protection.
 | `0.39.x` | First-order `ForAll` / `Exists` on the same closed Z3 formula AST |
 | `0.40.x` | External DeepSeek Harness Milestone 0 — docs, fail-closed Cordis, fixture MCP |
 | `0.41.x` | Live OT MCP domain door — JWT Actor + membership + chokepoints |
+| `0.42.x` | OpenRouter gateway + turn supervision |
+| `0.43.x` | Harness session owner + odd-perfect reference campaign |
+| `0.44.x` | Fail-closed metered harness composition |
+| `0.45.x` | `source.pin` — unified bibliographic pin (Crossref / arXiv / OpenAlex) |
 
 ## Success criteria for the next milestone
 
@@ -808,11 +837,20 @@ JWT Actor + `ensure_is_member` + real `run_instrument` /
 `create_checkpoint` + claim / thread / budget reads. Fixture kept
 for M0 probes. No `AGENT_LOOP_ENABLED` flip. No schema, no migration.
 
-**`0.42.0` (OpenRouter gateway + turn supervision)** is this branch:
-fail-closed OpenRouter path + bounded turns + `ComputeDebit` for LLM
-tokens. Live MCP stays the only domain door. No
+**`0.42.0` (OpenRouter gateway + turn supervision)** is shipped
+(`a61affd`, #35): fail-closed OpenRouter path + bounded turns +
+`ComputeDebit` for LLM tokens. Live MCP stays the only domain door.
+
+**`0.44.0` (fail-closed metered harness composition)** is shipped
+(`6c440ae`, #37): the composition `dsh` would boot cannot start the
+bare unmetered gateway proxy.
+
+**`0.45.0` (`source.pin`)** is this branch: a bibliographic source pin
+on the existing instrument contract. Crossref / arXiv / OpenAlex
+resolve a source; an arbitrary URL pin is still out. No
 `AGENT_LOOP_ENABLED` flip. No schema, no migration.
 
-**Next product step:** a reference campaign on the external harness
-path. The still-owed browser eyeball pass remains. Lean REPL /
-LeanDojo remain later. `If` / ite remain later.
+**Next product step:** perpetual ops dashboard / daily caps. The
+still-owed browser eyeball pass remains. Lean REPL / LeanDojo remain
+later. `If` / ite remain later. Does not enable the gateway child on
+Fly. Does not light `AGENT_LOOP_ENABLED`.

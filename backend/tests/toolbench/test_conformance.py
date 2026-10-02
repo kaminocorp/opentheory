@@ -117,6 +117,7 @@ def test_production_registry_holds_the_tier0_instruments() -> None:
         "crossref.lookup",
         "arxiv.lookup",
         "openalex.lookup",
+        "source.pin",
         "z3.prove",
         "z3.satisfy",
         "lean.prove",

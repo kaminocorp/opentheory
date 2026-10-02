@@ -15,9 +15,11 @@ must fetch ``source_url`` — not the citation ``url`` — to recompute the hash
 cited the sequence page but hashed the search response, so nobody could reproduce the fingerprint
 from anything the pin recorded.)
 
-This is a primitive, not a registry instrument: ``oeis.search`` (and every future external source)
-builds its output through :func:`build_pin_record`, so the pin shape is identical everywhere. A
-standalone ``source.pin`` instrument that pins an arbitrary user-supplied URL is a later add.
+This is a primitive, not a registry instrument: ``oeis.search``, the ``0.18.0`` literature
+lookups, and the ``0.45.0`` ``source.pin`` dispatcher all build their output through
+:func:`build_pin_record`, so the pin shape is identical everywhere. ``source.pin`` routes a
+locator to Crossref / arXiv / OpenAlex; an arbitrary user-supplied URL (no catalog identity)
+is still a later add.
 """
 
 import hashlib

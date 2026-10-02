@@ -285,6 +285,49 @@ function ArxivLookupForm({ onInputs, disabled }: FormProps) {
   );
 }
 
+function SourcePinForm({ onInputs, disabled }: FormProps) {
+  const [locator, setLocator] = useState("10.1038/nature14539");
+  const [provider, setProvider] = useState("auto");
+  const emit = useEmit(onInputs);
+  useEffect(() => {
+    const loc = locator.trim();
+    emit.current(loc ? { locator: loc, provider } : null);
+  }, [locator, provider, emit]);
+
+  return (
+    <div className="grid gap-3">
+      <Field
+        label="Locator"
+        hint="DOI, arXiv id (prefer vN), OpenAlex W… id, or a bibliographic query. Auto-route picks the catalog from the shape; a free-text query goes to Crossref."
+      >
+        <Input
+          mono
+          value={locator}
+          onChange={(event) => setLocator(event.target.value)}
+          placeholder="10.1038/nature14539"
+          disabled={disabled}
+        />
+      </Field>
+      <Field
+        label="Provider"
+        hint="Force a catalog when auto is wrong. arXiv requires an id — it does not search titles."
+      >
+        <Select
+          value={provider}
+          onChange={(event) => setProvider(event.target.value)}
+          disabled={disabled}
+          aria-label="Source pin provider"
+        >
+          <option value="auto">Auto (shape → Crossref / arXiv / OpenAlex)</option>
+          <option value="crossref">Crossref</option>
+          <option value="arxiv">arXiv</option>
+          <option value="openalex">OpenAlex</option>
+        </Select>
+      </Field>
+    </div>
+  );
+}
+
 function OpenAlexLookupForm({ onInputs, disabled }: FormProps) {
   const [doi, setDoi] = useState("10.1038/nature14539");
   const [openalexId, setOpenalexId] = useState("");
@@ -1397,6 +1440,8 @@ export function DriveForm({
       return <ArxivLookupForm onInputs={onInputs} disabled={disabled} />;
     case "openalex.lookup":
       return <OpenAlexLookupForm onInputs={onInputs} disabled={disabled} />;
+    case "source.pin":
+      return <SourcePinForm onInputs={onInputs} disabled={disabled} />;
     case "counterexample.search":
       return <CounterexampleSearchForm onInputs={onInputs} disabled={disabled} />;
     case "z3.prove":

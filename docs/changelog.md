@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.45.0` — **`source.pin` — bibliographic source pin.** A claim can cite a real paper or work through the existing instrument contract (`result` / `undecided`; exceptions mint nothing). One locator (DOI / arXiv id / OpenAlex `W…` id / bibliographic query) routes to the shipped Crossref / arXiv / OpenAlex fetchers — no second HTTP path, no invented citation. Auto-route: `W…` → OpenAlex, arXiv id → arXiv, DOI → Crossref, free text → Crossref bibliographic. Dedicated `*.lookup` instruments stay. Network is the existing timeout-bounded `RetrievalClient`; default CI stays fixture-backed. Live MCP `run_instrument` already covers the catalog. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + frontend + docs — no schema, no migration.** Sits on shipped `0.44.0` (`6c440ae`, #37).
 - `0.44.0` — **Fail-closed metered harness composition.** The composition `dsh` would boot can no longer start the bare unmetered `python -m app.harness.gateway` proxy. `llm-pi-ai` launches `python -m app.harness.campaign` (refuses when unbound) and passes `OPENTHEORY_PROJECT_ID` as an operator-supplied env name (same pattern as `OPENTHEORY_ACTOR_JWT_FILE` — never a UUID or secret in the file). `composition.verify` rejects a bare gateway child, a literal project id, and `OPENTHEORY_HARNESS_UNMETERED_PROBE` on the campaign patch. An explicit unmetered probe may remain behind that flag; it is not the campaign composition. Turn index stays process-local. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + docs — no schema, no migration.** Sits on shipped `0.43.0` (`51368da`, #36).
 - `0.43.0` — **Harness session owner + odd-perfect reference campaign.** One owner (`HarnessSession`) for an external harness run. `ComputeDebit`, the turn cap, and pre-LLM exhaust (funded and `available <= 0` refuses, mints nothing, does not call the model) sit on the path that owner actually runs: `dsh → llm-pi-ai → create_gateway_app`, not only on the `supervise_turn` library. Live MCP stays the domain door. Human sets question, roster, and budget; the harness is instrument-only. Unfunded ≠ exhausted. Extra-body `models`/`route` dropped. Fixture logs use `protocol.maybe_log`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway child on Fly. Secrets never in `fly.toml [env]`. **Backend + docs — no schema, no migration.** Sits on shipped `0.42.0` (`a61affd`, #35).
 - `0.42.0` — **OpenRouter gateway + turn supervision.** The external DeepSeek Harness path talks to OpenRouter only, through a fail-closed gateway (provider allowlist, `allow_fallbacks: false`, `require_parameters: true`, `data_collection: deny`). Bounded turns refuse on composition drift or an exhausted funded pot. LLM tokens debit `ComputeDebit` via the existing writer (no `AgentRun`; notes `harness_gateway_turn`) on successful and attempted turns; a refused start writes nothing. Live MCP from `0.41.0` stays the only domain door. Opt-in live probe (`OPENTHEORY_HARNESS_LIVE`); default CI stays green without `OPENROUTER_API_KEY` or a `dsh` binary. Secrets never in `fly.toml [env]`. Does not light `AGENT_LOOP_ENABLED`. **Backend + docs — no schema, no migration.** Sits on shipped `0.41.0` (`06cfeab`, #34).
@@ -116,6 +117,57 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.45.0
+
+**`source.pin` — bibliographic source pin.** The literature lookups
+shipped in `0.18.0`, but the named instrument in the toolbox (`source.pin`)
+was still a pattern, not a catalog verb. Research could already pin a DOI
+via `crossref.lookup`; a human or the live MCP door had no single
+"cite this work" instrument. This slice registers `source.pin` on the
+existing contract and delegates to the shipped Crossref / arXiv / OpenAlex
+clients. **No schema, no migration.** Sits on shipped `0.44.0`
+(`6c440ae`, #37). Does not flip `AGENT_LOOP_ENABLED`. Does not enable
+the gateway or MCP child on Fly.
+
+- **`source.pin`.** Input is `locator` + optional `provider`
+  (`auto` / `crossref` / `arxiv` / `openalex`). Output is `found`,
+  `provider` (who actually answered), `match_count`, and the same
+  `PinRecord` (`url` / `source_url` / `retrieved_at` /
+  `raw_response_hash`). Artifact kind `pinned_source`. Off-ladder
+  (cited, never a letter). Never refutes.
+- **Who resolves.** Crossref resolves DOI identity and bibliographic
+  queries (auto default for free text; public, no key). arXiv resolves
+  versioned / unversioned ids via the export API. OpenAlex resolves
+  `W…` ids on auto-route, and DOI / search when `provider=openalex`
+  (optional `OPENALEX_API_KEY`, demo-pool degrade). An arbitrary
+  user-supplied URL with no catalog identity is still out.
+- **Honesty.** A confirmed work is `result`. A successful empty match
+  is `undecided` — never a fake paper. `RetrievalError` (timeout /
+  5xx / 401 / 429) mint nothing. `provider=arxiv` on a title is
+  `422`, not a guessed e-print. Tests inject fake fetchers; default
+  CI never hits Crossref / arXiv / OpenAlex.
+- **Door.** Humans run it from Instruments. Live MCP
+  `run_instrument` already takes any catalog name — no new stem.
+  Dedicated `crossref.lookup` / `arxiv.lookup` / `openalex.lookup`
+  stay. `create_checkpoint` remains the only Checkpoint writer.
+- **Frontend.** Quiet drive form (locator + provider) and the existing
+  literature pin card. Assumptions editor hidden.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # counts filled after the test pass
+cd frontend && npm run typecheck && npm run lint && npm test
+```
+
+See `docs/completions/source-pin-instrument-0.45.0.md`.
+
+**Not in this release:** an arbitrary-URL pin; lighting
+`AGENT_LOOP_ENABLED`; Fly enablement of the gateway or MCP child;
+a live dsh campaign run; Lean REPL / LeanDojo; perpetual ops
+dashboard; Semantic Scholar or other catalogs.
 
 ---
 
