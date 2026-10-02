@@ -36,6 +36,18 @@ describe("resolveOutcomeMeta", () => {
     const meta = resolveOutcomeMeta("calc.eval", "result", { holds: true });
     assert.equal(meta.tone, "ok");
   });
+
+  it("marks a source.pin match as pinned, never a proof", () => {
+    const meta = resolveOutcomeMeta("source.pin", "result", { found: true });
+    assert.equal(meta.tone, "ok");
+    assert.equal(meta.label, "Pinned");
+  });
+
+  it("marks a source.pin empty match as no match, never a citation", () => {
+    const meta = resolveOutcomeMeta("source.pin", "undecided", { found: false });
+    assert.equal(meta.tone, "warn");
+    assert.equal(meta.label, "No match");
+  });
 });
 
 describe("landedStepMeta", () => {

@@ -17,7 +17,7 @@ from app.toolbench.execution import (
     limits_for,
     subprocess_enabled,
 )
-from app.toolbench.instruments import CALC_EVAL, OEIS_SEARCH
+from app.toolbench.instruments import CALC_EVAL, OEIS_SEARCH, SOURCE_PIN
 
 
 def test_settings_defaults():
@@ -48,6 +48,10 @@ def test_execution_mode_for_calc_eval():
 
 def test_execution_mode_for_oeis_search():
     assert execution_mode_for(OEIS_SEARCH) == "async"
+
+
+def test_execution_mode_for_source_pin():
+    assert execution_mode_for(SOURCE_PIN) == "async"
 
 
 def test_limits_for_respects_settings_override(monkeypatch: pytest.MonkeyPatch):

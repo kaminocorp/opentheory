@@ -154,6 +154,22 @@ export function resolveOutcomeMeta(
       };
     }
   }
+  if (instrumentName === "source.pin") {
+    if (status === "result") {
+      return {
+        tone: "ok",
+        label: "Pinned",
+        gloss: "Cited from Crossref, arXiv, or OpenAlex — a pin, not a proof.",
+      };
+    }
+    if (status === "undecided") {
+      return {
+        tone: "warn",
+        label: "No match",
+        gloss: "The catalog found nothing — escalate; never a fabricated citation.",
+      };
+    }
+  }
   if (instrumentName === "interval.eval") {
     if (status === "result") {
       return {

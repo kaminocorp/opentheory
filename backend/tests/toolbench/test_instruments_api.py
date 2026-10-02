@@ -40,6 +40,7 @@ def test_instruments_catalog_is_public(dbfree_client: TestClient) -> None:
         "crossref.lookup",
         "arxiv.lookup",
         "openalex.lookup",
+        "source.pin",
         "z3.prove",
         "z3.satisfy",
         "lean.prove",

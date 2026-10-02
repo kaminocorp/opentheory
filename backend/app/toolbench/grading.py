@@ -139,6 +139,11 @@ _MATRIX: dict[str, dict[ResultStatus, EvidenceGrade | None]] = {
         ResultStatus.REFUTED: None,
         ResultStatus.UNDECIDED: None,
     },
+    "source.pin": {
+        ResultStatus.RESULT: None,
+        ResultStatus.REFUTED: None,
+        ResultStatus.UNDECIDED: None,
+    },
     # Bench 6 containers / display. A table you typed, or a serialization of one,
     # is not evidence that a claim is true. Explicit n/a on every cell.
     "table.create": {
@@ -262,7 +267,7 @@ def raise_path(current: EvidenceGrade | None) -> list[str]:
     which is the signal the planner needs to stop spending on an already-settled claim.
 
     Off-ladder retrieval (``oeis.search`` / ``crossref.lookup`` / ``arxiv.lookup`` /
-    ``openalex.lookup``, all cells ``None``) never appears here. That is correct
+    ``openalex.lookup`` / ``source.pin``, all cells ``None``) never appears here. That is correct
     and load-bearing: a pin is a citation, not a rung, so it can never be *the* way to raise one.
     """
     return _instruments_above(_RANK[current] if current is not None else 0)

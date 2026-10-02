@@ -13,7 +13,7 @@
 > + Tier 0 Bench 6 **`table.*` / `plot.*`** (`0.34.0`)
 > + Tier 0 **`interval.eval`** (`0.35.0`)
 > + Tier 1 `oeis.search` + Tier 1 literature pins (`crossref.lookup`, `arxiv.lookup`,
-> `openalex.lookup`, `0.18.0`) + Tier 2 **`lean.prove`** (`0.23.0` prelude/Init;
+> `openalex.lookup`, `0.18.0`) + Tier 1 **`source.pin`** (`0.45.0`) + Tier 2 **`lean.prove`** (`0.23.0` prelude/Init;
 > `0.26.0` optional Mathlib / offline `lake`); adapter registry, write path,
 > provenance spine, workspace UI, KaTeX render, execution sandbox. See
 > `docs/plans/maths-toolbox.md` §Shipped in production.
@@ -176,7 +176,8 @@ Shipped (0.9.x–0.39.0):
               ForAll/Exists in 0.39.0)
               z3.satisfy (model-finding: assignment / unsat / undecided; same formula surface)
   Arb       — interval.eval (0.35.0; python-flint wheel + mpmath.iv fallback)
-  Literature — crossref.lookup, arxiv.lookup, openalex.lookup (0.18.0)
+  Literature — crossref.lookup, arxiv.lookup, openalex.lookup (0.18.0);
+              source.pin (0.45.0 — unified bibliographic door)
   Lean      — lean.prove (0.23.0 prelude/Init; 0.26.0 optional Mathlib / lake)
 
 Next adds:

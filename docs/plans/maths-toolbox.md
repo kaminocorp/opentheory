@@ -58,6 +58,7 @@ and have workspace drive/show surfaces (KaTeX where `*_latex` companions exist):
 | `crossref.lookup` | Falsify & discover | `0.18.0` | DOI / bibliographic pin via Crossref |
 | `arxiv.lookup` | Falsify & discover | `0.18.0` | Versioned arXiv id pin via export API |
 | `openalex.lookup` | Falsify & discover | `0.18.0` | Optional-key OpenAlex pin (demo-pool degrade) |
+| `source.pin` | Falsify & discover | `0.45.0` | Unified bibliographic pin — routes to Crossref / arXiv / OpenAlex |
 
 **Cross-cutting (shipped):** blame tuple on `Checkpoint.tool_invocations`, assumptions on
 Evidence/Artifact (`0.9.1` migration `0012_toolbench_provenance`), AST-gated SymPy parser
@@ -186,7 +187,7 @@ local falsifier (no Z3) + the sequence anchor + the pinning primitive.
 | **`counterexample.search`** | Cheap grid/random search for an input that breaks a claim | claim `d = a+b`; finds `a=3,b=4,d=5` → `5 ≠ 7` |
 | `pattern.find_relation` | Suggest a relation that fits sampled rows | rows of `(a,b,d)` → `d² = a²+b²` |
 | `oeis.search` | Identify a sequence by its terms | `1,1,2,3,5,8` → Fibonacci (A000045) |
-| **`source.pin`** | Pin any external retrieval into a citable record | provider + terms → url, retrieved_at, terms, formula, license_note, `raw_response_hash` |
+| **`source.pin`** | Pin a bibliographic source into a citable record (`0.45.0`) | locator → Crossref / arXiv / OpenAlex pin (`url`, `retrieved_at`, `raw_response_hash`) |
 
 > **A counterexample is asymmetrically strong.** *Finding* one **definitively falsifies**
 > a universal — among the strongest cheap results on the bench. *Not* finding one after
@@ -195,8 +196,9 @@ local falsifier (no Z3) + the sequence anchor + the pinning primitive.
 >
 > **`source.pin` makes retrieval evidence solid, not flimsy.** OEIS's A-number is the
 > pin, but the recorded artifact carries url + `retrieved_at` + terms + formula snippet +
-> `license_note` + `raw_response_hash`. (OEIS: cite, don't redistribute.) `source.pin` is
-> the reusable Tier-1 pattern for every future external source.
+> `license_note` + `raw_response_hash`. (OEIS: cite, don't redistribute.) The pattern
+> shipped with `oeis.search`; `0.45.0` registered the catalog verb that routes a
+> bibliographic locator to Crossref / arXiv / OpenAlex. An arbitrary URL pin is still later.
 
 ## Bench 5 — Geometry (the demo instrument)
 

@@ -100,6 +100,7 @@ def test_an_ungrounded_claim_is_offered_every_graded_instrument() -> None:
     assert "crossref.lookup" not in raise_line
     assert "arxiv.lookup" not in raise_line
     assert "openalex.lookup" not in raise_line
+    assert "source.pin" not in raise_line
 
 
 # --- the system prompt states the new contract ----------------------------------------------------

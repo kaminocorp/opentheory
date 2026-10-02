@@ -381,7 +381,7 @@ Also:
 - **Authorize explicitly.** Public reads are public; writes are membership-gated
   (`ensure_is_member`). Order matters: authenticate → resolve → authorize → act.
 - **Pin external sources reproducibly:** URI + retrieval timestamp + response hash
-  (`source.pin`, proven by `oeis.search`).
+  (`source.pin`, proven by `oeis.search` and the `0.45.0` catalog verb).
 
 **Found a vulnerability?** Please **don't** open a public issue. Report it privately to
 the maintainers via [GitHub Security Advisories](https://github.com/kaminocorp/opentheory/security/advisories/new).
@@ -426,7 +426,8 @@ tradeoffs, and the blast radius. Look at `git log` for the house style.
   harness make this the best-paved path. See
   [`docs/plans/toolbench-catalog.md`](docs/plans/toolbench-catalog.md) for the menu.
   Tier 1 retrieval pins (Crossref / arXiv / OpenAlex) shipped in `0.18.0` on the
-  proven `source.pin` shape. `z3.prove` shipped in `0.13.x`. `z3.satisfy` shipped
+  proven `source.pin` shape; the catalog verb `source.pin` shipped in `0.45.0`.
+  `z3.prove` shipped in `0.13.x`. `z3.satisfy` shipped
   in `0.33.0`. Bench 6 `table.*` / `plot.*` shipped in `0.34.0`. `lean.prove` shipped
   in `0.23.0` (optional Lean, prelude/Init only). `interval.eval` shipped in
   `0.35.0`. Boolean connectives on Z3 shipped as `0.38.0`. Quantifiers
