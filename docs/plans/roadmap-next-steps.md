@@ -6,12 +6,6 @@
 > current `main`. See
 > `docs/completions/perpetual-ops-dashboard-0.49.0.md`.
 >
-> **Last updated:** 2026-10-05 · **Current release line:** `0.48.0`
-> (harness daily-cap orphan-hold release), sitting on shipped
-> `0.47.0` (harness daily-cap reservation, `b92c5b2`, #40) on
-> current `main`. See
-> `docs/completions/harness-daily-cap-orphan-hold-0.48.0.md`.
->
 > **Last updated:** 2026-10-02 · **Current release line:** `0.44.0`
 > (fail-closed metered harness composition), sitting on shipped
 > `0.43.0` (HarnessSession + odd-perfect reference campaign,
