@@ -89,6 +89,10 @@ migration, no campaign table.** Sits on shipped `0.46.0` (`8ee8ac0`,
 - Default pytest (no `TEST_DATABASE_URL`, no `OPENROUTER_API_KEY`):
   **828 passed, 252 skipped**. Same passed count as shipped `0.46.0`
   (828). +1 skipped (overlapping-authorize race).
+- Harness pytest: **85 passed, 24 skipped** without `TEST_DATABASE_URL`.
+  **109 passed** with `TEST_DATABASE_URL` (overlapping authorize +
+  existing daily-cap cases, including
+  `test_daily_cap_notes_prefix_is_literal`).
 - Ledger suite skips without `TEST_DATABASE_URL` (CI Postgres runs
   it). Lean / Mathlib stay off. Frontend untouched.
 

@@ -156,6 +156,9 @@ not enable the gateway or MCP child on Fly.
 cd backend && uv run ruff check .   # clean
 cd backend && uv run pytest -q      # 828 passed, 252 skipped (no TEST_DATABASE_URL)
 # same passed count as shipped 0.46.0 (828); +1 skipped (overlapping-authorize race)
+cd backend && uv run pytest tests/harness -q
+# 85 passed, 24 skipped (no TEST_DATABASE_URL)
+# 109 passed with TEST_DATABASE_URL (overlapping authorize + existing daily-cap)
 # Frontend untouched — typecheck/lint/test/build unchanged
 ```
 
