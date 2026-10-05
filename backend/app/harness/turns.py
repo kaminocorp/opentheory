@@ -22,7 +22,9 @@ Bounds:
   with ``harness_session_turn``. Survives a process restart. A
   remaining-room hold (0.47.0) is appended under the project-row lock
   so two overlapping authorizes cannot both pass and both debit past
-  the cap.
+  the cap. An unmatched hold older than the TTL (0.48.0) is released
+  on the next authorize so a crash after authorize does not pin the
+  UTC day.
 - Composition drift refuses (``composition.verify``).
 - A funded pot with ``available <= 0`` refuses before the LLM call.
 

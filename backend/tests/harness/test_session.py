@@ -1,10 +1,11 @@
-"""Session owner + daily token cap (0.46.0 / 0.47.0) — no live key, no dsh."""
+"""Session owner + daily token cap (0.46.0 / 0.48.0) — no live key, no dsh."""
 
 from __future__ import annotations
 
 import ast
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -38,8 +39,10 @@ from app.harness.gateway import (
 from app.harness.session import (
     DAILY_TOKEN_CAP_ENV,
     DEFAULT_DAILY_TOKEN_CAP,
+    DEFAULT_HOLD_TTL_SECONDS,
     DEFAULT_MAX_TURNS,
     HOLD_NOTES,
+    HOLD_TTL_ENV,
     PROJECT_ID_ENV,
     REASON_DAILY_CAP,
     REASON_TURN_BUDGET,
@@ -48,9 +51,15 @@ from app.harness.session import (
     HarnessSession,
     assert_daily_tokens_in_budget,
     harness_notes_prefix_match,
+    hold_notes,
     is_daily_cap_adjustment,
+    is_hold_stale,
+    parse_hold_id,
+    release_notes,
     resolve_daily_token_cap,
+    resolve_hold_ttl_seconds,
     session_from_env,
+    unmatched_holds,
     utc_day_start,
 )
 
@@ -143,15 +152,18 @@ def test_session_from_env_unbound_without_project() -> None:
     assert str(bound.project_uuid) == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
     assert bound.resolved_max_turns() == DEFAULT_MAX_TURNS
     assert bound.resolved_daily_token_cap() == DEFAULT_DAILY_TOKEN_CAP
+    assert bound.resolved_hold_ttl_seconds() == DEFAULT_HOLD_TTL_SECONDS
     assert bound.notes == SESSION_NOTES
     overridden = session_from_env(
         {
             PROJECT_ID_ENV: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
             DAILY_TOKEN_CAP_ENV: "50",
+            HOLD_TTL_ENV: "120",
         }
     )
     assert overridden is not None
     assert overridden.resolved_daily_token_cap() == 50
+    assert overridden.resolved_hold_ttl_seconds() == 120
 
 
 def test_open_session_does_not_invent_an_actor() -> None:
@@ -199,7 +211,7 @@ def test_fixture_probe_log_uses_protocol_maybe_log() -> None:
 
 
 def test_gateway_version_is_daily_cap_release() -> None:
-    assert VERSION == "0.47.0"
+    assert VERSION == "0.48.0"
 
 
 def test_default_daily_token_cap_is_small_and_overridable() -> None:
@@ -238,7 +250,53 @@ def test_daily_cap_notes_prefix_like_is_literal() -> None:
     assert RELEASE_NOTES.startswith(SESSION_NOTES)
     assert is_daily_cap_adjustment(HOLD_NOTES)
     assert is_daily_cap_adjustment(RELEASE_NOTES)
+    hold_id = uuid4()
+    identified_hold = hold_notes(hold_id)
+    identified_release = release_notes(hold_id)
+    assert identified_hold.startswith(SESSION_NOTES)
+    assert identified_release.startswith(SESSION_NOTES)
+    assert is_daily_cap_adjustment(identified_hold)
+    assert is_daily_cap_adjustment(identified_release)
+    assert parse_hold_id(identified_hold) == hold_id
+    assert parse_hold_id(identified_release) == hold_id
+    assert parse_hold_id(HOLD_NOTES) is None
+    assert parse_hold_id(RELEASE_NOTES) is None
     assert not is_daily_cap_adjustment(f"{SESSION_NOTES}; rate fallback: blended_fallback")
+
+
+def test_hold_ttl_is_small_and_overridable() -> None:
+    assert resolve_hold_ttl_seconds({}) == DEFAULT_HOLD_TTL_SECONDS == 300
+    assert resolve_hold_ttl_seconds({HOLD_TTL_ENV: "120"}) == 120
+    with pytest.raises(Exception, match="must be an integer"):
+        resolve_hold_ttl_seconds({HOLD_TTL_ENV: "nope"})
+    with pytest.raises(Exception, match="must be >= 1"):
+        resolve_hold_ttl_seconds({HOLD_TTL_ENV: "0"})
+    now = datetime(2026, 10, 5, 12, 0, tzinfo=UTC)
+    created = now - timedelta(seconds=300)
+    assert is_hold_stale(created, ttl_seconds=300, now=now) is True
+    assert is_hold_stale(now - timedelta(seconds=299), ttl_seconds=300, now=now) is False
+    assert is_hold_stale(created, ttl_seconds=0, now=now) is False
+
+
+def test_unmatched_holds_pair_by_hold_id_and_legacy_fifo() -> None:
+    class _Row:
+        def __init__(self, tokens_used: int, notes: str) -> None:
+            self.tokens_used = tokens_used
+            self.notes = notes
+
+    live_id = uuid4()
+    orphan_id = uuid4()
+    rows = [
+        _Row(20, hold_notes(orphan_id)),
+        _Row(15, hold_notes(live_id)),
+        _Row(-15, release_notes(live_id)),
+        _Row(10, HOLD_NOTES),
+        _Row(-10, RELEASE_NOTES),
+        _Row(8, HOLD_NOTES),
+    ]
+    open_rows = unmatched_holds(rows)
+    assert [parse_hold_id(row.notes) for row in open_rows] == [orphan_id, None]
+    assert [row.tokens_used for row in open_rows] == [20, 8]
 
 
 def test_gateway_process_refuses_unmetered_without_flag() -> None:
@@ -301,7 +359,7 @@ async def test_health_reports_bound_session() -> None:
     async with AsyncClient(transport=ASGITransport(app=unbound), base_url="http://gw") as client:
         health = await client.get("/health")
     assert health.json()["session_owned"] is False
-    assert health.json()["version"] == "0.47.0"
+    assert health.json()["version"] == "0.48.0"
 
     session = open_session(
         "dddddddd-dddd-dddd-dddd-dddddddddddd",

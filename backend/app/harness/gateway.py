@@ -1,4 +1,4 @@
-"""Fail-closed OpenRouter gateway for the external DeepSeek Harness (0.47.0).
+"""Fail-closed OpenRouter gateway for the external DeepSeek Harness (0.48.0).
 
 Mirrors the OpenWorld gateway posture named in ``docs/harness/prior-art.md``:
 provider allowlist, ``allow_fallbacks: false``, ``require_parameters: true``,
@@ -39,7 +39,7 @@ from app.harness.auth import redact
 from app.harness.composition import PROJECT_ID_ENV, UNMETERED_PROBE_ENV
 from app.harness.session import DailyCapHold, HarnessSession, TurnRefused, session_from_env
 
-VERSION = "0.47.0"
+VERSION = "0.48.0"
 DEFAULT_MODEL = "deepseek/deepseek-chat"
 DEFAULT_PROVIDERS: tuple[str, ...] = ("DeepSeek",)
 ALLOWED_OPENROUTER_HOSTS = frozenset({"openrouter.ai", "www.openrouter.ai"})
@@ -350,8 +350,9 @@ def create_gateway_app(
 
     Not mounted on the product FastAPI app. ``python -m app.harness.gateway``.
     ``gateway`` is the test injection seam (MockTransport client).
-    ``session`` is the 0.43.0 / 0.47.0 owner — turn cap, daily token
-    cap (with a remaining-room hold), exhaust, and debit. When omitted,
+    ``session`` is the 0.43.0 / 0.48.0 owner — turn cap, daily token
+    cap (with a remaining-room hold and stale-hold release), exhaust,
+    and debit. When omitted,
     ``OPENTHEORY_PROJECT_ID`` binds one. The process entrypoint refuses
     an unbound child unless ``OPENTHEORY_HARNESS_UNMETERED_PROBE`` is
     set. In-process tests may still construct an unbound app.

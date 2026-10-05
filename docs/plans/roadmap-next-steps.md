@@ -1,9 +1,10 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-10-05 · **Current release line:** `0.47.0`
-> (harness daily-cap reservation), sitting on shipped `0.46.0`
-> (harness daily token cap, `8ee8ac0`, #39) on current `main`.
-> See `docs/completions/harness-daily-cap-race-0.47.0.md`.
+> **Last updated:** 2026-10-05 · **Current release line:** `0.48.0`
+> (harness daily-cap orphan-hold release), sitting on shipped
+> `0.47.0` (harness daily-cap reservation, `b92c5b2`, #40) on
+> current `main`. See
+> `docs/completions/harness-daily-cap-orphan-hold-0.48.0.md`.
 >
 > **Last updated:** 2026-10-02 · **Current release line:** `0.44.0`
 > (fail-closed metered harness composition), sitting on shipped
@@ -77,7 +78,8 @@
 > **Next after this line:** perpetual ops dashboard; the still-owed
 > browser eyeball pass. Does not enable the gateway child on Fly.
 > Does not light `AGENT_LOOP_ENABLED`.
-> ~~Harness daily-cap reservation~~ ✅ this branch as `0.47.0`.
+> ~~Harness daily-cap orphan-hold release~~ ✅ this branch as `0.48.0`.
+> ~~Harness daily-cap reservation~~ ✅ shipped as `0.47.0`.
 > ~~Harness daily token cap~~ ✅ shipped as `0.46.0`.
 > ~~`source.pin` bibliographic pin~~ ✅ shipped as `0.45.0`.
 > ~~Fail-closed metered composition~~ ✅ shipped as `0.44.0`.
@@ -196,7 +198,24 @@ bypassing the checkpoint chokepoint or conflating funder / contributor / validat
 
 ## Recommended next releases
 
-### `0.47.x` — Harness daily-cap reservation ✅ **this branch** (`0.47.0`)
+### `0.48.x` — Harness daily-cap orphan-hold release ✅ **this branch** (`0.48.0`)
+
+Delivered: the leftover 0.47.0 crash pin is closed. Hold notes carry
+a `hold_id`. The next `authorize()` — still under the project-row
+lock — appends a matching release for an unmatched hold older than
+`OPENTHEORY_HARNESS_HOLD_TTL_SECONDS` (default **300**) and only then
+takes a new hold. A fresh in-flight hold is not released, so two
+overlapping authorizes still cannot both debit past the cap. Amount
+stays `0`. Append-only stays append-only. Unfunded ≠ exhausted.
+Notes prefix stays literal. **No schema, no migration, no campaign
+table.** See
+`docs/completions/harness-daily-cap-orphan-hold-0.48.0.md`.
+
+**Not in this release:** an ops dashboard or UI chart; Fly enablement
+of the gateway or MCP child; lighting `AGENT_LOOP_ENABLED`; Lean
+REPL / LeanDojo.
+
+### `0.47.x` — Harness daily-cap reservation ✅ **shipped** (`0.47.0`)
 
 Delivered: the leftover 0.46.0 overlapping-authorize race is closed.
 `authorize()` locks the project row and appends a remaining-room
@@ -205,7 +224,8 @@ Delivered: the leftover 0.46.0 overlapping-authorize race is closed.
 call the hold is released by a new credit row and the real spend is
 recorded only when `tokens_used > 0`. Append-only stays append-only.
 Unfunded ≠ exhausted. Notes prefix stays literal. **No schema, no
-migration, no campaign table.** See
+migration, no campaign table.** The crash-pin leftover is closed in
+`0.48.0`. See
 `docs/completions/harness-daily-cap-race-0.47.0.md`.
 
 **Not in this release:** an ops dashboard or UI chart; Fly enablement
@@ -726,9 +746,13 @@ changing branch protection.
     ~~**Harness daily token cap**~~ ✅ shipped as `0.46.0` —
     today's `harness_session_turn` `ComputeDebit` sum (default 20_000
     / UTC day) refuses before the model; a restart does not reset it.
-    ~~**Harness daily-cap reservation**~~ ✅ this branch as `0.47.0`
+    ~~**Harness daily-cap reservation**~~ ✅ shipped as `0.47.0`
     — project-row lock + remaining-room hold so two overlapping
     authorizes cannot both debit past the cap.
+    ~~**Harness daily-cap orphan-hold release**~~ ✅ this branch as
+    `0.48.0` — a crash leftover hold older than the TTL is released
+    on the next authorize; two live overlapping turns still cannot
+    both debit past the cap.
 
 ## Shipped milestones (reference)
 
@@ -777,6 +801,7 @@ changing branch protection.
 | `0.45.x` | `source.pin` — unified bibliographic pin (Crossref / arXiv / OpenAlex) |
 | `0.46.x` | Harness daily token cap — ledger-backed 20_000 tokens / UTC day |
 | `0.47.x` | Harness daily-cap reservation — overlapping authorize cannot both debit past the cap |
+| `0.48.x` | Harness daily-cap orphan-hold release — a crash leftover hold no longer pins the UTC day |
 
 ## Success criteria for the next milestone
 
@@ -896,12 +921,17 @@ today's `harness_session_turn` `ComputeDebit` token sum (default
 **20_000** per UTC day) refuses before the model on the
 session-owned path. A process restart does not reset it.
 
-**`0.47.0` (harness daily-cap reservation)** is this branch: the
-0.46.0 leftover race is closed. `authorize()` locks the project row
-and holds the remaining room on the existing `ComputeDebit` ledger
-so two overlapping turns cannot both pass and both debit past the
-cap. No ops dashboard. No `AGENT_LOOP_ENABLED` flip. No schema, no
-migration.
+**`0.47.0` (harness daily-cap reservation)** is shipped (`b92c5b2`,
+#40): the 0.46.0 leftover race is closed. `authorize()` locks the
+project row and holds the remaining room on the existing
+`ComputeDebit` ledger so two overlapping turns cannot both pass and
+both debit past the cap.
+
+**`0.48.0` (harness daily-cap orphan-hold release)** is this branch:
+the 0.47.0 crash pin is closed. An unmatched hold older than the
+TTL is released on the next authorize; two live overlapping turns
+still cannot both debit past the cap. No ops dashboard. No
+`AGENT_LOOP_ENABLED` flip. No schema, no migration.
 
 **Next product step:** perpetual ops dashboard. The still-owed
 browser eyeball pass remains. Lean REPL / LeanDojo remain later.

@@ -9,7 +9,7 @@ import asyncio
 import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import httpx
 from httpx import ASGITransport, AsyncClient
@@ -20,13 +20,17 @@ from app.harness.campaign import QUESTION, TITLE, create_metered_gateway_app, op
 from app.harness.gateway import DEFAULT_MODEL, GATEWAY_TOKEN_ENV, GatewayClient, GatewayResponse
 from app.harness.live_mcp import invoke
 from app.harness.session import (
+    HOLD_NOTES,
     REASON_DAILY_CAP,
     REASON_PROJECT_BUDGET,
     SESSION_NOTES,
     HarnessSession,
     TurnRefused,
     harness_tokens_used_today,
+    hold_notes,
     is_daily_cap_adjustment,
+    parse_hold_id,
+    release_notes,
 )
 from app.models.checkpoint import Checkpoint
 from app.models.compute_debit import ComputeDebit
@@ -357,6 +361,49 @@ async def _add_harness_debit(
         await session.commit()
 
 
+async def _add_daily_cap_hold(
+    session_factory: async_sessionmaker,
+    project_id: str,
+    *,
+    tokens_used: int,
+    hold_id: UUID | None = None,
+    created_at: datetime | None = None,
+) -> UUID | None:
+    """Append-only leftover hold. Amount 0 — not a pot debit."""
+    notes = HOLD_NOTES if hold_id is None else hold_notes(hold_id)
+    async with session_factory() as session:
+        row = ComputeDebit(
+            project_id=UUID(project_id),
+            tokens_used=tokens_used,
+            amount=Decimal("0"),
+            currency="USD",
+            rate_per_1k=Decimal("0"),
+            rate_source=ComputeDebitRateSource.BLENDED_FALLBACK,
+            kind=ComputeDebitKind.PLANNING,
+            notes=notes,
+        )
+        if created_at is not None:
+            row.created_at = created_at
+            row.updated_at = created_at
+        session.add(row)
+        await session.commit()
+    return hold_id
+
+
+async def _adjustment_notes(
+    session_factory: async_sessionmaker, project_id: str
+) -> list[str]:
+    async with session_factory() as session:
+        result = await session.execute(
+            select(ComputeDebit).where(ComputeDebit.project_id == UUID(project_id))
+        )
+        return [
+            row.notes or ""
+            for row in result.scalars().all()
+            if is_daily_cap_adjustment(row.notes)
+        ]
+
+
 async def test_daily_token_cap_refuses_before_model_and_survives_restart(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
@@ -658,3 +705,136 @@ async def test_overlapping_authorizations_cannot_both_spend_past_cap(
     async with session_factory() as session:
         assert await harness_tokens_used_today(session, UUID(http_project)) == 20
     assert await _checkpoint_count(session_factory, http_project) == 0
+
+
+async def test_orphaned_hold_is_released_after_ttl_without_reopening_race(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """A crash leftover hold must not pin the UTC day; live overlap still refuses.
+
+    Fresh authorize-without-convert still refuses a second authorize (the
+    0.47.0 race close). A hold older than the TTL is released on the next
+    authorize (append-only credit). Two overlapping authorizes after that
+    recovery still cannot both debit past the cap.
+    """
+    actor_id = await make_dev_principal(client, display_name="Orphan", roles=("internal",))
+    fresh_project = await create_owned_project(client, actor_id, "session-daily-orphan-fresh")
+    first = HarnessSession(
+        project_id=fresh_project,
+        daily_token_cap=20,
+        session_factory=session_factory,
+    )
+    second = HarnessSession(
+        project_id=fresh_project,
+        daily_token_cap=20,
+        session_factory=session_factory,
+    )
+    fresh_hold = await first.authorize()
+    assert fresh_hold is not None
+    assert parse_hold_id(hold_notes(fresh_hold.hold_id)) == fresh_hold.hold_id
+    try:
+        await second.authorize()
+        raise AssertionError("fresh unmatched hold must still refuse a second authorize")
+    except TurnRefused as exc:
+        assert exc.reason == REASON_DAILY_CAP
+    async with session_factory() as session:
+        assert await harness_tokens_used_today(session, UUID(fresh_project)) == 20
+
+    stale_project = await create_owned_project(client, actor_id, "session-daily-orphan-stale")
+    stale_id = uuid4()
+    await _add_daily_cap_hold(
+        session_factory,
+        stale_project,
+        tokens_used=20,
+        hold_id=stale_id,
+        created_at=datetime.now(UTC) - timedelta(seconds=301),
+    )
+    recovered = HarnessSession(
+        project_id=stale_project,
+        daily_token_cap=20,
+        session_factory=session_factory,
+    )
+    recovered_hold = await recovered.authorize()
+    assert recovered_hold is not None
+    notes = await _adjustment_notes(session_factory, stale_project)
+    assert any(row == release_notes(stale_id) for row in notes)
+    assert any(parse_hold_id(row) == recovered_hold.hold_id for row in notes)
+    spent = await recovered.record_spend(
+        tokens_used=7,
+        model=DEFAULT_MODEL,
+        prompt_tokens=5,
+        completion_tokens=2,
+        hold=recovered_hold,
+    )
+    assert spent is True
+    async with session_factory() as session:
+        assert await harness_tokens_used_today(session, UUID(stale_project)) == 7
+    assert len(await _debit_rows(session_factory, stale_project)) == 1
+
+    race_project = await create_owned_project(client, actor_id, "session-daily-orphan-race")
+    await _add_daily_cap_hold(
+        session_factory,
+        race_project,
+        tokens_used=20,
+        hold_id=uuid4(),
+        created_at=datetime.now(UTC) - timedelta(seconds=301),
+    )
+    # Pre-0.48.0 leftover (no hold_id) must also recover.
+    legacy_project = await create_owned_project(client, actor_id, "session-daily-orphan-legacy")
+    await _add_daily_cap_hold(
+        session_factory,
+        legacy_project,
+        tokens_used=20,
+        created_at=datetime.now(UTC) - timedelta(seconds=301),
+    )
+    legacy = HarnessSession(
+        project_id=legacy_project,
+        daily_token_cap=20,
+        session_factory=session_factory,
+    )
+    legacy_hold = await legacy.authorize()
+    assert legacy_hold is not None
+    await legacy.record_spend(
+        tokens_used=4,
+        model=DEFAULT_MODEL,
+        hold=legacy_hold,
+    )
+    async with session_factory() as session:
+        assert await harness_tokens_used_today(session, UUID(legacy_project)) == 4
+
+    left = HarnessSession(
+        project_id=race_project,
+        daily_token_cap=20,
+        session_factory=session_factory,
+    )
+    right = HarnessSession(
+        project_id=race_project,
+        daily_token_cap=20,
+        session_factory=session_factory,
+    )
+
+    async def _authorize(owner: HarnessSession):
+        try:
+            return ("ok", owner, await owner.authorize())
+        except TurnRefused as exc:
+            return ("refused", owner, exc)
+
+    outcomes = await asyncio.gather(_authorize(left), _authorize(right))
+    winners = [item for item in outcomes if item[0] == "ok"]
+    losers = [item for item in outcomes if item[0] == "refused"]
+    assert len(winners) == 1
+    assert len(losers) == 1
+    assert losers[0][2].reason == REASON_DAILY_CAP
+    _, winner, hold = winners[0]
+    spent = await winner.record_spend(
+        tokens_used=20,
+        model=DEFAULT_MODEL,
+        prompt_tokens=15,
+        completion_tokens=5,
+        hold=hold,
+    )
+    assert spent is True
+    async with session_factory() as session:
+        assert await harness_tokens_used_today(session, UUID(race_project)) == 20
+    assert len(await _debit_rows(session_factory, race_project)) == 1
+    assert await _checkpoint_count(session_factory, race_project) == 0
