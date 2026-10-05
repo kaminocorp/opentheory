@@ -59,7 +59,8 @@ no campaign table.** Sits on shipped `0.45.0` (`43f419c`, #38).
 - Two overlapping in-flight completions can both pass `authorize()`
   and then both debit, overshooting the cap by one turn. Same race
   the pot check already has; this slice does not add a reservation
-  lock or a campaign table.
+  lock or a campaign table. **Closed in `0.47.0`** — see
+  `docs/completions/harness-daily-cap-race-0.47.0.md`.
 - The unmetered probe (`OPENTHEORY_HARNESS_UNMETERED_PROBE`) is still
   unmetered. `verify()` will not accept it as the campaign composition.
 - Ops dashboard / Fly enablement / lighting the built-in planner

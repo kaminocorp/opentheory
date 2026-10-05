@@ -1,7 +1,7 @@
 # External harness — backend skeleton
 
-> **Status — `0.46.0` daily token cap.** Package exists. FastAPI does
-> not import it. Fly does not run it.
+> **Status — `0.47.0` daily-cap reservation.** Package exists. FastAPI
+> does not import it. Fly does not run it.
 
 ## Where it lives
 
@@ -14,7 +14,7 @@ backend/app/harness/
   auth.py                 JWT-file / JWT-env / flagged dev-actor; redaction
   protocol.py             shared stdio JSON-RPC framing
   gateway.py              fail-closed OpenRouter client + HTTP proxy
-  session.py              HarnessSession — turn cap, daily token cap, exhaust, debit
+  session.py              HarnessSession — turn cap, daily token cap + remaining-room hold, exhaust, debit
   campaign.py             odd-perfect reference campaign (instrument-only)
   turns.py                library helper; composes HarnessSession
   probe.py                composition + fixture; opt-in live OpenRouter
@@ -29,11 +29,12 @@ The package is **not** mounted on `api/router.py` and is **not** imported
 from `app.main`. Booting the API does not load Cordis, does not start the
 gateway, and does not need the SDK.
 
-## What 0.46.0 will and will not do
+## What 0.47.0 will and will not do
 
 | Will | Will not |
 | --- | --- |
-| Refuse a session-owned turn when today's `harness_session_turn` token sum has hit the cap (default 20_000 / UTC day) | Reset that sum on process restart (the ledger is the meter) |
+| Hold the remaining daily-cap room on the existing `ComputeDebit` ledger under a project-row lock so two overlapping authorizes cannot both debit past the cap | Invent a reservation table; edit or delete a hold (release is a new credit row) |
+| Keep refusing when today's `harness_session_turn` token sum has hit the cap (default 20_000 / UTC day) | Reset that sum on process restart (the ledger is the meter) |
 | Keep the process-local turn cap and the funded-pot check | Treat unfunded as exhausted; debit when `tokens_used <= 0` |
 | Keep `OPENTHEORY_HARNESS_DAILY_TOKEN_CAP` operator-overridable | Add a campaign table, an ops dashboard, or a second Checkpoint writer |
 | Skip the live probe without a key | Require `dsh` / the `[harness]` extra / `OPENROUTER_API_KEY` in default CI |

@@ -1,4 +1,4 @@
-"""Fail-closed OpenRouter gateway for the external DeepSeek Harness (0.46.0).
+"""Fail-closed OpenRouter gateway for the external DeepSeek Harness (0.47.0).
 
 Mirrors the OpenWorld gateway posture named in ``docs/harness/prior-art.md``:
 provider allowlist, ``allow_fallbacks: false``, ``require_parameters: true``,
@@ -37,9 +37,9 @@ from app.core.config import settings
 from app.core.openrouter_models import OPENROUTER_MODELS, VALID_MODEL_IDS
 from app.harness.auth import redact
 from app.harness.composition import PROJECT_ID_ENV, UNMETERED_PROBE_ENV
-from app.harness.session import HarnessSession, TurnRefused, session_from_env
+from app.harness.session import DailyCapHold, HarnessSession, TurnRefused, session_from_env
 
-VERSION = "0.46.0"
+VERSION = "0.47.0"
 DEFAULT_MODEL = "deepseek/deepseek-chat"
 DEFAULT_PROVIDERS: tuple[str, ...] = ("DeepSeek",)
 ALLOWED_OPENROUTER_HOSTS = frozenset({"openrouter.ai", "www.openrouter.ai"})
@@ -350,11 +350,11 @@ def create_gateway_app(
 
     Not mounted on the product FastAPI app. ``python -m app.harness.gateway``.
     ``gateway`` is the test injection seam (MockTransport client).
-    ``session`` is the 0.43.0 / 0.46.0 owner — turn cap, daily token
-    cap, exhaust, and debit. When omitted, ``OPENTHEORY_PROJECT_ID``
-    binds one. The process entrypoint refuses an unbound child unless
-    ``OPENTHEORY_HARNESS_UNMETERED_PROBE`` is set. In-process tests may
-    still construct an unbound app.
+    ``session`` is the 0.43.0 / 0.47.0 owner — turn cap, daily token
+    cap (with a remaining-room hold), exhaust, and debit. When omitted,
+    ``OPENTHEORY_PROJECT_ID`` binds one. The process entrypoint refuses
+    an unbound child unless ``OPENTHEORY_HARNESS_UNMETERED_PROBE`` is
+    set. In-process tests may still construct an unbound app.
     """
     bound = session if session is not None else session_from_env(env)
 
@@ -383,10 +383,11 @@ def create_gateway_app(
     async def chat_completions(request: Request) -> JSONResponse:
         owner = bound
         started = False
+        hold: DailyCapHold | None = None
         try:
             _require_gateway_token(request.headers, env=env)
             if owner is not None:
-                await owner.authorize()
+                hold = await owner.authorize()
             raw = await request.json()
             if not isinstance(raw, dict):
                 raise GatewayError("body must be a JSON object")
@@ -416,14 +417,17 @@ def create_gateway_app(
                 ),
             )
         except GatewayError as exc:
-            if owner is not None and started:
+            if owner is not None:
                 await owner.record_spend(
-                    tokens_used=exc.tokens_used,
+                    tokens_used=exc.tokens_used if started else 0,
                     model=None,
-                    prompt_tokens=exc.prompt_tokens,
-                    completion_tokens=exc.completion_tokens,
+                    prompt_tokens=exc.prompt_tokens if started else None,
+                    completion_tokens=exc.completion_tokens if started else None,
+                    hold=hold,
                 )
-                owner.advance()
+                hold = None
+                if started:
+                    owner.advance()
             return JSONResponse(
                 status_code=422,
                 content=redact(
@@ -434,13 +438,20 @@ def create_gateway_app(
                     }
                 ),
             )
+        except Exception:
+            if owner is not None and hold is not None:
+                await owner.release_hold(hold)
+                hold = None
+            raise
         if owner is not None:
             await owner.record_spend(
                 tokens_used=result.tokens_used,
                 model=result.model,
                 prompt_tokens=result.prompt_tokens,
                 completion_tokens=result.completion_tokens,
+                hold=hold,
             )
+            hold = None
             owner.advance()
         return JSONResponse(
             {

@@ -1,6 +1,6 @@
 # External harness — MCP tool contracts
 
-> **Status — `0.46.0` daily token cap + live door.** Stems are pinned. The
+> **Status — `0.47.0` daily-cap reservation + live door.** Stems are pinned. The
 > fixture in `backend/app/harness/fixture_mcp.py` still **mints nothing**
 > (M0 probes). The live server is `backend/app/harness/live_mcp.py`.
 > LLM tokens are metered by the session-owned gateway, not by these
@@ -44,12 +44,14 @@ hospitality tools and must not appear in this inventory.
   refuses writes. Unfunded projects are not treated as exhausted.
   Standalone instrument runs do not debit (same as the human toolbench).
   Gateway token metering (`0.43.0` session owner, `0.44.0` fail-closed
-  campaign child, `0.46.0` daily token cap) debits `ComputeDebit` for
+  campaign child, `0.46.0` daily token cap, `0.47.0` remaining-room
+  hold) debits `ComputeDebit` for
   LLM tokens on the path
   `dsh → llm-pi-ai → python -m app.harness.campaign` — including
   attempted completions that spent tokens — or refuses to start.
   Today's `harness_session_turn` token sum (default 20_000 / UTC day)
-  refuses before the model and survives a restart. Unfunded is not
+  refuses before the model and survives a restart. Two overlapping
+  authorizes cannot both debit past the cap. Unfunded is not
   exhausted.
 
 ## Auth injection (do not put the bearer on a tool argument)

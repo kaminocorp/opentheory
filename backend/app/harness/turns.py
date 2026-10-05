@@ -19,7 +19,10 @@ Bounds:
   Process-local — a restart starts at turn 0.
 - ``OPENTHEORY_HARNESS_DAILY_TOKEN_CAP`` (default 20_000 tokens / UTC
   day). Counted from today's ``ComputeDebit`` rows whose notes start
-  with ``harness_session_turn``. Survives a process restart.
+  with ``harness_session_turn``. Survives a process restart. A
+  remaining-room hold (0.47.0) is appended under the project-row lock
+  so two overlapping authorizes cannot both pass and both debit past
+  the cap.
 - Composition drift refuses (``composition.verify``).
 - A funded pot with ``available <= 0`` refuses before the LLM call.
 
@@ -58,6 +61,7 @@ from app.harness.session import (
     REASON_PROJECT_BUDGET,
     REASON_TURN_BUDGET,
     SESSION_NOTES,
+    DailyCapHold,
     HarnessSession,
     TurnRefused,
     assert_project_budget,
@@ -150,6 +154,7 @@ async def supervise_turn(
         )
 
     owner: HarnessSession | None = None
+    hold: DailyCapHold | None = None
     factory = session_factory
     if project_id is not None and str(project_id):
         owner = HarnessSession(
@@ -161,7 +166,7 @@ async def supervise_turn(
         )
         factory = owner.session_factory or session_factory
         try:
-            await owner.authorize()
+            hold = await owner.authorize()
         except TurnRefused as exc:
             return SupervisedTurn(
                 ok=False,
@@ -182,6 +187,10 @@ async def supervise_turn(
         )
     except GatewayError as exc:
         error = exc
+    except Exception:
+        if owner is not None and hold is not None:
+            await owner.release_hold(hold)
+        raise
 
     tokens_used = (
         response.tokens_used if response is not None else (error.tokens_used if error else 0)
@@ -202,6 +211,7 @@ async def supervise_turn(
             model=resolved_model,
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
+            hold=hold,
         )
         owner.advance()
 
