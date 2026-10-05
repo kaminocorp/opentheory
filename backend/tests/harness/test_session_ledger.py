@@ -5,6 +5,7 @@ Skips without TEST_DATABASE_URL (same gate as the rest of the ledger suite).
 
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -16,14 +17,16 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.harness.campaign import QUESTION, TITLE, create_metered_gateway_app, open_session
-from app.harness.gateway import DEFAULT_MODEL, GATEWAY_TOKEN_ENV, GatewayClient
+from app.harness.gateway import DEFAULT_MODEL, GATEWAY_TOKEN_ENV, GatewayClient, GatewayResponse
 from app.harness.live_mcp import invoke
 from app.harness.session import (
     REASON_DAILY_CAP,
     REASON_PROJECT_BUDGET,
     SESSION_NOTES,
     HarnessSession,
+    TurnRefused,
     harness_tokens_used_today,
+    is_daily_cap_adjustment,
 )
 from app.models.checkpoint import Checkpoint
 from app.models.compute_debit import ComputeDebit
@@ -56,11 +59,16 @@ async def _checkpoint_count(session_factory: async_sessionmaker, project_id: str
 
 
 async def _debit_rows(session_factory: async_sessionmaker, project_id: str) -> list[ComputeDebit]:
+    """Billed spend only — daily-cap hold/release rows are not pot debits."""
     async with session_factory() as session:
         result = await session.execute(
             select(ComputeDebit).where(ComputeDebit.project_id == UUID(project_id))
         )
-        return list(result.scalars().all())
+        return [
+            row
+            for row in result.scalars().all()
+            if row.tokens_used > 0 and not is_daily_cap_adjustment(row.notes)
+        ]
 
 
 async def _complete(
@@ -539,3 +547,114 @@ async def test_unfunded_project_still_hits_daily_cap(
     assert calls["n"] == 0
     assert await _checkpoint_count(session_factory, project_id) == before
     assert len(await _debit_rows(session_factory, project_id)) == 1
+
+
+async def test_overlapping_authorizations_cannot_both_spend_past_cap(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """Two in-flight turns cannot both pass authorize() and both debit past the cap.
+
+    The first remaining-room hold is visible to the second authorize under
+    the project-row lock. The second refuses (no OpenRouter call). After
+    convert, today's harness sum is one turn, not two.
+    """
+    actor_id = await make_dev_principal(client, display_name="Race", roles=("internal",))
+    project_id = await create_owned_project(client, actor_id, "session-daily-race")
+    before = await _checkpoint_count(session_factory, project_id)
+
+    first = HarnessSession(
+        project_id=project_id,
+        daily_token_cap=20,
+        session_factory=session_factory,
+    )
+    second = HarnessSession(
+        project_id=project_id,
+        daily_token_cap=20,
+        session_factory=session_factory,
+    )
+
+    async def _authorize(owner: HarnessSession):
+        try:
+            return ("ok", owner, await owner.authorize())
+        except TurnRefused as exc:
+            return ("refused", owner, exc)
+
+    outcomes = await asyncio.gather(_authorize(first), _authorize(second))
+    winners = [item for item in outcomes if item[0] == "ok"]
+    losers = [item for item in outcomes if item[0] == "refused"]
+    assert len(winners) == 1
+    assert len(losers) == 1
+    assert losers[0][2].reason == REASON_DAILY_CAP
+
+    _, winner, hold = winners[0]
+    spent = await winner.record_spend(
+        tokens_used=20,
+        model=DEFAULT_MODEL,
+        prompt_tokens=15,
+        completion_tokens=5,
+        hold=hold,
+    )
+    assert spent is True
+    async with session_factory() as session:
+        assert await harness_tokens_used_today(session, UUID(project_id)) == 20
+    assert len(await _debit_rows(session_factory, project_id)) == 1
+    assert await _checkpoint_count(session_factory, project_id) == before
+
+    class PauseGateway:
+        def __init__(self) -> None:
+            self.entered = asyncio.Event()
+            self.release = asyncio.Event()
+            self.calls = 0
+
+        async def complete(self, **_kwargs: object) -> GatewayResponse:
+            self.calls += 1
+            self.entered.set()
+            await self.release.wait()
+            return GatewayResponse(
+                text="ok",
+                tokens_used=20,
+                model=DEFAULT_MODEL,
+                prompt_tokens=15,
+                completion_tokens=5,
+            )
+
+    # Fresh project: overlapping HTTP completions on the session-owned path.
+    http_project = await create_owned_project(client, actor_id, "session-daily-race-http")
+    pause = PauseGateway()
+    owner = open_session(
+        http_project, daily_token_cap=20, session_factory=session_factory
+    )
+    app = create_metered_gateway_app(
+        owner,
+        env={GATEWAY_TOKEN_ENV: "gw-secret"},
+        gateway=pause,
+    )
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://gw") as http:
+        async def _post() -> httpx.Response:
+            return await http.post(
+                "/v1/chat/completions",
+                headers={"Authorization": "Bearer gw-secret"},
+                json={
+                    "model": DEFAULT_MODEL,
+                    "messages": [{"role": "user", "content": "hi"}],
+                },
+            )
+
+        inflight = asyncio.create_task(_post())
+        await asyncio.wait_for(pause.entered.wait(), timeout=5)
+        overlapping = await asyncio.wait_for(_post(), timeout=5)
+        assert overlapping.status_code == 422
+        payload = overlapping.json()
+        assert payload["refused"] is True
+        assert payload["error"] == REASON_DAILY_CAP
+        assert payload["tokens_used"] == 0
+        assert payload["minted"] is False
+        assert pause.calls == 1
+        pause.release.set()
+        completed = await inflight
+    assert completed.status_code == 200, completed.text
+    assert pause.calls == 1
+    assert len(await _debit_rows(session_factory, http_project)) == 1
+    async with session_factory() as session:
+        assert await harness_tokens_used_today(session, UUID(http_project)) == 20
+    assert await _checkpoint_count(session_factory, http_project) == 0

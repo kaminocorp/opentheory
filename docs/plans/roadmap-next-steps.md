@@ -1,9 +1,9 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-10-02 · **Current release line:** `0.46.0`
-> (harness daily token cap, default 20_000 / UTC day), sitting on
-> shipped `0.45.0` (`source.pin`, `43f419c`, #38) on current `main`.
-> See `docs/completions/harness-daily-cap-0.46.0.md`.
+> **Last updated:** 2026-10-05 · **Current release line:** `0.47.0`
+> (harness daily-cap reservation), sitting on shipped `0.46.0`
+> (harness daily token cap, `8ee8ac0`, #39) on current `main`.
+> See `docs/completions/harness-daily-cap-race-0.47.0.md`.
 >
 > **Last updated:** 2026-10-02 · **Current release line:** `0.44.0`
 > (fail-closed metered harness composition), sitting on shipped
@@ -77,7 +77,8 @@
 > **Next after this line:** perpetual ops dashboard; the still-owed
 > browser eyeball pass. Does not enable the gateway child on Fly.
 > Does not light `AGENT_LOOP_ENABLED`.
-> ~~Harness daily token cap~~ ✅ this branch as `0.46.0`.
+> ~~Harness daily-cap reservation~~ ✅ this branch as `0.47.0`.
+> ~~Harness daily token cap~~ ✅ shipped as `0.46.0`.
 > ~~`source.pin` bibliographic pin~~ ✅ shipped as `0.45.0`.
 > ~~Fail-closed metered composition~~ ✅ shipped as `0.44.0`.
 > ~~Session owner + odd-perfect reference campaign~~ ✅ shipped as `0.43.0`.
@@ -195,7 +196,23 @@ bypassing the checkpoint chokepoint or conflating funder / contributor / validat
 
 ## Recommended next releases
 
-### `0.46.x` — Harness daily token cap ✅ **this branch** (`0.46.0`)
+### `0.47.x` — Harness daily-cap reservation ✅ **this branch** (`0.47.0`)
+
+Delivered: the leftover 0.46.0 overlapping-authorize race is closed.
+`authorize()` locks the project row and appends a remaining-room
+`ComputeDebit` hold (`harness_session_turn; daily_cap_hold`, amount
+`0`). A second concurrent turn refuses before the model. After the
+call the hold is released by a new credit row and the real spend is
+recorded only when `tokens_used > 0`. Append-only stays append-only.
+Unfunded ≠ exhausted. Notes prefix stays literal. **No schema, no
+migration, no campaign table.** See
+`docs/completions/harness-daily-cap-race-0.47.0.md`.
+
+**Not in this release:** an ops dashboard or UI chart; Fly enablement
+of the gateway or MCP child; lighting `AGENT_LOOP_ENABLED`; Lean
+REPL / LeanDojo.
+
+### `0.46.x` — Harness daily token cap ✅ **shipped** (`0.46.0`)
 
 Delivered: a UTC-day token ceiling on the session-owned campaign
 child. `authorize()` sums today's `ComputeDebit` rows whose notes
@@ -206,7 +223,8 @@ OpenRouter. A process restart does not reset the sum — the ledger is
 the meter. Process-local turn cap (default 4) still resets to 0.
 Project pot check stays; unfunded ≠ exhausted; debit only when
 `tokens_used > 0`. **No schema, no migration, no campaign table.**
-See `docs/completions/harness-daily-cap-0.46.0.md`.
+The overlapping-authorize leftover is closed in `0.47.0`. See
+`docs/completions/harness-daily-cap-0.46.0.md`.
 
 **Not in this release:** an ops dashboard or UI chart; Fly enablement
 of the gateway or MCP child; lighting `AGENT_LOOP_ENABLED`; Lean
@@ -705,9 +723,12 @@ changing branch protection.
     ~~**Live JWT MCP binding**~~ ✅ shipped as `0.41.0`. Gateway later.
     ~~**`source.pin` bibliographic pin**~~ ✅ shipped as `0.45.0` —
     unified Crossref / arXiv / OpenAlex door on the existing seam.
-    ~~**Harness daily token cap**~~ ✅ this branch as `0.46.0` —
+    ~~**Harness daily token cap**~~ ✅ shipped as `0.46.0` —
     today's `harness_session_turn` `ComputeDebit` sum (default 20_000
     / UTC day) refuses before the model; a restart does not reset it.
+    ~~**Harness daily-cap reservation**~~ ✅ this branch as `0.47.0`
+    — project-row lock + remaining-room hold so two overlapping
+    authorizes cannot both debit past the cap.
 
 ## Shipped milestones (reference)
 
@@ -755,6 +776,7 @@ changing branch protection.
 | `0.44.x` | Fail-closed metered harness composition |
 | `0.45.x` | `source.pin` — unified bibliographic pin (Crossref / arXiv / OpenAlex) |
 | `0.46.x` | Harness daily token cap — ledger-backed 20_000 tokens / UTC day |
+| `0.47.x` | Harness daily-cap reservation — overlapping authorize cannot both debit past the cap |
 
 ## Success criteria for the next milestone
 
@@ -869,11 +891,17 @@ bare unmetered gateway proxy.
 **`0.45.0` (`source.pin`)** is shipped (`43f419c`, #38): a
 bibliographic source pin on the existing instrument contract.
 
-**`0.46.0` (harness daily token cap)** is this branch: today's
-`harness_session_turn` `ComputeDebit` token sum (default **20_000**
-per UTC day) refuses before the model on the session-owned path. A
-process restart does not reset it. No ops dashboard. No
-`AGENT_LOOP_ENABLED` flip. No schema, no migration.
+**`0.46.0` (harness daily token cap)** is shipped (`8ee8ac0`, #39):
+today's `harness_session_turn` `ComputeDebit` token sum (default
+**20_000** per UTC day) refuses before the model on the
+session-owned path. A process restart does not reset it.
+
+**`0.47.0` (harness daily-cap reservation)** is this branch: the
+0.46.0 leftover race is closed. `authorize()` locks the project row
+and holds the remaining room on the existing `ComputeDebit` ledger
+so two overlapping turns cannot both pass and both debit past the
+cap. No ops dashboard. No `AGENT_LOOP_ENABLED` flip. No schema, no
+migration.
 
 **Next product step:** perpetual ops dashboard. The still-owed
 browser eyeball pass remains. Lean REPL / LeanDojo remain later.

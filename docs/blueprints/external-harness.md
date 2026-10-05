@@ -1,13 +1,15 @@
 # External harness actor path
 
-> **What is (`0.46.0`).** Milestone 0 composition + fixture, the live
+> **What is (`0.47.0`).** Milestone 0 composition + fixture, the live
 > MCP door (`live_mcp.py`), the fail-closed OpenRouter gateway, a
 > session owner (`HarnessSession`) plus the odd-perfect reference
 > campaign, a fail-closed campaign composition that cannot start the
-> unmetered gateway proxy, and a daily token cap counted from today's
+> unmetered gateway proxy, a daily token cap counted from today's
 > `harness_session_turn` `ComputeDebit` rows (default 20_000 / UTC
-> day; survives a process restart). Fly enablement is not shipped. If
-> this blueprint disagrees with `backend/app/harness/`, the code wins.
+> day; survives a process restart), and a remaining-room hold so two
+> overlapping authorizes cannot both debit past that cap. Fly
+> enablement is not shipped. If this blueprint disagrees with
+> `backend/app/harness/`, the code wins.
 
 ## The rule
 
@@ -83,7 +85,10 @@ cap is not: `authorize()` sums today's `ComputeDebit` rows whose notes
 start with `harness_session_turn` and refuses before the model when
 that sum has already hit `OPENTHEORY_HARNESS_DAILY_TOKEN_CAP`
 (default **20_000** tokens per UTC day). A refused daily-cap start
-mints nothing and does not call OpenRouter.
+mints nothing and does not call OpenRouter. `0.47.0` takes the
+project row `FOR UPDATE` and appends a remaining-room hold on that
+same ledger so two overlapping authorizes cannot both pass and both
+debit past the cap. Release is a new credit row after the model call.
 
 ## Relationship to the built-in planner
 

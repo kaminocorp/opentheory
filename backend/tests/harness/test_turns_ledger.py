@@ -14,6 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.harness.gateway import DEFAULT_MODEL, GatewayClient
+from app.harness.session import is_daily_cap_adjustment
 from app.harness.turns import (
     REASON_PROJECT_BUDGET,
     TURN_NOTES,
@@ -50,11 +51,16 @@ async def _checkpoint_count(session_factory: async_sessionmaker, project_id: str
 
 
 async def _debit_rows(session_factory: async_sessionmaker, project_id: str) -> list[ComputeDebit]:
+    """Billed spend only — daily-cap hold/release rows are not pot debits."""
     async with session_factory() as session:
         result = await session.execute(
             select(ComputeDebit).where(ComputeDebit.project_id == UUID(project_id))
         )
-        return list(result.scalars().all())
+        return [
+            row
+            for row in result.scalars().all()
+            if row.tokens_used > 0 and not is_daily_cap_adjustment(row.notes)
+        ]
 
 
 async def test_successful_turn_debits_and_lands_instrument(

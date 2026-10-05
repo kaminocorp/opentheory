@@ -1,4 +1,4 @@
-"""Session owner + daily token cap (0.46.0) — no live key, no dsh."""
+"""Session owner + daily token cap (0.46.0 / 0.47.0) — no live key, no dsh."""
 
 from __future__ import annotations
 
@@ -39,13 +39,16 @@ from app.harness.session import (
     DAILY_TOKEN_CAP_ENV,
     DEFAULT_DAILY_TOKEN_CAP,
     DEFAULT_MAX_TURNS,
+    HOLD_NOTES,
     PROJECT_ID_ENV,
     REASON_DAILY_CAP,
     REASON_TURN_BUDGET,
+    RELEASE_NOTES,
     SESSION_NOTES,
     HarnessSession,
     assert_daily_tokens_in_budget,
     harness_notes_prefix_match,
+    is_daily_cap_adjustment,
     resolve_daily_token_cap,
     session_from_env,
     utc_day_start,
@@ -196,7 +199,7 @@ def test_fixture_probe_log_uses_protocol_maybe_log() -> None:
 
 
 def test_gateway_version_is_daily_cap_release() -> None:
-    assert VERSION == "0.46.0"
+    assert VERSION == "0.47.0"
 
 
 def test_default_daily_token_cap_is_small_and_overridable() -> None:
@@ -231,6 +234,11 @@ def test_daily_cap_notes_prefix_like_is_literal() -> None:
     assert "harness/_session/_turn" in sql or r"harness\_session\_turn" in sql
     lookalike = "harness-session-turn extra"
     assert not lookalike.startswith(SESSION_NOTES)
+    assert HOLD_NOTES.startswith(SESSION_NOTES)
+    assert RELEASE_NOTES.startswith(SESSION_NOTES)
+    assert is_daily_cap_adjustment(HOLD_NOTES)
+    assert is_daily_cap_adjustment(RELEASE_NOTES)
+    assert not is_daily_cap_adjustment(f"{SESSION_NOTES}; rate fallback: blended_fallback")
 
 
 def test_gateway_process_refuses_unmetered_without_flag() -> None:
@@ -293,7 +301,7 @@ async def test_health_reports_bound_session() -> None:
     async with AsyncClient(transport=ASGITransport(app=unbound), base_url="http://gw") as client:
         health = await client.get("/health")
     assert health.json()["session_owned"] is False
-    assert health.json()["version"] == "0.46.0"
+    assert health.json()["version"] == "0.47.0"
 
     session = open_session(
         "dddddddd-dddd-dddd-dddd-dddddddddddd",
