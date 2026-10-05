@@ -148,9 +148,13 @@ not enable the gateway or MCP child on Fly.
   Start / Stop / Fund. Gateway and MCP child stay `unknown`.
 
 ```bash
-cd backend && uv run ruff check .
-cd backend && uv run pytest -q
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 839 passed, 257 skipped (no TEST_DATABASE_URL)
+# +9 passed vs shipped 0.48.0 (830); +4 skipped (ops ledger reads)
+cd backend && uv run pytest tests/harness -q
+# 87 passed, 25 skipped (no TEST_DATABASE_URL) — same as 0.48.0
 cd frontend && npm run typecheck && npm run lint && npm test && npm run build
+# typecheck/lint/build clean; 62 tests ( +5 honesty cases )
 ```
 
 See `docs/completions/perpetual-ops-dashboard-0.49.0.md`.

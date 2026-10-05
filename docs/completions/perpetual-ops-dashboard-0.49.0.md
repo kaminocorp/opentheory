@@ -84,8 +84,17 @@ table.** Sits on shipped `0.48.0` (`7094d18`, #41).
 
 ## Verification
 
-Recorded after the local run in this slice. See the PR body for the
-live counts.
+- `ruff check .` clean.
+- Default pytest (no `TEST_DATABASE_URL`, no `OPENROUTER_API_KEY`):
+  **839 passed, 257 skipped**. +9 passed vs shipped `0.48.0` (830)
+  (ops honesty / OpenAPI / import-posture). +4 skipped (ops ledger
+  reads).
+- Harness pytest: **87 passed, 25 skipped** without
+  `TEST_DATABASE_URL` — same as shipped `0.48.0`.
+- Frontend: typecheck / lint / build clean. **62** node:test cases
+  (+5 honesty cases).
+- Ledger suite skips without `TEST_DATABASE_URL` (CI Postgres runs
+  it). Lean / Mathlib stay off.
 
 ## Unverified
 

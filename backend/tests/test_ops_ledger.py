@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -34,23 +33,20 @@ async def _add_debit(
     tokens_used: int,
     amount: Decimal = Decimal("0"),
     notes: str | None = None,
-    created_at: datetime | None = None,
 ) -> None:
     async with session_factory() as session:
-        row = ComputeDebit(
-            project_id=UUID(project_id),
-            tokens_used=tokens_used,
-            amount=amount,
-            currency="USD",
-            rate_per_1k=Decimal("0"),
-            rate_source=ComputeDebitRateSource.BLENDED_FALLBACK,
-            kind=ComputeDebitKind.PLANNING,
-            notes=notes,
+        session.add(
+            ComputeDebit(
+                project_id=UUID(project_id),
+                tokens_used=tokens_used,
+                amount=amount,
+                currency="USD",
+                rate_per_1k=Decimal("0"),
+                rate_source=ComputeDebitRateSource.BLENDED_FALLBACK,
+                kind=ComputeDebitKind.PLANNING,
+                notes=notes,
+            )
         )
-        session.add(row)
-        await session.flush()
-        if created_at is not None:
-            row.created_at = created_at
         await session.commit()
 
 
