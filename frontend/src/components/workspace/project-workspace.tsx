@@ -37,6 +37,7 @@ import { ProjectHeader } from "./project-header";
 import { ProjectTabs, projectPanelDomId, projectTabDomId } from "./project-tabs";
 import { ResearchCrewPanel } from "./research-crew-panel";
 import { ContinuousResearchBay } from "./continuous-research-bay";
+import { OpsDashboardBay } from "./ops-dashboard-bay";
 import { RunResearchBay } from "./run-research-bay";
 import { TagPanel } from "./tag-panel";
 import { ThreadListPanel } from "./thread-list-panel";
@@ -383,6 +384,8 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
           loading={!budget && !overviewQuery.isError}
           error={overviewQuery.isError}
         />
+
+        <OpsDashboardBay projectId={projectId} />
 
         <RunResearchBay
           projectId={projectId}

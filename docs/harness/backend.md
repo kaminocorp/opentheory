@@ -1,7 +1,8 @@
 # External harness — backend skeleton
 
-> **Status — `0.48.0` daily-cap orphan-hold release.** Package exists. FastAPI
-> does not import it. Fly does not run it.
+> **Status — `0.49.0` perpetual ops dashboard.** Package exists. FastAPI
+> does not import it. Fly does not run it. The product ops read uses
+> `app.services.harness_meter`, not this package.
 
 ## Where it lives
 
@@ -29,15 +30,14 @@ The package is **not** mounted on `api/router.py` and is **not** imported
 from `app.main`. Booting the API does not load Cordis, does not start the
 gateway, and does not need the SDK.
 
-## What 0.48.0 will and will not do
+## What 0.49.0 will and will not do
 
 | Will | Will not |
 | --- | --- |
-| Release an unmatched remaining-room hold older than the TTL on the next `authorize()` so a crash leftover does not pin the UTC day | Invent a sweeper table; edit or delete a hold (release is a new credit row) |
-| Keep the project-row lock + remaining-room hold so two overlapping authorizes cannot both debit past the cap | Treat a fresh in-flight hold as an orphan |
+| Keep the shared daily-cap meter (`harness_session_turn` prefix, `hold_id` pairing) readable from the product API without importing this package | Import `app.harness` from FastAPI |
 | Keep refusing when today's `harness_session_turn` token sum has hit the cap (default 20_000 / UTC day) | Reset that sum on process restart (the ledger is the meter) |
 | Keep the process-local turn cap and the funded-pot check | Treat unfunded as exhausted; debit when `tokens_used <= 0` |
-| Keep `OPENTHEORY_HARNESS_DAILY_TOKEN_CAP` and `OPENTHEORY_HARNESS_HOLD_TTL_SECONDS` operator-overridable | Add a campaign table, an ops dashboard, or a second Checkpoint writer |
+| Keep `OPENTHEORY_HARNESS_DAILY_TOKEN_CAP` and `OPENTHEORY_HARNESS_HOLD_TTL_SECONDS` operator-overridable | Add a campaign table, a refusals table, or a second Checkpoint writer |
 | Skip the live probe without a key | Require `dsh` / the `[harness]` extra / `OPENROUTER_API_KEY` in default CI |
 | Keep FastAPI from importing the package | Enable the gateway / MCP child on Fly or light `AGENT_LOOP_ENABLED` |
 
@@ -63,8 +63,8 @@ holds `OPENTHEORY_GATEWAY_TOKEN`; the gateway holds
 
 ## Later slices
 
-An ops dashboard and daily turn/request caps are later. This slice
-closes the unmetered-composition hole: the path a campaign actually
-runs cannot start without a session owner.
+Daily turn/request caps beyond the token ceiling remain later. The
+ops dashboard shipped as `0.49.0` on the product API. This package
+still must not hold settlement, validation, or funding.
 
 Do not put settlement, validation, or funding on this package.

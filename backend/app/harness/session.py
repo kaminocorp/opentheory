@@ -46,12 +46,12 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
-from typing import Any, Protocol
+from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.harness.composition import CompositionError, verify
@@ -60,34 +60,82 @@ from app.models.enums import ComputeDebitKind, ComputeDebitRateSource
 from app.models.project import Project
 from app.services import compute as compute_service
 from app.services import funding as funding_service
+from app.services.harness_meter import (
+    DAILY_TOKEN_CAP_ENV,
+    DEFAULT_DAILY_TOKEN_CAP,
+    DEFAULT_HOLD_TTL_SECONDS,
+    HOLD_ID_MARK,
+    HOLD_NOTES,
+    HOLD_NOTES_MARK,
+    HOLD_TTL_ENV,
+    RELEASE_NOTES,
+    RELEASE_NOTES_MARK,
+    SESSION_NOTES,
+    AdjustmentRow,
+    harness_notes_prefix_match,
+    harness_tokens_used_today,
+    hold_notes,
+    is_daily_cap_adjustment,
+    is_hold_stale,
+    load_today_adjustments,
+    parse_hold_id,
+    release_notes,
+    unmatched_holds,
+    utc_day_start,
+)
 
 PROJECT_ID_ENV = "OPENTHEORY_PROJECT_ID"
 MAX_TURNS_ENV = "OPENTHEORY_HARNESS_MAX_TURNS"
-DAILY_TOKEN_CAP_ENV = "OPENTHEORY_HARNESS_DAILY_TOKEN_CAP"
-HOLD_TTL_ENV = "OPENTHEORY_HARNESS_HOLD_TTL_SECONDS"
 DEFAULT_MAX_TURNS = 4
-# Small operator-overridable UTC-day ceiling. The process-local turn cap
-# (default 4) resets on restart; this sum of today's harness_session_turn
-# ComputeDebit.tokens_used does not. 20_000 tokens is a handful of short
-# planning completions — enough to work, not enough to drain a funded pot
-# by bouncing the child.
-DEFAULT_DAILY_TOKEN_CAP = 20_000
-# How long an unmatched remaining-room hold is treated as live. A crash
-# after authorize() and before convert used to pin the UTC day; the next
-# authorize releases only holds older than this. Fresh holds stay so two
-# overlapping authorizes cannot both pass. 300s is longer than a planning
-# completion and much shorter than the rest of the UTC day.
-DEFAULT_HOLD_TTL_SECONDS = 300
-SESSION_NOTES = "harness_session_turn"
-HOLD_NOTES_MARK = "daily_cap_hold"
-RELEASE_NOTES_MARK = "daily_cap_release"
-HOLD_ID_MARK = "hold_id="
-HOLD_NOTES = f"{SESSION_NOTES}; {HOLD_NOTES_MARK}"
-RELEASE_NOTES = f"{SESSION_NOTES}; {RELEASE_NOTES_MARK}"
 REASON_COMPOSITION = "composition drifted"
 REASON_TURN_BUDGET = "turn budget exhausted"
 REASON_DAILY_CAP = "daily token cap exhausted"
 REASON_PROJECT_BUDGET = compute_service.BUDGET_EXHAUSTED
+
+__all__ = [
+    "DAILY_TOKEN_CAP_ENV",
+    "DEFAULT_DAILY_TOKEN_CAP",
+    "DEFAULT_HOLD_TTL_SECONDS",
+    "DEFAULT_MAX_TURNS",
+    "HOLD_ID_MARK",
+    "HOLD_NOTES",
+    "HOLD_NOTES_MARK",
+    "HOLD_TTL_ENV",
+    "MAX_TURNS_ENV",
+    "PROJECT_ID_ENV",
+    "REASON_COMPOSITION",
+    "REASON_DAILY_CAP",
+    "REASON_PROJECT_BUDGET",
+    "REASON_TURN_BUDGET",
+    "RELEASE_NOTES",
+    "RELEASE_NOTES_MARK",
+    "SESSION_NOTES",
+    "AdjustmentRow",
+    "DailyCapHold",
+    "HarnessSession",
+    "TurnRefused",
+    "assert_daily_token_cap",
+    "assert_daily_tokens_in_budget",
+    "assert_project_budget",
+    "assert_turn_in_budget",
+    "harness_notes_prefix_match",
+    "harness_tokens_used_today",
+    "hold_has_release",
+    "hold_notes",
+    "is_daily_cap_adjustment",
+    "is_hold_stale",
+    "load_today_adjustments",
+    "parse_hold_id",
+    "release_notes",
+    "release_stale_holds",
+    "resolve_daily_token_cap",
+    "resolve_hold_ttl_seconds",
+    "resolve_max_turns",
+    "session_from_env",
+    "unmatched_holds",
+    "utc_day_start",
+    "write_daily_cap_adjustment",
+]
 
 
 class TurnRefused(Exception):
@@ -158,118 +206,6 @@ def resolve_hold_ttl_seconds(env: Mapping[str, str] | None = None) -> int:
     return value
 
 
-def utc_day_start(now: datetime | None = None) -> datetime:
-    """Inclusive start of the current UTC day (the daily-cap window)."""
-    moment = datetime.now(UTC) if now is None else now
-    if moment.tzinfo is None:
-        moment = moment.replace(tzinfo=UTC)
-    moment = moment.astimezone(UTC)
-    return moment.replace(hour=0, minute=0, second=0, microsecond=0)
-
-
-def harness_notes_prefix_match(notes: str = SESSION_NOTES):
-    """Literal notes prefix. ``_`` / ``%`` in the marker are not LIKE wildcards."""
-    return ComputeDebit.notes.startswith(notes, autoescape=True)
-
-
-def is_daily_cap_adjustment(notes: str | None) -> bool:
-    """True for a daily-cap hold or release row, not a billed spend debit."""
-    text = notes or ""
-    return HOLD_NOTES_MARK in text or RELEASE_NOTES_MARK in text
-
-
-def hold_notes(hold_id: UUID) -> str:
-    """Hold notes: literal ``harness_session_turn`` prefix plus ``hold_id``."""
-    return f"{HOLD_NOTES}; {HOLD_ID_MARK}{hold_id}"
-
-
-def release_notes(hold_id: UUID | None) -> str:
-    """Release notes. ``hold_id`` is omitted only for pre-0.48.0 leftover rows."""
-    if hold_id is None:
-        return RELEASE_NOTES
-    return f"{RELEASE_NOTES}; {HOLD_ID_MARK}{hold_id}"
-
-
-def parse_hold_id(notes: str | None) -> UUID | None:
-    """Read ``hold_id=<uuid>`` from a hold or release notes suffix."""
-    for part in (notes or "").split(";"):
-        token = part.strip()
-        if not token.startswith(HOLD_ID_MARK):
-            continue
-        raw = token[len(HOLD_ID_MARK) :]
-        try:
-            return UUID(raw)
-        except ValueError:
-            return None
-    return None
-
-
-def is_hold_stale(
-    created_at: datetime,
-    *,
-    ttl_seconds: int,
-    now: datetime | None = None,
-) -> bool:
-    """True when an unmatched hold is old enough to release.
-
-    ``ttl_seconds < 1`` is fail-closed — never auto-release. A just-taken
-    hold must stay so a concurrent authorize cannot treat it as an orphan.
-    """
-    if ttl_seconds < 1:
-        return False
-    moment = datetime.now(UTC) if now is None else now
-    if moment.tzinfo is None:
-        moment = moment.replace(tzinfo=UTC)
-    created = created_at
-    if created.tzinfo is None:
-        created = created.replace(tzinfo=UTC)
-    return (moment.astimezone(UTC) - created.astimezone(UTC)).total_seconds() >= ttl_seconds
-
-
-class AdjustmentRow(Protocol):
-    """Minimal hold/release row: notes + tokens. ``ComputeDebit`` satisfies this."""
-
-    tokens_used: int
-    notes: str | None
-
-
-def unmatched_holds(rows: list[AdjustmentRow]) -> list[AdjustmentRow]:
-    """Hold rows that have no matching release on ``rows`` (today's adjustments).
-
-    Identified holds (notes carry ``hold_id``) pair exactly. Pre-0.48.0
-    leftover holds without an id pair FIFO against id-less releases so a
-    crash leftover from 0.47.0 can still be released.
-    """
-    released_ids: set[UUID] = set()
-    legacy_release_tokens = 0
-    identified: list[AdjustmentRow] = []
-    legacy: list[AdjustmentRow] = []
-    for row in rows:
-        text = row.notes or ""
-        hold_id = parse_hold_id(text)
-        if RELEASE_NOTES_MARK in text:
-            if hold_id is not None:
-                released_ids.add(hold_id)
-            else:
-                legacy_release_tokens += row.tokens_used
-            continue
-        if HOLD_NOTES_MARK not in text:
-            continue
-        if hold_id is not None:
-            identified.append(row)
-        else:
-            legacy.append(row)
-
-    open_rows = [row for row in identified if parse_hold_id(row.notes) not in released_ids]
-    remaining_release = -legacy_release_tokens
-    for row in legacy:
-        if remaining_release >= row.tokens_used:
-            remaining_release -= row.tokens_used
-            continue
-        open_rows.append(row)
-    return open_rows
-
-
 def assert_turn_in_budget(turn_index: int, max_turns: int | None = None) -> None:
     cap = max_turns if max_turns is not None else resolve_max_turns()
     if turn_index < 0:
@@ -294,33 +230,6 @@ def assert_composition(*, version: str | None = None) -> None:
             verify(version=version)
     except CompositionError as exc:
         raise TurnRefused(f"{REASON_COMPOSITION}: {exc}") from exc
-
-
-async def harness_tokens_used_today(
-    db: AsyncSession,
-    project_id: UUID,
-    *,
-    now: datetime | None = None,
-    notes: str = SESSION_NOTES,
-) -> int:
-    """Σ tokens_used on today's harness_session_turn ComputeDebit rows.
-
-    The existing ledger is the meter — a process restart does not reset
-    this sum. Rows whose notes start with the literal
-    ``harness_session_turn`` prefix count (``record_compute_debit`` may
-    append a rate-fallback suffix). ``_`` in that marker is not a LIKE
-    wildcard. Other project spend (agent-pass debits) does not. Window
-    is UTC midnight inclusive through now.
-    """
-    start = utc_day_start(now)
-    result = await db.execute(
-        select(func.coalesce(func.sum(ComputeDebit.tokens_used), 0)).where(
-            ComputeDebit.project_id == project_id,
-            ComputeDebit.created_at >= start,
-            harness_notes_prefix_match(notes),
-        )
-    )
-    return int(result.scalar_one() or 0)
 
 
 async def assert_daily_token_cap(
@@ -363,27 +272,6 @@ async def write_daily_cap_adjustment(
         )
     )
     await db.flush()
-
-
-async def load_today_adjustments(
-    db: AsyncSession,
-    project_id: UUID,
-    *,
-    now: datetime | None = None,
-    notes: str = SESSION_NOTES,
-) -> list[ComputeDebit]:
-    """Today's hold / release rows for ``project_id``, oldest first."""
-    start = utc_day_start(now)
-    result = await db.execute(
-        select(ComputeDebit)
-        .where(
-            ComputeDebit.project_id == project_id,
-            ComputeDebit.created_at >= start,
-            harness_notes_prefix_match(notes),
-        )
-        .order_by(ComputeDebit.created_at.asc(), ComputeDebit.id.asc())
-    )
-    return [row for row in result.scalars().all() if is_daily_cap_adjustment(row.notes)]
 
 
 async def hold_has_release(

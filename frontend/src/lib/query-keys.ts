@@ -20,6 +20,8 @@ export const queryKeys = {
     ["blame", projectId, claimId] as const,
   funding: (projectId: string) => ["funding", projectId] as const,
   budget: (projectId: string) => ["budget", projectId] as const,
+  // Perpetual ops dashboard (0.49.0) — derived read, keyed by project.
+  ops: (projectId: string) => ["ops", projectId] as const,
   members: (projectId: string) => ["members", projectId] as const,
   // The curated OpenRouter model catalog (0.8.10) — static, so it can cache indefinitely.
   agentModelCatalog: ["agent-models", "catalog"] as const,

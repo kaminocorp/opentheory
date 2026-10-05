@@ -1,0 +1,210 @@
+"""Perpetual ops dashboard — derived read over the compute ledger (0.49.0).
+
+``GET /projects/{id}/ops``. Always-on. Mints nothing. Does not import
+``app.harness``. The daily-cap numbers are the same meter
+``HarnessSession.authorize()`` writes: today's ``ComputeDebit`` rows
+whose notes start with the literal ``harness_session_turn`` prefix,
+holds included, paired by ``hold_id``.
+
+Unknown stays unknown:
+- A refused start writes nothing, so refusals cannot be listed.
+- Whether a separate Fly gateway / MCP child is running is not visible
+  to this API process.
+- An invalid ``OPENTHEORY_HARNESS_DAILY_TOKEN_CAP`` (or hold TTL) on
+  *this* process is not replaced with the default.
+- The campaign child may override those env vars independently; that
+  override is unknown here and is labeled as such.
+"""
+
+from datetime import UTC, datetime
+from decimal import Decimal
+from uuid import UUID
+
+from fastapi import HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import settings
+from app.models.project import Project
+from app.schemas.ops import (
+    OpsBudgetRead,
+    OpsDailyCapRead,
+    OpsEnablementRead,
+    OpsHoldRead,
+    OpsLoopRead,
+    OpsRefusalsRead,
+    OpsTurnRead,
+    OpsUnknownProcessRead,
+    ProjectOpsRead,
+)
+from app.services import funding as funding_service
+from app.services.harness_meter import (
+    DAILY_TOKEN_CAP_ENV,
+    DEFAULT_DAILY_TOKEN_CAP,
+    HOLD_TTL_ENV,
+    SESSION_NOTES,
+    budget_state,
+    classify_harness_row,
+    harness_tokens_used_today,
+    is_hold_stale,
+    load_recent_harness_rows,
+    load_today_adjustments,
+    pair_holds,
+    parse_hold_id,
+    peek_daily_token_cap,
+    peek_hold_ttl_seconds,
+    utc_day_start,
+)
+
+RECENT_TURNS_LIMIT = 20
+
+_BUDGET_NOTES = {
+    "unfunded": (
+        "No settled funding. Unfunded is not exhausted — a funded pot "
+        "at available ≤ 0 is the exhausted state."
+    ),
+    "available": "Settled funding remains after spent and reserved.",
+    "exhausted": "Funded and available ≤ 0. Unfunded is a different state.",
+}
+
+_REFUSALS = OpsRefusalsRead(
+    recorded=False,
+    note=(
+        "A refused start writes nothing (TurnRefused → no ComputeDebit, "
+        "no checkpoint). The ledger cannot list refusals."
+    ),
+)
+
+_GATEWAY_NOTE = (
+    "This API process does not import or mount the OpenRouter gateway. "
+    "Whether a separate Fly / host process is running is unknown."
+)
+_MCP_NOTE = (
+    "This API process does not run the MCP child. Whether a separate "
+    "process is running is unknown."
+)
+_CHILD_OVERRIDE_NOTE = (
+    f"Cap and TTL are what this API process sees ({DAILY_TOKEN_CAP_ENV} / "
+    f"{HOLD_TTL_ENV}). The campaign child may set those independently; "
+    "that override is unknown here."
+)
+
+
+def _cap_note(source: str) -> str:
+    if source == "invalid":
+        return (
+            f"{DAILY_TOKEN_CAP_ENV} is set on this process but is not a "
+            f"positive integer. Remaining and exhausted are unknown. "
+            f"{_CHILD_OVERRIDE_NOTE}"
+        )
+    if source == "process_env":
+        return (
+            f"Cap from {DAILY_TOKEN_CAP_ENV} on this API process. "
+            f"{_CHILD_OVERRIDE_NOTE}"
+        )
+    return (
+        f"Documented default ({DEFAULT_DAILY_TOKEN_CAP} tokens / UTC day); "
+        f"{DAILY_TOKEN_CAP_ENV} is unset on this API process. "
+        f"{_CHILD_OVERRIDE_NOTE}"
+    )
+
+
+async def project_ops(
+    db: AsyncSession,
+    project_id: UUID,
+    *,
+    now: datetime | None = None,
+) -> ProjectOpsRead:
+    """Derive the operator snapshot. Never writes."""
+    project = await db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    moment = datetime.now(UTC) if now is None else now
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    moment = moment.astimezone(UTC)
+
+    budget = await funding_service.project_budget(db, project_id)
+    state = budget_state(funded=budget.funded, available=budget.available)
+
+    cap = peek_daily_token_cap()
+    ttl = peek_hold_ttl_seconds()
+    used = await harness_tokens_used_today(db, project_id, now=moment)
+    remaining: int | None
+    exhausted: bool | None
+    if cap.value is None:
+        remaining = None
+        exhausted = None
+    else:
+        remaining = max(0, cap.value - used)
+        exhausted = used >= cap.value
+
+    adjustments = await load_today_adjustments(db, project_id, now=moment)
+    holds = [
+        OpsHoldRead(
+            hold_id=item.hold_id,
+            status=item.status,
+            tokens=item.tokens,
+            created_at=item.created_at,
+            released_at=item.released_at,
+            stale=(
+                None
+                if item.status != "open" or ttl.value is None
+                else is_hold_stale(item.created_at, ttl_seconds=ttl.value, now=moment)
+            ),
+            note=(
+                "Pre-0.48.0 leftover hold (no hold_id)."
+                if item.hold_id is None
+                else None
+            ),
+        )
+        for item in pair_holds(adjustments)
+    ]
+
+    recent = [
+        OpsTurnRead(
+            id=row.id,
+            created_at=row.created_at,
+            tokens_used=row.tokens_used,
+            amount=Decimal(row.amount),
+            notes=row.notes,
+            kind=classify_harness_row(row.notes),
+            hold_id=parse_hold_id(row.notes),
+        )
+        for row in await load_recent_harness_rows(
+            db, project_id, limit=RECENT_TURNS_LIMIT
+        )
+    ]
+
+    return ProjectOpsRead(
+        project_id=project_id,
+        as_of=moment,
+        notes_prefix=SESSION_NOTES,
+        budget=OpsBudgetRead(
+            snapshot=budget,
+            state=state,
+            note=_BUDGET_NOTES[state],
+        ),
+        daily_cap=OpsDailyCapRead(
+            utc_day=utc_day_start(moment).date().isoformat(),
+            cap=cap.value,
+            cap_source=cap.source,
+            tokens_used_today=used,
+            remaining=remaining,
+            exhausted=exhausted,
+            hold_ttl_seconds=ttl.value,
+            hold_ttl_source=ttl.source,
+            note=_cap_note(cap.source),
+        ),
+        holds=holds,
+        recent_turns=recent,
+        refusals=_REFUSALS,
+        enablement=OpsEnablementRead(
+            loop=OpsLoopRead(enabled=settings.agent_loop_enabled),
+            gateway=OpsUnknownProcessRead(note=_GATEWAY_NOTE),
+            mcp_child=OpsUnknownProcessRead(note=_MCP_NOTE),
+        ),
+    )

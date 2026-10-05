@@ -18,6 +18,7 @@ from app.api.routes import (
     invitations,
     me,
     merges,
+    ops,
     orchestrations,
     projects,
     tags,
@@ -45,6 +46,8 @@ api_router.include_router(tags.router)
 api_router.include_router(diff.router)
 # Semantic blame is a public ledger read (0.36.0) — GET only, mints nothing.
 api_router.include_router(blame.router)
+# Perpetual ops dashboard is a public ledger read (0.49.0) — GET only, mints nothing.
+api_router.include_router(ops.router)
 api_router.include_router(funding.router)
 # Invitations span /projects/{id}/invitations and /me/invitations + /invitations/{id}/…, so the
 # router mounts at the root and declares full paths itself (like threads/funding).

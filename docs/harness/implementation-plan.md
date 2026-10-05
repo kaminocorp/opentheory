@@ -1,11 +1,12 @@
 # External DeepSeek Harness — implementation plan
 
-> **Status — `0.48.0` Milestone 4a leftover is this slice** (daily-cap
-> orphan-hold release), sitting on shipped `0.47.0` remaining-room
-> hold, `0.46.0` daily token cap, `0.45.0` `source.pin`, `0.44.0`
-> fail-closed composition, `0.43.0` session owner, `0.42.0` gateway,
-> `0.41.0` live MCP, and `0.40.0` composition. Not a product loop.
-> Not enabled on Fly. Does not light `AGENT_LOOP_ENABLED`.
+> **Status — `0.49.0` Milestone 4b is this slice** (perpetual ops
+> dashboard), sitting on shipped `0.48.0` orphan-hold release,
+> `0.47.0` remaining-room hold, `0.46.0` daily token cap, `0.45.0`
+> `source.pin`, `0.44.0` fail-closed composition, `0.43.0` session
+> owner, `0.42.0` gateway, `0.41.0` live MCP, and `0.40.0`
+> composition. Not a product loop. Not enabled on Fly. Does not
+> light `AGENT_LOOP_ENABLED`.
 
 The external agent adapter lives **outside** the built-in OpenRouter planner
 (`0.12.x`–`0.32.0`). DeepSeek Harness SDK + an OpenRouter gateway own the
@@ -44,8 +45,8 @@ meters token spend.
 | **3b — `0.44.0`** | Fail-closed campaign composition: `llm-pi-ai` launches `app.harness.campaign`; `verify()` rejects the bare unmetered proxy; `OPENTHEORY_PROJECT_ID` is an env name | Fly enablement; `AGENT_LOOP_ENABLED`; a campaign table; lighting the built-in planner |
 | **4a — `0.46.0`** | Daily token cap on the session-owned path: today's `harness_session_turn` `ComputeDebit` sum (default 20_000 / UTC day) refuses before the model; survives a process restart | Ops dashboard; Fly enablement; `AGENT_LOOP_ENABLED`; a campaign table |
 | **4a leftover — `0.47.0`** | Remaining-room hold under a project-row lock so two overlapping authorizes cannot both debit past the cap | Ops dashboard; Fly enablement; `AGENT_LOOP_ENABLED`; a campaign table |
-| **4a leftover — `0.48.0` (this)** | Release an unmatched hold older than the TTL on the next authorize so a crash leftover does not pin the UTC day; two live overlapping turns still cannot both debit past the cap | Ops dashboard; Fly enablement; `AGENT_LOOP_ENABLED`; a campaign table |
-| **4b — later** | Perpetual ops dashboard | Lean REPL / LeanDojo (separate line) |
+| **4a leftover — `0.48.0`** | Release an unmatched hold older than the TTL on the next authorize so a crash leftover does not pin the UTC day; two live overlapping turns still cannot both debit past the cap | Ops dashboard; Fly enablement; `AGENT_LOOP_ENABLED`; a campaign table |
+| **4b — `0.49.0` (this)** | Perpetual ops dashboard: read-only pot / daily-cap / hold / enablement snapshot | Fly enablement; `AGENT_LOOP_ENABLED`; a refusals table; Lean REPL / LeanDojo |
 
 Each slice stays small and deployable. A slice that cannot run in default CI
 without `OPENROUTER_API_KEY` is not done.

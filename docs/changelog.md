@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.49.0` — **Perpetual ops dashboard.** A read-only operator snapshot of the budgeted perpetual setup: per-project pot vs spent (unfunded ≠ exhausted), today's `harness_session_turn` `ComputeDebit` sum against `OPENTHEORY_HARNESS_DAILY_TOKEN_CAP` (holds paired by `hold_id`; legacy id-less holds pair FIFO), recent harness rows, and whether the built-in loop / gateway is enabled. Refused starts mint nothing and are labeled as not recorded. Gateway / MCP-on-Fly is `unknown` to this API process. FastAPI still does not import `app.harness` (shared meter in `app.services.harness_meter`). Quiet Overview bay; no sixth tab; no Start / Fund controls. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + frontend + docs — no schema, no migration.** Sits on shipped `0.48.0` (`7094d18`, #41).
 - `0.48.0` — **Harness daily-cap orphan-hold release.** Closes the leftover 0.47.0 crash pin: a remaining-room hold whose convert never ran used to occupy the project's daily room until UTC midnight. Hold notes now carry a `hold_id`. The next `authorize()` — still under the project-row `FOR UPDATE` — appends a matching `daily_cap_release` for an unmatched hold older than `OPENTHEORY_HARNESS_HOLD_TTL_SECONDS` (default **300**) and only then takes a new hold. A fresh in-flight hold is not released, so two overlapping authorizes still cannot both debit past the cap. Amount stays `0`. Notes prefix stays literal. Unfunded ≠ exhausted. Debit only when `tokens_used > 0`. No sweeper table. No campaign table. No ops dashboard. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + docs — no schema, no migration.** Sits on shipped `0.47.0` (`b92c5b2`, #40).
 - `0.47.0` — **Harness daily-cap reservation.** Closes the leftover 0.46.0 race: `HarnessSession.authorize()` no longer reads today's `ComputeDebit` sum unlocked. It takes the project row `FOR UPDATE`, then appends a remaining-room hold on the existing ledger (`harness_session_turn; daily_cap_hold`, amount `0` — not a pot debit). A second concurrent authorize sees the hold in today's sum and refuses (`TurnRefused` → 422, `tokens_used` 0, minted false, no OpenRouter call). After the model call the hold is released by a new credit row (append-only; never an edit) and the real spend is recorded only when `tokens_used > 0`. Notes prefix stays literal. Unfunded ≠ exhausted. No campaign table. No ops dashboard. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + docs — no schema, no migration.** Sits on shipped `0.46.0` (`8ee8ac0`, #39).
 - `0.46.0` — **Harness daily token cap.** The session-owned campaign child (`dsh → llm-pi-ai → python -m app.harness.campaign`) refuses before the model when today's `harness_session_turn` `ComputeDebit` token sum has already hit `OPENTHEORY_HARNESS_DAILY_TOKEN_CAP` (default **20_000** tokens per UTC day). The notes prefix is literal (`startswith(..., autoescape=True)` — `_` is not a LIKE wildcard). A refused start mints nothing and does not call OpenRouter. The process-local turn cap (default 4) still resets to 0 on restart; this ledger sum does not. Project pot check stays (funded and `available <= 0` refuses; unfunded is not exhausted). Debit only when `tokens_used > 0`. No campaign table. No ops dashboard. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + docs — no schema, no migration.** Sits on shipped `0.45.0` (`43f419c`, #38).
@@ -120,6 +121,43 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.49.0
+
+**Perpetual ops dashboard.** The operator who sets the question, roster,
+and budget can now read a truthful snapshot of that setup without
+writing the ledger. **No schema, no migration.** Sits on shipped
+`0.48.0` (`7094d18`, #41). Does not flip `AGENT_LOOP_ENABLED`. Does
+not enable the gateway or MCP child on Fly.
+
+- **Derived GET.** `GET /projects/{id}/ops` returns the project pot
+  (unfunded ≠ exhausted), today's harness token sum vs the cap this
+  API process sees, today's remaining-room holds paired by `hold_id`,
+  the newest 20 `harness_session_turn` rows, a refusals honesty
+  block, and enablement. Missing project is `404`. The handler
+  never writes. `create_checkpoint` remains the only Checkpoint
+  writer.
+- **Same meter as authorize.** Notes prefix, `hold_id` parse, today's
+  sum, and hold pairing live in `app.services.harness_meter` so the
+  product API can read what `HarnessSession` writes without importing
+  `app.harness`. An invalid process-local cap is unknown, not a
+  guessed default. A child-only env override is labeled unknown.
+- **Overview bay.** Quiet Perpetual ops panel. No sixth tab. No
+  Start / Stop / Fund. Gateway and MCP child stay `unknown`.
+
+```bash
+cd backend && uv run ruff check .
+cd backend && uv run pytest -q
+cd frontend && npm run typecheck && npm run lint && npm test && npm run build
+```
+
+See `docs/completions/perpetual-ops-dashboard-0.49.0.md`.
+
+**Not in this release:** Fly enablement of the gateway or MCP child;
+lighting `AGENT_LOOP_ENABLED`; a refusals table; a campaign table;
+Lean REPL / LeanDojo; the still-owed browser eyeball pass.
 
 ---
 
