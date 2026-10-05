@@ -103,7 +103,18 @@ on shipped `0.47.0` (`b92c5b2`, #40). Closes the caveat in
 
 ## Verification
 
-Filled after the harness pytest / ruff run on this branch.
+- `ruff check .` clean.
+- Default pytest (no `TEST_DATABASE_URL`, no `OPENROUTER_API_KEY`):
+  **830 passed, 253 skipped**. +2 passed vs shipped `0.47.0` (828)
+  (TTL / `hold_id` pairing unit tests). +1 skipped (orphan-hold
+  recovery).
+- Harness pytest: **87 passed, 25 skipped** without `TEST_DATABASE_URL`.
+  **112 passed** with `TEST_DATABASE_URL` (orphan recovery + existing
+  daily-cap cases, including `test_daily_cap_notes_prefix_is_literal`
+  and the overlapping-authorize race).
+- Full backend pytest with `TEST_DATABASE_URL`: **1079 passed, 4
+  skipped**. Ledger suite skips without `TEST_DATABASE_URL` (CI
+  Postgres runs it). Lean / Mathlib stay off. Frontend untouched.
 
 ## Unverified
 

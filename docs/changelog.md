@@ -157,8 +157,11 @@ migration.** Sits on shipped `0.47.0` (`b92c5b2`, #40). Does not flip
 
 ```bash
 cd backend && uv run ruff check .   # clean
-cd backend && uv run pytest -q      # counts filled after the harness run
+cd backend && uv run pytest -q      # 830 passed, 253 skipped (no TEST_DATABASE_URL)
+# +2 passed vs shipped 0.47.0 (828); +1 skipped (orphan-hold recovery)
 cd backend && uv run pytest tests/harness -q
+# 87 passed, 25 skipped (no TEST_DATABASE_URL)
+# 112 passed with TEST_DATABASE_URL (orphan recovery + existing daily-cap)
 # Frontend untouched — typecheck/lint/test/build unchanged
 ```
 
