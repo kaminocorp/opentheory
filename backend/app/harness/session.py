@@ -1,4 +1,4 @@
-"""Session owner for an external DeepSeek Harness run (0.43.0 / 0.47.0).
+"""Session owner for an external DeepSeek Harness run (0.43.0 / 0.48.0).
 
 One :class:`HarnessSession` owns one campaign-bound run: the project, the
 process-local turn cap, the daily token cap, pre-LLM exhaust, and
@@ -30,7 +30,15 @@ remaining-room hold on the existing ``ComputeDebit`` ledger (amount
 ``0`` — not a pot debit). The second concurrent authorize sees the
 hold in today's sum and refuses. After the model call the hold is
 released by a new credit row (append-only; never an edit) and the
-real spend is recorded when ``tokens_used > 0``. No campaign table.
+real spend is recorded when ``tokens_used > 0``.
+
+``0.48.0`` closes the leftover crash pin: a hold whose convert never
+ran used to occupy the remaining room until UTC midnight. Hold notes
+now carry a ``hold_id``. The next ``authorize()`` — still under the
+project-row lock — appends a matching release for an unmatched hold
+older than ``OPENTHEORY_HARNESS_HOLD_TTL_SECONDS`` (default 300) and
+only then takes a new hold. A fresh in-flight hold is not released.
+No campaign table.
 """
 
 from __future__ import annotations
@@ -40,8 +48,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
-from uuid import UUID
+from typing import Any, Protocol
+from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -56,6 +64,7 @@ from app.services import funding as funding_service
 PROJECT_ID_ENV = "OPENTHEORY_PROJECT_ID"
 MAX_TURNS_ENV = "OPENTHEORY_HARNESS_MAX_TURNS"
 DAILY_TOKEN_CAP_ENV = "OPENTHEORY_HARNESS_DAILY_TOKEN_CAP"
+HOLD_TTL_ENV = "OPENTHEORY_HARNESS_HOLD_TTL_SECONDS"
 DEFAULT_MAX_TURNS = 4
 # Small operator-overridable UTC-day ceiling. The process-local turn cap
 # (default 4) resets on restart; this sum of today's harness_session_turn
@@ -63,9 +72,16 @@ DEFAULT_MAX_TURNS = 4
 # planning completions — enough to work, not enough to drain a funded pot
 # by bouncing the child.
 DEFAULT_DAILY_TOKEN_CAP = 20_000
+# How long an unmatched remaining-room hold is treated as live. A crash
+# after authorize() and before convert used to pin the UTC day; the next
+# authorize releases only holds older than this. Fresh holds stay so two
+# overlapping authorizes cannot both pass. 300s is longer than a planning
+# completion and much shorter than the rest of the UTC day.
+DEFAULT_HOLD_TTL_SECONDS = 300
 SESSION_NOTES = "harness_session_turn"
 HOLD_NOTES_MARK = "daily_cap_hold"
 RELEASE_NOTES_MARK = "daily_cap_release"
+HOLD_ID_MARK = "hold_id="
 HOLD_NOTES = f"{SESSION_NOTES}; {HOLD_NOTES_MARK}"
 RELEASE_NOTES = f"{SESSION_NOTES}; {RELEASE_NOTES_MARK}"
 REASON_COMPOSITION = "composition drifted"
@@ -90,10 +106,12 @@ class DailyCapHold:
     ``harness_session_turn`` so today's cap sum sees it. ``tokens`` is
     the held remainder (``cap − used``). Amount on that row is ``0`` —
     this is not a project-pot debit. Release is a new credit row, never
-    an edit.
+    an edit. ``hold_id`` is written into the notes so a later authorize
+    can release only this hold when it is stale — not a live turn.
     """
 
     tokens: int
+    hold_id: UUID
 
 
 def resolve_max_turns(env: Mapping[str, str] | None = None) -> int:
@@ -125,6 +143,21 @@ def resolve_daily_token_cap(env: Mapping[str, str] | None = None) -> int:
     return value
 
 
+def resolve_hold_ttl_seconds(env: Mapping[str, str] | None = None) -> int:
+    """Unmatched-hold TTL. Default 300s. ``< 1`` stays fail-closed (never auto-release)."""
+    lookup = env if env is not None else os.environ
+    raw = (lookup.get(HOLD_TTL_ENV) or "").strip()
+    if not raw:
+        return DEFAULT_HOLD_TTL_SECONDS
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise TurnRefused(f"{HOLD_TTL_ENV} must be an integer") from exc
+    if value < 1:
+        raise TurnRefused(f"{HOLD_TTL_ENV} must be >= 1")
+    return value
+
+
 def utc_day_start(now: datetime | None = None) -> datetime:
     """Inclusive start of the current UTC day (the daily-cap window)."""
     moment = datetime.now(UTC) if now is None else now
@@ -143,6 +176,98 @@ def is_daily_cap_adjustment(notes: str | None) -> bool:
     """True for a daily-cap hold or release row, not a billed spend debit."""
     text = notes or ""
     return HOLD_NOTES_MARK in text or RELEASE_NOTES_MARK in text
+
+
+def hold_notes(hold_id: UUID) -> str:
+    """Hold notes: literal ``harness_session_turn`` prefix plus ``hold_id``."""
+    return f"{HOLD_NOTES}; {HOLD_ID_MARK}{hold_id}"
+
+
+def release_notes(hold_id: UUID | None) -> str:
+    """Release notes. ``hold_id`` is omitted only for pre-0.48.0 leftover rows."""
+    if hold_id is None:
+        return RELEASE_NOTES
+    return f"{RELEASE_NOTES}; {HOLD_ID_MARK}{hold_id}"
+
+
+def parse_hold_id(notes: str | None) -> UUID | None:
+    """Read ``hold_id=<uuid>`` from a hold or release notes suffix."""
+    for part in (notes or "").split(";"):
+        token = part.strip()
+        if not token.startswith(HOLD_ID_MARK):
+            continue
+        raw = token[len(HOLD_ID_MARK) :]
+        try:
+            return UUID(raw)
+        except ValueError:
+            return None
+    return None
+
+
+def is_hold_stale(
+    created_at: datetime,
+    *,
+    ttl_seconds: int,
+    now: datetime | None = None,
+) -> bool:
+    """True when an unmatched hold is old enough to release.
+
+    ``ttl_seconds < 1`` is fail-closed — never auto-release. A just-taken
+    hold must stay so a concurrent authorize cannot treat it as an orphan.
+    """
+    if ttl_seconds < 1:
+        return False
+    moment = datetime.now(UTC) if now is None else now
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    created = created_at
+    if created.tzinfo is None:
+        created = created.replace(tzinfo=UTC)
+    return (moment.astimezone(UTC) - created.astimezone(UTC)).total_seconds() >= ttl_seconds
+
+
+class AdjustmentRow(Protocol):
+    """Minimal hold/release row: notes + tokens. ``ComputeDebit`` satisfies this."""
+
+    tokens_used: int
+    notes: str | None
+
+
+def unmatched_holds(rows: list[AdjustmentRow]) -> list[AdjustmentRow]:
+    """Hold rows that have no matching release on ``rows`` (today's adjustments).
+
+    Identified holds (notes carry ``hold_id``) pair exactly. Pre-0.48.0
+    leftover holds without an id pair FIFO against id-less releases so a
+    crash leftover from 0.47.0 can still be released.
+    """
+    released_ids: set[UUID] = set()
+    legacy_release_tokens = 0
+    identified: list[AdjustmentRow] = []
+    legacy: list[AdjustmentRow] = []
+    for row in rows:
+        text = row.notes or ""
+        hold_id = parse_hold_id(text)
+        if RELEASE_NOTES_MARK in text:
+            if hold_id is not None:
+                released_ids.add(hold_id)
+            else:
+                legacy_release_tokens += row.tokens_used
+            continue
+        if HOLD_NOTES_MARK not in text:
+            continue
+        if hold_id is not None:
+            identified.append(row)
+        else:
+            legacy.append(row)
+
+    open_rows = [row for row in identified if parse_hold_id(row.notes) not in released_ids]
+    remaining_release = -legacy_release_tokens
+    for row in legacy:
+        if remaining_release >= row.tokens_used:
+            remaining_release -= row.tokens_used
+            continue
+        open_rows.append(row)
+    return open_rows
 
 
 def assert_turn_in_budget(turn_index: int, max_turns: int | None = None) -> None:
@@ -240,6 +365,72 @@ async def write_daily_cap_adjustment(
     await db.flush()
 
 
+async def load_today_adjustments(
+    db: AsyncSession,
+    project_id: UUID,
+    *,
+    now: datetime | None = None,
+    notes: str = SESSION_NOTES,
+) -> list[ComputeDebit]:
+    """Today's hold / release rows for ``project_id``, oldest first."""
+    start = utc_day_start(now)
+    result = await db.execute(
+        select(ComputeDebit)
+        .where(
+            ComputeDebit.project_id == project_id,
+            ComputeDebit.created_at >= start,
+            harness_notes_prefix_match(notes),
+        )
+        .order_by(ComputeDebit.created_at.asc(), ComputeDebit.id.asc())
+    )
+    return [row for row in result.scalars().all() if is_daily_cap_adjustment(row.notes)]
+
+
+async def hold_has_release(
+    db: AsyncSession,
+    project_id: UUID,
+    hold_id: UUID,
+    *,
+    now: datetime | None = None,
+    notes: str = SESSION_NOTES,
+) -> bool:
+    """True when a release credit for ``hold_id`` already sits on today's ledger."""
+    for row in await load_today_adjustments(db, project_id, now=now, notes=notes):
+        text = row.notes or ""
+        if RELEASE_NOTES_MARK in text and parse_hold_id(text) == hold_id:
+            return True
+    return False
+
+
+async def release_stale_holds(
+    db: AsyncSession,
+    project_id: UUID,
+    *,
+    ttl_seconds: int,
+    now: datetime | None = None,
+    notes: str = SESSION_NOTES,
+) -> list[UUID | None]:
+    """Append release credits for unmatched holds older than ``ttl_seconds``.
+
+    Does not commit. Caller already holds the project row. Fresh unmatched
+    holds are left in place so a live overlapping authorize still refuses.
+    """
+    released: list[UUID | None] = []
+    rows = await load_today_adjustments(db, project_id, now=now, notes=notes)
+    for hold in unmatched_holds(rows):
+        if not is_hold_stale(hold.created_at, ttl_seconds=ttl_seconds, now=now):
+            continue
+        hold_id = parse_hold_id(hold.notes)
+        await write_daily_cap_adjustment(
+            db,
+            project_id,
+            tokens_used=-hold.tokens_used,
+            notes=release_notes(hold_id),
+        )
+        released.append(hold_id)
+    return released
+
+
 async def assert_project_budget(
     db: AsyncSession,
     project_id: UUID,
@@ -270,17 +461,18 @@ class HarnessSession:
 
     Persistence is the existing ledger: the human-authored ``Project``
     (question + roster), ``FundingAllocation`` (budget), and
-    ``ComputeDebit`` (spend, including the daily token cap and the
-    0.47.0 remaining-room hold / release pair). Turn index is
-    process-local — a restart starts a new bound session at turn 0.
-    Today's harness token sum does not reset. No schema, no second
-    campaign table, no ``AgentRun``.
+    ``ComputeDebit`` (spend, including the daily token cap, the 0.47.0
+    remaining-room hold / release pair, and the 0.48.0 stale-hold
+    release). Turn index is process-local — a restart starts a new
+    bound session at turn 0. Today's harness token sum does not reset.
+    No schema, no second campaign table, no ``AgentRun``.
     """
 
     project_id: UUID | str
     turn_index: int = 0
     max_turns: int | None = None
     daily_token_cap: int | None = None
+    hold_ttl_seconds: int | None = None
     session_factory: async_sessionmaker[AsyncSession] | None = None
     env: Mapping[str, str] | None = None
     notes: str = SESSION_NOTES
@@ -292,6 +484,8 @@ class HarnessSession:
             self.max_turns = resolve_max_turns(self.env)
         if self.daily_token_cap is None:
             self.daily_token_cap = resolve_daily_token_cap(self.env)
+        if self.hold_ttl_seconds is None:
+            self.hold_ttl_seconds = resolve_hold_ttl_seconds(self.env)
 
     @property
     def project_uuid(self) -> UUID:
@@ -305,6 +499,11 @@ class HarnessSession:
             return self.daily_token_cap
         return resolve_daily_token_cap(self.env)
 
+    def resolved_hold_ttl_seconds(self) -> int:
+        if self.hold_ttl_seconds is not None:
+            return self.hold_ttl_seconds
+        return resolve_hold_ttl_seconds(self.env)
+
     def _factory(self) -> async_sessionmaker[AsyncSession]:
         if self.session_factory is not None:
             return self.session_factory
@@ -315,10 +514,11 @@ class HarnessSession:
     async def authorize(self) -> DailyCapHold | None:
         """Refuse before the LLM call on drift, turn cap, daily cap, or pot.
 
-        On a pass, locks the project row, re-reads today's harness token
-        sum (holds included), and appends a remaining-room hold so a
-        second concurrent authorize cannot also pass. Returns the hold
-        the caller must convert (``record_spend``) or release.
+        On a pass, locks the project row, releases unmatched holds older
+        than the TTL, re-reads today's harness token sum (holds
+        included), and appends a remaining-room hold so a second
+        concurrent authorize cannot also pass. Returns the hold the
+        caller must convert (``record_spend``) or release.
         """
         assert_composition()
         assert_turn_in_budget(self.turn_index, self.resolved_max_turns())
@@ -326,6 +526,12 @@ class HarnessSession:
         async with factory() as db:
             project = await _lock_project(db, self.project_uuid)
             cap = self.resolved_daily_token_cap()
+            await release_stale_holds(
+                db,
+                self.project_uuid,
+                ttl_seconds=self.resolved_hold_ttl_seconds(),
+                notes=self.notes,
+            )
             used = await harness_tokens_used_today(
                 db,
                 self.project_uuid,
@@ -338,14 +544,15 @@ class HarnessSession:
             hold_tokens = cap - used
             if hold_tokens < 1:
                 raise TurnRefused(REASON_DAILY_CAP)
+            hold_id = uuid4()
             await write_daily_cap_adjustment(
                 db,
                 self.project_uuid,
                 tokens_used=hold_tokens,
-                notes=HOLD_NOTES,
+                notes=hold_notes(hold_id),
             )
             await db.commit()
-            return DailyCapHold(tokens=hold_tokens)
+            return DailyCapHold(tokens=hold_tokens, hold_id=hold_id)
 
     async def release_hold(self, hold: DailyCapHold | None) -> None:
         """Append the release credit for ``hold``. No-op when nothing is held."""
@@ -353,12 +560,17 @@ class HarnessSession:
             return
         factory = self._factory()
         async with factory() as db:
-            await write_daily_cap_adjustment(
-                db,
-                self.project_uuid,
-                tokens_used=-hold.tokens,
-                notes=RELEASE_NOTES,
+            await _lock_project(db, self.project_uuid)
+            already = await hold_has_release(
+                db, self.project_uuid, hold.hold_id, notes=self.notes
             )
+            if not already:
+                await write_daily_cap_adjustment(
+                    db,
+                    self.project_uuid,
+                    tokens_used=-hold.tokens,
+                    notes=release_notes(hold.hold_id),
+                )
             await db.commit()
 
     async def record_spend(
@@ -374,19 +586,28 @@ class HarnessSession:
         """Debit tokens that moved. ``tokens_used <= 0`` writes no spend row.
 
         When ``hold`` is present, the matching release credit is appended
-        in the same transaction — convert, do not edit the hold.
+        in the same transaction — convert, do not edit the hold. The
+        project row is locked so a concurrent stale-hold recovery cannot
+        write a second release for the same ``hold_id``.
         """
         if tokens_used <= 0 and hold is None:
             return False
         factory = self._factory()
         async with factory() as db:
             if hold is not None and hold.tokens > 0:
-                await write_daily_cap_adjustment(
+                await _lock_project(db, self.project_uuid)
+                if not await hold_has_release(
                     db,
                     self.project_uuid,
-                    tokens_used=-hold.tokens,
-                    notes=RELEASE_NOTES,
-                )
+                    hold.hold_id,
+                    notes=self.notes,
+                ):
+                    await write_daily_cap_adjustment(
+                        db,
+                        self.project_uuid,
+                        tokens_used=-hold.tokens,
+                        notes=release_notes(hold.hold_id),
+                    )
             debit = None
             if tokens_used > 0:
                 debit = await compute_service.record_compute_debit(

@@ -1,4 +1,4 @@
-"""Fail-closed OpenRouter gateway (0.42.0–0.47.0) — DB-free, no live key, no dsh."""
+"""Fail-closed OpenRouter gateway (0.42.0–0.48.0) — DB-free, no live key, no dsh."""
 
 from __future__ import annotations
 

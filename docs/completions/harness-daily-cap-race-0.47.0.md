@@ -64,7 +64,8 @@ migration, no campaign table.** Sits on shipped `0.46.0` (`8ee8ac0`,
   debiting.
 - A crash after `authorize()` and before convert leaves the hold on
   the ledger for the rest of the UTC day (fail-closed). There is no
-  sweeper.
+  sweeper. **Closed in `0.48.0`** — see
+  `docs/completions/harness-daily-cap-orphan-hold-0.48.0.md`.
 - The unmetered probe (`OPENTHEORY_HARNESS_UNMETERED_PROBE`) is still
   unmetered. `verify()` will not accept it as the campaign composition.
 - Ops dashboard / Fly enablement / lighting the built-in planner

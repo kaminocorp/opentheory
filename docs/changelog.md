@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.48.0` — **Harness daily-cap orphan-hold release.** Closes the leftover 0.47.0 crash pin: a remaining-room hold whose convert never ran used to occupy the project's daily room until UTC midnight. Hold notes now carry a `hold_id`. The next `authorize()` — still under the project-row `FOR UPDATE` — appends a matching `daily_cap_release` for an unmatched hold older than `OPENTHEORY_HARNESS_HOLD_TTL_SECONDS` (default **300**) and only then takes a new hold. A fresh in-flight hold is not released, so two overlapping authorizes still cannot both debit past the cap. Amount stays `0`. Notes prefix stays literal. Unfunded ≠ exhausted. Debit only when `tokens_used > 0`. No sweeper table. No campaign table. No ops dashboard. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + docs — no schema, no migration.** Sits on shipped `0.47.0` (`b92c5b2`, #40).
 - `0.47.0` — **Harness daily-cap reservation.** Closes the leftover 0.46.0 race: `HarnessSession.authorize()` no longer reads today's `ComputeDebit` sum unlocked. It takes the project row `FOR UPDATE`, then appends a remaining-room hold on the existing ledger (`harness_session_turn; daily_cap_hold`, amount `0` — not a pot debit). A second concurrent authorize sees the hold in today's sum and refuses (`TurnRefused` → 422, `tokens_used` 0, minted false, no OpenRouter call). After the model call the hold is released by a new credit row (append-only; never an edit) and the real spend is recorded only when `tokens_used > 0`. Notes prefix stays literal. Unfunded ≠ exhausted. No campaign table. No ops dashboard. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + docs — no schema, no migration.** Sits on shipped `0.46.0` (`8ee8ac0`, #39).
 - `0.46.0` — **Harness daily token cap.** The session-owned campaign child (`dsh → llm-pi-ai → python -m app.harness.campaign`) refuses before the model when today's `harness_session_turn` `ComputeDebit` token sum has already hit `OPENTHEORY_HARNESS_DAILY_TOKEN_CAP` (default **20_000** tokens per UTC day). The notes prefix is literal (`startswith(..., autoescape=True)` — `_` is not a LIKE wildcard). A refused start mints nothing and does not call OpenRouter. The process-local turn cap (default 4) still resets to 0 on restart; this ledger sum does not. Project pot check stays (funded and `available <= 0` refuses; unfunded is not exhausted). Debit only when `tokens_used > 0`. No campaign table. No ops dashboard. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + docs — no schema, no migration.** Sits on shipped `0.45.0` (`43f419c`, #38).
 - `0.45.0` — **`source.pin` — bibliographic source pin.** A claim can cite a real paper or work through the existing instrument contract (`result` / `undecided`; exceptions mint nothing). One locator (DOI / arXiv id / OpenAlex `W…` id / bibliographic query) routes to the shipped Crossref / arXiv / OpenAlex fetchers — no second HTTP path, no invented citation. Auto-route: `W…` → OpenAlex, arXiv id → arXiv, DOI → Crossref, free text → Crossref bibliographic. Dedicated `*.lookup` instruments stay. Network is the existing timeout-bounded `RetrievalClient`; default CI stays fixture-backed. Live MCP `run_instrument` already covers the catalog. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + frontend + docs — no schema, no migration.** Sits on shipped `0.44.0` (`6c440ae`, #37).
@@ -119,6 +120,56 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.48.0
+
+**Harness daily-cap orphan-hold release.** The 0.47.0 remaining-room
+hold closed the overlapping-authorize race, but a crash after
+`authorize()` and before convert left that hold on the ledger for the
+rest of the UTC day. No tokens moved, yet the project's remaining
+daily room stayed pinned until midnight. This slice releases only a
+clearly orphaned hold on the existing ledger. **No schema, no
+migration.** Sits on shipped `0.47.0` (`b92c5b2`, #40). Does not flip
+`AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly.
+
+- **Stale hold, identified.** Hold notes are
+  `harness_session_turn; daily_cap_hold; hold_id=<uuid>`. Release notes
+  carry the same `hold_id`. Amount stays `0` — not a pot debit.
+  Append-only stays append-only: recovery is a new credit row, never
+  an edit or delete. Pre-0.48.0 leftover holds without an id still
+  pair FIFO against id-less releases.
+- **Recover on the next authorize.** Under the same project-row
+  `FOR UPDATE`, `authorize()` releases unmatched holds older than
+  `OPENTHEORY_HARNESS_HOLD_TTL_SECONDS` (default **300**), re-reads
+  today's sum, and then takes a new hold. A fresh in-flight hold is
+  not released, so two overlapping authorizes still cannot both pass
+  and both debit past the cap. Convert / `release_hold` take the same
+  lock and will not write a second release for a `hold_id` that
+  recovery already closed.
+- **Honesty unchanged.** Unfunded ≠ exhausted. Debit only when
+  `tokens_used > 0`. `TurnRefused` is 422, `tokens_used` 0, minted
+  false, no OpenRouter call. Exceptions mint nothing.
+  `create_checkpoint` remains the only Checkpoint writer. Notes
+  prefix stays literal (`startswith(..., autoescape=True)`).
+  Process-local turn cap still resets to 0 on restart.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 830 passed, 253 skipped (no TEST_DATABASE_URL)
+# +2 passed vs shipped 0.47.0 (828); +1 skipped (orphan-hold recovery)
+cd backend && uv run pytest tests/harness -q
+# 87 passed, 25 skipped (no TEST_DATABASE_URL)
+# 112 passed with TEST_DATABASE_URL (orphan recovery + existing daily-cap)
+# Frontend untouched — typecheck/lint/test/build unchanged
+```
+
+See `docs/completions/harness-daily-cap-orphan-hold-0.48.0.md`.
+
+**Not in this release:** an ops dashboard or UI chart; Fly enablement
+of the gateway or MCP child; lighting `AGENT_LOOP_ENABLED`; a campaign
+table; Lean REPL / LeanDojo.
 
 ---
 
