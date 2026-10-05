@@ -1,11 +1,12 @@
 # External harness — compatibility
 
-> **Status — `0.44.0` fail-closed metered composition.** Pin is
-> unchanged. Live OpenRouter probe is implemented behind
-> `OPENTHEORY_HARNESS_LIVE`. An unmetered HTTP child is opt-in
+> **Status — `0.46.0` daily token cap.** Pin is unchanged. Live
+> OpenRouter probe is implemented behind `OPENTHEORY_HARNESS_LIVE`.
+> An unmetered HTTP child is opt-in
 > (`OPENTHEORY_HARNESS_UNMETERED_PROBE`) and is not the campaign
 > composition. Default CI does not install the SDK and does not need
-> `OPENROUTER_API_KEY`.
+> `OPENROUTER_API_KEY`. The daily cap is `OPENTHEORY_HARNESS_DAILY_TOKEN_CAP`
+> (default 20_000 tokens / UTC day).
 
 ## Pin
 

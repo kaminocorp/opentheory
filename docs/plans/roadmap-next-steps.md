@@ -1,10 +1,9 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-10-02 · **Current release line:** `0.45.0`
-> (`source.pin` bibliographic source pin), sitting on shipped
-> `0.44.0` (fail-closed metered harness composition, `6c440ae`, #37)
-> on current `main`. See
-> `docs/completions/source-pin-instrument-0.45.0.md`.
+> **Last updated:** 2026-10-02 · **Current release line:** `0.46.0`
+> (harness daily token cap, default 20_000 / UTC day), sitting on
+> shipped `0.45.0` (`source.pin`, `43f419c`, #38) on current `main`.
+> See `docs/completions/harness-daily-cap-0.46.0.md`.
 >
 > **Last updated:** 2026-10-02 · **Current release line:** `0.44.0`
 > (fail-closed metered harness composition), sitting on shipped
@@ -75,10 +74,11 @@
 > (A–D) is closed; the archive plan is at
 > `docs/archive/project-deepdive-tabs-0.14.md`.
 >
-> **Next after this line:** perpetual ops dashboard / daily caps;
-> the still-owed browser eyeball pass. Does not enable the gateway
-> child on Fly. Does not light `AGENT_LOOP_ENABLED`.
-> ~~`source.pin` bibliographic pin~~ ✅ this branch as `0.45.0`.
+> **Next after this line:** perpetual ops dashboard; the still-owed
+> browser eyeball pass. Does not enable the gateway child on Fly.
+> Does not light `AGENT_LOOP_ENABLED`.
+> ~~Harness daily token cap~~ ✅ this branch as `0.46.0`.
+> ~~`source.pin` bibliographic pin~~ ✅ shipped as `0.45.0`.
 > ~~Fail-closed metered composition~~ ✅ shipped as `0.44.0`.
 > ~~Session owner + odd-perfect reference campaign~~ ✅ shipped as `0.43.0`.
 > ~~OpenRouter gateway + turn supervision~~ ✅ shipped as `0.42.0`.
@@ -195,7 +195,24 @@ bypassing the checkpoint chokepoint or conflating funder / contributor / validat
 
 ## Recommended next releases
 
-### `0.45.x` — `source.pin` bibliographic source pin ✅ **this branch** (`0.45.0`)
+### `0.46.x` — Harness daily token cap ✅ **this branch** (`0.46.0`)
+
+Delivered: a UTC-day token ceiling on the session-owned campaign
+child. `authorize()` sums today's `ComputeDebit` rows whose notes
+start with `harness_session_turn` and refuses before the model when
+that sum has hit `OPENTHEORY_HARNESS_DAILY_TOKEN_CAP` (default
+**20_000**). A refused start mints nothing and does not call
+OpenRouter. A process restart does not reset the sum — the ledger is
+the meter. Process-local turn cap (default 4) still resets to 0.
+Project pot check stays; unfunded ≠ exhausted; debit only when
+`tokens_used > 0`. **No schema, no migration, no campaign table.**
+See `docs/completions/harness-daily-cap-0.46.0.md`.
+
+**Not in this release:** an ops dashboard or UI chart; Fly enablement
+of the gateway or MCP child; lighting `AGENT_LOOP_ENABLED`; Lean
+REPL / LeanDojo.
+
+### `0.45.x` — `source.pin` bibliographic source pin ✅ **shipped** (`0.45.0`)
 
 Delivered: `source.pin` on the existing instrument contract. One locator
 routes to the shipped Crossref / arXiv / OpenAlex fetchers (no second
@@ -686,8 +703,11 @@ changing branch protection.
 21. ~~**External DeepSeek Harness Milestone 0**~~ ✅ shipped as
     `0.40.0` (`901b3de`, #33) — docs + fail-closed Cordis + fixture MCP.
     ~~**Live JWT MCP binding**~~ ✅ shipped as `0.41.0`. Gateway later.
-    ~~**`source.pin` bibliographic pin**~~ ✅ this branch as `0.45.0` —
+    ~~**`source.pin` bibliographic pin**~~ ✅ shipped as `0.45.0` —
     unified Crossref / arXiv / OpenAlex door on the existing seam.
+    ~~**Harness daily token cap**~~ ✅ this branch as `0.46.0` —
+    today's `harness_session_turn` `ComputeDebit` sum (default 20_000
+    / UTC day) refuses before the model; a restart does not reset it.
 
 ## Shipped milestones (reference)
 
@@ -734,6 +754,7 @@ changing branch protection.
 | `0.43.x` | Harness session owner + odd-perfect reference campaign |
 | `0.44.x` | Fail-closed metered harness composition |
 | `0.45.x` | `source.pin` — unified bibliographic pin (Crossref / arXiv / OpenAlex) |
+| `0.46.x` | Harness daily token cap — ledger-backed 20_000 tokens / UTC day |
 
 ## Success criteria for the next milestone
 
@@ -845,12 +866,16 @@ for M0 probes. No `AGENT_LOOP_ENABLED` flip. No schema, no migration.
 (`6c440ae`, #37): the composition `dsh` would boot cannot start the
 bare unmetered gateway proxy.
 
-**`0.45.0` (`source.pin`)** is this branch: a bibliographic source pin
-on the existing instrument contract. Crossref / arXiv / OpenAlex
-resolve a source; an arbitrary URL pin is still out. No
+**`0.45.0` (`source.pin`)** is shipped (`43f419c`, #38): a
+bibliographic source pin on the existing instrument contract.
+
+**`0.46.0` (harness daily token cap)** is this branch: today's
+`harness_session_turn` `ComputeDebit` token sum (default **20_000**
+per UTC day) refuses before the model on the session-owned path. A
+process restart does not reset it. No ops dashboard. No
 `AGENT_LOOP_ENABLED` flip. No schema, no migration.
 
-**Next product step:** perpetual ops dashboard / daily caps. The
-still-owed browser eyeball pass remains. Lean REPL / LeanDojo remain
-later. `If` / ite remain later. Does not enable the gateway child on
-Fly. Does not light `AGENT_LOOP_ENABLED`.
+**Next product step:** perpetual ops dashboard. The still-owed
+browser eyeball pass remains. Lean REPL / LeanDojo remain later.
+`If` / ite remain later. Does not enable the gateway child on Fly.
+Does not light `AGENT_LOOP_ENABLED`.
