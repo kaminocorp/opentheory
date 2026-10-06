@@ -17,7 +17,7 @@ from uuid import uuid4
 
 import pytest
 from sqlalchemy import text
-from sqlalchemy.exc import DataError, IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.models.actor import Actor
@@ -297,7 +297,7 @@ async def test_backfill_and_downgrade_round_trip(db_engine: AsyncEngine) -> None
                         created_at, updated_at
                     ) VALUES (
                         :id, 'AGENT', 'Research crew',
-                        json_build_object('project_id', :pid)::json,
+                        json_build_object('project_id', CAST(:pid AS text))::json,
                         NULL, :now, :now
                     )
                     """
@@ -532,7 +532,7 @@ async def test_downgrade_refuses_when_two_agents_share_a_project(
                         id, type, display_name, actor_metadata, created_at, updated_at
                     ) VALUES (
                         :id, 'AGENT', :name,
-                        json_build_object('project_id', :pid)::json,
+                        json_build_object('project_id', CAST(:pid AS text))::json,
                         :now, :now
                     )
                     """
@@ -583,9 +583,9 @@ async def test_roster_unique_pair_and_enums(
         await session.rollback()
 
     async with session_factory() as session:
-        with pytest.raises(LookupError):
+        with pytest.raises(ValueError, match="validator"):
             ProjectAgentStatus("validator")
-        with pytest.raises(LookupError):
+        with pytest.raises(ValueError, match="validator"):
             ProjectAgentRole("validator")
 
 
@@ -686,7 +686,7 @@ async def test_invalid_roster_enum_rejected_by_postgres(
         await session.commit()
 
     async with session_factory() as session:
-        with pytest.raises(DataError):
+        with pytest.raises(DBAPIError, match="VALIDATOR"):
             await session.execute(
                 text(
                     """
