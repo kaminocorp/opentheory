@@ -131,9 +131,8 @@ async def test_successful_turn_debits_and_lands_instrument(
     assert debits[0].kind is ComputeDebitKind.PLANNING
     assert debits[0].model == DEFAULT_MODEL
     assert TURN_NOTES in (debits[0].notes or "")
-    # 0.53.0 ships the column; this slice does not stamp it on harness turns.
     assert hasattr(ComputeDebit, "actor_id")
-    assert debits[0].actor_id is None
+    assert str(debits[0].actor_id) == actor_id
 
     async with session_factory() as session:
         author = await session.get(Actor, UUID(actor_id))
@@ -510,6 +509,7 @@ async def test_removed_member_refuses_next_authorize_mid_turn_spend_stands(
     debits = await _debit_rows(session_factory, project_id)
     assert len(debits) == 1
     assert debits[0].tokens_used == 20
+    assert str(debits[0].actor_id) == collab_id
 
     def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover
         raise AssertionError("removed member must refuse before the LLM call")

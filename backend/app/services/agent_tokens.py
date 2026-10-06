@@ -101,6 +101,10 @@ def token_project_of(actor: Actor) -> UUID | None:
     return getattr(actor, TOKEN_PROJECT_ATTR, None)
 
 
+def token_jti_of(actor: Actor) -> UUID | None:
+    return getattr(actor, TOKEN_JTI_ATTR, None)
+
+
 def _clamp_ttl(ttl_seconds: int | None) -> int:
     max_ttl = settings.agent_session_max_ttl_seconds
     if max_ttl < 1:

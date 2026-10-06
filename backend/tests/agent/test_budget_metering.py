@@ -200,6 +200,8 @@ async def test_available_drops_after_a_pass_by_the_metered_amount(
         assert debits[0].rate_source is ComputeDebitRateSource.BLENDED_FALLBACK
         assert debits[0].notes is not None and "rate fallback:" in debits[0].notes
         assert str(debits[0].agent_run_id) == str(run_id)
+        assert debits[0].actor_id == result.agent_actor_id
+        assert result.agent_actor_id is not None
         # The agent did not become a funder.
         funds = list(
             (await session.execute(select(Contribution).where(Contribution.action == "fund")))

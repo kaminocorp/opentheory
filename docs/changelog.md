@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.56.0` — **Spend attribution.** Slice D of the approved agent-actor identity design. `record_compute_debit` / `write_daily_cap_adjustment` take `actor_id`. `HarnessSession` binds the resolved actor (`env` wins over `actor_env`); `authorize()` / `record_spend` load `jti` to stamp the spending agent. Hold/release rows also carry `actor_id` (audit; still amount `0`, literal `harness_session_turn` prefix, `hold_id`). Built-in pass debits stamp `AgentRun.agent_actor_id`. Mid-turn revoke still bills tokens that moved; the next authorize refuses. Shared project daily cap (no per-agent split). Per-agent caps stay stored, unenforced. Unfunded ≠ exhausted. Debit only when `tokens_used > 0`. **No** Crew UI, no ops `actor_*` / spend-by-agent readout, no `agent_definitions`. No migration (0022 already has the column). `create_checkpoint` remains the only Checkpoint writer. FastAPI still does not import `app.harness`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. Five tabs only. Sits on shipped `0.55.0` (`149c36e`, #51).
 - `0.55.0` — **Agent session token.** Slice C of the approved agent-actor identity design. OWNER-only mint / rotate / revoke (`POST …/agents/{actor_id}/tokens` + rotate/revoke). Default TTL 30 days; max via `OPENTHEORY_AGENT_SESSION_MAX_TTL_SECONDS` (not `fly.toml [env]`). Compact JWT returned once; SHA-256 at rest. Resolver in `deps.py` + `harness/auth.py` verifies signature, `typ=agent_session`, claims `sub`/`proj`/`jti`/`mby`/`mba`, hash, `expires_at`, `revoked_at`, ACTIVE roster, and stamps `last_used_at`. Missing `AGENT_SESSION_JWT_SECRET` fails closed (mint `503`; agent-session bearer `401`, never falls through to Supabase). MCP writes with an agent token author as the agent and snapshot `sponsored_by_actor_id`. HTTP `ActingActor` refuses an agent session (`403` "agent sessions are only valid on the harness") — harness/MCP only. `authorize()` accepts the agent session token and refuses a token whose `proj` ≠ the session project. Human Console JWT path unchanged. No self-renew. **No** `record_compute_debit(actor_id=)`, no Crew UI, no per-agent cap enforcement, no `agent_definitions`. No migration (0022 already has the table). `create_checkpoint` remains the only Checkpoint writer. Debit only when `tokens_used > 0`. Hold/release amount stays `0` with the literal `harness_session_turn` prefix and `hold_id`. FastAPI still does not import `app.harness`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. Five tabs only. Sits on shipped `0.54.0` (`7a1fa0c`, #50).
 - `0.54.0` — **Agent identity membership gate.** Slice B of the approved agent-actor identity design. `ensure_is_member` is type-aware: humans still need `ProjectMember`; agents need an ACTIVE `project_agent_members` row (sponsor-account membership is not consulted); `system` is `403`. `ensure_can_manage` rejects `type=agent` before the account lookup. Funding, validation, and invite-accept compose with `ensure_is_human_member` (a rostered researcher cannot fund or self-validate). OWNER transfer, in the same transaction, suspends Research crew + outgoing-`responsible_account_id` rows and revokes their tokens; ADMIN-deployed agents whose responsible account is not the outgoing owner stay active. `Actor.account_id` and `deployed_by_account_id` are not rewritten. Resume (OWNER, service-level) accepts only `SUSPENDED` (`ACTIVE` / `REVOKED` are `409`); sets `responsible_account_id` and does not un-revoke tokens. `get_or_create_project_agent_actor` ensures a roster row when the project exists (does not revive suspended/revoked). Dark-loop commission of an existing un-rostered crew is `403`. Account-less / un-rostered crew still `403`. **No** token mint, no `authorize()` token swap, no `record_compute_debit(actor_id=)`, no Crew UI, no per-agent cap enforcement, no `agent_definitions`. No migration. `create_checkpoint` remains the only Checkpoint writer. Debit only when `tokens_used > 0`. Hold/release amount stays `0` with the literal `harness_session_turn` prefix and `hold_id`. FastAPI still does not import `app.harness`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. Five tabs only. Sits on shipped `0.53.0` (`2b2a135`, #49).
 - `0.53.0` — **Agent identity schema.** First slice of the approved agent-actor identity design. Adds `project_agent_role` (`RESEARCHER` only) and `project_agent_status` (`ACTIVE` / `SUSPENDED` / `REVOKED`); mutable `project_agent_members` (unique `(project_id, actor_id)`, `responsible_account_id`, stored-not-enforced caps) and `agent_session_tokens` (hash at rest, no mint/verify). Nullable `checkpoints.sponsored_by_actor_id` and `compute_debits.actor_id` (FK `actors` `ON DELETE SET NULL`). Drops `uq_actors_one_agent_per_project`; adds `uq_actors_one_research_crew_per_project`. Backfill: Research crew `account_id` = project OWNER + ACTIVE RESEARCHER roster row (owner-less / invalid project left null and unrostered); `ComputeDebit.actor_id` from `AgentRun.agent_actor_id` only (`harness_session_turn` stays null). **No** `actors.agent_definition_id` (deferred with the catalog). Schema-on, behavior-off: `ensure_is_member` unchanged, Crew tab unchanged, no token mint, no API/MCP/UI/auth change. `create_checkpoint` remains the only Checkpoint writer. Debit only when `tokens_used > 0`. Hold/release amount stays `0` with the literal `harness_session_turn` prefix and `hold_id`. FastAPI still does not import `app.harness`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. Five tabs only. Migration `0022_agent_actor_identity` is **one transaction** (plain `CREATE INDEX` / `DROP INDEX`; no `CONCURRENTLY` / autocommit — prod at review is empty). Bearer and MCP still resolve the owner's human Actor when Research crew shares that Account. Sits on shipped `0.52.0` (`c085586`, #48).
@@ -131,6 +132,44 @@
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
 
 ---
+
+## 0.56.0
+
+**Spend attribution.** Slice D of the approved
+agent-actor identity design (`docs/plans/agent-actor-identity.md`).
+Sits on shipped `0.55.0` (`149c36e`, #51).
+Does not flip `AGENT_LOOP_ENABLED`. Does not enable the gateway
+or MCP child on Fly.
+
+- **Writers.** `record_compute_debit(..., actor_id=)` and
+  `write_daily_cap_adjustment(..., actor_id=)`. Optional; omit
+  stays null (historical / caller-less rows).
+- **Harness.** `authorize()` binds the session actor from `env`
+  (session bind wins; `actor_env` cannot override). Hold and
+  convert/release stamp that actor. `record_spend` loads `jti`
+  for the stamp even if the token was revoked mid-turn, and
+  still writes when `tokens_used > 0`. Next authorize refuses.
+- **Built-in pass.** Planning debit stamps
+  `AgentRun.agent_actor_id`.
+- **Unchanged.** Hold/release amount `0`, literal
+  `harness_session_turn` prefix, `hold_id`. One shared project
+  daily cap. Unfunded ≠ exhausted. Per-agent caps stored, not
+  enforced. No Crew / ops actor readout (slice E). **No
+  schema, no migration.**
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q
+# with TEST_DATABASE_URL: counts pending local suite
+cd frontend && npm run typecheck && npm run lint && npm test && npm run build
+# frontend untouched
+```
+
+See `docs/completions/agent-identity-spend-0.56.0.md`.
+
+**Not in this release:** Crew UI (slice E); per-agent cap
+enforcement (slice F); `agent_definitions` (slice G); Fly
+enablement; `AGENT_LOOP_ENABLED`.
 
 ## 0.55.0
 

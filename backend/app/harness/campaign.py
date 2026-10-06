@@ -91,9 +91,10 @@ def open_session(
     """Bind the reference campaign to a human-created project.
 
     Does not create the project, the roster, the budget, or an Actor.
-    Those are human writes through the existing APIs. ``actor_env``
-    (JWT file / JWT / flagged dev-actor) is the actor ``authorize()``
-    membership-checks — same injection as ``live_mcp``.
+    Those are human writes through the existing APIs. ``env`` is the
+    session-bound credential ``authorize()`` membership-checks
+    (``actor_env`` cannot override it once spend carries
+    ``actor_id``). Same injection as ``live_mcp``.
     """
     return HarnessSession(
         project_id=project_id,
