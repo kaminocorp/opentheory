@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.50.0` — **Harness turn-room clamp.** Closes the leftover 0.46–0.48 single-turn overshoot: `authorize()` still locks the project row, releases stale holds, and holds remaining daily tokens so two overlapping authorizes cannot both debit past the cap; it now also computes a clamp (`min` of remaining daily tokens and tokens the pot can buy at a live/catalog *completion* rate when the project is funded and that price is known) and the gateway sets `max_tokens` to it. Unfunded + known price clamps to daily room (`pot_room=none`); the Overview note does not claim pot room was used. A caller-smaller `max_tokens` is kept; invalid `max_tokens` is 422. The authorize model is the same resolved id the completion uses. A room below `OPENTHEORY_HARNESS_TURN_TOKEN_FLOOR` (default **16**) is `TurnRefused` → 422, `tokens_used` 0, minted false, no OpenRouter call. Provider usage above the clamp is recorded in full and flagged on the turn result and the Overview last-turn readout. Price unknown → clamp is the daily room only; the blended settings rate is not invented. Unfunded ≠ exhausted. Debit only when `tokens_used > 0`. Hold/release amount stays `0`. FastAPI still does not import `app.harness`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + frontend + docs — no schema, no migration.** Sits on shipped `0.49.1` (`f2362b1`, #43).
 - `0.49.1` — **Perpetual ops Overview eyeball pass.** The leftover `0.49.0` browser walk: local FastAPI + Next against throwaway Postgres, seeded through the sanctioned writers / ledger fixtures. Unfunded ≠ exhausted on screen. Funded remaining, pot-exhausted, paired `hold_id` + legacy id-less hold, newest 20 harness rows, refusals honesty block, gateway/MCP `unknown`, invalid cap → cap unknown, missing project 404, five-tab contract, desktop + narrow 390. One honesty fix: `formatOpsMoney` keeps Numeric(12, 6) fraction digits so `$0.0004` is not rounded to `$0.00`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Frontend + docs — no schema, no migration.** Sits on shipped `0.49.0` (`ba7055b`, #42).
 - `0.49.0` — **Perpetual ops dashboard.** A read-only operator snapshot of the budgeted perpetual setup: per-project pot vs spent (unfunded ≠ exhausted), today's `harness_session_turn` `ComputeDebit` sum against `OPENTHEORY_HARNESS_DAILY_TOKEN_CAP` (holds paired by `hold_id`; legacy id-less holds pair FIFO), recent harness rows, and whether the built-in loop / gateway is enabled. Refused starts mint nothing and are labeled as not recorded. Gateway / MCP-on-Fly is `unknown` to this API process. FastAPI still does not import `app.harness` (shared meter in `app.services.harness_meter`). Quiet Overview bay; no sixth tab; no Start / Fund controls. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + frontend + docs — no schema, no migration.** Sits on shipped `0.48.0` (`7094d18`, #41).
 - `0.48.0` — **Harness daily-cap orphan-hold release.** Closes the leftover 0.47.0 crash pin: a remaining-room hold whose convert never ran used to occupy the project's daily room until UTC midnight. Hold notes now carry a `hold_id`. The next `authorize()` — still under the project-row `FOR UPDATE` — appends a matching `daily_cap_release` for an unmatched hold older than `OPENTHEORY_HARNESS_HOLD_TTL_SECONDS` (default **300**) and only then takes a new hold. A fresh in-flight hold is not released, so two overlapping authorizes still cannot both debit past the cap. Amount stays `0`. Notes prefix stays literal. Unfunded ≠ exhausted. Debit only when `tokens_used > 0`. No sweeper table. No campaign table. No ops dashboard. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + docs — no schema, no migration.** Sits on shipped `0.47.0` (`b92c5b2`, #40).
@@ -122,6 +123,65 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.50.0
+
+**Harness turn-room clamp.** A single external-harness turn could still
+burn past the remaining daily room (and past what the pot can pay)
+because `authorize()` only refused when the room was already gone —
+it did not bound the OpenRouter call. This slice carries the remaining
+room onto the hold as a clamp and sets `max_tokens` to it. **No
+schema, no migration.** Sits on shipped `0.49.1` (`f2362b1`, #43).
+Does not flip `AGENT_LOOP_ENABLED`. Does not enable the gateway or
+MCP child on Fly.
+
+- **Room at authorize.** After the project-row `FOR UPDATE`, stale-hold
+  release, and today's `harness_session_turn` sum, the clamp is
+  `min(daily room, pot room)` when the project is funded and a live
+  OpenRouter or catalog `usd_per_1k` price is known. Pot dollars
+  convert at the completion rate, or `max(prompt, completion)` when
+  both are present — `max_tokens` bounds completion tokens, billed
+  at the completion rate (`usage_to_cost`). The live mean is not
+  used; that overstated room by ~1.6× on DeepSeek. Prompt cost is
+  not reserved (request size is not a known prompt-token count).
+  Unfunded projects have no pot room (`pot_room=none`) even when
+  price is known — clamp is the daily room. A blended settings
+  fallback is not a known price — clamp is the daily room and the
+  spend notes say `price_unknown`. The ledger hold still occupies
+  remaining daily tokens (amount `0`) so two overlapping authorizes
+  still cannot both debit past the cap.
+- **Floor refuse.** Room below `OPENTHEORY_HARNESS_TURN_TOKEN_FLOOR`
+  (default **16**) is `TurnRefused` → 422, `tokens_used` 0, minted
+  false, no OpenRouter call, no debit, no hold.
+- **Gateway model + `max_tokens`.** The HTTP path resolves the model
+  once and uses that id for both `authorize` and `complete`. A
+  caller-smaller `max_tokens` is kept. `0` / negative / non-int is
+  422, not "no request".
+- **Honest overshoot.** If the provider reports usage above the clamp,
+  the real `tokens_used` is written (never under-reported). Notes carry
+  `clamp=` / `pot_room=N|none` / `overshoot=`. The turn result and
+  Overview last-turn readout surface it; the note says "min of daily
+  room and pot room" only when pot room was applied.
+  `create_checkpoint` remains the only Checkpoint writer.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 849 passed, 270 skipped (no TEST_DATABASE_URL)
+# +10 passed vs shipped 0.49.1 (839); +13 skipped (clamp / floor / overshoot / review ledger)
+cd backend && uv run pytest tests/harness -q
+# 91 passed, 36 skipped (no TEST_DATABASE_URL)
+# 127 passed with TEST_DATABASE_URL (clamp + floor + overshoot + review + existing race/TTL)
+cd frontend && npm run typecheck && npm run lint && npm test && npm run build
+# typecheck/lint/build clean; 64 tests (+1 last-turn honesty)
+```
+
+See `docs/completions/harness-turn-room-clamp-0.50.0.md`.
+
+**Not in this release:** Fly enablement of the gateway or MCP child;
+lighting `AGENT_LOOP_ENABLED`; a refusals table; a campaign table;
+Lean REPL / LeanDojo.
 
 ---
 

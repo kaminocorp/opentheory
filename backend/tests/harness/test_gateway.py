@@ -22,6 +22,7 @@ from app.harness.gateway import (
     assert_openrouter_base_url,
     build_fail_closed_body,
     create_gateway_app,
+    parse_requested_max_tokens,
     provider_preferences,
     resolve_model,
     resolve_providers,
@@ -215,6 +216,62 @@ def test_body_drops_models_and_route_bypass() -> None:
     assert "route" not in body
     assert "transforms" not in body
     assert body["provider"]["allow_fallbacks"] is False
+
+
+def test_parse_requested_max_tokens_rejects_invalid() -> None:
+    assert parse_requested_max_tokens(None) is None
+    assert parse_requested_max_tokens(20) == 20
+    for bad in (0, -1, "16", 1.5, True, False, "nope", ""):
+        with pytest.raises(GatewayError, match="positive integer"):
+            parse_requested_max_tokens(bad)
+
+
+async def test_http_invalid_max_tokens_is_422_before_provider() -> None:
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover
+        calls["n"] += 1
+        raise AssertionError("invalid max_tokens must not reach OpenRouter")
+
+    env = {GATEWAY_TOKEN_ENV: "gw-secret"}
+    app = create_gateway_app(env=env, gateway=_client(handler, env=env))
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://gw") as client:
+        for bad in (0, -3, "nope"):
+            refused = await client.post(
+                "/v1/chat/completions",
+                headers={"Authorization": "Bearer gw-secret"},
+                json={
+                    "model": DEFAULT_MODEL,
+                    "messages": [{"role": "user", "content": "hi"}],
+                    "max_tokens": bad,
+                },
+            )
+            assert refused.status_code == 422, refused.text
+            payload = refused.json()
+            assert payload["tokens_used"] == 0
+            assert "positive integer" in payload["error"]
+    assert calls["n"] == 0
+
+
+async def test_http_omitted_model_uses_default() -> None:
+    seen: dict[str, str | None] = {"model": None}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        seen["model"] = body.get("model")
+        return httpx.Response(200, json=_OK_BODY)
+
+    env = {GATEWAY_TOKEN_ENV: "gw-secret"}
+    app = create_gateway_app(env=env, gateway=_client(handler, env=env))
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://gw") as client:
+        ok = await client.post(
+            "/v1/chat/completions",
+            headers={"Authorization": "Bearer gw-secret"},
+            json={"messages": [{"role": "user", "content": "hi"}]},
+        )
+    assert ok.status_code == 200, ok.text
+    assert seen["model"] == DEFAULT_MODEL
+    assert ok.json()["model"] == DEFAULT_MODEL
 
 
 def test_fastapi_boot_path_still_ignores_harness() -> None:

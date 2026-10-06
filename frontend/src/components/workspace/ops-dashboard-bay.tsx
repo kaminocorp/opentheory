@@ -13,6 +13,8 @@ import {
   formatOpsMoney,
   holdIdLabel,
   holdStatusLabel,
+  lastTurnLine,
+  lastTurnTone,
   loopLine,
   turnKindLabel,
   unknownProcessLine,
@@ -66,7 +68,15 @@ function TurnRow({ turn }: { turn: OpsTurnRead }) {
 }
 
 function OpsBody({ data }: { data: ProjectOpsRead }) {
-  const { budget, daily_cap: cap, holds, recent_turns: turns, refusals, enablement } = data;
+  const {
+    budget,
+    daily_cap: cap,
+    holds,
+    recent_turns: turns,
+    last_turn: lastTurn,
+    refusals,
+    enablement,
+  } = data;
   const currency = budget.snapshot.currency;
 
   return (
@@ -114,6 +124,24 @@ function OpsBody({ data }: { data: ProjectOpsRead }) {
         <p className="font-mono text-[13px] text-text-soft">{dailyCapLine(cap)}</p>
         <p className="text-[12px] leading-5 text-text-faint">{cap.note}</p>
         <p className="text-[12px] text-text-faint">UTC day {cap.utc_day}</p>
+      </div>
+
+      <div className="grid gap-2">
+        <ReadoutLabel as="h3">Last turn</ReadoutLabel>
+        {lastTurn ? (
+          <>
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusPill
+                tone={lastTurnTone(lastTurn)}
+                label={lastTurn.overshoot && lastTurn.overshoot > 0 ? "Overshoot" : "Recorded"}
+              />
+              <span className="font-mono text-[13px] text-text-soft">{lastTurnLine(lastTurn)}</span>
+            </div>
+            <p className="text-[12px] leading-5 text-text-faint">{lastTurn.note}</p>
+          </>
+        ) : (
+          <p className="text-[13px] text-text-faint">No billed harness spend yet.</p>
+        )}
       </div>
 
       <div className="grid gap-2">

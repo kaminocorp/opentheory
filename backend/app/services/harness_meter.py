@@ -1,9 +1,15 @@
-"""Shared harness ``ComputeDebit`` meter (0.49.0).
+"""Shared harness ``ComputeDebit`` meter (0.50.0).
 
 The session owner in ``app.harness.session`` *writes* remaining-room
 holds and spend against today's ``harness_session_turn`` prefix. The
 product ops dashboard *reads* the same ledger. This module is the
 shared meter so those two paths cannot drift.
+
+``0.50.0`` adds the turn-room clamp: remaining daily tokens, and — only
+when a live/catalog price is known — the tokens the pot can still buy.
+Math lives here so FastAPI can parse clamp / overshoot notes without
+importing ``app.harness``. A blended settings fallback is not a known
+price; do not invent one.
 
 FastAPI may import this module. It must not import ``app.harness``.
 Nothing here writes. ``create_checkpoint`` is still the only Checkpoint
@@ -17,6 +23,7 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import ROUND_DOWN, Decimal
 from typing import Literal, Protocol
 from uuid import UUID
 
@@ -24,17 +31,31 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.compute_debit import ComputeDebit
+from app.models.enums import ComputeDebitRateSource
 
 DAILY_TOKEN_CAP_ENV = "OPENTHEORY_HARNESS_DAILY_TOKEN_CAP"
 HOLD_TTL_ENV = "OPENTHEORY_HARNESS_HOLD_TTL_SECONDS"
+TURN_TOKEN_FLOOR_ENV = "OPENTHEORY_HARNESS_TURN_TOKEN_FLOOR"
 DEFAULT_DAILY_TOKEN_CAP = 20_000
 DEFAULT_HOLD_TTL_SECONDS = 300
+DEFAULT_TURN_TOKEN_FLOOR = 16
 SESSION_NOTES = "harness_session_turn"
 HOLD_NOTES_MARK = "daily_cap_hold"
 RELEASE_NOTES_MARK = "daily_cap_release"
 HOLD_ID_MARK = "hold_id="
+CLAMP_MARK = "clamp="
+OVERSHOOT_MARK = "overshoot="
+POT_ROOM_MARK = "pot_room="
+POT_ROOM_NONE = "none"
+PRICE_UNKNOWN_MARK = "price_unknown"
 HOLD_NOTES = f"{SESSION_NOTES}; {HOLD_NOTES_MARK}"
 RELEASE_NOTES = f"{SESSION_NOTES}; {RELEASE_NOTES_MARK}"
+KNOWN_PRICE_SOURCES = frozenset(
+    {
+        ComputeDebitRateSource.OPENROUTER_LIVE,
+        ComputeDebitRateSource.CATALOG_OVERRIDE,
+    }
+)
 
 ProcessIntSource = Literal["default", "process_env", "invalid"]
 HarnessRowKind = Literal["spend", "hold", "release"]
@@ -274,6 +295,176 @@ def peek_daily_token_cap(env: Mapping[str, str] | None = None) -> ProcessInt:
 
 def peek_hold_ttl_seconds(env: Mapping[str, str] | None = None) -> ProcessInt:
     return peek_process_int(HOLD_TTL_ENV, DEFAULT_HOLD_TTL_SECONDS, env)
+
+
+def peek_turn_token_floor(env: Mapping[str, str] | None = None) -> ProcessInt:
+    return peek_process_int(TURN_TOKEN_FLOOR_ENV, DEFAULT_TURN_TOKEN_FLOOR, env)
+
+
+def price_is_known(source: ComputeDebitRateSource | str | None) -> bool:
+    """True for a live OpenRouter quote or a catalog ``usd_per_1k``.
+
+    The blended settings default is not a known price — do not convert
+    pot dollars into tokens from it.
+    """
+    if source is None:
+        return False
+    if isinstance(source, ComputeDebitRateSource):
+        return source in KNOWN_PRICE_SOURCES
+    try:
+        return ComputeDebitRateSource(source) in KNOWN_PRICE_SOURCES
+    except ValueError:
+        return False
+
+
+def clamp_rate_per_1k(
+    *,
+    effective_rate_per_1k: object,
+    prompt_rate_per_1k: object | None = None,
+    completion_rate_per_1k: object | None = None,
+) -> Decimal:
+    """Rate used to convert pot dollars into a ``max_tokens`` room.
+
+    ``max_tokens`` bounds *completion* tokens, billed at the completion
+    rate. The live mean (``effective_rate_per_1k``) overstates room when
+    completion is dearer than prompt. Prefer the completion rate, or
+    ``max(prompt, completion)`` when both are known and positive.
+    Prompt cost is not reserved — this path does not invent a prompt
+    token count from the request body.
+    """
+    effective = (
+        effective_rate_per_1k
+        if isinstance(effective_rate_per_1k, Decimal)
+        else Decimal(str(effective_rate_per_1k))
+    )
+    split: list[Decimal] = []
+    for raw in (prompt_rate_per_1k, completion_rate_per_1k):
+        if raw is None:
+            continue
+        rate = raw if isinstance(raw, Decimal) else Decimal(str(raw))
+        if rate > 0:
+            split.append(rate)
+    if split:
+        return max(split)
+    return effective
+
+
+def pot_tokens_from_available(available: object, rate_per_1k: object) -> int | None:
+    """How many tokens ``available`` can buy at ``rate_per_1k``.
+
+    ``None`` when the rate is not a positive known price (free / unknown).
+    Floors — do not claim a token the pot cannot pay for.
+    """
+    available_n = available if isinstance(available, Decimal) else Decimal(str(available))
+    rate_n = rate_per_1k if isinstance(rate_per_1k, Decimal) else Decimal(str(rate_per_1k))
+    if rate_n <= 0:
+        return None
+    if available_n <= 0:
+        return 0
+    raw = (available_n * Decimal(1000)) / rate_n
+    return int(raw.to_integral_value(rounding=ROUND_DOWN))
+
+
+def turn_clamp(*, daily_room: int, pot_room: int | None) -> int:
+    """``min(daily_room, pot_room)`` when pot room is known; else daily room."""
+    if daily_room < 0:
+        return 0
+    if pot_room is None:
+        return daily_room
+    return min(daily_room, max(0, pot_room))
+
+
+def clamp_max_tokens(requested: int | None, room: int) -> int:
+    """Provider ``max_tokens`` bound. Never inflate a caller request past ``room``."""
+    if room < 1:
+        return 0
+    if requested is None or requested < 1:
+        return room
+    return min(int(requested), room)
+
+
+def overshoot_tokens(tokens_used: int, clamp: int) -> int:
+    """Provider-reported usage above the clamp. Zero when the report fits."""
+    if tokens_used <= clamp:
+        return 0
+    return tokens_used - clamp
+
+
+def spend_notes(
+    *,
+    clamp: int,
+    overshoot: int = 0,
+    price_known: bool,
+    pot_room: int | None = None,
+    notes: str = SESSION_NOTES,
+) -> str:
+    """Spend notes: literal prefix plus clamp / pot-room / overshoot marks.
+
+    ``pot_room=none`` means pot room was not applied (unfunded, or price
+    unknown). A number means that many pot tokens bound the clamp.
+    """
+    parts = [notes, f"{CLAMP_MARK}{clamp}"]
+    parts.append(
+        f"{POT_ROOM_MARK}{pot_room}" if pot_room is not None else f"{POT_ROOM_MARK}{POT_ROOM_NONE}"
+    )
+    if overshoot > 0:
+        parts.append(f"{OVERSHOOT_MARK}{overshoot}")
+    if not price_known:
+        parts.append(PRICE_UNKNOWN_MARK)
+    return "; ".join(parts)
+
+
+def _parse_int_mark(notes: str | None, mark: str) -> int | None:
+    for part in (notes or "").split(";"):
+        token = part.strip()
+        if not token.startswith(mark):
+            continue
+        raw = token[len(mark) :]
+        try:
+            return int(raw)
+        except ValueError:
+            return None
+    return None
+
+
+def parse_clamp(notes: str | None) -> int | None:
+    """Read ``clamp=<int>`` from spend notes. Missing / unparseable is unknown."""
+    return _parse_int_mark(notes, CLAMP_MARK)
+
+
+def parse_overshoot(notes: str | None) -> int | None:
+    """Read ``overshoot=<int>``. ``0`` when a clamp is present but no overshoot mark."""
+    flagged = _parse_int_mark(notes, OVERSHOOT_MARK)
+    if flagged is not None:
+        return flagged
+    if parse_clamp(notes) is None:
+        return None
+    return 0
+
+
+def parse_price_known(notes: str | None) -> bool | None:
+    """``False`` when notes say ``price_unknown``. ``True`` when a clamp is present."""
+    if PRICE_UNKNOWN_MARK in (notes or ""):
+        return False
+    if parse_clamp(notes) is None:
+        return None
+    return True
+
+
+def parse_pot_room(notes: str | None) -> int | None:
+    """Read ``pot_room=<int>``. ``none`` / missing means pot room was not applied."""
+    for part in (notes or "").split(";"):
+        token = part.strip()
+        if not token.startswith(POT_ROOM_MARK):
+            continue
+        raw = token[len(POT_ROOM_MARK) :]
+        if raw == POT_ROOM_NONE:
+            return None
+        try:
+            return int(raw)
+        except ValueError:
+            return None
+    return None
 
 
 async def harness_tokens_used_today(

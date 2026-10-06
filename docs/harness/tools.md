@@ -1,6 +1,6 @@
 # External harness — MCP tool contracts
 
-> **Status — `0.49.1` perpetual ops Overview eyeball + live door.** Stems are pinned. The
+> **Status — `0.50.0` turn-room clamp + live door.** Stems are pinned. The
 > fixture in `backend/app/harness/fixture_mcp.py` still **mints nothing**
 > (M0 probes). The live server is `backend/app/harness/live_mcp.py`.
 > LLM tokens are metered by the session-owned gateway, not by these
@@ -45,15 +45,17 @@ hospitality tools and must not appear in this inventory.
   Standalone instrument runs do not debit (same as the human toolbench).
   Gateway token metering (`0.43.0` session owner, `0.44.0` fail-closed
   campaign child, `0.46.0` daily token cap, `0.47.0` remaining-room
-  hold, `0.48.0` stale-hold release) debits `ComputeDebit` for
-  LLM tokens on the path
+  hold, `0.48.0` stale-hold release, `0.50.0` turn-room clamp)
+  debits `ComputeDebit` for LLM tokens on the path
   `dsh → llm-pi-ai → python -m app.harness.campaign` — including
   attempted completions that spent tokens — or refuses to start.
   Today's `harness_session_turn` token sum (default 20_000 / UTC day)
   refuses before the model and survives a restart. Two overlapping
   authorizes cannot both debit past the cap. A crash leftover hold
-  older than the TTL is released on the next authorize. Unfunded is
-  not exhausted.
+  older than the TTL is released on the next authorize. A single
+  turn is clamped to remaining daily room (and pot room when a
+  funded pot has a live/catalog price, at the completion rate).
+  Unfunded is not exhausted.
 
 ## Auth injection (do not put the bearer on a tool argument)
 
@@ -134,8 +136,9 @@ Failure (401 / 403 / 422 / unknown instrument): `ok: false`,
 - Gateway metering sits on `HarnessSession` bound to the session-owned
   campaign child — `record_compute_debit`, live-or-fallback rates,
   notes `harness_session_turn`. A refused start (drift / exhausted pot /
-  turn cap / unbound child) writes nothing. Do not skip metering when
-  tokens moved.
+  turn cap / daily cap / room below floor / unbound child) writes
+  nothing. Do not skip metering when tokens moved. A provider
+  overshoot of the clamp is recorded in full.
 
 ## Adding a tool
 

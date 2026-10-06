@@ -45,6 +45,19 @@ export type OpsTurnRead = {
   notes: string | null;
   kind: OpsHarnessRowKind;
   hold_id: string | null;
+  clamp: number | null;
+  overshoot: number | null;
+  price_known: boolean | null;
+  pot_room: number | null;
+};
+
+export type OpsLastTurnRead = {
+  tokens_used: number;
+  clamp: number | null;
+  overshoot: number | null;
+  price_known: boolean | null;
+  pot_room: number | null;
+  note: string;
 };
 
 export type OpsRefusalsRead = {
@@ -76,6 +89,7 @@ export type ProjectOpsRead = {
   daily_cap: OpsDailyCapRead;
   holds: OpsHoldRead[];
   recent_turns: OpsTurnRead[];
+  last_turn: OpsLastTurnRead | null;
   refusals: OpsRefusalsRead;
   enablement: OpsEnablementRead;
 };

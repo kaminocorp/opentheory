@@ -1,4 +1,4 @@
-"""Perpetual ops dashboard — derived ledger read (0.49.0).
+"""Perpetual ops dashboard — derived ledger read (0.49.0 / 0.50.0).
 
 Public GET. Mints nothing. Every number is on the append-only
 ``ComputeDebit`` / funding ledgers or is a setting this API process
@@ -65,6 +65,21 @@ class OpsTurnRead(BaseModel):
     notes: str | None
     kind: HarnessRowKind
     hold_id: UUID | None
+    clamp: int | None = None
+    overshoot: int | None = None
+    price_known: bool | None = None
+    pot_room: int | None = None
+
+
+class OpsLastTurnRead(BaseModel):
+    """Newest billed harness spend, with the 0.50.0 clamp if notes carry it."""
+
+    tokens_used: int
+    clamp: int | None
+    overshoot: int | None
+    price_known: bool | None
+    pot_room: int | None = None
+    note: str
 
 
 class OpsRefusalsRead(BaseModel):
@@ -98,5 +113,6 @@ class ProjectOpsRead(BaseModel):
     daily_cap: OpsDailyCapRead
     holds: list[OpsHoldRead] = Field(default_factory=list)
     recent_turns: list[OpsTurnRead] = Field(default_factory=list)
+    last_turn: OpsLastTurnRead | None = None
     refusals: OpsRefusalsRead
     enablement: OpsEnablementRead

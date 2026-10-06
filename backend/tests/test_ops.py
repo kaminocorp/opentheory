@@ -16,23 +16,40 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 from app.main import create_app
+from app.models.enums import ComputeDebitRateSource
 from app.services.harness_meter import (
     DAILY_TOKEN_CAP_ENV,
     DEFAULT_DAILY_TOKEN_CAP,
     DEFAULT_HOLD_TTL_SECONDS,
+    DEFAULT_TURN_TOKEN_FLOOR,
     HOLD_TTL_ENV,
+    POT_ROOM_NONE,
+    PRICE_UNKNOWN_MARK,
     SESSION_NOTES,
+    TURN_TOKEN_FLOOR_ENV,
     budget_state,
+    clamp_max_tokens,
+    clamp_rate_per_1k,
     classify_harness_row,
     hold_notes,
     is_daily_cap_adjustment,
+    overshoot_tokens,
     pair_holds,
+    parse_clamp,
     parse_hold_id,
+    parse_overshoot,
+    parse_pot_room,
+    parse_price_known,
     peek_daily_token_cap,
     peek_hold_ttl_seconds,
+    peek_turn_token_floor,
+    pot_tokens_from_available,
+    price_is_known,
     release_notes,
+    spend_notes,
+    turn_clamp,
 )
-from app.services.ops import _REFUSALS
+from app.services.ops import _REFUSALS, _last_turn_note
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 
@@ -153,3 +170,89 @@ def test_pair_holds_by_hold_id_and_legacy_fifo() -> None:
 def test_refusals_are_not_invented() -> None:
     assert _REFUSALS.recorded is False
     assert "writes nothing" in _REFUSALS.note
+
+
+def test_turn_clamp_is_min_of_daily_and_pot_when_price_known() -> None:
+    assert turn_clamp(daily_room=20_000, pot_room=50) == 50
+    assert turn_clamp(daily_room=40, pot_room=50) == 40
+    assert turn_clamp(daily_room=40, pot_room=40) == 40
+    assert pot_tokens_from_available(Decimal("0.05"), Decimal("1.00")) == 50
+    assert pot_tokens_from_available(Decimal("0.049"), Decimal("1.00")) == 49
+    assert pot_tokens_from_available(Decimal("0"), Decimal("1.00")) == 0
+    assert pot_tokens_from_available(Decimal("1.00"), Decimal("0")) is None
+    assert price_is_known(ComputeDebitRateSource.OPENROUTER_LIVE) is True
+    assert price_is_known(ComputeDebitRateSource.CATALOG_OVERRIDE) is True
+    assert price_is_known(ComputeDebitRateSource.BLENDED_FALLBACK) is False
+    assert price_is_known(None) is False
+
+
+def test_clamp_rate_prefers_completion_or_higher_split() -> None:
+    mean = Decimal("2.50")
+    assert clamp_rate_per_1k(
+        effective_rate_per_1k=mean,
+        prompt_rate_per_1k=Decimal("1.00"),
+        completion_rate_per_1k=Decimal("4.00"),
+    ) == Decimal("4.00")
+    assert clamp_rate_per_1k(
+        effective_rate_per_1k=mean,
+        prompt_rate_per_1k=Decimal("4.00"),
+        completion_rate_per_1k=Decimal("1.00"),
+    ) == Decimal("4.00")
+    assert clamp_rate_per_1k(effective_rate_per_1k=mean) == mean
+    assert pot_tokens_from_available(Decimal("0.05"), Decimal("4.00")) == 12
+    assert pot_tokens_from_available(Decimal("0.05"), mean) == 20
+
+
+def test_turn_clamp_is_daily_room_when_price_unknown() -> None:
+    assert turn_clamp(daily_room=20_000, pot_room=None) == 20_000
+    assert turn_clamp(daily_room=7, pot_room=None) == 7
+    assert clamp_max_tokens(None, 50) == 50
+    assert clamp_max_tokens(80, 50) == 50
+    assert clamp_max_tokens(20, 50) == 20
+    assert clamp_max_tokens(0, 50) == 50
+    assert overshoot_tokens(80, 50) == 30
+    assert overshoot_tokens(50, 50) == 0
+    assert overshoot_tokens(10, 50) == 0
+
+
+def test_spend_notes_carry_clamp_overshoot_and_unknown_price() -> None:
+    known = spend_notes(clamp=50, overshoot=30, price_known=True, pot_room=50)
+    assert known.startswith(SESSION_NOTES)
+    assert parse_clamp(known) == 50
+    assert parse_overshoot(known) == 30
+    assert parse_price_known(known) is True
+    assert parse_pot_room(known) == 50
+    unused = spend_notes(clamp=80, price_known=True)
+    assert f"pot_room={POT_ROOM_NONE}" in unused
+    assert parse_pot_room(unused) is None
+    unknown = spend_notes(clamp=20, price_known=False)
+    assert PRICE_UNKNOWN_MARK in unknown
+    assert parse_price_known(unknown) is False
+    assert parse_overshoot(unknown) == 0
+    assert parse_pot_room(unknown) is None
+    assert parse_clamp(f"{SESSION_NOTES}; rate fallback: blended_fallback") is None
+    assert parse_overshoot(f"{SESSION_NOTES}; rate fallback: blended_fallback") is None
+    assert parse_price_known(f"{SESSION_NOTES}; rate fallback: blended_fallback") is None
+    assert parse_pot_room(f"{SESSION_NOTES}; rate fallback: blended_fallback") is None
+
+
+def test_last_turn_note_does_not_claim_pot_when_unused() -> None:
+    unused = _last_turn_note(clamp=80, overshoot=0, price_known=True, pot_room=None)
+    assert "pot room was not applied" in unused
+    assert "min of daily room and pot room" not in unused
+    used = _last_turn_note(clamp=50, overshoot=0, price_known=True, pot_room=50)
+    assert "min of daily room and pot room" in used
+    unknown = _last_turn_note(clamp=80, overshoot=0, price_known=False, pot_room=None)
+    assert "price unknown" in unknown
+    assert "min of daily room and pot room" not in unknown
+
+
+def test_peek_floor_invalid_is_unknown() -> None:
+    unset = peek_turn_token_floor({})
+    assert unset.value == DEFAULT_TURN_TOKEN_FLOOR
+    assert unset.source == "default"
+    override = peek_turn_token_floor({TURN_TOKEN_FLOOR_ENV: "32"})
+    assert override.value == 32
+    bad = peek_turn_token_floor({TURN_TOKEN_FLOOR_ENV: "nope"})
+    assert bad.value is None
+    assert bad.source == "invalid"
