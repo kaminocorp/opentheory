@@ -34,7 +34,7 @@ migration, no Fly, no live Supabase.
 
 ## Verification
 
-- Frontend typecheck / lint / test / build (this branch).
+- Frontend typecheck / lint / test (**73 passed**, +4 vs `0.57.0`) / build clean.
 - No backend change; ruff / pytest not re-run for this hotfix.
 
 ## Unverified
