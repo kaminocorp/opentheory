@@ -1,14 +1,15 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-10-06 · **Current release line:** `0.51.0`
-> (harness serialization guard), sitting on shipped `0.50.0`
-> (harness turn-room clamp, `af7ee43`, #44) on current
-> `main`. See `docs/completions/harness-serialization-guard-0.51.0.md`.
+> **Last updated:** 2026-10-06 · **Current release line:** `0.51.1`
+> (harness actor-attribution audit), sitting on shipped `0.51.0`
+> (harness serialization guard, `fd9316d`, #45) on current
+> `main`. See `docs/completions/harness-actor-attribution-audit-0.51.1.md`.
 >
 > **Next after this line:** Lean REPL / LeanDojo remain later.
 > Does not enable the gateway child on Fly.
 > Does not light `AGENT_LOOP_ENABLED`.
-> ~~Harness serialization guard~~ ✅ this branch as `0.51.0`.
+> ~~Harness actor-attribution audit~~ ✅ this branch as `0.51.1`.
+> ~~Harness serialization guard~~ ✅ shipped as `0.51.0`.
 > ~~Harness turn-room clamp~~ ✅ shipped as `0.50.0`.
 > ~~Perpetual ops Overview eyeball pass~~ ✅ shipped as `0.49.1`.
 > ~~Perpetual ops dashboard~~ ✅ shipped as `0.49.0`.

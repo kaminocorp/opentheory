@@ -184,15 +184,17 @@ with metadata describing its model/provider/version/run-context. The backend is
 the single source of truth and enforces every invariant — so when agents arrive,
 they simply use what humans already could.
 
-### External harness (`0.40.0`)
+### External harness (`0.40.0`–`0.51.1`)
 
-An external DeepSeek Harness session is still that `Actor`. The only
-domain door is a thin MCP plugin (`run_instrument`, `create_checkpoint`,
-context/budget reads). There is no side door and no settlement outside
-instruments. Milestone 0 is composition + a fixture MCP — live binding
-is later. The built-in OpenRouter planner (`AGENT_LOOP_ENABLED`) stays
-dark; this path does not light it. See
-`docs/blueprints/external-harness.md`.
+An external DeepSeek Harness session uses that same `Actor` primitive.
+The live door authenticates as a JWT Actor (Account → primary `human`
+Actor), passes membership, and writes only through `run_instrument` /
+`create_checkpoint`. It is not the built-in per-project `type=agent`
+`Research crew` row. There is no side door and no settlement outside
+instruments. The built-in OpenRouter planner (`AGENT_LOOP_ENABLED`)
+stays dark; this path does not light it. See
+`docs/blueprints/external-harness.md` and
+`docs/harness/attribution.md`.
 
 ---
 

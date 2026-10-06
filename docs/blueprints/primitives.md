@@ -381,13 +381,16 @@ Possible actor types:
 - `agent`
 - `system`
 
-An external harness-driven agent (`0.40.0`–`0.51.0`) is the same
-`Actor` type — not a parallel data model. It must authenticate as a
-JWT Actor, pass membership, and write the ledger only through
-`run_instrument` / `create_checkpoint`. The live door, fail-closed
-gateway, session owner, and campaign composition are shipped; Fly
-enablement and `AGENT_LOOP_ENABLED` stay dark. See
-`docs/blueprints/external-harness.md`.
+An external harness-driven agent (`0.40.0`–`0.51.1`) uses the same
+`Actor` primitive — not a parallel data model. The live MCP door
+authenticates as a JWT Actor (Account → primary `human` Actor),
+passes membership, and writes only through `run_instrument` /
+`create_checkpoint`. Attribution is that member Actor, not the
+Account and not the built-in `Research crew` agent. The live door,
+fail-closed gateway, session owner, and campaign composition are
+shipped; Fly enablement and `AGENT_LOOP_ENABLED` stay dark. See
+`docs/blueprints/external-harness.md` and
+`docs/harness/attribution.md`.
 
 ## Suggested Relationship Map
 

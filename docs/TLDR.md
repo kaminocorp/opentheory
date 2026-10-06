@@ -99,7 +99,7 @@ chokepoint humans use. A successful pass **stands without a mandatory human
 gate** — accept / reject / fork remain opt-in audit. The loop is still dark
 in production until `AGENT_LOOP_ENABLED` + `OPENROUTER_API_KEY` are flipped
 (see `docs/operations/deploy.md`). An **external DeepSeek Harness** adapter
-is sketched in `0.40.0`–`0.51.0` (fail-closed Cordis + live MCP +
+is sketched in `0.40.0`–`0.51.1` (fail-closed Cordis + live MCP +
 session-owned campaign child + daily token cap + remaining-room hold
 + stale-hold release + turn-room clamp + hold-TTL-covers-turn + read-only ops dashboard; not enabled on Fly;
 not a second settlement path — `docs/harness/`). A durable job queue is not shipped (a lost

@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.51.1` — **Harness actor-attribution audit.** Investigated the external-harness write paths (`live_mcp`, `HarnessSession`, `supervise_turn`, gateway, `ComputeDebit`) against Account ≠ Actor and funder ≠ contributor. No production-code gap: MCP writes attribute to the JWT-resolved member **Actor** (not the Account, not the built-in `Research crew` agent); `ensure_is_member` refuses a non-member and the account-less project agent; `create_checkpoint` remains the only Checkpoint writer; `ComputeDebit` has no `actor_id` (project-scoped spend; `FundingAllocation` funder unchanged). Debit membership is the MCP door, not `authorize()` — the gateway child is project-bound. Docs tighten the leftover "type=agent" blueprint wording. Regression tests pin the untested guarantees. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend tests + docs — no schema, no migration.** Sits on shipped `0.51.0` (`fd9316d`, #45).
 - `0.51.0` — **Harness serialization guard.** `0.50.0` already serializes harness turns per project: the amount-0 hold occupies the whole remaining daily room under the project-row `FOR UPDATE`, so a second overlapping authorize is always refused (`TurnRefused` daily-cap, no provider call, no debit, no extra hold). There is no tight-pot race. This slice adds a Postgres regression for that (known price, price-unknown, and mid-flight pot top-up) and closes the real hole: a live turn that outlives `OPENTHEORY_HARNESS_HOLD_TTL_SECONDS` (default **300**) could be released as an orphan. Composition / session / gateway startup refuse unless the TTL is strictly greater than the provider request timeout (`AGENT_LLM_TIMEOUT_S` / `settings.agent_llm_timeout_s`, default **60**) plus a 5s margin (must be `> 65`). `GatewayClient.complete` wraps the whole provider call in a total deadline of that timeout (env mapping first, then settings); a per-phase httpx timeout is not a bound. Truthy `stream` is 422 before authorize. An abandoned request may still be billed by OpenRouter — usage unknown, so no debit. Hold occupancy stays the remaining daily room. No `pot_hold` mark. No Open-turns readout. Unfunded ≠ exhausted. Debit only when `tokens_used > 0`. Hold/release amount stays `0` with the literal `harness_session_turn` prefix and `hold_id`. FastAPI still does not import `app.harness`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + docs — no schema, no migration.** Sits on shipped `0.50.0` (`af7ee43`, #44).
 - `0.50.0` — **Harness turn-room clamp.** Closes the leftover 0.46–0.48 single-turn overshoot: `authorize()` still locks the project row, releases stale holds, and holds remaining daily tokens so two overlapping authorizes cannot both debit past the cap; it now also computes a clamp (`min` of remaining daily tokens and tokens the pot can buy at a live/catalog *completion* rate when the project is funded and that price is known) and the gateway sets `max_tokens` to it. Unfunded + known price clamps to daily room (`pot_room=none`); the Overview note does not claim pot room was used. A caller-smaller `max_tokens` is kept; invalid `max_tokens` is 422. The authorize model is the same resolved id the completion uses. A room below `OPENTHEORY_HARNESS_TURN_TOKEN_FLOOR` (default **16**) is `TurnRefused` → 422, `tokens_used` 0, minted false, no OpenRouter call. Provider usage above the clamp is recorded in full and flagged on the turn result and the Overview last-turn readout. Price unknown → clamp is the daily room only; the blended settings rate is not invented. Unfunded ≠ exhausted. Debit only when `tokens_used > 0`. Hold/release amount stays `0`. FastAPI still does not import `app.harness`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + frontend + docs — no schema, no migration.** Sits on shipped `0.49.1` (`f2362b1`, #43).
 - `0.49.1` — **Perpetual ops Overview eyeball pass.** The leftover `0.49.0` browser walk: local FastAPI + Next against throwaway Postgres, seeded through the sanctioned writers / ledger fixtures. Unfunded ≠ exhausted on screen. Funded remaining, pot-exhausted, paired `hold_id` + legacy id-less hold, newest 20 harness rows, refusals honesty block, gateway/MCP `unknown`, invalid cap → cap unknown, missing project 404, five-tab contract, desktop + narrow 390. One honesty fix: `formatOpsMoney` keeps Numeric(12, 6) fraction digits so `$0.0004` is not rounded to `$0.00`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Frontend + docs — no schema, no migration.** Sits on shipped `0.49.0` (`ba7055b`, #42).
@@ -124,6 +125,60 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.51.1
+
+**Harness actor-attribution audit.** Asked whether external-harness
+ledger writes are attributed to the correct Actor, whether the door
+refuses a non-member before a write or a debit, and whether a human
+Account can appear as the contributor of agent work. **No
+production-code gap** — the `0.41.0` JWT-Actor + membership contract
+already holds. This slice records the audit and pins the guarantees
+that were untested. **No schema, no migration.** Sits on shipped
+`0.51.0` (`fd9316d`, #45). Does not flip `AGENT_LOOP_ENABLED`. Does
+not enable the gateway or MCP child on Fly.
+
+- **MCP writes.** `run_instrument` / `create_checkpoint` resolve the
+  same `ActingActor` path humans use (bearer → Account → primary
+  `human` Actor, or flagged `OPENTHEORY_DEV_ACTOR_ID`).
+  `ensure_is_member` runs first. `Checkpoint.author_id` and
+  `Contribution.actor_id` are that Actor. The Account is not written
+  on those rows. The built-in per-project `Research crew` agent
+  (Decision #3, account-less, not a `ProjectMember`) cannot pass the
+  door (`403`). Remapping writes onto it would bypass membership or
+  need a schema change.
+- **Debit.** `ComputeDebit` has no `actor_id`. `HarnessSession` /
+  gateway / `supervise_turn` spend is project-scoped through
+  `record_compute_debit` (notes `harness_session_turn`;
+  `agent_run_id` null). `FundingAllocation.account_id` is untouched.
+  `authorize()` does not resolve an Actor — the JWT lives on the MCP
+  child, the project id on the campaign child. An outsider
+  `actor_env` can still record spend when tokens moved and still
+  cannot mint.
+- **Docs.** `docs/harness/attribution.md` is the audit.
+  `external-harness.md` / `conceptual-model.md` / `primitives.md`
+  no longer claim the session *is* `Actor(type=agent)`.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q
+# 854 passed, 275 skipped (no TEST_DATABASE_URL)
+# +2 skipped vs shipped 0.51.0 (273): account-less agent 403 + outsider debit
+# with TEST_DATABASE_URL: 1125 passed, 4 skipped
+cd backend && uv run pytest tests/harness -q
+# 95 passed, 41 skipped (no TEST_DATABASE_URL)
+# with TEST_DATABASE_URL: 136 passed
+cd frontend && npm run typecheck && npm run lint && npm test && npm run build
+# typecheck/lint/build clean; 64 tests (untouched)
+```
+
+See `docs/completions/harness-actor-attribution-audit-0.51.1.md`.
+
+**Not in this release:** remapping harness writes onto the built-in
+agent Actor; a `ComputeDebit.actor_id` column; Fly enablement of
+the gateway or MCP child; lighting `AGENT_LOOP_ENABLED`.
 
 ---
 

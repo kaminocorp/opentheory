@@ -1,6 +1,6 @@
 # External harness — MCP tool contracts
 
-> **Status — `0.51.0` serialization guard + live door.** Stems are pinned. The
+> **Status — `0.51.1` attribution audit + live door.** Stems are pinned. The
 > fixture in `backend/app/harness/fixture_mcp.py` still **mints nothing**
 > (M0 probes). The live server is `backend/app/harness/live_mcp.py`.
 > LLM tokens are metered by the session-owned gateway, not by these
@@ -38,7 +38,12 @@ hospitality tools and must not appear in this inventory.
   are derived. They do not call `create_checkpoint`.
 - **Membership is authorization.** A non-member is `403` (or `404` if the
   project is missing). The fixture does not pretend otherwise; it simply
-  does not hit the API.
+  does not hit the API. The acting identity is the JWT-resolved
+  **Actor** (Account → primary `human` Actor; flagged local
+  `OPENTHEORY_DEV_ACTOR_ID` may name any Actor). The Account is not
+  the contributor. The built-in per-project `Research crew` agent is
+  account-less and cannot pass this door. See
+  `docs/harness/attribution.md`.
 - **Budget is `ComputeDebit`, not `FundingAllocation`.** The agent is a
   contributor and never a funder. A funded project with `available <= 0`
   refuses writes. Unfunded projects are not treated as exhausted.
