@@ -1,8 +1,9 @@
 """Project agent roster — members-only list + OWNER/ADMIN lifecycle (0.57.0).
 
 HTTP is human-only: ``ActingActor`` refuses an agent session token.
-Token mint / rotate / revoke stay on ``agent_tokens``. Caps are stored,
-not enforced. No Fly flag.
+Token mint / rotate / revoke stay on ``agent_tokens``. Caps are
+lifetime per roster seat and enforced at ``authorize()`` / the
+built-in pass (0.58.0). No Fly flag.
 """
 
 from uuid import UUID

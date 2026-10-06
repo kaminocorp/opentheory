@@ -392,13 +392,27 @@ def pot_tokens_from_available(available: object, rate_per_1k: object) -> int | N
     return int(raw.to_integral_value(rounding=ROUND_DOWN))
 
 
-def turn_clamp(*, daily_room: int, pot_room: int | None) -> int:
-    """``min(daily_room, pot_room)`` when pot room is known; else daily room."""
+def turn_clamp(
+    *,
+    daily_room: int,
+    pot_room: int | None,
+    agent_room: int | None = None,
+) -> int:
+    """``min`` of daily room, pot room (when known), and agent remaining (when set).
+
+    The ledger hold still occupies the whole remaining daily room
+    (0.47–0.51). ``agent_room`` only clamps ``max_tokens``, it does not
+    split the project daily hold.
+    """
     if daily_room < 0:
-        return 0
-    if pot_room is None:
-        return daily_room
-    return min(daily_room, max(0, pot_room))
+        room = 0
+    else:
+        room = daily_room
+    if pot_room is not None:
+        room = min(room, max(0, pot_room))
+    if agent_room is not None:
+        room = min(room, max(0, agent_room))
+    return room
 
 
 def clamp_max_tokens(requested: int | None, room: int) -> int:

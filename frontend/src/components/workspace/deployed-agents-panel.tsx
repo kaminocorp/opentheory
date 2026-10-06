@@ -25,15 +25,18 @@ import {
 } from "@/lib/api";
 import {
   ROSTER_UNAVAILABLE_LINE,
+  agentCapLine,
   agentSpendLine,
   agentStatusLabel,
   agentStatusTone,
+  agentTokenCapReached,
+  agentUsdCapReached,
   formatAgentWhen,
   isRosterUnavailable,
 } from "@/lib/agent-roster";
 import { queryKeys } from "@/lib/query-keys";
 import { useActingIdentity } from "@/lib/use-identity";
-import type { AgentRosterRead, AgentTokenMintRead } from "@/types/agent-roster";
+import type { AgentRosterPatch, AgentRosterRead, AgentTokenMintRead } from "@/types/agent-roster";
 
 function readableError(err: unknown): string {
   return err instanceof Error ? err.message.replace(/^\d+:\s*/, "") : "Something went wrong";
@@ -63,6 +66,8 @@ export function DeployedAgentsPanel({
   const { isAuthed } = useActingIdentity();
   const queryClient = useQueryClient();
   const [displayName, setDisplayName] = useState("");
+  const [deployTokenCap, setDeployTokenCap] = useState("");
+  const [deployUsdCap, setDeployUsdCap] = useState("");
   const [revealed, setRevealed] = useState<RevealedToken | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -81,15 +86,26 @@ export function DeployedAgentsPanel({
   };
 
   const deployMutation = useMutation({
-    mutationFn: (name: string) => deployProjectAgent(projectId, { display_name: name }),
+    mutationFn: (name: string) =>
+      deployProjectAgent(projectId, {
+        display_name: name,
+        ...(parsedOptionalInt(deployTokenCap) !== undefined
+          ? { token_budget_cap: parsedOptionalInt(deployTokenCap) }
+          : {}),
+        ...(parsedOptionalDecimal(deployUsdCap) !== undefined
+          ? { usd_budget_cap: parsedOptionalDecimal(deployUsdCap) }
+          : {}),
+      }),
     onSuccess: () => {
       setDisplayName("");
+      setDeployTokenCap("");
+      setDeployUsdCap("");
       invalidate();
     },
   });
   const patchMutation = useMutation({
-    mutationFn: ({ actorId, status }: { actorId: string; status: AgentRosterRead["status"] }) =>
-      patchProjectAgent(projectId, actorId, { status }),
+    mutationFn: ({ actorId, payload }: { actorId: string; payload: AgentRosterPatch }) =>
+      patchProjectAgent(projectId, actorId, payload),
     onSuccess: invalidate,
   });
   const mintMutation = useMutation({
@@ -172,7 +188,8 @@ export function DeployedAgentsPanel({
       <p className="text-[12px] leading-5 text-text-mute">
         Who is rostered on this project. Revoked agents stay visible. Spend is Σ{" "}
         <span className="font-mono">compute_debits.actor_id</span> billed tokens —
-        unexpected spend on an agent is the signal to revoke its session.
+        unexpected spend on an agent is the signal to revoke its session. Caps
+        are lifetime per seat; unset is no per-agent limit.
       </p>
 
       {!isAuthed ? (
@@ -194,7 +211,7 @@ export function DeployedAgentsPanel({
               busy={busy}
               canManage={canManage}
               isOwner={isOwner}
-              onPatch={(status) => patchMutation.mutate({ actorId: agent.actor_id, status })}
+              onPatch={(payload) => patchMutation.mutate({ actorId: agent.actor_id, payload })}
               onMint={() =>
                 mintMutation.mutate({ actorId: agent.actor_id, displayName: agent.display_name })
               }
@@ -231,7 +248,7 @@ export function DeployedAgentsPanel({
           }}
         >
           <ReadoutLabel>Deploy an agent</ReadoutLabel>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Input
               value={displayName}
               onChange={(event) => setDisplayName(event.target.value)}
@@ -240,6 +257,26 @@ export function DeployedAgentsPanel({
               spellCheck={false}
               autoComplete="off"
               className="h-8 min-w-0 flex-1"
+            />
+            <Input
+              value={deployTokenCap}
+              onChange={(event) => setDeployTokenCap(event.target.value)}
+              placeholder="Token cap"
+              aria-label="Optional lifetime token cap"
+              inputMode="numeric"
+              spellCheck={false}
+              autoComplete="off"
+              className="h-8 w-28"
+            />
+            <Input
+              value={deployUsdCap}
+              onChange={(event) => setDeployUsdCap(event.target.value)}
+              placeholder="USD cap"
+              aria-label="Optional lifetime USD cap"
+              inputMode="decimal"
+              spellCheck={false}
+              autoComplete="off"
+              className="h-8 w-28"
             />
             <Action
               type="submit"
@@ -298,7 +335,7 @@ function AgentRow({
   busy: boolean;
   canManage: boolean;
   isOwner: boolean;
-  onPatch: (status: AgentRosterRead["status"]) => void;
+  onPatch: (payload: AgentRosterPatch) => void;
   onMint: () => void;
   onRotate: (jti: string) => void;
   onRevokeToken: (jti: string) => void;
@@ -307,6 +344,8 @@ function AgentRow({
   const responsible = agent.responsible
     ? `${agent.responsible.display_name} @${agent.responsible.username}`
     : "unassigned";
+  const tokenReached = agentTokenCapReached(agent);
+  const usdReached = agentUsdCapReached(agent);
 
   return (
     <li
@@ -314,9 +353,11 @@ function AgentRow({
       style={{ border: "1px solid var(--hairline)" }}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="flex min-w-0 items-baseline gap-2">
+        <span className="flex min-w-0 flex-wrap items-baseline gap-2">
           <span className="truncate text-[13px] font-medium text-text">{agent.display_name}</span>
           <StatusPill tone={agentStatusTone(agent.status)} label={agentStatusLabel(agent.status)} />
+          {tokenReached ? <StatusPill tone="fail" label="token cap reached" /> : null}
+          {usdReached ? <StatusPill tone="fail" label="usd cap reached" /> : null}
         </span>
         <span className="font-mono text-[11px] tabular-nums text-text-faint">
           {agentSpendLine(agent.tokens_used)}
@@ -326,6 +367,7 @@ function AgentRow({
         Responsible {responsible}
         <span className="text-text-faint"> · last used {formatAgentWhen(agent.last_used_at)}</span>
       </p>
+      <p className="font-mono text-[11px] text-text-faint">{agentCapLine(agent)}</p>
       {canManage ? (
         <div className="flex flex-wrap items-center gap-2">
           {isOwner && agent.status === "active" ? (
@@ -363,7 +405,7 @@ function AgentRow({
             <ActionGhost
               size="sm"
               disabled={busy}
-              onClick={() => onPatch("suspended")}
+              onClick={() => onPatch({ status: "suspended" })}
               aria-label={`Suspend ${agent.display_name}`}
             >
               Suspend
@@ -373,7 +415,7 @@ function AgentRow({
             <Action
               size="sm"
               disabled={busy}
-              onClick={() => onPatch("active")}
+              onClick={() => onPatch({ status: "active" })}
               aria-label={`Resume ${agent.display_name}`}
             >
               Resume
@@ -383,7 +425,7 @@ function AgentRow({
             <ActionDestructive
               size="sm"
               disabled={busy}
-              onClick={() => onPatch("revoked")}
+              onClick={() => onPatch({ status: "revoked" })}
               aria-label={`Revoke ${agent.display_name}`}
             >
               Revoke
@@ -391,6 +433,81 @@ function AgentRow({
           ) : null}
         </div>
       ) : null}
+      {canManage ? <AgentCapEdit agent={agent} busy={busy} onSave={onPatch} /> : null}
     </li>
   );
+}
+
+function AgentCapEdit({
+  agent,
+  busy,
+  onSave,
+}: {
+  agent: AgentRosterRead;
+  busy: boolean;
+  onSave: (payload: AgentRosterPatch) => void;
+}) {
+  const [tokenCap, setTokenCap] = useState(agent.token_budget_cap?.toString() ?? "");
+  const [usdCap, setUsdCap] = useState(agent.usd_budget_cap ?? "");
+
+  return (
+    <form
+      className="flex flex-wrap items-center gap-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (busy) return;
+        const payload: AgentRosterPatch = {};
+        const tokens = parsedOptionalInt(tokenCap);
+        const usd = parsedOptionalDecimal(usdCap);
+        if (tokenCap.trim() === "") payload.token_budget_cap = null;
+        else if (tokens != null) payload.token_budget_cap = tokens;
+        else return;
+        if (usdCap.trim() === "") payload.usd_budget_cap = null;
+        else if (usd != null) payload.usd_budget_cap = usd;
+        else return;
+        onSave(payload);
+      }}
+    >
+      <Input
+        value={tokenCap}
+        onChange={(event) => setTokenCap(event.target.value)}
+        placeholder="Token cap"
+        aria-label={`Token cap for ${agent.display_name}`}
+        inputMode="numeric"
+        spellCheck={false}
+        autoComplete="off"
+        className="h-8 w-28"
+      />
+      <Input
+        value={usdCap}
+        onChange={(event) => setUsdCap(event.target.value)}
+        placeholder="USD cap"
+        aria-label={`USD cap for ${agent.display_name}`}
+        inputMode="decimal"
+        spellCheck={false}
+        autoComplete="off"
+        className="h-8 w-28"
+      />
+      <Action type="submit" size="sm" disabled={busy}>
+        Save caps
+      </Action>
+    </form>
+  );
+}
+
+/** Empty → omit (deploy) or caller treats as clear. Invalid → undefined. */
+function parsedOptionalInt(raw: string): number | null | undefined {
+  const trimmed = raw.trim();
+  if (trimmed === "") return null;
+  const n = Number(trimmed);
+  if (!Number.isInteger(n) || n < 1) return undefined;
+  return n;
+}
+
+function parsedOptionalDecimal(raw: string): string | null | undefined {
+  const trimmed = raw.trim();
+  if (trimmed === "") return null;
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || n < 0) return undefined;
+  return trimmed;
 }

@@ -28,6 +28,7 @@ from app.core.config import settings
 from app.models.actor import Actor
 from app.models.compute_debit import ComputeDebit
 from app.models.project import Project
+from app.models.project_agent_member import ProjectAgentMember
 from app.schemas.ops import (
     OpsActorSpendRead,
     OpsBudgetRead,
@@ -175,9 +176,22 @@ async def _spend_by_agent(
             continue
         used, spent, count = grouped.get(actor_id, (0, Decimal("0"), 0))
         grouped[actor_id] = (used + int(tokens_used), spent + Decimal(amount), count + 1)
+    seats: dict[UUID, ProjectAgentMember] = {}
+    seat_ids = {actor_id for actor_id in grouped if actor_id is not None}
+    if seat_ids:
+        seat_rows = await db.execute(
+            select(ProjectAgentMember).where(
+                ProjectAgentMember.project_id == project_id,
+                ProjectAgentMember.actor_id.in_(seat_ids),
+            )
+        )
+        seats = {row.actor_id: row for row in seat_rows.scalars()}
     out: list[OpsActorSpendRead] = []
     for actor_id, (tokens_used, amount, turn_count) in grouped.items():
         actor = labels.get(actor_id) if actor_id is not None else None
+        seat = seats.get(actor_id) if actor_id is not None else None
+        token_cap = seat.token_budget_cap if seat is not None else None
+        usd_cap = seat.usd_budget_cap if seat is not None else None
         out.append(
             OpsActorSpendRead(
                 actor_id=actor_id,
@@ -186,6 +200,10 @@ async def _spend_by_agent(
                 tokens_used=tokens_used,
                 amount=amount,
                 turn_count=turn_count,
+                token_budget_cap=token_cap,
+                usd_budget_cap=usd_cap,
+                token_cap_reached=token_cap is not None and tokens_used >= token_cap,
+                usd_cap_reached=usd_cap is not None and amount >= usd_cap,
             )
         )
     out.sort(

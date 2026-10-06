@@ -1,5 +1,14 @@
 # External harness — actor attribution (`0.51.1` / `0.52.0`)
 
+> **0.58.0.** Optional lifetime per-seat caps
+> (`token_budget_cap` / `usd_budget_cap`) are enforced at
+> `authorize()` and on the built-in pass. Reached is
+> `TurnRefused` (distinct reason, no hold). Turn clamp is
+> `min(daily room, pot room, agent remaining)`; the
+> remaining-room hold still occupies the whole remaining
+> daily room. Null = no per-agent limit. Sit on shipped
+> `0.57.1` (`2ed3d23`, #54).
+>
 > **0.57.0.** The agent session token must be the
 > **gateway / session credential** (`env` /
 > `OPENTHEORY_ACTOR_JWT_FILE`) for spend to stamp that agent.
@@ -97,7 +106,7 @@ explicitly does not mint an Actor (`campaign.py` `open_session`).
 | --- | --- |
 | **Who is recorded as Actor** | The session-bound actor (`0.56.0`). `record_compute_debit(..., actor_id=)` and `write_daily_cap_adjustment(..., actor_id=)` stamp it on billed spend and on hold/release. Harness rows use notes `harness_session_turn` and leave `agent_run_id` null (no `AgentRun` on this path). Hold / release rows are amount `0` and are not pot spend. Historical pre-identity rows stay null. |
 | **Who is Account / owner** | The project's funded pot. `FundingAllocation.account_id` (the funder) is not read or written. Spend is `project_budget.spent` = Σ `ComputeDebit.amount`. |
-| **Membership** | `ensure_is_member` on `authorize()` (`0.52.0` / `0.55.0`). The actor is resolved from session `env` when that mapping has a credential; `actor_env` cannot override (`0.56.0`). **The agent session token must be the gateway/session credential** for `ComputeDebit.actor_id` to stamp that agent. If the MCP child (`actor_env`) and the gateway (`env`) both resolve and name different actors, `authorize()` is `TurnRefused` and writes no hold (`0.57.0`) — otherwise checkpoint author and spend actor diverge. Missing credential, non-member, or account-less actor is `TurnRefused` before any hold or provider call. `record_spend` does **not** re-check membership: a member removed or a token revoked mid-turn does not drop a debit for tokens that already moved; it still stamps `actor_id`. The next authorize refuses. Inbound HTTP auth on the gateway is still `OPENTHEORY_GATEWAY_TOKEN`. |
+| **Membership** | `ensure_is_member` on `authorize()` (`0.52.0` / `0.55.0`). The actor is resolved from session `env` when that mapping has a credential; `actor_env` cannot override (`0.56.0`). **The agent session token must be the gateway/session credential** for `ComputeDebit.actor_id` to stamp that agent. If the MCP child (`actor_env`) and the gateway (`env`) both resolve and name different actors, `authorize()` is `TurnRefused` and writes no hold (`0.57.0`) — otherwise checkpoint author and spend actor diverge. Missing credential, non-member, or account-less actor is `TurnRefused` before any hold or provider call. `0.58.0` then refuses a set per-agent lifetime cap that has no remaining room (billed `ComputeDebit` for that `actor_id` plus that agent's outstanding holds) — distinct reason, no hold. `record_spend` does **not** re-check membership or the cap: a member removed, a token revoked, or a cap crossed mid-turn does not drop a debit for tokens that already moved; it still stamps `actor_id`. The next authorize refuses. Inbound HTTP auth on the gateway is still `OPENTHEORY_GATEWAY_TOKEN`. |
 | **Chokepoint** | Membership + remaining-room hold on `authorize()`. `record_compute_debit` when `tokens_used > 0`. Hold / release go through `write_daily_cap_adjustment` (amount `0`). Neither path calls `create_checkpoint`. |
 
 This is not a hole that lets a non-member mint research

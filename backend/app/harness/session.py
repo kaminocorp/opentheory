@@ -85,6 +85,15 @@ does not re-check membership: tokens that moved after a
 successful authorize are billed (load ``jti`` for the stamp
 even if the token was revoked mid-turn). The next authorize
 fails closed.
+
+``0.58.0`` enforces optional lifetime per-seat caps
+(``token_budget_cap`` / ``usd_budget_cap``) under the same
+project-row lock. Reached is ``TurnRefused`` with a distinct
+reason and no hold. The turn clamp is ``min(daily room, pot
+room, agent remaining)``. The remaining-room hold still
+occupies the whole remaining daily room — this is not a
+per-agent split of the project daily cap. Null cap = no
+per-agent limit. Unfunded is not exhausted.
 """
 
 from __future__ import annotations
@@ -106,6 +115,7 @@ from app.models.actor import Actor
 from app.models.compute_debit import ComputeDebit
 from app.models.enums import ComputeDebitKind, ComputeDebitRateSource
 from app.models.project import Project
+from app.services import agent_caps as agent_caps_service
 from app.services import compute as compute_service
 from app.services import funding as funding_service
 from app.services.harness_meter import (
@@ -158,6 +168,8 @@ REASON_PROJECT_BUDGET = compute_service.BUDGET_EXHAUSTED
 REASON_ACTOR = "actor required"
 REASON_NOT_MEMBER = "not a project member"
 REASON_CREDENTIAL_DIVERGENCE = "session and MCP credentials differ"
+REASON_AGENT_TOKEN_CAP = agent_caps_service.REASON_AGENT_TOKEN_CAP
+REASON_AGENT_USD_CAP = agent_caps_service.REASON_AGENT_USD_CAP
 
 __all__ = [
     "DAILY_TOKEN_CAP_ENV",
@@ -178,6 +190,8 @@ __all__ = [
     "REASON_TURN_BUDGET",
     "REASON_ACTOR",
     "REASON_CREDENTIAL_DIVERGENCE",
+    "REASON_AGENT_TOKEN_CAP",
+    "REASON_AGENT_USD_CAP",
     "REASON_HOLD_TTL",
     "REASON_NOT_MEMBER",
     "REASON_TURN_ROOM",
@@ -513,6 +527,23 @@ async def assert_project_budget(
         raise TurnRefused(REASON_PROJECT_BUDGET)
 
 
+async def assert_agent_caps(
+    db: AsyncSession,
+    project_id: UUID,
+    actor_id: UUID,
+) -> agent_caps_service.AgentCapRoom:
+    """Refuse when a set per-agent lifetime cap has no remaining room.
+
+    Writes nothing. Null caps are unlimited. Unfunded is a different
+    state — a reached agent cap is not project-pot exhausted.
+    """
+    room = await agent_caps_service.load_agent_cap_room(db, project_id, actor_id)
+    reason = agent_caps_service.refuse_reason(room)
+    if reason is not None:
+        raise TurnRefused(reason)
+    return room
+
+
 async def assert_turn_member(
     db: AsyncSession,
     project_id: UUID,
@@ -701,7 +732,7 @@ class HarnessSession:
         model: str | None = None,
         quote: PriceQuote | None = None,
     ) -> DailyCapHold | None:
-        """Refuse before the LLM call on drift, membership, turn cap, daily cap, pot, or floor.
+        """Refuse before the LLM: drift, membership, caps, pot, or floor.
 
         Membership is first among the DB checks: resolve the acting
         actor from the session-bound credential (``env`` wins over
@@ -756,6 +787,7 @@ class HarnessSession:
             )
             assert_daily_tokens_in_budget(used, cap)
             await assert_project_budget(db, self.project_uuid)
+            cap_room = await assert_agent_caps(db, self.project_uuid, actor.id)
             if project is None:
                 return None
             daily_room = cap - used
@@ -763,19 +795,26 @@ class HarnessSession:
                 raise TurnRefused(REASON_DAILY_CAP)
             pot_room: int | None = None
             known = False
+            clamp_rate: Decimal | None = None
             if resolved_quote is not None and price_is_known(resolved_quote.source):
                 known = True
+                clamp_rate = clamp_rate_per_1k(
+                    effective_rate_per_1k=resolved_quote.effective_rate_per_1k,
+                    prompt_rate_per_1k=resolved_quote.prompt_rate_per_1k,
+                    completion_rate_per_1k=resolved_quote.completion_rate_per_1k,
+                )
                 budget = await funding_service.project_budget(db, self.project_uuid)
                 if budget.funded > 0:
                     pot_room = pot_tokens_from_available(
                         budget.available,
-                        clamp_rate_per_1k(
-                            effective_rate_per_1k=resolved_quote.effective_rate_per_1k,
-                            prompt_rate_per_1k=resolved_quote.prompt_rate_per_1k,
-                            completion_rate_per_1k=resolved_quote.completion_rate_per_1k,
-                        ),
+                        clamp_rate,
                     )
-            clamp = turn_clamp(daily_room=daily_room, pot_room=pot_room)
+            agent_room = agent_caps_service.agent_token_room_for_clamp(
+                cap_room, rate_per_1k=clamp_rate
+            )
+            clamp = turn_clamp(
+                daily_room=daily_room, pot_room=pot_room, agent_room=agent_room
+            )
             assert_turn_room_above_floor(clamp, self.resolved_turn_token_floor())
             hold_id = uuid4()
             await write_daily_cap_adjustment(

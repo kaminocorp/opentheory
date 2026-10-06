@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.58.0` — **Per-agent lifetime caps.** Slice F of the approved agent-actor identity design. `token_budget_cap` / `usd_budget_cap` on `project_agent_members` are enforced at `HarnessSession.authorize()` and on the built-in pass. Remaining room is lifetime billed `ComputeDebit` for that `(project_id, actor_id)` (`tokens_used > 0`, holds/releases excluded) plus that agent's outstanding remaining-room holds, under the project-row lock. Cap reached is `TurnRefused` with a distinct reason and no hold. The turn clamp is `min(daily room, pot room, agent remaining)`. The ledger hold still occupies the whole remaining daily room — not a per-agent split. Null cap = no per-agent limit. Unfunded ≠ exhausted. Debit only when `tokens_used > 0`. Mid-turn spend after a successful authorize still writes. Crew edit via existing `PATCH`; ops `spend_by_agent` and roster reads expose optional `*_cap_reached` (frontend derives if a pre-0.58 backend omits them). **No migration** (columns exist on 0022). Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Five tabs only. No slice G. Sits on shipped `0.57.1` (`2ed3d23`, #54).
 - `0.57.1` — **Frontend version-skew hotfix.** Vercel ships `main`'s frontend while live Fly is still pre-0.53 (0022 unapplied). `GET /ops` omits `spend_by_agent` / `actor_*`; `GET /projects/{id}/agents` is 404. Overview no longer throws on `undefined.length`. Crew roster 404 is a quiet "not on this backend yet" line — no raw error, no deploy controls. New 0.57.0 read fields (ops, blame `sponsor`, checkpoint `sponsored_by`) are optional. **Frontend + docs — no schema, no migration, no backend change.** Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Five tabs only. Sits on shipped `0.57.0` (`16bf679`, #53).
 - `0.57.0` — **Crew UI / blame sponsor / ops actor fields.** Slice E of the approved agent-actor identity design. Deployed-agents bay on the existing Crew tab (revoked rows visible, marked revoked). Members-only `GET /projects/{id}/agents` (status, responsible handle, last used, billed spend Σ, live token metadata — never hash or plaintext). OWNER/ADMIN `POST` deploy + `PATCH` suspend/revoke; OWNER resume. OWNER mint / rotate / revoke token with a one-time Console reveal (component state only; never React Query cache). Blame `sponsor: BlameActor`; `CheckpointRead.sponsored_by`. Ops `actor_id` / `actor_display_name` / `actor_type` on turns + spend-by-agent grouped from `compute_debits.actor_id`. HTTP stays human-only (`ActingActor` 403s an agent session). `authorize()` refuses when session and MCP credentials both resolve and differ (`TurnRefused`, no hold). **No** per-agent cap enforcement, no `agent_definitions`. No migration. `create_checkpoint` remains the only Checkpoint writer. FastAPI still does not import `app.harness`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. Five tabs only. Sits on shipped `0.56.0` (`2a2a018`, #52).
 - `0.56.0` — **Spend attribution.** Slice D of the approved agent-actor identity design. `record_compute_debit` / `write_daily_cap_adjustment` take `actor_id`. `HarnessSession` binds the resolved actor (`env` wins over `actor_env`); `authorize()` / `record_spend` load `jti` to stamp the spending agent. Hold/release rows also carry `actor_id` (audit; still amount `0`, literal `harness_session_turn` prefix, `hold_id`). Built-in pass debits stamp `AgentRun.agent_actor_id`. Mid-turn revoke still bills tokens that moved; the next authorize refuses. Shared project daily cap (no per-agent split). Per-agent caps stay stored, unenforced. Unfunded ≠ exhausted. Debit only when `tokens_used > 0`. **No** Crew UI, no ops `actor_*` / spend-by-agent readout, no `agent_definitions`. No migration (0022 already has the column). `create_checkpoint` remains the only Checkpoint writer. FastAPI still does not import `app.harness`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. Five tabs only. Sits on shipped `0.55.0` (`149c36e`, #51).
@@ -134,6 +135,66 @@
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
 
 ---
+
+## 0.58.0
+
+**Per-agent lifetime caps.** Slice F of the approved
+agent-actor identity design
+(`docs/plans/agent-actor-identity.md`). Sits on shipped
+`0.57.1` (`2ed3d23`, #54).
+Does not flip `AGENT_LOOP_ENABLED`. Does not enable the gateway
+or MCP child on Fly.
+
+- **Period.** The design names no window. Caps are **lifetime
+  per roster seat**. Null = no per-agent limit.
+- **Authorize / pass.** After membership, daily-cap, and pot
+  checks, `authorize()` loads remaining room under the same
+  project-row `FOR UPDATE`. Billed spend is Σ `ComputeDebit`
+  for that `actor_id` on the project (`tokens_used > 0`,
+  hold/release notes excluded — harness *and* built-in pass
+  prefixes). Outstanding unmatched remaining-room holds
+  stamped to that agent count toward token remaining. Reached
+  is `TurnRefused` (`agent token budget cap exhausted` /
+  `agent usd budget cap exhausted`) and writes no hold. The
+  built-in pass refuses before the planner with the same
+  reasons; a mid-pass hit after planning tokens are billed
+  skips remaining instruments (`agent_budget_cap_exhausted`).
+- **Clamp vs hold.** Turn `max_tokens` is
+  `min(daily room, pot room, agent remaining)`. USD remaining
+  converts at a known live/catalog rate only — no invented
+  blended price. The remaining-room hold still occupies the
+  **whole** remaining daily room (0.47–0.51 race close). This
+  is not a split of the project daily cap.
+- **Unchanged rules.** Shared project daily cap. Unfunded ≠
+  exhausted. Debit only when `tokens_used > 0`. Mid-turn
+  tokens that moved after a successful authorize stay billed.
+- **Crew / ops.** `PATCH /projects/{id}/agents/{actor_id}`
+  accepts optional caps (`OWNER` / `ADMIN`; `null` clears).
+  Roster and ops `spend_by_agent` send `token_cap_reached` /
+  `usd_cap_reached`. Frontend treats those flags as optional
+  and derives from billed vs cap when a pre-0.58 backend
+  omits them (0.57.1 skew rule).
+- **No schema.** Columns already exist on `0022`. No live
+  Supabase apply.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q
+# with TEST_DATABASE_URL: 1199 passed, 4 skipped
+# +14 vs 0.57.0 (1185): lifetime math + clamp, null/human authorize,
+# token/USD refuse no hold, clamp vs hold occupancy, unfunded ≠
+# exhausted, overlapping refuse, mid-turn still bills, clear-and-
+# retry, built-in start refuse + mid-pass skip, PATCH caps +
+# reached reads, turn_clamp agent_room
+cd frontend && npm run typecheck && npm run lint && npm test && npm run build
+# typecheck/lint/build clean; frontend tests 75 passed (+2 vs 0.57.1)
+```
+
+See `docs/completions/agent-identity-caps-0.58.0.md`.
+
+**Not in this release:** `agent_definitions` (slice G); Fly
+enablement; `AGENT_LOOP_ENABLED`; splitting the project daily
+cap; a `FundingAllocation` per agent.
 
 ## 0.57.1
 

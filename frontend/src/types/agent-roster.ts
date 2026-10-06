@@ -24,6 +24,9 @@ export type AgentRosterRead = {
   last_used_at: string | null;
   tokens_used: number;
   amount: string;
+  // 0.58.0 — omitted on a pre-0.58 backend. Derive from tokens_used vs cap.
+  token_cap_reached?: boolean;
+  usd_cap_reached?: boolean;
   live_tokens: AgentLiveToken[];
   created_at: string;
 };
@@ -31,10 +34,14 @@ export type AgentRosterRead = {
 export type AgentDeployRequest = {
   display_name: string;
   reuse_research_crew?: boolean;
+  token_budget_cap?: number | null;
+  usd_budget_cap?: string | null;
 };
 
 export type AgentRosterPatch = {
-  status: ProjectAgentStatus;
+  status?: ProjectAgentStatus;
+  token_budget_cap?: number | null;
+  usd_budget_cap?: string | null;
 };
 
 export type AgentTokenMintRead = {

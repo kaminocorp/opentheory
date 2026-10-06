@@ -13,7 +13,9 @@
 > against the remaining daily / pot room, a hold TTL that must
 > exceed max turn duration so a live turn is never released as an
 > orphan, and a read-only perpetual
-> ops dashboard (`GET /projects/{id}/ops`). Fly enablement is not
+> ops dashboard (`GET /projects/{id}/ops`). `0.58.0` adds optional
+> lifetime per-seat caps on `authorize()` / the built-in pass
+> without splitting the project daily hold. Fly enablement is not
 > shipped. If this blueprint disagrees with `backend/app/harness/`,
 > the code wins.
 

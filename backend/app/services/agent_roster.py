@@ -268,6 +268,8 @@ async def list_project_agents(
         tokens = live.get(actor.id, [])
         last_used = last_used_at.get(actor.id)
         tokens_used, amount = spend.get(actor.id, (0, Decimal("0")))
+        token_cap = row.token_budget_cap
+        usd_cap = row.usd_budget_cap
         out.append(
             AgentRosterRead(
                 actor_id=actor.id,
@@ -280,11 +282,13 @@ async def list_project_agents(
                 responsible=_account_summary(accounts.get(row.responsible_account_id))
                 if row.responsible_account_id
                 else None,
-                token_budget_cap=row.token_budget_cap,
-                usd_budget_cap=row.usd_budget_cap,
+                token_budget_cap=token_cap,
+                usd_budget_cap=usd_cap,
                 last_used_at=last_used,
                 tokens_used=tokens_used,
                 amount=amount,
+                token_cap_reached=token_cap is not None and tokens_used >= token_cap,
+                usd_cap_reached=usd_cap is not None and amount >= usd_cap,
                 live_tokens=[
                     AgentLiveTokenRead(
                         jti=token.id,
@@ -394,13 +398,27 @@ async def patch_project_agent(
     acting: Actor,
     payload: AgentRosterPatch,
 ) -> AgentRosterRead:
-    """Suspend / revoke (OWNER / ADMIN) or resume (OWNER). Same-transaction token revoke."""
+    """Suspend / revoke (OWNER / ADMIN), resume (OWNER), and/or edit caps."""
     from fastapi import HTTPException, status
 
     from app.services.project_members import ensure_can_manage
 
     if payload.status == ProjectAgentStatus.ACTIVE:
         await resume_project_agent(db, project_id, actor_id, acting)
+        cap_edit = (
+            "token_budget_cap" in payload.model_fields_set
+            or "usd_budget_cap" in payload.model_fields_set
+        )
+        if cap_edit:
+            await ensure_can_manage(db, project_id, acting)
+            row = await get_roster_row(db, project_id, actor_id)
+            if row is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
+            if "token_budget_cap" in payload.model_fields_set:
+                row.token_budget_cap = payload.token_budget_cap
+            if "usd_budget_cap" in payload.model_fields_set:
+                row.usd_budget_cap = payload.usd_budget_cap
+            db.add(row)
         listed = await list_project_agents(db, project_id, acting)
         for item in listed:
             if item.actor_id == actor_id:
@@ -410,6 +428,17 @@ async def patch_project_agent(
     await ensure_can_manage(db, project_id, acting)
     row = await get_roster_row(db, project_id, actor_id)
     if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
+    if payload.status is None:
+        if "token_budget_cap" in payload.model_fields_set:
+            row.token_budget_cap = payload.token_budget_cap
+        if "usd_budget_cap" in payload.model_fields_set:
+            row.usd_budget_cap = payload.usd_budget_cap
+        db.add(row)
+        listed = await list_project_agents(db, project_id, acting)
+        for item in listed:
+            if item.actor_id == actor_id:
+                return item
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
     if row.status == ProjectAgentStatus.REVOKED:
         raise HTTPException(
@@ -427,6 +456,10 @@ async def patch_project_agent(
             detail="status must be active, suspended, or revoked",
         )
     row.status = payload.status
+    if "token_budget_cap" in payload.model_fields_set:
+        row.token_budget_cap = payload.token_budget_cap
+    if "usd_budget_cap" in payload.model_fields_set:
+        row.usd_budget_cap = payload.usd_budget_cap
     db.add(row)
     await revoke_live_tokens_for_actors(db, project_id, {actor_id})
     listed = await list_project_agents(db, project_id, acting)
