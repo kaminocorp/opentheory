@@ -72,9 +72,11 @@ table.
 for (``actor_env``, else ``env`` — the same JWT-file / JWT /
 flagged ``OPENTHEORY_DEV_ACTOR_ID`` injection ``live_mcp`` uses)
 and calls ``ensure_is_member`` *before* any hold write or
-provider call. A missing credential, a non-member, or an
-account-less actor (including the built-in ``Research crew``)
+provider call. A missing credential, a non-member, an
+un-rostered / suspended / revoked agent, or a ``system`` actor
 is ``TurnRefused``: no hold, no debit, no OpenRouter call.
+A rostered ``type=agent`` Actor passes the membership gate
+(0.54.0); token mint / resolver remains a later slice.
 ``record_spend`` does not re-check. Membership is a start-of-turn
 gate (same as pot / daily cap / floor). Tokens that moved after
 a successful authorize are billed — a mid-turn removal does not
@@ -505,8 +507,8 @@ async def assert_turn_member(
     """Refuse before a hold when the acting actor is not a current member.
 
     Uses the existing helpers: ``resolve_mcp_actor`` (JWT file / JWT /
-    flagged dev-actor) then ``ensure_is_member`` (account membership;
-    account-less is ``403``). Mapped to ``TurnRefused`` so the gateway
+    flagged dev-actor) then ``ensure_is_member`` (type-aware: human
+    ``ProjectMember`` / agent ACTIVE roster). Mapped to ``TurnRefused`` so the gateway
     stays 422 with no provider call, no hold, and no debit. A missing
     credential is fail-closed — there is no "project-bound so skip"
     escape. Does not write.
@@ -627,8 +629,9 @@ class HarnessSession:
 
         Membership is first among the DB checks: resolve the acting
         actor and ``ensure_is_member`` before the project-row lock,
-        stale-hold release, or remaining-room hold. A non-member or
-        account-less actor cannot take a hold or call the provider.
+        stale-hold release, or remaining-room hold. A non-member,
+        un-rostered agent, or ``system`` actor cannot take a hold or
+        call the provider.
 
         On a pass, locks the project row, releases unmatched holds older
         than the TTL, re-reads today's harness token sum (holds

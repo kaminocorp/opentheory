@@ -1,15 +1,15 @@
 # Design: first-class agent Actor identity
 
 > **Status — Approved 2026-10-06; implementation in slices.**
-> Design only on this branch: no production code, no Alembic
-> revision, no tests, no changelog bump, no roadmap banner.
-> Sits on `3eeeaf5` (`0.51.1`, #46). **Precursor on the
-> harness line:** shipped `0.52.0` (PR #48) puts a
-> human-member gate on `HarnessSession.authorize()`; this
-> design swaps that gate to the agent roster and replaces the
-> ~1h Supabase access JWT the gateway now holds. If this doc
-> disagrees with `backend/app/` on this branch, the code is
-> what exists here and this file is the approved change.
+> Slice A (schema) shipped as `0.53.0` (`2b2a135`, #49).
+> Slice B (membership gate) is this branch as `0.54.0`.
+> Slices C–G are not started. Precursor: shipped `0.52.0`
+> (PR #48) puts a human-member gate on
+> `HarnessSession.authorize()`; later slices swap that gate
+> to the agent roster and replace the ~1h Supabase access JWT.
+> If this doc disagrees with `backend/app/` on this branch,
+> the code is what exists here and this file is the approved
+> change.
 >
 > Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway
 > or MCP child on Fly. FastAPI still must not import `app.harness`.
@@ -1361,8 +1361,8 @@ MCP behavior change, no UI, no Fly, no `AGENT_LOOP_ENABLED`.
 
 | Slice | Ships | Must stay out |
 | --- | --- | --- |
-| **1 — schema** | The inventory above. | Everything in "Not in slice one" |
-| **B — membership gate** | `ensure_is_member` type-aware; `ensure_can_manage` rejects agents; `ensure_is_human_member` on funding / validation / invites. OWNER-transfer hook: suspend Research crew + `responsible_account_id = outgoing` rows, revoke their tokens; ADMIN-deployed agents whose responsible account is not the outgoing owner stay active. `get_or_create_project_agent_actor` ensures a roster row. Dark loop, when later lit, uses this same roster gate. Account-less crew without a roster still `403`. | Token mint; Fly |
+| **1 — schema** | The inventory above. **Shipped `0.53.0`.** | Everything in "Not in slice one" |
+| **B — membership gate** | `ensure_is_member` type-aware; `ensure_can_manage` rejects agents; `ensure_is_human_member` on funding / validation / invites. OWNER-transfer hook: suspend Research crew + `responsible_account_id = outgoing` rows, revoke their tokens; ADMIN-deployed agents whose responsible account is not the outgoing owner stay active. `get_or_create_project_agent_actor` ensures a roster row. Dark loop, when later lit, uses this same roster gate. Account-less crew without a roster still `403`. **This branch as `0.54.0`.** | Token mint; Fly |
 | **C — agent token** | OWNER-only mint / rotate / revoke API; 30-day default; max TTL via settings (not `fly.toml [env]`); resolver in `deps.py` + `harness/auth.py`; secret setting. MCP writes with an agent file attribute to the agent + sponsor snapshot. **Swaps** the `0.52.0` human JWT on `authorize()` for the agent session token. Human Console JWT path unchanged. | Fly; UI mint; `AGENT_LOOP_ENABLED`; per-agent cap enforcement |
 | **D — spend** | `record_compute_debit` / `write_daily_cap_adjustment` take `actor_id`. `HarnessSession` binds the agent; `authorize` / `record_spend` load `jti` + roster. Outsider override closed. Hold notes / amount 0 / prefix / `hold_id` unchanged. Shared project daily cap (no per-agent split). Unfunded ≠ exhausted. Debit only when `tokens_used > 0` for spend. | Per-agent cap enforcement; Fly |
 | **E — Crew UI** | Deployed-agents bay on the Crew tab (revoked rows visible, marked revoked); OWNER mint / rotate reveal; members-only roster read; blame sponsor; ops `actor_*` + spend-by-agent. | New tab; Fly; lighting the loop |

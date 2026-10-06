@@ -25,7 +25,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.account import Account
 from app.models.actor import Actor
-from app.models.enums import InvitationStatus, ProjectRole
+from app.models.enums import ActorType, InvitationStatus, ProjectRole
 from app.models.project import Project
 from app.models.project_invitation import ProjectInvitation
 from app.models.project_member import ProjectMember
@@ -201,7 +201,7 @@ async def my_pending(db: AsyncSession, actor: Actor) -> list[InvitationRead]:
     An account-less actor (``system`` / dev) has no principal to receive invitations → empty list
     (a read, so no need to ``403`` — there is simply nothing to show).
     """
-    if actor.account_id is None:
+    if actor.type != ActorType.HUMAN or actor.account_id is None:
         return []
     stmt = (
         select(ProjectInvitation)
@@ -226,8 +226,15 @@ async def my_pending(db: AsyncSession, actor: Actor) -> list[InvitationRead]:
 
 
 def _require_invitee(invitation: ProjectInvitation, actor: Actor) -> None:
-    """Authorize an invitee-side action: the actor's account must be the invitation's invitee."""
-    if actor.account_id is None or invitation.invitee_account_id != actor.account_id:
+    """Authorize an invitee-side action: the actor's account must be the invitation's invitee.
+
+    Agents are rejected even when they share the invitee's ``account_id`` (0.54.0).
+    """
+    if (
+        actor.type != ActorType.HUMAN
+        or actor.account_id is None
+        or invitation.invitee_account_id != actor.account_id
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This invitation is not addressed to you",

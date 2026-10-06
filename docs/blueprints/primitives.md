@@ -37,9 +37,10 @@ touches `Contribution` / `Validation` / `FundingAllocation`. Public reads are pu
 authenticate, then `ensure_is_member` (`404` missing project / `403` non-member).
 
 A deployed agent is **not** a `ProjectMember`. `0.53.0` adds a separate mutable roster
-(`ProjectAgentMember`) keyed on `(project_id, actor_id)`. The roster is schema-on and
-behavior-off in this release — `ensure_is_member` is still account-keyed; later slices
-make the gate type-aware. Agents never sit on `ProjectRole` (`OWNER` / `ADMIN`).
+(`ProjectAgentMember`) keyed on `(project_id, actor_id)`. `0.54.0` makes
+`ensure_is_member` type-aware: humans still key on `ProjectMember`; agents need an
+ACTIVE roster row; `system` is `403`. `ensure_can_manage` rejects agents before the
+account lookup. Agents never sit on `ProjectRole` (`OWNER` / `ADMIN`).
 
 Funding note:
 
@@ -405,10 +406,12 @@ shipped; Fly enablement and `AGENT_LOOP_ENABLED` stay dark. See
 `docs/blueprints/external-harness.md` and
 `docs/harness/attribution.md`.
 
-`0.53.0` ships the identity **schema** so a later slice can make
-that agent a first-class author: a project may have many agent
-Actors (the unique index is now Research-crew only), a
-`ProjectAgentMember` roster row is the deploy seat, and
+`0.53.0` ships the identity **schema**; `0.54.0` wires the
+membership gate. A project may have many agent Actors (the unique
+index is Research-crew only). A `ProjectAgentMember` roster row is
+the deploy seat: `ensure_is_member` for `type=agent` requires
+`status = ACTIVE`. Humans still key on `ProjectMember`.
+`ensure_can_manage` rejects agents before the account lookup.
 `AgentSessionToken` will hold the OWNER-minted bearer (table only;
 no mint yet). Migrated `Research crew` rows keep that display name
 and, when the project has an OWNER, gain that owner's `account_id`

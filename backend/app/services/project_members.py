@@ -1,10 +1,10 @@
-"""Project membership + authorization service (0.8.1).
+"""Project membership + authorization service (0.8.1 / 0.54.0).
 
 The project-level analog of ``core.roles`` / ``require_internal``: ``ensure_can_manage`` is the
-single gate every project-management write composes with. Authorization is keyed on the **account**
-(the principal, 0.7.0) — an actor manages a project iff its owning account holds a ``ProjectMember``
-row for that project. Account-less actors (``system`` / dev-bootstrap) have no principal and can
-never manage.
+single gate every project-management write composes with. Human management is keyed on the
+**account** (the principal, 0.7.0). ``type=agent`` is rejected **before** that account
+lookup — an agent whose ``account_id`` is the project owner must not inherit governance.
+Account-less ``system`` / dev-bootstrap actors have no principal and can never manage.
 
 Status codes (matching the rest of the API): unauthenticated → ``401`` (handled upstream by the
 ``ActingActor`` dependency, before this service runs); missing project → ``404``; signed-in
@@ -25,12 +25,13 @@ from app.models.account import Account
 from app.models.actor import Actor
 from app.models.branch import Branch
 from app.models.claim import Claim
-from app.models.enums import ProjectRole
+from app.models.enums import ActorType, ProjectAgentStatus, ProjectRole
 from app.models.project import Project
 from app.models.project_member import ProjectMember
 from app.models.thread import Thread
 from app.schemas.account import AccountSummary
 from app.schemas.project import ProjectMemberRead
+from app.services.agent_roster import get_roster_row, suspend_agents_on_owner_transfer
 
 
 async def _get_project_or_404(db: AsyncSession, project_id: UUID) -> Project:
@@ -79,6 +80,14 @@ async def ensure_can_manage(
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
+    # Agents never manage — even when their account_id is the project owner.
+    # Rejected before the account lookup so Decision #3 cannot collapse.
+    if actor.type != ActorType.HUMAN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to manage this project",
+        )
+
     # Account-less actors (system / dev-bootstrap) hold no membership — never manage.
     if actor.account_id is None:
         raise HTTPException(
@@ -108,12 +117,41 @@ async def ensure_is_member(db: AsyncSession, project_id: UUID, actor: Actor) -> 
     and stays correct if a lower-privilege member role is added later.
     """
     project = await _get_project_or_404(db, project_id)
-    if actor.account_id is None or await _membership(db, project_id, actor.account_id) is None:
+    if actor.type == ActorType.HUMAN:
+        if actor.account_id is None or await _membership(db, project_id, actor.account_id) is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not a member of this project",
+            )
+        return project
+    if actor.type == ActorType.AGENT:
+        roster = await get_roster_row(db, project_id, actor.id)
+        if roster is None or roster.status != ProjectAgentStatus.ACTIVE:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not a member of this project",
+            )
+        return project
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="You are not a member of this project",
+    )
+
+
+async def ensure_is_human_member(db: AsyncSession, project_id: UUID, actor: Actor) -> Project:
+    """Like :func:`ensure_is_member`, but only a human ``ProjectMember`` may pass.
+
+    Funding, validation, and invite-accept stay on the human side of the
+    funder / contributor / validator split. A rostered agent is still ``403``.
+    """
+    if actor.type != ActorType.HUMAN:
+        # 404 for a missing project still wins — do not leak existence to an agent.
+        await _get_project_or_404(db, project_id)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are not a member of this project",
+            detail="This action requires a human project member",
         )
-    return project
+    return await ensure_is_member(db, project_id, actor)
 
 
 async def ensure_member_of_thread(db: AsyncSession, thread_id: UUID, actor: Actor) -> Thread:
@@ -240,9 +278,15 @@ async def set_member_role(
             if actor.account_id is not None:
                 current_owner = await _membership(db, project.id, actor.account_id)
                 if current_owner is not None and current_owner.role == ProjectRole.OWNER:
+                    outgoing_account_id = current_owner.account_id
                     current_owner.role = ProjectRole.ADMIN
                     db.add(current_owner)
                     await db.flush()
+                    # Same transaction: suspend outgoing-responsible agents +
+                    # Research crew and revoke their tokens. Does not commit.
+                    await suspend_agents_on_owner_transfer(
+                        db, project.id, outgoing_account_id
+                    )
 
         target.role = role
         db.add(target)

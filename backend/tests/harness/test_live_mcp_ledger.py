@@ -24,10 +24,7 @@ from app.models.checkpoint import Checkpoint
 from app.models.compute_debit import ComputeDebit
 from app.models.contribution import Contribution
 from app.models.enums import ActorType, ComputeDebitKind, ComputeDebitRateSource
-from app.services.agent_actors import (
-    AGENT_ACTOR_DISPLAY_NAME,
-    get_or_create_project_agent_actor,
-)
+from app.services.agent_actors import AGENT_ACTOR_DISPLAY_NAME
 from app.services.compute import BUDGET_EXHAUSTED
 from tests.principals import create_owned_project, make_dev_principal
 
@@ -220,13 +217,22 @@ async def test_non_member_cannot_write(
 async def test_accountless_project_agent_cannot_write(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
-    """Decision #3: Research crew is not a ProjectMember and cannot pass the door."""
+    """Un-rostered Research crew cannot pass the MCP door (0.51.1 / 0.54.0 pin).
+
+    Inserted raw so ``get_or_create`` cannot heal a roster row onto it.
+    """
     owner_id = await make_dev_principal(client, display_name="Owner")
     project_id = await create_owned_project(client, owner_id, "live-mcp-agent-403")
     before = await _checkpoint_count(session_factory, project_id)
 
     async with session_factory() as session:
-        agent = await get_or_create_project_agent_actor(session, UUID(project_id))
+        agent = Actor(
+            type=ActorType.AGENT,
+            display_name="Research crew",
+            account_id=None,
+            actor_metadata={"project_id": project_id},
+        )
+        session.add(agent)
         await session.commit()
         agent_id = str(agent.id)
         assert agent.account_id is None

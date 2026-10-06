@@ -169,8 +169,8 @@ Project
   ├── Tag
   ├── Contribution
   ├── ProjectMember          (human-account governance)
-  ├── ProjectAgentMember     (agent roster; 0.53.0, schema-on / behavior-off)
-  └── AgentSessionToken      (hash at rest; no mint in 0.53.0)
+  ├── ProjectAgentMember     (agent roster; 0.54.0 membership gate)
+  └── AgentSessionToken      (hash at rest; no mint yet)
 ```
 
 ---
@@ -200,8 +200,10 @@ stays dark; this path does not light it. See
 `docs/harness/attribution.md`.
 
 `0.53.0` adds the roster and session-token **tables** and the nullable
-attribution columns so a later slice can make the agent the author
-without another schema change. Behaviour is unchanged in this release.
+attribution columns. `0.54.0` makes `ensure_is_member` type-aware
+(human `ProjectMember` / agent ACTIVE roster) and hooks OWNER
+transfer to suspend outgoing-responsible agents. Token mint is
+still a later slice.
 
 ---
 
