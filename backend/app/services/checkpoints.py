@@ -70,6 +70,7 @@ def _to_read(
     checkpoint: Checkpoint,
     *,
     author: ActorSummary | None,
+    sponsored_by: ActorSummary | None,
     contribution_kind: str | None,
     labels: dict[tuple[str, UUID], str],
 ) -> CheckpointRead:
@@ -81,6 +82,7 @@ def _to_read(
         author_id=checkpoint.author_id,
         author=author,
         sponsored_by_actor_id=checkpoint.sponsored_by_actor_id,
+        sponsored_by=sponsored_by,
         contribution_kind=contribution_kind,
         stage=checkpoint.stage,
         summary=checkpoint.summary,
@@ -113,11 +115,14 @@ async def _enrich(db: AsyncSession, checkpoints: list[Checkpoint]) -> list[Check
     if not checkpoints:
         return []
 
-    # Authors.
-    author_ids = {c.author_id for c in checkpoints if c.author_id is not None}
+    # Authors + sponsors (do not invent a sponsor when the FK is null).
+    actor_ids = {c.author_id for c in checkpoints if c.author_id is not None}
+    actor_ids.update(
+        c.sponsored_by_actor_id for c in checkpoints if c.sponsored_by_actor_id is not None
+    )
     authors: dict[UUID, ActorSummary] = {}
-    if author_ids:
-        rows = await db.execute(select(Actor).where(Actor.id.in_(author_ids)))
+    if actor_ids:
+        rows = await db.execute(select(Actor).where(Actor.id.in_(actor_ids)))
         authors = {actor.id: ActorSummary.model_validate(actor) for actor in rows.scalars()}
 
     # Contribution kind recorded for each checkpoint (only create_checkpoint sets
@@ -151,6 +156,11 @@ async def _enrich(db: AsyncSession, checkpoints: list[Checkpoint]) -> list[Check
         _to_read(
             checkpoint,
             author=authors.get(checkpoint.author_id) if checkpoint.author_id else None,
+            sponsored_by=(
+                authors.get(checkpoint.sponsored_by_actor_id)
+                if checkpoint.sponsored_by_actor_id
+                else None
+            ),
             contribution_kind=contribution_kind.get(checkpoint.id),
             labels=labels,
         )

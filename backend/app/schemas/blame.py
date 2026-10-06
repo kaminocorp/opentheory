@@ -65,6 +65,9 @@ class BlameStep(BaseModel):
     branch_id: UUID | None = None
     parent_ids: list[UUID] = Field(default_factory=list)
     author: BlameActor | None = None
+    # Human who minted the agent session (0.57.0). Null on human-authored rows
+    # and on historical checkpoints that never carried a sponsor.
+    sponsor: BlameActor | None = None
     contribution_kind: str | None = None
     roles: list[str] = Field(default_factory=list)
     instruments: list[BlameInstrument] = Field(default_factory=list)

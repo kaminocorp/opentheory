@@ -20,6 +20,12 @@ import type {
   ProjectCreate,
   ProjectUpdate,
 } from "@/types/project";
+import type {
+  AgentDeployRequest,
+  AgentRosterPatch,
+  AgentRosterRead,
+  AgentTokenMintRead,
+} from "@/types/agent-roster";
 import type { ProjectOpsRead } from "@/types/ops";
 import type { InstrumentDescriptor, ToolRunRequest, ToolRunResult } from "@/types/toolbench";
 import type {
@@ -356,6 +362,63 @@ export function getProjectBudget(projectId: string): Promise<ProjectBudget> {
 
 export function getProjectOps(projectId: string): Promise<ProjectOpsRead> {
   return request<ProjectOpsRead>(`/projects/${projectId}/ops`);
+}
+
+// --- Agent roster (0.57.0) --------------------------------------------------
+// Members-only list. HTTP is human-only. Token plaintext is returned once
+// from mint/rotate and must stay in component state — never query cache.
+
+export function listProjectAgents(projectId: string): Promise<AgentRosterRead[]> {
+  return request<AgentRosterRead[]>(`/projects/${projectId}/agents`);
+}
+
+export function deployProjectAgent(
+  projectId: string,
+  payload: AgentDeployRequest,
+): Promise<AgentRosterRead> {
+  return request<AgentRosterRead>(`/projects/${projectId}/agents`, writeInit(payload));
+}
+
+export function patchProjectAgent(
+  projectId: string,
+  actorId: string,
+  payload: AgentRosterPatch,
+): Promise<AgentRosterRead> {
+  return request<AgentRosterRead>(
+    `/projects/${projectId}/agents/${actorId}`,
+    patchInit(payload),
+  );
+}
+
+export function mintAgentToken(
+  projectId: string,
+  actorId: string,
+): Promise<AgentTokenMintRead> {
+  return request<AgentTokenMintRead>(
+    `/projects/${projectId}/agents/${actorId}/tokens`,
+    writeInit({}),
+  );
+}
+
+export function rotateAgentToken(
+  projectId: string,
+  actorId: string,
+  jti: string,
+): Promise<AgentTokenMintRead> {
+  return request<AgentTokenMintRead>(
+    `/projects/${projectId}/agents/${actorId}/tokens/${jti}/rotate`,
+    writeInit({}),
+  );
+}
+
+export function revokeAgentToken(
+  projectId: string,
+  actorId: string,
+  jti: string,
+): Promise<void> {
+  return request<void>(`/projects/${projectId}/agents/${actorId}/tokens/${jti}/revoke`, {
+    method: "POST",
+  });
 }
 
 export function createFunding(projectId: string, payload: FundingCreate): Promise<Funding> {

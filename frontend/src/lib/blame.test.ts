@@ -13,6 +13,7 @@ function step(overrides: Partial<ClaimBlameStep> = {}): ClaimBlameStep {
     branch_id: null,
     parent_ids: [],
     author: { id: "actor-1", display_name: "Ada", type: "human" },
+    sponsor: null,
     contribution_kind: "create_checkpoint",
     roles: ["asserted"],
     instruments: [],
@@ -36,6 +37,18 @@ describe("blameAuthorLine", () => {
     assert.equal(
       blameAuthorLine(step({ author: null, contribution_kind: null })),
       "unknown actor · human · checkpoint",
+    );
+  });
+
+  it("names the sponsor when one is recorded", () => {
+    assert.equal(
+      blameAuthorLine(
+        step({
+          author: { id: "agent-1", display_name: "Research crew", type: "agent" },
+          sponsor: { id: "human-1", display_name: "Ada", type: "human" },
+        }),
+      ),
+      "Research crew · agent · create_checkpoint · sponsored by Ada",
     );
   });
 });

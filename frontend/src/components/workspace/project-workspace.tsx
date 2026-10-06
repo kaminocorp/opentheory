@@ -30,6 +30,7 @@ import { BlamePanel } from "./blame-panel";
 import { ComparePanel } from "./compare-panel";
 import { ClaimListPanel } from "./claim-list-panel";
 import { Collaborators } from "./collaborators-panel";
+import { DeployedAgentsPanel } from "./deployed-agents-panel";
 import { FundingPanel } from "./funding-panel";
 import { formatGroundingRollup } from "./grounding-chip";
 import { Markdown } from "./markdown";
@@ -91,6 +92,11 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
   });
   const canManageProject =
     isAuthed && (membersQuery.data ?? []).some((m) => m.account.id === me?.account?.id);
+  const isProjectOwner =
+    isAuthed &&
+    (membersQuery.data ?? []).some(
+      (m) => m.account.id === me?.account?.id && m.role === "owner",
+    );
 
   const overviewQuery = useQuery({
     queryKey: queryKeys.overview(projectId),
@@ -313,13 +319,20 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
 
       {/* --- crew (lazy) -------------------------------------------------------- */}
       <TabPanel tab="crew" active={tab} mounted={visitedTabs.current.has("crew")}>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <ResearchCrewPanel
+        <div className="grid gap-4">
+          <DeployedAgentsPanel
             projectId={projectId}
-            agentModels={project.agent_models}
             canManage={canManageProject}
+            isOwner={isProjectOwner}
           />
-          <Collaborators projectId={projectId} />
+          <div className="grid gap-4 lg:grid-cols-2">
+            <ResearchCrewPanel
+              projectId={projectId}
+              agentModels={project.agent_models}
+              canManage={canManageProject}
+            />
+            <Collaborators projectId={projectId} />
+          </div>
         </div>
       </TabPanel>
 

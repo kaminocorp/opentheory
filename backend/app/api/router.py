@@ -6,6 +6,7 @@ from app.api.routes import (
     agent_models,
     agent_runs,
     agent_tokens,
+    agents,
     blame,
     branches,
     campaigns,
@@ -53,6 +54,9 @@ api_router.include_router(funding.router)
 # Invitations span /projects/{id}/invitations and /me/invitations + /invitations/{id}/…, so the
 # router mounts at the root and declares full paths itself (like threads/funding).
 api_router.include_router(invitations.router)
+# Agent roster (0.57.0) — GET list (members) + POST deploy + PATCH lifecycle.
+# Token mint / rotate / revoke stay on agent_tokens. HTTP is human-only.
+api_router.include_router(agents.router)
 # Agent session tokens span /projects/{id}/agents/{actor_id}/tokens (+ rotate / revoke).
 # OWNER-only; fail closed without AGENT_SESSION_JWT_SECRET. No Fly flag.
 api_router.include_router(agent_tokens.router)

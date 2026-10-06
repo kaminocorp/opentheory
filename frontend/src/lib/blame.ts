@@ -5,6 +5,10 @@ export function blameAuthorLine(step: ClaimBlameStep): string {
   const name = step.author?.display_name ?? "unknown actor";
   const kind = step.author?.type ?? "human";
   const action = step.contribution_kind ?? "checkpoint";
+  const sponsor = step.sponsor?.display_name;
+  if (sponsor) {
+    return `${name} · ${kind} · ${action} · sponsored by ${sponsor}`;
+  }
   return `${name} · ${kind} · ${action}`;
 }
 

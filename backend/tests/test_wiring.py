@@ -19,6 +19,7 @@ WRITE_PATHS = [
     "/api/v1/projects/{project_id}/merges",
     "/api/v1/projects/{project_id}/tags",
     "/api/v1/projects/{project_id}/funding",
+    "/api/v1/projects/{project_id}/agents",
     "/api/v1/projects/{project_id}/agents/{actor_id}/tokens",
     "/api/v1/projects/{project_id}/agents/{actor_id}/tokens/{jti}/rotate",
     "/api/v1/projects/{project_id}/agents/{actor_id}/tokens/{jti}/revoke",
@@ -53,6 +54,8 @@ def test_new_paths_exist() -> None:
     assert "get" in paths["/api/v1/projects/{project_id}/checkpoints"]
     assert "get" in paths["/api/v1/checkpoints/{checkpoint_id}"]
     assert "get" in paths["/api/v1/projects/{project_id}/overview"]
+    assert "get" in paths["/api/v1/projects/{project_id}/agents"]
+    assert "patch" in paths["/api/v1/projects/{project_id}/agents/{actor_id}"]
     assert "get" in paths["/api/v1/projects/{project_id}/validations"]
     assert "get" in paths["/api/v1/claims/{claim_id}/validations"]
     assert "get" in paths["/api/v1/validations/{validation_id}"]

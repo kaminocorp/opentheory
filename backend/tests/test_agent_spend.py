@@ -15,6 +15,7 @@ from app.agent.planner import PlannedRun, PlanResult
 from app.core.config import settings
 from app.harness.session import (
     REASON_ACTOR,
+    REASON_CREDENTIAL_DIVERGENCE,
     SESSION_NOTES,
     HarnessSession,
     TurnRefused,
@@ -181,7 +182,33 @@ async def test_revoked_mid_turn_still_bills_then_next_authorize_refuses(
         assert refused.reason == REASON_ACTOR
 
 
-async def test_session_bind_wins_over_member_actor_env(
+async def test_authorize_refuses_when_session_and_mcp_credentials_differ(
+    client: AsyncClient,
+    session_factory: async_sessionmaker,
+    internal_funder,
+    agent_secret,
+) -> None:
+    owner_id, _ = await internal_funder(client, roles=(), display_name="Owner")
+    project_id = await create_owned_project(client, owner_id, "spend-diverge")
+    agent_id = await _roster_crew(session_factory, project_id)
+    minted = await _mint(client, project_id, agent_id, owner_id)
+
+    session = HarnessSession(
+        project_id=project_id,
+        session_factory=session_factory,
+        env={"OPENTHEORY_ACTOR_JWT": minted["token"]},
+        actor_env={"OPENTHEORY_DEV_ACTOR_ID": owner_id},
+    )
+    try:
+        await session.authorize()
+        raise AssertionError("diverged session and MCP credentials must refuse")
+    except TurnRefused as refused:
+        assert refused.reason == REASON_CREDENTIAL_DIVERGENCE
+    assert await _adjustments(session_factory, project_id) == []
+    assert await _debit_rows(session_factory, project_id) == []
+
+
+async def test_session_bind_still_stamps_when_mcp_side_has_no_credential(
     client: AsyncClient,
     session_factory: async_sessionmaker,
     internal_funder,
@@ -196,7 +223,7 @@ async def test_session_bind_wins_over_member_actor_env(
         project_id=project_id,
         session_factory=session_factory,
         env={"OPENTHEORY_ACTOR_JWT": minted["token"]},
-        actor_env={"OPENTHEORY_DEV_ACTOR_ID": owner_id},
+        actor_env={"OPENTHEORY_GATEWAY_TOKEN": "not-an-actor"},
     )
     hold = await session.authorize()
     assert hold is not None

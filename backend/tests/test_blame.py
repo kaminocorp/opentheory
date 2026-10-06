@@ -137,6 +137,7 @@ async def test_asserted_checkpoint_carries_author(client: AsyncClient) -> None:
     assert step["author"]["id"] == actor_id
     assert step["author"]["type"] == "human"
     assert step["author"]["display_name"] == "Ada"
+    assert step["sponsor"] is None
     assert step["contribution_kind"] == "create_checkpoint"
     assert "asserted" in step["roles"]
     assert step["signal_moved"] is False
