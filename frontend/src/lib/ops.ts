@@ -10,10 +10,18 @@ import type {
 export function formatOpsMoney(amount: string, currency: string): string {
   const value = Number(amount);
   if (Number.isNaN(value)) return `${amount} ${currency}`;
+  // Ledger amounts are Numeric(12, 6). Default currency rounding (2 dp) would
+  // turn $0.000400 into $0.00 — an invented zero. Keep up to 6 fraction digits.
+  const options: Intl.NumberFormatOptions = {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 6,
+  };
   try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(value);
+    return new Intl.NumberFormat(undefined, options).format(value);
   } catch {
-    return `${value.toFixed(2)} ${currency}`;
+    return `${value.toFixed(6).replace(/0+$/, "").replace(/\.$/, ".00")} ${currency}`;
   }
 }
 
