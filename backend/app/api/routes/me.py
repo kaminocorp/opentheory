@@ -3,6 +3,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import ActingActor, DbSession
 from app.models.actor import Actor
+from app.models.enums import ActorType
 from app.schemas.account import AccountUpdate
 from app.schemas.actor import MeRead
 
@@ -18,6 +19,12 @@ async def get_me(actor: ActingActor) -> Actor:
     their **own** principal's PII. Depends on ``ActingActor``, so hitting it provisions the account
     + actor on first authenticated call and rejects an unauthenticated caller with ``401``.
     """
+    if actor.type != ActorType.HUMAN:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     return actor
 
 
@@ -31,6 +38,12 @@ async def update_me(payload: AccountUpdate, actor: ActingActor, db: DbSession) -
     uniqueness, translating the ``uq_accounts_username`` violation into a clean ``409``. A rare
     account-less actor (a ``system``/dev actor with no principal) has no handle to edit → ``403``.
     """
+    if actor.type != ActorType.HUMAN:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     account = actor.account
     if account is None:
         raise HTTPException(

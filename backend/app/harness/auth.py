@@ -6,8 +6,10 @@ the next time someone dumps the process environment or the MCP config.
 
 Chosen injection pattern (``0.41.0``):
 
-1. **Preferred.** Parent writes the member-scoped JWT to a ``0600`` file and
-   passes only ``OPENTHEORY_ACTOR_JWT_FILE`` (a path). Cordis may log the
+1. **Preferred.** Parent writes the member-scoped JWT (human *or*
+   ``0.55.0`` agent session) to a ``0600`` file and
+   passes only ``OPENTHEORY_ACTOR_JWT_FILE`` (a path).
+   ``OPENTHEORY_AGENT_JWT_FILE`` aliases the same path. Cordis may log the
    path. The child reads the file at resolve time and never echoes the
    contents.
 2. **Accepted, never logged.** ``OPENTHEORY_ACTOR_JWT`` for a process that
@@ -36,13 +38,21 @@ from app.models.actor import Actor
 
 JWT_ENV = "OPENTHEORY_ACTOR_JWT"
 JWT_FILE_ENV = "OPENTHEORY_ACTOR_JWT_FILE"
+AGENT_JWT_FILE_ENV = "OPENTHEORY_AGENT_JWT_FILE"
 DEV_ACTOR_ENV = "OPENTHEORY_DEV_ACTOR_ID"
 GATEWAY_TOKEN_ENV = "OPENTHEORY_GATEWAY_TOKEN"
 OPENROUTER_KEY_ENV = "OPENROUTER_API_KEY"
 
 # Keys whose values must never appear in probe / session logs.
 SECRET_ENV_KEYS = frozenset(
-    {JWT_ENV, JWT_FILE_ENV, DEV_ACTOR_ENV, GATEWAY_TOKEN_ENV, OPENROUTER_KEY_ENV}
+    {
+        JWT_ENV,
+        JWT_FILE_ENV,
+        AGENT_JWT_FILE_ENV,
+        DEV_ACTOR_ENV,
+        GATEWAY_TOKEN_ENV,
+        OPENROUTER_KEY_ENV,
+    }
 )
 _REDACTED = "***"
 
@@ -62,7 +72,8 @@ class McpCredential:
 def load_credential(env: Mapping[str, str] | None = None) -> McpCredential | None:
     """Read the injection env. Does not verify the token and does not log it."""
     lookup = env if env is not None else os.environ
-    path = (lookup.get(JWT_FILE_ENV) or "").strip()
+    path = (lookup.get(AGENT_JWT_FILE_ENV) or lookup.get(JWT_FILE_ENV) or "").strip()
+    source = AGENT_JWT_FILE_ENV if (lookup.get(AGENT_JWT_FILE_ENV) or "").strip() else JWT_FILE_ENV
     if path:
         try:
             token = read_jwt_file(path)
@@ -73,7 +84,7 @@ def load_credential(env: Mapping[str, str] | None = None) -> McpCredential | Non
             ) from exc
         if not token:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Authentication required")
-        return McpCredential(kind="jwt", value=token, source=JWT_FILE_ENV)
+        return McpCredential(kind="jwt", value=token, source=source)
     token = (lookup.get(JWT_ENV) or "").strip()
     if token:
         return McpCredential(kind="jwt", value=token, source=JWT_ENV)
@@ -92,7 +103,13 @@ def read_jwt_file(path: str) -> str:
 async def resolve_mcp_actor(
     db: AsyncSession, env: Mapping[str, str] | None = None
 ) -> Actor:
-    """Resolve the acting Actor the same way FastAPI does. Never logs the bearer."""
+    """Resolve the acting Actor the same way FastAPI does. Never logs the bearer.
+
+    An ``typ=agent_session`` file/env bearer resolves to the **agent** Actor
+    (0.55.0) with sponsor/jti/project bound on the instance. A flagged
+    ``OPENTHEORY_DEV_ACTOR_ID`` may name a rostered agent. Human JWTs stay
+    the primary human.
+    """
     credential = load_credential(env)
     if credential is None:
         raise HTTPException(

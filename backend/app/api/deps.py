@@ -148,12 +148,22 @@ async def _resolve_dev_actor(db: AsyncSession, x_dev_actor_id: str | None) -> Ac
 
 
 async def resolve_actor_from_bearer(db: AsyncSession, token: str) -> Actor:
-    """Verify ``token`` and map it to the account's primary ``human`` Actor.
+    """Verify ``token`` and map it to an Actor.
 
-    Shared by the FastAPI ``ActingActor`` dependency and the live MCP door
-    (``0.41.0``) so there is one JWT → Account → Actor path. A bad/expired
-    token is ``401``; first login JIT-provisions through ``_resolve_or_provision``.
+    Order (0.55.0): if the bearer looks like ``typ=agent_session``, resolve
+    the agent session (hash / expiry / revoked / ACTIVE roster) and return
+    **that agent Actor** — never the minting human, never the Supabase path.
+    A ``typ=agent_session`` token must not fall through to the human verifier
+    even when the signing secret is missing (fail closed → ``401``).
+
+    Otherwise the existing Supabase JWT → Account → primary ``human`` Actor
+    path (``0.41.0``). A bad/expired token is ``401``; first login
+    JIT-provisions through ``_resolve_or_provision``.
     """
+    from app.services.agent_tokens import looks_like_agent_session, resolve_agent_session_token
+
+    if looks_like_agent_session(token):
+        return await resolve_agent_session_token(db, token)
     try:
         # verify_bearer_token is synchronous and, on a JWKS cache miss/rotation, does a
         # blocking network fetch. Run it off the event loop so one cold verification can't

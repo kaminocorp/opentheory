@@ -412,8 +412,8 @@ index is Research-crew only). A `ProjectAgentMember` roster row is
 the deploy seat: `ensure_is_member` for `type=agent` requires
 `status = ACTIVE`. Humans still key on `ProjectMember`.
 `ensure_can_manage` rejects agents before the account lookup.
-`AgentSessionToken` will hold the OWNER-minted bearer (table only;
-no mint yet). Migrated `Research crew` rows keep that display name
+`AgentSessionToken` holds the OWNER-minted bearer (`0.55.0`: mint /
+rotate / revoke, resolver, `authorize()` swap). Migrated `Research crew` rows keep that display name
 and, when the project has an OWNER, gain that owner's `account_id`
 plus an ACTIVE RESEARCHER roster row. `actors.agent_definition_id`
 is **not** in v1 — deferred with the `agent_definitions` catalog.

@@ -202,8 +202,8 @@ stays dark; this path does not light it. See
 `0.53.0` adds the roster and session-token **tables** and the nullable
 attribution columns. `0.54.0` makes `ensure_is_member` type-aware
 (human `ProjectMember` / agent ACTIVE roster) and hooks OWNER
-transfer to suspend outgoing-responsible agents. Token mint is
-still a later slice.
+transfer to suspend outgoing-responsible agents. `0.55.0` mints
+the OWNER session token and swaps `authorize()` onto it.
 
 ---
 

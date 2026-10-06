@@ -284,8 +284,11 @@ hold TTL to exceed the provider timeout plus a margin so a live
 turn cannot be released as an orphan. The gateway talks to
 OpenRouter only (`allow_fallbacks: false`, `require_parameters: true`,
 `data_collection: deny`, provider allowlist). Set
-`OPENROUTER_API_KEY` / `OPENTHEORY_GATEWAY_TOKEN` with `fly secrets set`
-if you ever run the child — **never** `fly.toml [env]`. See
+`OPENROUTER_API_KEY` / `OPENTHEORY_GATEWAY_TOKEN` /
+`AGENT_SESSION_JWT_SECRET` with `fly secrets set`
+if you ever run the child — **never** `fly.toml [env]`.
+`0.55.0` mints the agent session token but does **not** enable
+that child on Fly. See
 `docs/harness/compatibility.md`. This slice does **not** enable that
 child on Fly.
 

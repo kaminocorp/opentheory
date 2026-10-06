@@ -24,7 +24,7 @@ from app.models.branch import Branch
 from app.models.checkpoint import Checkpoint
 from app.models.claim import Claim
 from app.models.contribution import Contribution
-from app.models.enums import BranchStatus
+from app.models.enums import ActorType, BranchStatus
 from app.models.evidence import Evidence
 from app.models.links import CheckpointRef
 from app.models.project import Project
@@ -80,6 +80,7 @@ def _to_read(
         branch_id=checkpoint.branch_id,
         author_id=checkpoint.author_id,
         author=author,
+        sponsored_by_actor_id=checkpoint.sponsored_by_actor_id,
         contribution_kind=contribution_kind,
         stage=checkpoint.stage,
         summary=checkpoint.summary,
@@ -228,6 +229,7 @@ async def create_checkpoint(
     extra_refs: list[CheckpointRefInput] | None = None,
     tool_invocations: list[ToolInvocation] | None = None,
     contribution_action: str | None = None,
+    sponsored_by: UUID | None = None,
 ) -> CheckpointRead:
     """Create the project's sole kind of ledger write: an immutable checkpoint.
 
@@ -244,6 +246,11 @@ async def create_checkpoint(
     tuple can never be constructed), and is serialised to JSON onto the append-only ``Checkpoint``,
     which is where its immutability comes from. Absent for every non-tool flow, so those are
     unaffected.
+
+    ``sponsored_by`` is a trusted service argument (0.55.0): the human Actor
+    who minted the agent session that authorized this write. Never a client
+    field. Human authors leave it null. When omitted, an agent Actor that
+    resolved from a session token may carry the minting human on the instance.
     """
     project = await db.get(Project, project_id)
     if project is None:
@@ -288,11 +295,20 @@ async def create_checkpoint(
     parents = await _validate_parents(db, project_id, payload.parent_ids)
     await _validate_refs(db, project_id, payload.refs)
 
+    sponsor_id = sponsored_by
+    if sponsor_id is None and actor.type == ActorType.AGENT:
+        from app.services.agent_tokens import sponsored_by_of
+
+        sponsor_id = sponsored_by_of(actor)
+    if actor.type != ActorType.AGENT:
+        sponsor_id = None
+
     checkpoint = Checkpoint(
         project_id=project_id,
         thread_id=payload.thread_id,
         branch_id=payload.branch_id,
         author_id=actor.id,
+        sponsored_by_actor_id=sponsor_id,
         stage=payload.stage,
         summary=payload.summary,
         content=payload.content,

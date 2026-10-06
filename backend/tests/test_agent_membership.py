@@ -1,7 +1,8 @@
 """0.54.0 — type-aware membership gate, roster ensure, OWNER-transfer hook.
 
-DB-gated (skips without TEST_DATABASE_URL). Token mint / authorize token
-swap / debit actor_id wiring / Crew UI / per-agent caps stay out.
+DB-gated (skips without TEST_DATABASE_URL). Debit actor_id wiring /
+Crew UI / per-agent caps stay out. Token mint is `0.55.0`
+(`test_agent_tokens.py`).
 """
 
 from datetime import UTC, datetime, timedelta

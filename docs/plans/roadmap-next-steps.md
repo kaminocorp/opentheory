@@ -1,14 +1,15 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-10-06 · **Current release line:** `0.54.0`
-> (agent identity membership gate), sitting on shipped `0.53.0`
-> (agent identity schema, `2b2a135`, #49) on current `main`. See
-> `docs/completions/agent-identity-membership-0.54.0.md`.
+> **Last updated:** 2026-10-06 · **Current release line:** `0.55.0`
+> (agent session token), sitting on shipped `0.54.0`
+> (membership gate, `7a1fa0c`, #50) on current `main`. See
+> `docs/completions/agent-identity-token-0.55.0.md`.
 >
 > **Next after this line:** Lean REPL / LeanDojo remain later.
 > Does not enable the gateway child on Fly.
 > Does not light `AGENT_LOOP_ENABLED`.
-> ~~Agent identity membership gate~~ ✅ this branch as `0.54.0`.
+> ~~Agent identity session token~~ ✅ this branch as `0.55.0`.
+> ~~Agent identity membership gate~~ ✅ shipped as `0.54.0`.
 > ~~Agent identity schema~~ ✅ shipped as `0.53.0`.
 > ~~Harness turn-spend membership~~ ✅ shipped as `0.52.0`.
 > ~~Harness actor-attribution audit~~ ✅ shipped as `0.51.1`.
@@ -949,18 +950,23 @@ Research-crew / AgentRun backfill, Research-crew unique index.
 Schema-on, behavior-off. No `actors.agent_definition_id` (deferred
 with the catalog).
 
-**`0.54.0` (agent identity membership gate)** is this branch:
-type-aware `ensure_is_member` (human `ProjectMember` / agent
-ACTIVE roster / `system` 403); `ensure_can_manage` rejects
-agents before the account lookup; `ensure_is_human_member` on
-funding / validation / invite-accept. OWNER transfer suspends
-Research crew + outgoing-responsible rows and revokes their
-tokens; ADMIN-deployed agents whose responsible account is not
-the outgoing owner stay active. `get_or_create_project_agent_actor`
-ensures a roster row. Dark-loop commission uses the same roster
-gate. No token mint. No Fly. No `AGENT_LOOP_ENABLED`.
+**`0.54.0` (agent identity membership gate)** is shipped
+(`7a1fa0c`, #50): type-aware `ensure_is_member`; transfer hook;
+roster ensure. No token mint.
+
+**`0.55.0` (agent session token)** is this branch: OWNER-only
+mint / rotate / revoke; 30-day default TTL; max via
+`OPENTHEORY_AGENT_SESSION_MAX_TTL_SECONDS`; resolver
+(`typ=agent_session`, hash, expiry, `revoked_at`, ACTIVE roster,
+`last_used_at`); `authorize()` accepts the agent session token
+and refuses a token whose `proj` ≠ the session project. MCP
+writes with an agent token author as the agent and snapshot
+`sponsored_by`. Human Console JWT unchanged. No
+`record_compute_debit(actor_id=)`. No Crew UI. No Fly.
+No `AGENT_LOOP_ENABLED`. **No migration** (0022 already has
+the table).
 
 **Next product step:** Lean REPL / LeanDojo remain later. `If` /
-ite remain later. Agent identity slice C (OWNER-minted session
-token) is next on this line. Does not enable the gateway child
+ite remain later. Agent identity slice D (debit `actor_id`) is
+next on this line. Does not enable the gateway child
 on Fly. Does not light `AGENT_LOOP_ENABLED`.
