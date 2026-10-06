@@ -68,6 +68,7 @@ class OpsTurnRead(BaseModel):
     clamp: int | None = None
     overshoot: int | None = None
     price_known: bool | None = None
+    pot_room: int | None = None
 
 
 class OpsLastTurnRead(BaseModel):
@@ -77,6 +78,7 @@ class OpsLastTurnRead(BaseModel):
     clamp: int | None
     overshoot: int | None
     price_known: bool | None
+    pot_room: int | None = None
     note: str
 
 

@@ -49,7 +49,7 @@ meters token spend.
 | **4a leftover — `0.48.0`** | Release an unmatched hold older than the TTL on the next authorize so a crash leftover does not pin the UTC day; two live overlapping turns still cannot both debit past the cap | Ops dashboard; Fly enablement; `AGENT_LOOP_ENABLED`; a campaign table |
 | **4b — `0.49.0`** | Perpetual ops dashboard: read-only pot / daily-cap / hold / enablement snapshot | Fly enablement; `AGENT_LOOP_ENABLED`; a refusals table; Lean REPL / LeanDojo |
 | **4b leftover — `0.49.1`** | Overview browser walk of the shipped bay; money-precision honesty (`$0.0004` stays `$0.0004`) | Fly enablement; `AGENT_LOOP_ENABLED`; a refusals table; Lean REPL / LeanDojo |
-| **4a leftover — `0.50.0` (this)** | Turn-room clamp: `max_tokens` bounded to remaining daily / pot room; below-floor refuse; provider overshoot recorded as truth | Fly enablement; `AGENT_LOOP_ENABLED`; a refusals table; a schema change |
+| **4a leftover — `0.50.0` (this)** | Turn-room clamp: `max_tokens` bounded to remaining daily / pot room (completion rate when funded; `pot_room=none` when not); below-floor refuse; provider overshoot recorded as truth | Fly enablement; `AGENT_LOOP_ENABLED`; a refusals table; a schema change |
 
 Each slice stays small and deployable. A slice that cannot run in default CI
 without `OPENROUTER_API_KEY` is not done.

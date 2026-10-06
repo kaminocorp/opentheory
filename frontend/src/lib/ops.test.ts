@@ -92,6 +92,7 @@ describe("last turn", () => {
       clamp: null,
       overshoot: null,
       price_known: null,
+      pot_room: null,
       note: "legacy",
     };
     assert.equal(lastTurnLine(unknown), "80 used · clamp unknown");
@@ -102,6 +103,7 @@ describe("last turn", () => {
       clamp: 50,
       overshoot: 30,
       price_known: true,
+      pot_room: 50,
       note: "overshoot",
     };
     assert.equal(lastTurnLine(over), "80 used · clamp 50 · overshoot 30");
@@ -112,6 +114,7 @@ describe("last turn", () => {
       clamp: 20,
       overshoot: 0,
       price_known: false,
+      pot_room: null,
       note: "daily only",
     };
     assert.equal(lastTurnLine(unknownPrice), "20 used · clamp 20 · price unknown");

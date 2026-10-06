@@ -101,9 +101,13 @@ debit past the cap. Release is a new credit row after the model call.
 release only an unmatched hold older than
 `OPENTHEORY_HARNESS_HOLD_TTL_SECONDS` (default 300) — a crash leftover
 no longer pins the UTC day. `0.50.0` carries a clamp on that
-authorization: `min(daily room, pot room)` when a live or catalog
-price is known, else the daily room (never an invented blended
-rate). The gateway sets `max_tokens` to the clamp. A room below
+authorization: `min(daily room, pot room)` when pot room was applied
+(funded + live/catalog price, converted at the completion rate or
+`max(prompt, completion)` — prompt cost is not reserved). Unfunded
+and unknown-price turns clamp to the daily room (never an invented
+blended rate). Spend notes record `pot_room=N` or `pot_room=none`.
+The gateway sets `max_tokens` to the clamp (a caller-smaller request
+is kept; invalid `max_tokens` is 422). A room below
 `OPENTHEORY_HARNESS_TURN_TOKEN_FLOOR` (default 16) refuses before
 the model. Provider usage above the clamp is recorded in full and
 flagged.

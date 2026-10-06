@@ -230,6 +230,7 @@ async def supervise_turn(
                     clamp=hold.clamp,
                     overshoot=overshoot,
                     price_known=hold.price_known,
+                    pot_room=hold.pot_room,
                 )
                 if hold is not None
                 else None

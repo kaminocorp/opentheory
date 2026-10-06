@@ -254,8 +254,9 @@ class GatewayClient:
     ) -> GatewayResponse:
         if not self._api_key:
             raise GatewayError("OpenRouter API key is not configured")
+        resolved = resolve_model(model, env=self._env)
         payload = build_fail_closed_body(
-            model=model or DEFAULT_MODEL,
+            model=resolved,
             messages=messages,
             max_tokens=max_tokens,
             extra=extra,
@@ -333,6 +334,21 @@ def _optional_int(value: object) -> int | None:
         return None
 
 
+def parse_requested_max_tokens(value: object) -> int | None:
+    """Caller ``max_tokens``. ``None`` when omitted. Invalid is a 422.
+
+    ``0``, negatives, and non-integers are not "no request" — they are
+    a bad body. Usage fields still use ``_optional_int``.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise GatewayError("max_tokens must be a positive integer")
+    if value < 1:
+        raise GatewayError("max_tokens must be a positive integer")
+    return value
+
+
 def _clamp_fields(hold: DailyCapHold | None, tokens_used: int) -> dict[str, Any]:
     """Surface the authorize clamp and any provider overshoot. Never hide usage."""
     if hold is None:
@@ -341,6 +357,7 @@ def _clamp_fields(hold: DailyCapHold | None, tokens_used: int) -> dict[str, Any]
         "clamp": hold.clamp,
         "overshoot": overshoot_tokens(tokens_used, hold.clamp),
         "price_known": hold.price_known,
+        "pot_room": hold.pot_room,
     }
 
 
@@ -351,6 +368,7 @@ def _spend_notes_for(hold: DailyCapHold | None, tokens_used: int) -> str | None:
         clamp=hold.clamp,
         overshoot=overshoot_tokens(tokens_used, hold.clamp),
         price_known=hold.price_known,
+        pot_room=hold.pot_room,
     )
 
 
@@ -427,16 +445,17 @@ def create_gateway_app(
             if not isinstance(messages, list):
                 raise GatewayError("messages must be a list")
             extra = {key: value for key, value in raw.items() if key not in {"model", "messages"}}
-            requested_max = _optional_int(extra.pop("max_tokens", None))
+            requested_max = parse_requested_max_tokens(extra.pop("max_tokens", None))
+            resolved_model = resolve_model(str(model) if model else None, env=env)
             if owner is not None:
-                hold = await owner.authorize(model=str(model) if model else None)
+                hold = await owner.authorize(model=resolved_model)
             client = gateway or GatewayClient(env=env)
             started = True
             bound_max = (
                 clamp_max_tokens(requested_max, hold.clamp) if hold is not None else requested_max
             )
             result = await client.complete(
-                model=str(model) if model else None,
+                model=resolved_model,
                 messages=messages,
                 max_tokens=bound_max,
                 extra=extra,

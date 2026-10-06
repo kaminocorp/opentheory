@@ -108,11 +108,13 @@ Delivered: the leftover 0.46–0.48 single-turn overshoot is closed.
 `authorize()` still locks the project row and holds remaining daily
 tokens so two overlapping authorizes cannot both debit past the cap.
 The hold now also carries a clamp — `min(daily room, pot room)` when
-a live/catalog price is known, else the daily room (never an invented
-blended rate). The gateway sets `max_tokens` to that clamp. A room
-below `OPENTHEORY_HARNESS_TURN_TOKEN_FLOOR` (default **16**) refuses
-before the model. Provider usage above the clamp is recorded in full
-and flagged on the turn result and the Overview last-turn readout.
+pot room was applied (funded + live/catalog price at the completion
+rate), else the daily room (never an invented blended rate;
+`pot_room=none` on unfunded). The gateway sets `max_tokens` to that
+clamp. A room below `OPENTHEORY_HARNESS_TURN_TOKEN_FLOOR` (default
+**16**) refuses before the model. Provider usage above the clamp is
+recorded in full and flagged on the turn result and the Overview
+last-turn readout.
 **No schema, no migration, no campaign table.** See
 `docs/completions/harness-turn-room-clamp-0.50.0.md`.
 
@@ -891,8 +893,9 @@ rounded to an invented zero.
 
 **`0.50.0` (harness turn-room clamp)** is this branch: a single
 turn can no longer be sent unbounded against the remaining daily /
-pot room. Price unknown → daily room only. Provider overshoot is
-recorded as truth.
+pot room. Pot room uses the completion rate when present; unfunded
+is `pot_room=none`. Price unknown → daily room only. Provider
+overshoot is recorded as truth.
 
 **Next product step:** Lean REPL / LeanDojo remain later. `If` /
 ite remain later. Does not enable the gateway child on Fly. Does

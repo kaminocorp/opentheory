@@ -45,6 +45,8 @@ RELEASE_NOTES_MARK = "daily_cap_release"
 HOLD_ID_MARK = "hold_id="
 CLAMP_MARK = "clamp="
 OVERSHOOT_MARK = "overshoot="
+POT_ROOM_MARK = "pot_room="
+POT_ROOM_NONE = "none"
 PRICE_UNKNOWN_MARK = "price_unknown"
 HOLD_NOTES = f"{SESSION_NOTES}; {HOLD_NOTES_MARK}"
 RELEASE_NOTES = f"{SESSION_NOTES}; {RELEASE_NOTES_MARK}"
@@ -315,6 +317,38 @@ def price_is_known(source: ComputeDebitRateSource | str | None) -> bool:
         return False
 
 
+def clamp_rate_per_1k(
+    *,
+    effective_rate_per_1k: object,
+    prompt_rate_per_1k: object | None = None,
+    completion_rate_per_1k: object | None = None,
+) -> Decimal:
+    """Rate used to convert pot dollars into a ``max_tokens`` room.
+
+    ``max_tokens`` bounds *completion* tokens, billed at the completion
+    rate. The live mean (``effective_rate_per_1k``) overstates room when
+    completion is dearer than prompt. Prefer the completion rate, or
+    ``max(prompt, completion)`` when both are known and positive.
+    Prompt cost is not reserved — this path does not invent a prompt
+    token count from the request body.
+    """
+    effective = (
+        effective_rate_per_1k
+        if isinstance(effective_rate_per_1k, Decimal)
+        else Decimal(str(effective_rate_per_1k))
+    )
+    split: list[Decimal] = []
+    for raw in (prompt_rate_per_1k, completion_rate_per_1k):
+        if raw is None:
+            continue
+        rate = raw if isinstance(raw, Decimal) else Decimal(str(raw))
+        if rate > 0:
+            split.append(rate)
+    if split:
+        return max(split)
+    return effective
+
+
 def pot_tokens_from_available(available: object, rate_per_1k: object) -> int | None:
     """How many tokens ``available`` can buy at ``rate_per_1k``.
 
@@ -361,10 +395,18 @@ def spend_notes(
     clamp: int,
     overshoot: int = 0,
     price_known: bool,
+    pot_room: int | None = None,
     notes: str = SESSION_NOTES,
 ) -> str:
-    """Spend notes: literal prefix plus clamp / overshoot / price-unknown marks."""
+    """Spend notes: literal prefix plus clamp / pot-room / overshoot marks.
+
+    ``pot_room=none`` means pot room was not applied (unfunded, or price
+    unknown). A number means that many pot tokens bound the clamp.
+    """
     parts = [notes, f"{CLAMP_MARK}{clamp}"]
+    parts.append(
+        f"{POT_ROOM_MARK}{pot_room}" if pot_room is not None else f"{POT_ROOM_MARK}{POT_ROOM_NONE}"
+    )
     if overshoot > 0:
         parts.append(f"{OVERSHOOT_MARK}{overshoot}")
     if not price_known:
@@ -407,6 +449,22 @@ def parse_price_known(notes: str | None) -> bool | None:
     if parse_clamp(notes) is None:
         return None
     return True
+
+
+def parse_pot_room(notes: str | None) -> int | None:
+    """Read ``pot_room=<int>``. ``none`` / missing means pot room was not applied."""
+    for part in (notes or "").split(";"):
+        token = part.strip()
+        if not token.startswith(POT_ROOM_MARK):
+            continue
+        raw = token[len(POT_ROOM_MARK) :]
+        if raw == POT_ROOM_NONE:
+            return None
+        try:
+            return int(raw)
+        except ValueError:
+            return None
+    return None
 
 
 async def harness_tokens_used_today(

@@ -54,7 +54,8 @@ hospitality tools and must not appear in this inventory.
   authorizes cannot both debit past the cap. A crash leftover hold
   older than the TTL is released on the next authorize. A single
   turn is clamped to remaining daily room (and pot room when a
-  live/catalog price is known). Unfunded is not exhausted.
+  funded pot has a live/catalog price, at the completion rate).
+  Unfunded is not exhausted.
 
 ## Auth injection (do not put the bearer on a tool argument)
 

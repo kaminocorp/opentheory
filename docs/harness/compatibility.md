@@ -10,8 +10,8 @@
 > remaining-room hold on the existing `ComputeDebit` ledger. An
 > unmatched hold older than `OPENTHEORY_HARNESS_HOLD_TTL_SECONDS`
 > (default 300) is released on the next authorize. A single turn is
-> clamped to remaining daily room, and to pot room when a live/catalog
-> price is known. Room below `OPENTHEORY_HARNESS_TURN_TOKEN_FLOOR`
+> clamped to remaining daily room, and to pot room when a funded pot
+> has a live/catalog price (completion rate). Room below `OPENTHEORY_HARNESS_TURN_TOKEN_FLOOR`
 > (default 16) refuses before the model.
 
 ## Pin

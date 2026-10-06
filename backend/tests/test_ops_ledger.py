@@ -210,7 +210,7 @@ async def test_ops_last_turn_surfaces_clamp_and_overshoot(
         project_id,
         tokens_used=80,
         amount=Decimal("0.40"),
-        notes=spend_notes(clamp=50, overshoot=30, price_known=True),
+        notes=spend_notes(clamp=50, overshoot=30, price_known=True, pot_room=50),
     )
     resp = await client.get(f"/api/v1/projects/{project_id}/ops")
     assert resp.status_code == 200, resp.text
@@ -221,8 +221,34 @@ async def test_ops_last_turn_surfaces_clamp_and_overshoot(
     assert last["clamp"] == 50
     assert last["overshoot"] == 30
     assert last["price_known"] is True
+    assert last["pot_room"] == 50
     assert "overshoot 30" in last["note"]
+    assert "min of daily room and pot room" in last["note"]
     spend = next(row for row in body["recent_turns"] if row["kind"] == "spend")
     assert spend["clamp"] == 50
     assert spend["overshoot"] == 30
     assert spend["price_known"] is True
+    assert spend["pot_room"] == 50
+
+
+async def test_ops_last_turn_does_not_claim_unused_pot_room(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    actor_id = await make_dev_principal(client, display_name="Bea")
+    project_id = await create_owned_project(client, actor_id, "ops-last-turn-unfunded")
+    await _add_debit(
+        session_factory,
+        project_id,
+        tokens_used=20,
+        amount=Decimal("0.10"),
+        notes=spend_notes(clamp=80, price_known=True),
+    )
+    resp = await client.get(f"/api/v1/projects/{project_id}/ops")
+    assert resp.status_code == 200, resp.text
+    last = resp.json()["last_turn"]
+    assert last is not None
+    assert last["price_known"] is True
+    assert last["pot_room"] is None
+    assert last["clamp"] == 80
+    assert "pot room was not applied" in last["note"]
+    assert "min of daily room and pot room" not in last["note"]

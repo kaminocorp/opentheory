@@ -34,7 +34,6 @@ from app.harness.session import (
     is_daily_cap_adjustment,
     parse_hold_id,
     release_notes,
-    spend_notes,
 )
 from app.models.checkpoint import Checkpoint
 from app.models.compute_debit import ComputeDebit
@@ -83,17 +82,26 @@ async def _complete(
     app,
     *,
     token: str = "gw-secret",
+    model: str | None = DEFAULT_MODEL,
+    max_tokens: int | object = ...,
+    extra: dict | None = None,
 ) -> httpx.Response:
+    body: dict = {
+        "messages": [{"role": "user", "content": "hi"}],
+        "models": ["openai/gpt-4o"],
+        "route": "fallback",
+    }
+    if model is not None:
+        body["model"] = model
+    if max_tokens is not ...:
+        body["max_tokens"] = max_tokens
+    if extra:
+        body.update(extra)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://gw") as client:
         return await client.post(
             "/v1/chat/completions",
             headers={"Authorization": f"Bearer {token}"},
-            json={
-                "model": DEFAULT_MODEL,
-                "messages": [{"role": "user", "content": "hi"}],
-                "models": ["openai/gpt-4o"],
-                "route": "fallback",
-            },
+            json=body,
         )
 
 
@@ -982,12 +990,15 @@ async def test_gateway_clamps_max_tokens_to_pot_room_when_price_known(
     assert ok.json()["clamp"] == 50
     assert ok.json()["overshoot"] == 0
     assert ok.json()["price_known"] is True
+    assert ok.json()["pot_room"] == 50
     assert ok.json()["usage"]["total_tokens"] == 20
     debits = await _debit_rows(session_factory, project_id)
     assert len(debits) == 1
     assert debits[0].tokens_used == 20
-    assert "clamp=50" in (debits[0].notes or "")
-    assert "overshoot=" not in (debits[0].notes or "")
+    notes = debits[0].notes or ""
+    assert "clamp=50" in notes
+    assert "pot_room=50" in notes
+    assert "overshoot=" not in notes
 
 
 async def test_below_floor_refuses_without_provider_or_debit(
@@ -1070,4 +1081,202 @@ async def test_provider_overshoot_is_recorded_truthfully(
     assert "overshoot=30" in notes
     assert "clamp=50" in notes
     assert "price_unknown" in notes
-    assert spend_notes(clamp=50, overshoot=30, price_known=False).startswith(SESSION_NOTES)
+    assert notes.startswith(SESSION_NOTES)
+    assert "pot_room=none" in notes
+    async with session_factory() as session:
+        assert await harness_tokens_used_today(session, UUID(project_id)) == 80
+
+
+async def test_unfunded_known_price_clamps_to_daily_room(
+    client: AsyncClient,
+    session_factory: async_sessionmaker,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actor_id = await make_dev_principal(client, display_name="Unfunded", roles=("internal",))
+    project_id = await create_owned_project(client, actor_id, "session-clamp-unfunded")
+
+    async def _quote(model: str | None, **_kwargs: object) -> PriceQuote:
+        return _live_quote()
+
+    monkeypatch.setattr("app.harness.session.quote_model_price", _quote)
+    seen: dict[str, int | None] = {"max_tokens": None}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        seen["max_tokens"] = body.get("max_tokens")
+        return httpx.Response(200, json=_OK_BODY)
+
+    owner = open_session(project_id, daily_token_cap=80, session_factory=session_factory)
+    hold = await owner.authorize(model=DEFAULT_MODEL, quote=_live_quote())
+    assert hold is not None
+    assert hold.price_known is True
+    assert hold.pot_room is None
+    assert hold.daily_room == 80
+    assert hold.clamp == 80
+    await owner.release_hold(hold)
+
+    app = create_metered_gateway_app(
+        open_session(project_id, daily_token_cap=80, session_factory=session_factory),
+        env={GATEWAY_TOKEN_ENV: "gw-secret"},
+        gateway=_gateway(handler),
+    )
+    ok = await _complete(app)
+    assert ok.status_code == 200, ok.text
+    payload = ok.json()
+    assert "refused" not in payload
+    assert seen["max_tokens"] == 80
+    assert payload["clamp"] == 80
+    assert payload["price_known"] is True
+    assert payload["pot_room"] is None
+    debits = await _debit_rows(session_factory, project_id)
+    assert len(debits) == 1
+    notes = debits[0].notes or ""
+    assert "pot_room=none" in notes
+    assert "clamp=80" in notes
+    ops = await client.get(f"/api/v1/projects/{project_id}/ops")
+    assert ops.status_code == 200, ops.text
+    last = ops.json()["last_turn"]
+    assert last is not None
+    assert last["pot_room"] is None
+    assert last["price_known"] is True
+    assert last["clamp"] == 80
+    assert "pot room was not applied" in last["note"]
+    assert "min of daily room and pot room" not in last["note"]
+
+
+async def test_pot_clamp_uses_completion_rate_not_live_mean(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    actor_id = await make_dev_principal(client, display_name="Split", roles=("internal",))
+    project_id = await create_owned_project(client, actor_id, "session-clamp-completion-rate")
+    funded = await client.post(
+        f"/api/v1/projects/{project_id}/funding",
+        json={"amount": "0.08", "currency": "USD", "kind": "top_up", "source": "native"},
+        headers={"X-Dev-Actor-Id": actor_id},
+    )
+    assert funded.status_code == 201, funded.text
+
+    quote = PriceQuote(
+        source=ComputeDebitRateSource.OPENROUTER_LIVE,
+        effective_rate_per_1k=Decimal("2.50"),
+        prompt_rate_per_1k=Decimal("1.00"),
+        completion_rate_per_1k=Decimal("4.00"),
+        model=DEFAULT_MODEL,
+    )
+    owner = HarnessSession(
+        project_id=project_id,
+        daily_token_cap=20_000,
+        session_factory=session_factory,
+    )
+    hold = await owner.authorize(model=DEFAULT_MODEL, quote=quote)
+    assert hold is not None
+    assert hold.price_known is True
+    # Mean $2.50 / 1k would buy 32 tokens; completion $4 / 1k buys 20.
+    assert hold.pot_room == 20
+    assert hold.clamp == 20
+    await owner.release_hold(hold)
+
+
+async def test_http_keeps_caller_smaller_max_tokens(
+    client: AsyncClient,
+    session_factory: async_sessionmaker,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actor_id = await make_dev_principal(client, display_name="Small", roles=("internal",))
+    project_id = await create_owned_project(client, actor_id, "session-clamp-caller-max")
+    funded = await client.post(
+        f"/api/v1/projects/{project_id}/funding",
+        json={"amount": "0.05", "currency": "USD", "kind": "top_up", "source": "native"},
+        headers={"X-Dev-Actor-Id": actor_id},
+    )
+    assert funded.status_code == 201, funded.text
+
+    async def _quote(model: str | None, **_kwargs: object) -> PriceQuote:
+        return _live_quote()
+
+    monkeypatch.setattr("app.harness.session.quote_model_price", _quote)
+    seen: dict[str, int | None] = {"max_tokens": None}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        seen["max_tokens"] = body.get("max_tokens")
+        return httpx.Response(200, json=_OK_BODY)
+
+    owner = open_session(
+        project_id, daily_token_cap=20_000, session_factory=session_factory
+    )
+    app = create_metered_gateway_app(
+        owner,
+        env={GATEWAY_TOKEN_ENV: "gw-secret"},
+        gateway=_gateway(handler),
+    )
+    ok = await _complete(app, max_tokens=20)
+    assert ok.status_code == 200, ok.text
+    assert seen["max_tokens"] == 20
+    assert ok.json()["clamp"] == 50
+
+
+async def test_http_omitted_model_authorizes_resolved_default(
+    client: AsyncClient,
+    session_factory: async_sessionmaker,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actor_id = await make_dev_principal(client, display_name="Model", roles=("internal",))
+    project_id = await create_owned_project(client, actor_id, "session-clamp-omit-model")
+    quoted: list[str | None] = []
+
+    async def _quote(model: str | None, **_kwargs: object) -> PriceQuote:
+        quoted.append(model)
+        return _live_quote()
+
+    monkeypatch.setattr("app.harness.session.quote_model_price", _quote)
+    seen: dict[str, str | None] = {"model": None}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        seen["model"] = body.get("model")
+        return httpx.Response(200, json=_OK_BODY)
+
+    owner = open_session(
+        project_id, daily_token_cap=20_000, session_factory=session_factory
+    )
+    app = create_metered_gateway_app(
+        owner,
+        env={GATEWAY_TOKEN_ENV: "gw-secret"},
+        gateway=_gateway(handler),
+    )
+    ok = await _complete(app, model=None)
+    assert ok.status_code == 200, ok.text
+    assert quoted == [DEFAULT_MODEL]
+    assert seen["model"] == DEFAULT_MODEL
+    assert ok.json()["model"] == DEFAULT_MODEL
+
+
+async def test_http_invalid_max_tokens_is_422(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    actor_id = await make_dev_principal(client, display_name="BadMax", roles=("internal",))
+    project_id = await create_owned_project(client, actor_id, "session-clamp-bad-max")
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover
+        calls["n"] += 1
+        raise AssertionError("invalid max_tokens must not reach OpenRouter")
+
+    owner = open_session(project_id, daily_token_cap=80, session_factory=session_factory)
+    app = create_metered_gateway_app(
+        owner,
+        env={GATEWAY_TOKEN_ENV: "gw-secret"},
+        gateway=_gateway(handler),
+    )
+    for bad in (0, -3, "nope"):
+        refused = await _complete(app, max_tokens=bad)
+        assert refused.status_code == 422, refused.text
+        payload = refused.json()
+        assert payload["tokens_used"] == 0
+        assert "positive integer" in payload["error"]
+        assert payload.get("refused") is not True
+    assert calls["n"] == 0
+    assert len(await _debit_rows(session_factory, project_id)) == 0
+    async with session_factory() as session:
+        assert await harness_tokens_used_today(session, UUID(project_id)) == 0

@@ -53,6 +53,7 @@ from app.services.harness_meter import (
     parse_clamp,
     parse_hold_id,
     parse_overshoot,
+    parse_pot_room,
     parse_price_known,
     peek_daily_token_cap,
     peek_hold_ttl_seconds,
@@ -93,7 +94,13 @@ _CHILD_OVERRIDE_NOTE = (
 )
 
 
-def _last_turn_note(*, clamp: int | None, overshoot: int | None, price_known: bool | None) -> str:
+def _last_turn_note(
+    *,
+    clamp: int | None,
+    overshoot: int | None,
+    price_known: bool | None,
+    pot_room: int | None = None,
+) -> str:
     if clamp is None:
         return (
             "Newest billed harness spend. No clamp was recorded on this row "
@@ -101,10 +108,10 @@ def _last_turn_note(*, clamp: int | None, overshoot: int | None, price_known: bo
         )
     if price_known is False:
         room = "daily room; price unknown — pot room was not used"
-    elif price_known is True:
-        room = "min of daily room and pot room when both were known"
+    elif pot_room is None:
+        room = "daily room; pot room was not applied"
     else:
-        room = "authorize room"
+        room = "min of daily room and pot room"
     if overshoot and overshoot > 0:
         return (
             f"Clamped to {clamp} tokens ({room}). "
@@ -119,10 +126,12 @@ def _last_turn_read(turn: OpsTurnRead) -> OpsLastTurnRead:
         clamp=turn.clamp,
         overshoot=turn.overshoot,
         price_known=turn.price_known,
+        pot_room=turn.pot_room,
         note=_last_turn_note(
             clamp=turn.clamp,
             overshoot=turn.overshoot,
             price_known=turn.price_known,
+            pot_room=turn.pot_room,
         ),
     )
 
@@ -217,6 +226,7 @@ async def project_ops(
             clamp=parse_clamp(row.notes),
             overshoot=parse_overshoot(row.notes),
             price_known=parse_price_known(row.notes),
+            pot_room=parse_pot_room(row.notes),
         )
         for row in recent_rows
     ]

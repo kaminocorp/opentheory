@@ -276,8 +276,9 @@ an unmatched hold older than `OPENTHEORY_HARNESS_HOLD_TTL_SECONDS`
 the UTC day. `0.49.0` adds a read-only ops dashboard
 (`GET /projects/{id}/ops`) that does not import this package and does
 not start a campaign. `0.50.0` clamps each turn's `max_tokens` to
-remaining daily room (and pot room when a live/catalog price is
-known) and records a provider overshoot as truth. The gateway talks to
+remaining daily room (and pot room when a funded pot has a
+live/catalog price, at the completion rate) and records a provider
+overshoot as truth. The gateway talks to
 OpenRouter only (`allow_fallbacks: false`, `require_parameters: true`,
 `data_collection: deny`, provider allowlist). Set
 `OPENROUTER_API_KEY` / `OPENTHEORY_GATEWAY_TOKEN` with `fly secrets set`

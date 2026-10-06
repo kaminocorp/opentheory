@@ -48,6 +48,7 @@ export type OpsTurnRead = {
   clamp: number | null;
   overshoot: number | null;
   price_known: boolean | null;
+  pot_room: number | null;
 };
 
 export type OpsLastTurnRead = {
@@ -55,6 +56,7 @@ export type OpsLastTurnRead = {
   clamp: number | null;
   overshoot: number | null;
   price_known: boolean | null;
+  pot_room: number | null;
   note: string;
 };
 

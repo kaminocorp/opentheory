@@ -28,22 +28,32 @@ truth. Price unknown → daily room only.
   hiding it.
 - A blended `agent_token_rate_usd_per_1k` is an invented price. Pot
   tokens are computed only from a live OpenRouter quote or a catalog
-  `usd_per_1k`. Unfunded is not a pot.
+  `usd_per_1k`, at the completion rate (or `max(prompt, completion)`).
+  The live mean overstates room because `max_tokens` is a completion
+  bound billed ~4× prompt on DeepSeek. Prompt cost is not reserved.
+  Unfunded is not a pot (`pot_room=none`).
 
 ## What shipped
 
-- **Clamp.** `min(daily room, pot room)` when price is known; daily
-  room when it is not. Shared math in `app.services.harness_meter`
-  (`turn_clamp`, `pot_tokens_from_available`, `price_is_known`,
-  `clamp_max_tokens`, spend-note parse). FastAPI still does not import
-  `app.harness`.
+- **Clamp.** `min(daily room, pot room)` when pot room was applied
+  (funded + known live/catalog price, converted at the completion
+  rate or `max(prompt, completion)`). Daily room when unfunded or
+  price unknown. Shared math in `app.services.harness_meter`
+  (`turn_clamp`, `clamp_rate_per_1k`, `pot_tokens_from_available`,
+  `price_is_known`, `clamp_max_tokens`, spend-note parse including
+  `pot_room=N|none`). FastAPI still does not import `app.harness`.
 - **Floor.** `OPENTHEORY_HARNESS_TURN_TOKEN_FLOOR` (default **16**).
   Below it: `TurnRefused` → 422, `tokens_used` 0, minted false, no
   provider call, no debit, no hold.
+- **Gateway.** Model is resolved once for `authorize` and `complete`.
+  A caller-smaller `max_tokens` is kept. Invalid `max_tokens` (0,
+  negative, non-int) is 422, not "no request".
 - **Overshoot.** Spend notes `harness_session_turn; clamp=N` plus
-  `overshoot=M` when the provider reports more, plus `price_unknown`
-  when the pot was not used. Gateway / `SupervisedTurn` surface the
-  same numbers. Overview last-turn readout is read-only, no sixth tab.
+  `pot_room=N|none`, plus `overshoot=M` when the provider reports
+  more, plus `price_unknown` when the price was not known. Gateway /
+  `SupervisedTurn` surface the same numbers. Overview last-turn
+  readout is read-only, no sixth tab; it does not say "min of daily
+  room and pot room" when `pot_room=none`.
 - **Race / TTL unchanged.** `FOR UPDATE` + remaining-daily hold +
   `hold_id` stale release stay. Concurrent authorize and orphan TTL
   tests still pass.
@@ -61,13 +71,22 @@ truth. Price unknown → daily room only.
 ## Tests
 
 - DB-free: clamp = min(daily, pot); clamp = daily when pot unknown;
-  blended fallback is not a known price; floor peek invalid is
-  unknown; spend-note parse; gateway version `0.50.0`; FastAPI still
-  does not import `app.harness`.
+  blended fallback is not a known price; pot clamp rate prefers
+  completion / max(prompt, completion); floor peek invalid is
+  unknown; spend-note parse including `pot_room=none`; invalid
+  `max_tokens` 422; omitted model uses the resolved default;
+  gateway version `0.50.0`; FastAPI still does not import
+  `app.harness`.
 - DB-gated: known-price authorize clamp; unknown-price daily-only
-  clamp; HTTP `max_tokens` equals pot room when price known; below-floor
+  clamp; unfunded + known price → daily room, not refused,
+  notes/readout do not claim pot room; completion-rate pot clamp
+  (mean would overstate); HTTP keeps a caller-smaller `max_tokens`;
+  HTTP `max_tokens` equals pot room when price known; below-floor
   refuse with no provider call and no debit; provider over-report
-  recorded and flagged; overlapping authorize race; orphan TTL release.
+  recorded and flagged on the ledger row (not a helper-only assert);
+  `supervise_turn` sends the clamped `max_tokens` and returns
+  `SupervisedTurn.clamp` / `overshoot`; overlapping authorize race;
+  orphan TTL release.
 - Frontend: last-turn line does not invent a clamp; overshoot is
   labeled.
 
@@ -75,11 +94,12 @@ truth. Price unknown → daily room only.
 
 - `ruff check .` clean.
 - Default pytest (no `TEST_DATABASE_URL`, no `OPENROUTER_API_KEY`):
-  **844 passed, 263 skipped**. +5 passed vs shipped `0.49.1` (839)
-  (room math / floor / spend-note parse). +6 skipped (clamp ledger).
-- With `TEST_DATABASE_URL`: **1103 passed, 4 skipped**.
-- Harness pytest: **88 passed, 30 skipped** without Postgres;
-  **118 passed** with Postgres (includes overlapping-authorize race
+  **849 passed, 270 skipped**. +10 passed vs shipped `0.49.1` (839)
+  (room math / completion-rate / floor / spend-note parse / invalid
+  `max_tokens`). +13 skipped (clamp ledger + review cases).
+- With `TEST_DATABASE_URL`: **1115 passed, 4 skipped**.
+- Harness pytest: **91 passed, 36 skipped** without Postgres;
+  **127 passed** with Postgres (includes overlapping-authorize race
   and orphan TTL).
 - Frontend: typecheck / lint / build clean. **64** node:test cases
   (+1 last-turn honesty).
@@ -93,3 +113,12 @@ truth. Price unknown → daily room only.
 - Fly enablement of the harness child.
 - Pixel-level browser walk of the new last-turn line (helpers covered;
   the 0.49.1 Overview walk did not include this field).
+
+## Follow-ups (documented, not this slice)
+
+- Debit still uses a separate `quote_model_price` at `record_compute_debit`
+  time; authorize and debit can see different quotes.
+- Cached OpenRouter quotes can go stale inside the process TTL.
+- Spend-notes prefix stays the literal `harness_session_turn` string;
+  a structured notes type is later.
+- How often a provider overshoots the clamp is not measured here.

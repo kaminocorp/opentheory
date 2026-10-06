@@ -5,6 +5,7 @@ Skips without TEST_DATABASE_URL (same gate as the rest of the ledger suite).
 
 from __future__ import annotations
 
+import json
 from decimal import Decimal
 from uuid import UUID
 
@@ -223,3 +224,46 @@ async def test_exhausted_budget_refuses_without_debit_or_mint(
     assert await _checkpoint_count(session_factory, project_id) == before
     # The seed debit is the only row — the refused turn wrote nothing.
     assert len(await _debit_rows(session_factory, project_id)) == 1
+
+
+async def test_supervise_turn_sends_clamped_max_tokens_and_returns_clamp(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    actor_id = await make_dev_principal(client, display_name="Clamp", roles=("internal",))
+    project_id = await create_owned_project(client, actor_id, "harness-turn-clamp")
+    seen: dict[str, int | None] = {"max_tokens": None}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        seen["max_tokens"] = body.get("max_tokens")
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": "ok"}}],
+                "usage": {"total_tokens": 80, "prompt_tokens": 30, "completion_tokens": 50},
+            },
+        )
+
+    result = await supervise_turn(
+        messages=[{"role": "user", "content": "hi"}],
+        project_id=project_id,
+        gateway=_gateway(handler),
+        session_factory=session_factory,
+        actor_env={"OPENTHEORY_DEV_ACTOR_ID": actor_id},
+        max_tokens=64,
+        env={"OPENTHEORY_HARNESS_DAILY_TOKEN_CAP": "40"},
+    )
+
+    assert result.ok is True
+    assert result.refused is False
+    assert seen["max_tokens"] == 40
+    assert result.clamp == 40
+    assert result.overshoot == 40
+    assert result.tokens_used == 80
+    assert result.price_known is False
+    debits = await _debit_rows(session_factory, project_id)
+    assert len(debits) == 1
+    notes = debits[0].notes or ""
+    assert "clamp=40" in notes
+    assert "overshoot=40" in notes
+    assert "pot_room=none" in notes
