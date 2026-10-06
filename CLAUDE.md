@@ -76,6 +76,7 @@ All enums live in `models/enums.py` as `StrEnum` and map to **named** Postgres e
 - `types/` — shared domain types mirroring backend read schemas.
 - `providers/query-provider.tsx` — TanStack Query setup wrapping the app.
 - `app/` — App Router pages; `components/` grouped by feature (`projects/`, `shell/`).
+- **Vercel ships ahead of Fly.** Production Next.js deploys from `main` on Vercel; the live FastAPI on Fly may still be an older release (unapplied migrations, no Fly deploy). Frontend reads of a **new backend field or route** must tolerate the previous backend: mark the field optional, default missing arrays to `[]`, and treat a missing route as a quiet 404 — never `.length` / `.total` on `undefined`. `0.36.4` (`lib/safe-reads.ts`) and `0.57.1` (`lib/ops.ts` `opsSpendByAgent`, Crew roster 404) are the pattern.
 
 ## Commands
 

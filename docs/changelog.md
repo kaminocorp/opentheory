@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.57.1` — **Frontend version-skew hotfix.** Vercel ships `main`'s frontend while live Fly is still pre-0.53 (0022 unapplied). `GET /ops` omits `spend_by_agent` / `actor_*`; `GET /projects/{id}/agents` is 404. Overview no longer throws on `undefined.length`. Crew roster 404 is a quiet "not on this backend yet" line — no raw error, no deploy controls. New 0.57.0 read fields (ops, blame `sponsor`, checkpoint `sponsored_by`) are optional. **Frontend + docs — no schema, no migration, no backend change.** Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Five tabs only. Sits on shipped `0.57.0` (`16bf679`, #53).
 - `0.57.0` — **Crew UI / blame sponsor / ops actor fields.** Slice E of the approved agent-actor identity design. Deployed-agents bay on the existing Crew tab (revoked rows visible, marked revoked). Members-only `GET /projects/{id}/agents` (status, responsible handle, last used, billed spend Σ, live token metadata — never hash or plaintext). OWNER/ADMIN `POST` deploy + `PATCH` suspend/revoke; OWNER resume. OWNER mint / rotate / revoke token with a one-time Console reveal (component state only; never React Query cache). Blame `sponsor: BlameActor`; `CheckpointRead.sponsored_by`. Ops `actor_id` / `actor_display_name` / `actor_type` on turns + spend-by-agent grouped from `compute_debits.actor_id`. HTTP stays human-only (`ActingActor` 403s an agent session). `authorize()` refuses when session and MCP credentials both resolve and differ (`TurnRefused`, no hold). **No** per-agent cap enforcement, no `agent_definitions`. No migration. `create_checkpoint` remains the only Checkpoint writer. FastAPI still does not import `app.harness`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. Five tabs only. Sits on shipped `0.56.0` (`2a2a018`, #52).
 - `0.56.0` — **Spend attribution.** Slice D of the approved agent-actor identity design. `record_compute_debit` / `write_daily_cap_adjustment` take `actor_id`. `HarnessSession` binds the resolved actor (`env` wins over `actor_env`); `authorize()` / `record_spend` load `jti` to stamp the spending agent. Hold/release rows also carry `actor_id` (audit; still amount `0`, literal `harness_session_turn` prefix, `hold_id`). Built-in pass debits stamp `AgentRun.agent_actor_id`. Mid-turn revoke still bills tokens that moved; the next authorize refuses. Shared project daily cap (no per-agent split). Per-agent caps stay stored, unenforced. Unfunded ≠ exhausted. Debit only when `tokens_used > 0`. **No** Crew UI, no ops `actor_*` / spend-by-agent readout, no `agent_definitions`. No migration (0022 already has the column). `create_checkpoint` remains the only Checkpoint writer. FastAPI still does not import `app.harness`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. Five tabs only. Sits on shipped `0.55.0` (`149c36e`, #51).
 - `0.55.0` — **Agent session token.** Slice C of the approved agent-actor identity design. OWNER-only mint / rotate / revoke (`POST …/agents/{actor_id}/tokens` + rotate/revoke). Default TTL 30 days; max via `OPENTHEORY_AGENT_SESSION_MAX_TTL_SECONDS` (not `fly.toml [env]`). Compact JWT returned once; SHA-256 at rest. Resolver in `deps.py` + `harness/auth.py` verifies signature, `typ=agent_session`, claims `sub`/`proj`/`jti`/`mby`/`mba`, hash, `expires_at`, `revoked_at`, ACTIVE roster, and stamps `last_used_at`. Missing `AGENT_SESSION_JWT_SECRET` fails closed (mint `503`; agent-session bearer `401`, never falls through to Supabase). MCP writes with an agent token author as the agent and snapshot `sponsored_by_actor_id`. HTTP `ActingActor` refuses an agent session (`403` "agent sessions are only valid on the harness") — harness/MCP only. `authorize()` accepts the agent session token and refuses a token whose `proj` ≠ the session project. Human Console JWT path unchanged. No self-renew. **No** `record_compute_debit(actor_id=)`, no Crew UI, no per-agent cap enforcement, no `agent_definitions`. No migration (0022 already has the table). `create_checkpoint` remains the only Checkpoint writer. Debit only when `tokens_used > 0`. Hold/release amount stays `0` with the literal `harness_session_turn` prefix and `hold_id`. FastAPI still does not import `app.harness`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. Five tabs only. Sits on shipped `0.54.0` (`7a1fa0c`, #50).
@@ -133,6 +134,39 @@
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
 
 ---
+
+## 0.57.1
+
+**Frontend version-skew hotfix.** Vercel ships `main`'s Next.js
+to production; live Fly is still pre-0.53 (migration `0022`
+unapplied, no Fly deploy until the operator machine is online).
+`GET /projects/{id}/ops` has no `spend_by_agent` / `actor_*`.
+`GET /projects/{id}/agents` is **404**. `ops-dashboard-bay.tsx`
+called `spendByAgent.length` on `undefined` and broke Overview.
+**Frontend + docs — no schema, no migration, no backend change.**
+Sits on shipped `0.57.0` (`16bf679`, #53).
+
+- **Ops.** `spend_by_agent` is optional; readers default it to
+  `[]` (`opsSpendByAgent`). Turn / last-turn `actor_*` are
+  optional; missing fields render as unattributed.
+- **Blame / timeline.** `sponsor` and `sponsored_by` are
+  optional. A pre-identity payload does not throw.
+- **Crew.** Roster 404 is a quiet line that the agent roster
+  isn't available on this backend yet. No raw error text. No
+  deploy / mint / rotate / revoke controls in that state.
+- **Rule.** Frontend reads of a new backend field or route must
+  tolerate the previous backend, because Vercel deploys ahead
+  of Fly. Recorded in `CLAUDE.md` and `docs/operations/deploy.md`.
+
+```bash
+cd frontend && npm run typecheck && npm run lint && npm test && npm run build
+# typecheck/lint/build clean; frontend tests 73 passed (+4 vs 0.57.0)
+```
+
+See `docs/completions/frontend-backend-skew-0.57.1.md`.
+
+**Not in this release:** slice F; Fly deploy; live Supabase
+apply; `AGENT_LOOP_ENABLED`.
 
 ## 0.57.0
 

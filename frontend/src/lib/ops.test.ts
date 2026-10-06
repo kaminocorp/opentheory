@@ -12,6 +12,9 @@ import {
   lastTurnLine,
   lastTurnTone,
   loopLine,
+  opsSpendByAgent,
+  spendByAgentLine,
+  turnActorLabel,
   turnKindLabel,
   unknownProcessLine,
 } from "./ops.ts";
@@ -128,6 +131,55 @@ describe("last turn", () => {
     };
     assert.equal(lastTurnLine(unknownPrice), "20 used · unattributed · clamp 20 · price unknown");
     assert.equal(lastTurnTone(unknownPrice), "ok");
+  });
+});
+
+describe("pre-0.57 ops payload (live Fly lag)", () => {
+  it("defaults a missing spend_by_agent to [] so Overview cannot throw", () => {
+    const legacy = {
+      project_id: "proj-1",
+      as_of: "2026-10-06T00:00:00Z",
+      notes_prefix: "harness_session_turn",
+      last_turn: {
+        tokens_used: 80,
+        clamp: 80,
+        overshoot: 0,
+        price_known: true,
+        pot_room: null,
+        note: "recorded",
+      },
+      recent_turns: [
+        {
+          id: "turn-1",
+          created_at: "2026-10-06T00:00:00Z",
+          tokens_used: 80,
+          amount: "0",
+          notes: "harness_session_turn",
+          kind: "spend",
+        },
+      ],
+    };
+    const rows = opsSpendByAgent(legacy);
+    assert.deepEqual(rows, []);
+    assert.equal(rows.length, 0);
+    assert.deepEqual(opsSpendByAgent(undefined), []);
+    assert.deepEqual(opsSpendByAgent(null), []);
+    assert.deepEqual(opsSpendByAgent({ spend_by_agent: undefined }), []);
+  });
+
+  it("renders last-turn and turn actor lines without actor_* fields", () => {
+    const lastTurn: OpsLastTurnRead = {
+      tokens_used: 80,
+      clamp: null,
+      overshoot: null,
+      price_known: null,
+      pot_room: null,
+      note: "legacy",
+    };
+    assert.equal(lastTurnLine(lastTurn), "80 used · unattributed · clamp unknown");
+    assert.equal(turnActorLabel({}), "unattributed");
+    assert.equal(turnActorLabel({ actor_id: null, actor_display_name: null }), "unattributed");
+    assert.equal(spendByAgentLine(40, undefined), "unknown actor · 40 tok");
   });
 });
 

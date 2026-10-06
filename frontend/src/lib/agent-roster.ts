@@ -1,6 +1,16 @@
 import type { StateTone } from "@/components/console";
 import type { ProjectAgentStatus } from "@/types/agent-roster";
 
+/** Quiet Crew copy when live Fly has no `GET /projects/{id}/agents` yet. */
+export const ROSTER_UNAVAILABLE_LINE =
+  "The agent roster isn't available on this backend yet.";
+
+/** Same 404 shapes as `request()` / `isNotFoundError` — kept local so node tests resolve. */
+export function isRosterUnavailable(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.message.startsWith("404:") || error.message === "Request failed with 404";
+}
+
 /** Status pill tone. Revoked is fail-weight — honesty over comfort. */
 export function agentStatusTone(status: ProjectAgentStatus): StateTone {
   if (status === "active") return "run";

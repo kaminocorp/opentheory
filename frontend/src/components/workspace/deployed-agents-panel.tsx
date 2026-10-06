@@ -24,10 +24,12 @@ import {
   revokeAgentToken,
 } from "@/lib/api";
 import {
+  ROSTER_UNAVAILABLE_LINE,
   agentSpendLine,
   agentStatusLabel,
   agentStatusTone,
   formatAgentWhen,
+  isRosterUnavailable,
 } from "@/lib/agent-roster";
 import { queryKeys } from "@/lib/query-keys";
 import { useActingIdentity } from "@/lib/use-identity";
@@ -71,6 +73,7 @@ export function DeployedAgentsPanel({
   });
   const agents = rosterQuery.data ?? [];
   const activeCount = agents.filter((row) => row.status === "active").length;
+  const rosterUnavailable = rosterQuery.isError && isRosterUnavailable(rosterQuery.error);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.agents(projectId) });
@@ -159,9 +162,11 @@ export function DeployedAgentsPanel({
           <Icon icon={Bot} size={16} />
           <ReadoutLabel>Deployed agents</ReadoutLabel>
         </span>
-        <span className="font-mono text-[11px] tabular-nums text-text-mute">
-          {agents.length ? `${activeCount}/${agents.length} active` : "0"}
-        </span>
+        {rosterUnavailable ? null : (
+          <span className="font-mono text-[11px] tabular-nums text-text-mute">
+            {agents.length ? `${activeCount}/${agents.length} active` : "0"}
+          </span>
+        )}
       </header>
 
       <p className="text-[12px] leading-5 text-text-mute">
@@ -174,10 +179,10 @@ export function DeployedAgentsPanel({
         <p className="text-[12px] text-text-faint">Sign in as a member to read the roster.</p>
       ) : rosterQuery.isLoading ? (
         <p className="text-[12px] text-text-mute">Loading agents…</p>
+      ) : rosterUnavailable ? (
+        <p className="text-[12px] text-text-faint">{ROSTER_UNAVAILABLE_LINE}</p>
       ) : rosterQuery.isError ? (
-        <p className="text-[12px] text-state-fail">
-          {readableError(rosterQuery.error) || "Could not load agents."}
-        </p>
+        <p className="text-[12px] text-state-fail">Could not load agents.</p>
       ) : agents.length === 0 ? (
         <p className="text-[12px] text-text-faint">No agents deployed on this project yet.</p>
       ) : (
@@ -208,13 +213,13 @@ export function DeployedAgentsPanel({
         </ul>
       )}
 
-      {error ? (
+      {error && !rosterUnavailable ? (
         <p role="alert" className="text-[11px] text-state-fail">
           {readableError(error)}
         </p>
       ) : null}
 
-      {canManage ? (
+      {canManage && !rosterUnavailable ? (
         <form
           className="grid gap-2 pt-3"
           style={{ borderTop: "1px solid var(--hairline)" }}

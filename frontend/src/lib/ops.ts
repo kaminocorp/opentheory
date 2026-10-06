@@ -1,4 +1,5 @@
 import type {
+  OpsActorSpendRead,
   OpsBudgetState,
   OpsDailyCapRead,
   OpsEnablementRead,
@@ -6,6 +7,7 @@ import type {
   OpsHoldRead,
   OpsHoldStatus,
   OpsLastTurnRead,
+  ProjectOpsRead,
 } from "@/types/ops";
 
 export function formatOpsMoney(amount: string, currency: string): string {
@@ -82,11 +84,7 @@ export function unknownProcessLine(label: string, enabled: "unknown"): string {
 
 export function lastTurnLine(turn: OpsLastTurnRead): string {
   const used = `${turn.tokens_used.toLocaleString()} used`;
-  const who = turn.actor_display_name
-    ? ` · ${turn.actor_display_name}`
-    : turn.actor_id
-      ? " · unknown actor"
-      : " · unattributed";
+  const who = turnActorSuffix(turn);
   if (turn.clamp === null) {
     return `${used}${who} · clamp unknown`;
   }
@@ -96,9 +94,37 @@ export function lastTurnLine(turn: OpsLastTurnRead): string {
   return `${used}${who} · clamp ${turn.clamp.toLocaleString()}${overshoot}${price}`;
 }
 
-export function spendByAgentLine(tokensUsed: number, displayName: string | null): string {
+/** Missing `actor_*` (pre-0.57 backend) is unattributed — never a throw. */
+export function turnActorLabel(turn: {
+  actor_id?: string | null;
+  actor_display_name?: string | null;
+}): string {
+  if (turn.actor_display_name) return turn.actor_display_name;
+  if (turn.actor_id) return "unknown actor";
+  return "unattributed";
+}
+
+function turnActorSuffix(turn: {
+  actor_id?: string | null;
+  actor_display_name?: string | null;
+}): string {
+  return ` · ${turnActorLabel(turn)}`;
+}
+
+export function spendByAgentLine(tokensUsed: number, displayName: string | null | undefined): string {
   const who = displayName ?? "unknown actor";
   return `${who} · ${tokensUsed.toLocaleString()} tok`;
+}
+
+/**
+ * `spend_by_agent` is 0.57.0. A pre-identity `GET /ops` omits it.
+ * Readers must not call `.length` on undefined — that threw on prod Overview.
+ */
+export function opsSpendByAgent(
+  data: Pick<ProjectOpsRead, "spend_by_agent"> | Record<string, unknown> | null | undefined,
+): OpsActorSpendRead[] {
+  const rows = data && typeof data === "object" ? data.spend_by_agent : undefined;
+  return Array.isArray(rows) ? (rows as OpsActorSpendRead[]) : [];
 }
 
 export function lastTurnTone(turn: OpsLastTurnRead): "fail" | "mute" | "ok" {

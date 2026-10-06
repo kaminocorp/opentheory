@@ -1,14 +1,17 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-10-06 · **Current release line:** `0.57.0`
-> (Crew UI / blame sponsor / ops actor fields), sitting on
-> shipped `0.56.0` (spend attribution, `2a2a018`, #52) on current
-> `main`. See `docs/completions/agent-identity-crew-0.57.0.md`.
+> **Last updated:** 2026-10-06 · **Current release line:** `0.57.1`
+> (frontend version-skew hotfix: ops `spend_by_agent` / `actor_*`
+> optional, Crew roster 404 quiet), sitting on shipped `0.57.0`
+> (`16bf679`, #53) on current `main`. See
+> `docs/completions/frontend-backend-skew-0.57.1.md`.
 >
 > **Next after this line:** Lean REPL / LeanDojo remain later.
 > Does not enable the gateway child on Fly.
 > Does not light `AGENT_LOOP_ENABLED`.
-> ~~Agent identity Crew UI~~ ✅ this branch as `0.57.0`.
+> Agent identity Crew UI shipped as `0.57.0`. This branch is the
+> `0.57.1` skew hotfix only — not slice F.
+> ~~Agent identity Crew UI~~ ✅ shipped as `0.57.0`.
 > ~~Agent identity spend attribution~~ ✅ shipped as `0.56.0`.
 > ~~Agent identity session token~~ ✅ shipped as `0.55.0`.
 > ~~Agent identity membership gate~~ ✅ shipped as `0.54.0`.
@@ -971,18 +974,26 @@ amount `0` with the literal `harness_session_turn` prefix and
 `AGENT_LOOP_ENABLED`. **No migration** (0022 already has the
 column).
 
-**`0.57.0` (Crew UI)** is this branch: deployed-agents bay on
-the existing Crew tab (revoked rows stay visible); members-only
-roster read; OWNER mint / rotate / revoke token with a one-time
-reveal; OWNER/ADMIN suspend / revoke and OWNER resume; blame
-`sponsor`; checkpoint `sponsored_by`; ops `actor_*` +
-spend-by-agent from `compute_debits.actor_id`. HTTP stays
-human-only. `authorize()` refuses when session and MCP
+**`0.57.0` (Crew UI)** shipped as `16bf679` (#53): deployed-agents
+bay on the existing Crew tab (revoked rows stay visible);
+members-only roster read; OWNER mint / rotate / revoke token
+with a one-time reveal; OWNER/ADMIN suspend / revoke and OWNER
+resume; blame `sponsor`; checkpoint `sponsored_by`; ops
+`actor_*` + spend-by-agent from `compute_debits.actor_id`. HTTP
+stays human-only. `authorize()` refuses when session and MCP
 credentials both resolve and differ (no hold). Five tabs. No
 per-agent cap enforcement. No Fly. No `AGENT_LOOP_ENABLED`.
 **No migration.**
 
+**`0.57.1` (frontend version skew)** is this branch. Vercel
+ships `main`'s frontend while live Fly is still pre-0.53
+(0022 unapplied). Overview must not throw on a missing
+`spend_by_agent`. Crew roster `404` is a quiet "not on this
+backend yet" line, not a raw error and not deploy controls.
+No slice F. No Fly deploy. No live Supabase apply.
+
 **Next product step:** Lean REPL / LeanDojo remain later. `If` /
 ite remain later. Agent identity slice F (per-agent cap
-enforcement) is next on this line. Does not enable the gateway
-child on Fly. Does not light `AGENT_LOOP_ENABLED`.
+enforcement) is next on this line after this hotfix. Does not
+enable the gateway child on Fly. Does not light
+`AGENT_LOOP_ENABLED`.

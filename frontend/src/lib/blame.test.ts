@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { blameAuthorLine, blameInstrumentLine, blameMovementLine } from "./blame.ts";
+import {
+  blameAuthorLine,
+  blameInstrumentLine,
+  blameMovementLine,
+  checkpointSponsorSuffix,
+} from "./blame.ts";
 import type { ClaimBlameStep } from "@/types/research";
 
 function step(overrides: Partial<ClaimBlameStep> = {}): ClaimBlameStep {
@@ -40,6 +45,14 @@ describe("blameAuthorLine", () => {
     );
   });
 
+  it("omits a sponsor when the field is missing (pre-0.57 blame payload)", () => {
+    const legacy = step();
+    delete (legacy as { sponsor?: unknown }).sponsor;
+    assert.equal(blameAuthorLine(legacy), "Ada · human · create_checkpoint");
+    assert.equal(checkpointSponsorSuffix(undefined), "");
+    assert.equal(checkpointSponsorSuffix(null), "");
+  });
+
   it("names the sponsor when one is recorded", () => {
     assert.equal(
       blameAuthorLine(
@@ -49,6 +62,10 @@ describe("blameAuthorLine", () => {
         }),
       ),
       "Research crew · agent · create_checkpoint · sponsored by Ada",
+    );
+    assert.equal(
+      checkpointSponsorSuffix({ display_name: "Ada" }),
+      " · sponsored by Ada",
     );
   });
 });

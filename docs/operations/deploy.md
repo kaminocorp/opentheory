@@ -13,6 +13,12 @@ pointing at the **existing live Supabase database**. It assumes the scaffolding 
 > `X-Dev-Actor-Id` is local/test only (`auth_dev_header_enabled`, default **off**). Do not
 > enable the dev header on a publicly reachable Fly app.
 
+Vercel deploys the frontend from `main` independently of Fly. Live
+Fly may lag (unapplied migrations, no backend deploy). Frontend
+reads of a new backend field or route must tolerate the previous
+backend — optional fields, default missing arrays to `[]`, quiet
+404 for a missing route. Do not assume Vercel and Fly ship together.
+
 ## Topology
 
 ```

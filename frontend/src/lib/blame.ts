@@ -12,6 +12,14 @@ export function blameAuthorLine(step: ClaimBlameStep): string {
   return `${name} · ${kind} · ${action}`;
 }
 
+/** Missing `sponsored_by` (pre-0.57 backend) is empty — never a throw. */
+export function checkpointSponsorSuffix(sponsoredBy: {
+  display_name?: string | null;
+} | null | undefined): string {
+  const name = sponsoredBy?.display_name;
+  return name ? ` · sponsored by ${name}` : "";
+}
+
 /** Signal / grounding move copy, or null when this commit did not move either axis. */
 export function blameMovementLine(step: ClaimBlameStep): string | null {
   const bits: string[] = [];
