@@ -60,7 +60,10 @@ No new table, no new column, no Alembic revision.
 ## Verification
 
 - `ruff check .` clean.
-- With `TEST_DATABASE_URL`: counts pending local suite.
+- With `TEST_DATABASE_URL`: **1179 passed, 4 skipped**. +5 vs
+  `0.55.0` (1174) — agent spend/hold stamp, mid-turn revoke,
+  session bind wins, zero-token hold, built-in pass stamp.
+  Lean / Mathlib stay off.
 - Frontend untouched.
 
 ## Unverified

@@ -160,7 +160,9 @@ or MCP child on Fly.
 ```bash
 cd backend && uv run ruff check .   # clean
 cd backend && uv run pytest -q
-# with TEST_DATABASE_URL: counts pending local suite
+# with TEST_DATABASE_URL: 1179 passed, 4 skipped
+# +5 vs 0.55.0 (1174): agent spend/hold stamp, mid-turn revoke,
+# session bind wins, zero-token hold, built-in pass stamp
 cd frontend && npm run typecheck && npm run lint && npm test && npm run build
 # frontend untouched
 ```
