@@ -195,13 +195,14 @@ or MCP child on Fly.
 ```bash
 cd backend && uv run ruff check .   # clean
 cd backend && uv run pytest -q
-# with TEST_DATABASE_URL: 1213 passed, 4 skipped
-# +14 vs 0.58.0 (1199): pass-budget clamp + injected-policy wrap,
+# with TEST_DATABASE_URL: 1219 passed, 4 skipped
+# +14 vs 0.58.1 (1205): pass-budget clamp + injected-policy wrap,
 # fingerprint, catalog create/version/PATCH, deploy pointer +
 # Research-crew 422, upgrade + ORM retarget, family rollup,
 # catalog HTTP 403, 0024 linkage/head/round-trip/unique/RLS
+# (0.58.1 already added +6 lock tests vs 0.58.0)
 cd frontend && npm run typecheck && npm run lint && npm test && npm run build
-# typecheck/lint/build clean; frontend tests 76 passed (+1 vs 0.58.0)
+# typecheck/lint/build clean; frontend tests 76 passed (+1 vs 0.58.1)
 ```
 
 See `docs/completions/agent-identity-catalog-0.59.0.md`.
