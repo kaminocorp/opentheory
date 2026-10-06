@@ -397,6 +397,10 @@ async def _execute(
     cap_reason = agent_caps_service.refuse_reason(cap_room)
     if cap_reason is not None:
         return await _finalize(db, agent_run, status=AgentRunStatus.FAILED, error=cap_reason)
+    # Release the row lock before the planner so concurrent campaign cycles
+    # (0.32.0) can still overlap. A later start re-takes the lock. Tokens
+    # billed after this commit are visible to the next check / mid-pass stop.
+    await db.commit()
 
     # 2. Resolve the role's model. An unassigned role is a recorded failed trace (mints nothing) —
     #    not a 500, not a commission-time reject (the plan wants it visible on the trace).
