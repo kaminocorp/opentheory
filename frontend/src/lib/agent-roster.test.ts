@@ -2,15 +2,20 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  CATALOG_UNAVAILABLE_LINE,
   ROSTER_UNAVAILABLE_LINE,
   agentCapLine,
+  agentDefinitionLine,
   agentSpendLine,
   agentStatusLabel,
   agentStatusTone,
   agentTokenCapReached,
   agentUsdCapReached,
   formatAgentWhen,
+  isCatalogUnavailable,
   isRosterUnavailable,
+  latestDefinitionsByFamily,
+  newerFamilyVersion,
   tokenRevealCacheKey,
 } from "./agent-roster.ts";
 
@@ -60,5 +65,30 @@ describe("agent roster readout", () => {
     assert.equal(isRosterUnavailable(new Error("403: Not a member of this project")), false);
     assert.equal(isRosterUnavailable(new Error("500: boom")), false);
     assert.match(ROSTER_UNAVAILABLE_LINE, /isn't available on this backend yet/);
+  });
+
+  it("treats a catalog 404 as backend-unavailable and never throws on a missing pointer", () => {
+    assert.equal(isCatalogUnavailable(new Error("404: Not Found")), true);
+    assert.equal(isCatalogUnavailable(new Error("403: forbidden")), false);
+    assert.match(CATALOG_UNAVAILABLE_LINE, /isn't available on this backend yet/);
+    assert.equal(agentDefinitionLine({}), null);
+    assert.equal(agentDefinitionLine({ definition_display_name: "Kind", definition_version: 2 }), "Kind · v2");
+    assert.equal(agentDefinitionLine({ agent_definition_id: "x" }), "catalog kind");
+    const latest = latestDefinitionsByFamily([
+      { id: "a", family_id: "f", version: 1, display_name: "Kind" },
+      { id: "b", family_id: "f", version: 2, display_name: "Kind" },
+    ]);
+    assert.equal(latest.length, 1);
+    assert.equal(latest[0]?.id, "b");
+    assert.equal(
+      newerFamilyVersion({ family_id: "f", definition_version: 1 }, [
+        { id: "a", family_id: "f", version: 1 },
+        { id: "b", family_id: "f", version: 2 },
+      ])?.id,
+      "b",
+    );
+    assert.equal(newerFamilyVersion({ family_id: "f", definition_version: 2 }, latest), null);
+    assert.equal(newerFamilyVersion({}, latest), null);
+    assert.equal(latestDefinitionsByFamily(undefined).length, 0);
   });
 });

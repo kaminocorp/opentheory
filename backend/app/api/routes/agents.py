@@ -11,7 +11,12 @@ from uuid import UUID
 from fastapi import APIRouter, status
 
 from app.api.deps import ActingActor, DbSession
-from app.schemas.agent_roster import AgentDeployRequest, AgentRosterPatch, AgentRosterRead
+from app.schemas.agent_roster import (
+    AgentDeployRequest,
+    AgentRosterPatch,
+    AgentRosterRead,
+    AgentUpgradeRequest,
+)
 from app.services import agent_roster as roster_service
 
 router = APIRouter()
@@ -60,5 +65,25 @@ async def patch_project_agent(
     actor: ActingActor,
 ) -> AgentRosterRead:
     row = await roster_service.patch_project_agent(db, project_id, actor_id, actor, payload)
+    await db.commit()
+    return row
+
+
+@router.post(
+    "/projects/{project_id}/agents/{actor_id}/upgrade",
+    response_model=AgentRosterRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=["agents"],
+)
+async def upgrade_project_agent(
+    project_id: UUID,
+    actor_id: UUID,
+    payload: AgentUpgradeRequest,
+    db: DbSession,
+    actor: ActingActor,
+) -> AgentRosterRead:
+    row = await roster_service.upgrade_project_agent(
+        db, project_id, actor_id, actor, payload
+    )
     await db.commit()
     return row

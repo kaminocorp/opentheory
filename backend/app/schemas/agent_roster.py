@@ -1,7 +1,8 @@
-"""Project agent roster reads and lifecycle writes (0.57.0 / 0.58.0).
+"""Project agent roster reads and lifecycle writes (0.57.0 / 0.58.0 / 0.59.0).
 
 Members-only list. Deploy / suspend / revoke are OWNER or ADMIN.
 Resume is OWNER only. Caps are lifetime per roster seat; null = none.
+Definition pointer is deploy-time (0.59.0); never retargeted via PATCH.
 Never email, never token hash, never the compact JWT.
 """
 
@@ -47,6 +48,11 @@ class AgentRosterRead(BaseModel):
     usd_cap_reached: bool = False
     live_tokens: list[AgentLiveTokenRead] = Field(default_factory=list)
     created_at: datetime
+    # 0.59.0 — omitted on a pre-0.59 backend. Frontend treats as optional.
+    agent_definition_id: UUID | None = None
+    family_id: UUID | None = None
+    definition_display_name: str | None = None
+    definition_version: int | None = None
 
 
 class AgentDeployRequest(BaseModel):
@@ -56,6 +62,13 @@ class AgentDeployRequest(BaseModel):
     token_budget_cap: int | None = Field(default=None, ge=1)
     usd_budget_cap: Decimal | None = Field(default=None, ge=0)
     reuse_research_crew: bool = False
+    agent_definition_id: UUID | None = None
+
+
+class AgentUpgradeRequest(BaseModel):
+    """Revoke the current seat and deploy a newer family version."""
+
+    agent_definition_id: UUID
 
 
 class AgentRosterPatch(BaseModel):

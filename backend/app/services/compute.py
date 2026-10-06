@@ -194,17 +194,25 @@ async def project_compute_spent(db: AsyncSession, project_id: UUID) -> Decimal:
     return total
 
 
-def pass_reserve_amount(available: Decimal, *, rate_per_1k: Decimal) -> Decimal:
+def pass_reserve_amount(
+    available: Decimal,
+    *,
+    rate_per_1k: Decimal,
+    max_tokens: int | None = None,
+) -> Decimal:
     """How much of ``available`` one pass may hold before it starts.
 
-    The envelope is the safety-cap cost of ``agent_pass_max_tokens`` at this
-    rate, clamped to the live remainder. A tight pot therefore admits one
-    pass at a time; concurrent passes only start when the remainder covers
-    two (or more) full envelopes.
+    The envelope is the safety-cap cost of ``max_tokens`` (default
+    ``agent_pass_max_tokens``) at this rate, clamped to the live remainder.
+    A built-in pass with a lifetime agent cap (0.59.0) passes the remaining
+    room so the hold matches the clamped token budget. A tight pot therefore
+    admits one pass at a time; concurrent passes only start when the
+    remainder covers two (or more) full envelopes.
     """
     if available <= 0:
         return Decimal("0")
-    envelope = tokens_to_cost(settings.agent_pass_max_tokens, rate_per_1k)
+    tokens = settings.agent_pass_max_tokens if max_tokens is None else max_tokens
+    envelope = tokens_to_cost(tokens, rate_per_1k)
     if envelope <= 0:
         return available
     return min(envelope, available)
@@ -226,12 +234,14 @@ async def reserve_compute_for_pass(
     agent_run: AgentRun,
     *,
     rate_per_1k: Decimal | None = None,
+    max_tokens: int | None = None,
 ) -> Decimal | None:
     """Hold a slice of the project pot for this pass. ``None`` if nothing remains.
 
     Locks the ``Project`` row so two concurrent reserves cannot both see the
     same remainder. Does not commit. Idempotent: a pass that already holds
-    a reservation keeps it.
+    a reservation keeps it. ``max_tokens`` shrinks the envelope when a
+    lifetime agent cap leaves less room than ``agent_pass_max_tokens``.
     """
     if agent_run.reserved_amount is not None and agent_run.reserved_amount > 0:
         return Decimal(agent_run.reserved_amount)
@@ -251,7 +261,9 @@ async def reserve_compute_for_pass(
         return None
 
     rate = rate_per_1k if rate_per_1k is not None else rate_for_model(agent_run.model)
-    amount = pass_reserve_amount(budget.available, rate_per_1k=rate)
+    amount = pass_reserve_amount(
+        budget.available, rate_per_1k=rate, max_tokens=max_tokens
+    )
     if amount <= 0:
         return None
     agent_run.reserved_amount = amount

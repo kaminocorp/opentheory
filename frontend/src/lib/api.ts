@@ -21,10 +21,13 @@ import type {
   ProjectUpdate,
 } from "@/types/project";
 import type {
+  AgentDefinitionRead,
   AgentDeployRequest,
+  AgentFamilyRollupRead,
   AgentRosterPatch,
   AgentRosterRead,
   AgentTokenMintRead,
+  AgentUpgradeRequest,
 } from "@/types/agent-roster";
 import type { ProjectOpsRead } from "@/types/ops";
 import type { InstrumentDescriptor, ToolRunRequest, ToolRunResult } from "@/types/toolbench";
@@ -388,6 +391,32 @@ export function patchProjectAgent(
     `/projects/${projectId}/agents/${actorId}`,
     patchInit(payload),
   );
+}
+
+export function upgradeProjectAgent(
+  projectId: string,
+  actorId: string,
+  payload: AgentUpgradeRequest,
+): Promise<AgentRosterRead> {
+  return request<AgentRosterRead>(
+    `/projects/${projectId}/agents/${actorId}/upgrade`,
+    writeInit(payload),
+  );
+}
+
+export function listAgentDefinitions(): Promise<AgentDefinitionRead[]> {
+  return request<AgentDefinitionRead[]>("/agent-definitions");
+}
+
+export function createAgentDefinition(payload: {
+  display_name: string;
+  config?: Record<string, unknown>;
+}): Promise<AgentDefinitionRead> {
+  return request<AgentDefinitionRead>("/agent-definitions", writeInit(payload));
+}
+
+export function getAgentFamily(familyId: string): Promise<AgentFamilyRollupRead> {
+  return request<AgentFamilyRollupRead>(`/agent-definitions/families/${familyId}`);
 }
 
 export function mintAgentToken(

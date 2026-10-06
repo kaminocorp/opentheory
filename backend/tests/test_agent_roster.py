@@ -1,6 +1,6 @@
 """0.57.0 / 0.58.0 — Crew roster list / deploy / lifecycle, blame, ops, caps.
 
-DB-gated. Definition catalog (slice G) stays out.
+DB-gated. Definition catalog writes live in test_agent_definitions.
 """
 
 from decimal import Decimal

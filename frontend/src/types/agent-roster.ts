@@ -29,6 +29,11 @@ export type AgentRosterRead = {
   usd_cap_reached?: boolean;
   live_tokens: AgentLiveToken[];
   created_at: string;
+  // 0.59.0 — omitted on a pre-0.59 backend. Never throw if missing.
+  agent_definition_id?: string | null;
+  family_id?: string | null;
+  definition_display_name?: string | null;
+  definition_version?: number | null;
 };
 
 export type AgentDeployRequest = {
@@ -36,6 +41,39 @@ export type AgentDeployRequest = {
   reuse_research_crew?: boolean;
   token_budget_cap?: number | null;
   usd_budget_cap?: string | null;
+  agent_definition_id?: string | null;
+};
+
+export type AgentUpgradeRequest = {
+  agent_definition_id: string;
+};
+
+export type AgentDefinitionRead = {
+  id: string;
+  account_id: string | null;
+  family_id: string;
+  version: number;
+  display_name: string;
+  config_fingerprint: string;
+  config: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AgentFamilyRollupRead = {
+  family_id: string;
+  versions: AgentDefinitionRead[];
+  actors: Array<{
+    actor_id: string;
+    project_id: string | null;
+    display_name: string;
+    definition_id: string;
+    definition_version: number;
+  }>;
+  checkpoints_authored: number;
+  incoming_validations: number;
+  tokens_billed: number;
+  amount_billed: string;
 };
 
 export type AgentRosterPatch = {

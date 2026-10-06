@@ -1,5 +1,12 @@
 # External harness — actor attribution (`0.51.1` / `0.52.0`)
 
+> **0.59.0.** Slice G catalog does not change harness
+> attribution. The built-in pass now clamps its token budget
+> to the agent's remaining cap at start. Leftover overshoot
+> on overlapping built-in passes is at most one pass budget
+> per concurrent pass. Sit on shipped `0.58.0` (`c1a4ca5`,
+> #55).
+>
 > **0.58.0.** Optional lifetime per-seat caps
 > (`token_budget_cap` / `usd_budget_cap`) are enforced at
 > `authorize()` and on the built-in pass. Reached is

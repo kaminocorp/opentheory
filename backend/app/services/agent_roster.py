@@ -10,11 +10,13 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
+from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
 from app.models.actor import Actor
+from app.models.agent_definition import AgentDefinition
 from app.models.agent_session_token import AgentSessionToken
 from app.models.compute_debit import ComputeDebit
 from app.models.enums import ActorType, ProjectAgentRole, ProjectAgentStatus
@@ -25,6 +27,7 @@ from app.schemas.agent_roster import (
     AgentLiveTokenRead,
     AgentRosterPatch,
     AgentRosterRead,
+    AgentUpgradeRequest,
 )
 from app.services.agent_actors import (
     AGENT_ACTOR_DISPLAY_NAME,
@@ -263,6 +266,16 @@ async def list_project_agents(
     live = await _live_tokens_by_actor(db, project_id, actor_ids)
     last_used_at = await _last_used_by_actor(db, project_id, actor_ids)
 
+    definition_ids = {
+        actor.agent_definition_id for _row, actor in pairs if actor.agent_definition_id is not None
+    }
+    definitions: dict[UUID, AgentDefinition] = {}
+    if definition_ids:
+        definition_rows = await db.execute(
+            select(AgentDefinition).where(AgentDefinition.id.in_(definition_ids))
+        )
+        definitions = {row.id: row for row in definition_rows.scalars()}
+
     out: list[AgentRosterRead] = []
     for row, actor in pairs:
         tokens = live.get(actor.id, [])
@@ -270,6 +283,11 @@ async def list_project_agents(
         tokens_used, amount = spend.get(actor.id, (0, Decimal("0")))
         token_cap = row.token_budget_cap
         usd_cap = row.usd_budget_cap
+        definition = (
+            definitions.get(actor.agent_definition_id)
+            if actor.agent_definition_id is not None
+            else None
+        )
         out.append(
             AgentRosterRead(
                 actor_id=actor.id,
@@ -298,6 +316,10 @@ async def list_project_agents(
                     for token in tokens
                 ],
                 created_at=row.created_at,
+                agent_definition_id=actor.agent_definition_id,
+                family_id=definition.family_id if definition is not None else None,
+                definition_display_name=definition.display_name if definition is not None else None,
+                definition_version=definition.version if definition is not None else None,
             )
         )
     return out
@@ -321,8 +343,24 @@ async def deploy_project_agent(
             detail="Acting actor has no account",
         )
 
+    definition_id = payload.agent_definition_id
+    if definition_id is not None:
+        from app.services.agent_definitions import get_definition
+
+        definition = await get_definition(db, definition_id)
+        if definition is None or definition.account_id != acting.account_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Agent definition not found",
+            )
+
     reuse = payload.reuse_research_crew or payload.display_name == AGENT_ACTOR_DISPLAY_NAME
     if reuse:
+        if definition_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Research crew has no definition pointer",
+            )
         existing = await find_research_crew_actor(db, project_id)
         if existing is not None:
             seat = await get_roster_row(db, project_id, existing.id)
@@ -366,6 +404,7 @@ async def deploy_project_agent(
         display_name=payload.display_name.strip(),
         account_id=acting.account_id,
         actor_metadata={"project_id": str(project_id)},
+        agent_definition_id=definition_id,
     )
     db.add(actor)
     await db.flush()
@@ -389,6 +428,101 @@ async def deploy_project_agent(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         detail="deployed agent missing from roster read",
     )
+
+
+async def _listed_row(
+    db: AsyncSession, project_id: UUID, acting: Actor, actor_id: UUID
+) -> AgentRosterRead:
+    listed = await list_project_agents(db, project_id, acting)
+    for item in listed:
+        if item.actor_id == actor_id:
+            return item
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found"
+    )
+
+
+async def upgrade_project_agent(
+    db: AsyncSession,
+    project_id: UUID,
+    actor_id: UUID,
+    acting: Actor,
+    payload: AgentUpgradeRequest,
+) -> AgentRosterRead:
+    """Revoke this seat and mint a new Actor pointing at a newer family version.
+
+    Does not rewrite ``author_id`` or retarget ``actors.agent_definition_id``.
+    Does not commit.
+    """
+    from fastapi import HTTPException, status
+
+    from app.services.agent_definitions import get_definition
+    from app.services.project_members import ensure_can_manage
+
+    await ensure_can_manage(db, project_id, acting)
+    if acting.account_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acting actor has no account",
+        )
+    row = await get_roster_row(db, project_id, actor_id)
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
+    if row.status == ProjectAgentStatus.REVOKED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="agent is revoked; deploy a new agent",
+        )
+    actor = await db.get(Actor, actor_id)
+    if actor is None or actor.agent_definition_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="agent has no definition pointer",
+        )
+    current = await get_definition(db, actor.agent_definition_id)
+    target = await get_definition(db, payload.agent_definition_id)
+    if current is None or target is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Agent definition not found",
+        )
+    if target.family_id != current.family_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="upgrade must stay in the same family",
+        )
+    if target.version <= current.version:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="upgrade must be a newer version",
+        )
+
+    row.status = ProjectAgentStatus.REVOKED
+    db.add(row)
+    await revoke_live_tokens_for_actors(db, project_id, {actor_id})
+
+    new_actor = Actor(
+        type=ActorType.AGENT,
+        display_name=target.display_name,
+        account_id=acting.account_id,
+        actor_metadata={"project_id": str(project_id)},
+        agent_definition_id=target.id,
+    )
+    db.add(new_actor)
+    await db.flush()
+    new_row = ProjectAgentMember(
+        project_id=project_id,
+        actor_id=new_actor.id,
+        deployed_by_account_id=acting.account_id,
+        responsible_account_id=acting.account_id,
+        role=ProjectAgentRole.RESEARCHER,
+        status=ProjectAgentStatus.ACTIVE,
+        token_budget_cap=row.token_budget_cap,
+        usd_budget_cap=row.usd_budget_cap,
+    )
+    db.add(new_row)
+    await db.flush()
+    return await _listed_row(db, project_id, acting, new_actor.id)
 
 
 async def patch_project_agent(
@@ -479,4 +613,5 @@ __all__ = [
     "resume_project_agent",
     "revoke_live_tokens_for_actors",
     "suspend_agents_on_owner_transfer",
+    "upgrade_project_agent",
 ]
