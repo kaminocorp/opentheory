@@ -1,5 +1,12 @@
 # External harness — actor attribution (`0.51.1` / `0.52.0`)
 
+> **0.54.0.** `ensure_is_member` is type-aware: a rostered
+> `type=agent` Actor passes research writes; an un-rostered /
+> suspended / revoked agent is `403`. `authorize()` still calls
+> that same helper (human JWT / flagged `OPENTHEORY_DEV_ACTOR_ID`).
+> Token mint and the agent-session swap are later. Sit on shipped
+> `0.53.0` (`2b2a135`, #49).
+>
 > **0.52.0.** The leftover spend-path gap is closed. Live MCP writes
 > still attribute to the JWT-resolved **Actor** and still pass
 > `ensure_is_member`. `HarnessSession.authorize()` now does the same
@@ -44,7 +51,7 @@ refuses a non-member before a hold (`0.52.0`).
 | --- | --- |
 | **Who is recorded as Actor** | The JWT-resolved Actor. Bearer → Account → that account's primary `human` Actor (`app/api/deps.py` `resolve_actor_from_bearer` / `_resolve_or_provision`). Local/test `OPENTHEORY_DEV_ACTOR_ID` may name any Actor, still behind `auth_dev_header_enabled`. |
 | **Who is Account / owner** | The Account is the auth principal only. It is not written on `Checkpoint` or `Contribution`. |
-| **Membership** | `ensure_is_member` before either write (`live_mcp.py` `_run_instrument`, `_create_checkpoint`). Gate is **account** membership (`ProjectMember.account_id`). Account-less Actors (system, dev-bootstrap, the per-project `Research crew` agent) are `403`. Missing project is `404`. |
+| **Membership** | `ensure_is_member` before either write (`live_mcp.py` `_run_instrument`, `_create_checkpoint`). Gate is type-aware (`0.54.0`): humans need `ProjectMember`; agents need an ACTIVE roster row; `system` is `403`. An un-rostered `Research crew` (including account-less orphans) is `403`. Missing project is `404`. |
 | **Chokepoint** | `services.tool_runs.run_instrument` → `create_checkpoint`, or `services.checkpoints.create_checkpoint` directly. `author_id = actor.id`. `Contribution.actor_id = actor.id`. The handler does not mint a `Checkpoint` itself. |
 
 A human Account does **not** appear as the contributor. The

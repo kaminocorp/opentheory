@@ -1,15 +1,16 @@
 # Design: first-class agent Actor identity
 
 > **Status — Approved 2026-10-06; implementation in slices.**
-> Design only on this branch: no production code, no Alembic
-> revision, no tests, no changelog bump, no roadmap banner.
-> Sits on `3eeeaf5` (`0.51.1`, #46). **Precursor on the
-> harness line:** shipped `0.52.0` (PR #48) puts a
-> human-member gate on `HarnessSession.authorize()`; this
-> design swaps that gate to the agent roster and replaces the
-> ~1h Supabase access JWT the gateway now holds. If this doc
-> disagrees with `backend/app/` on this branch, the code is
-> what exists here and this file is the approved change.
+> Slice A (schema) shipped as `0.53.0` (`2b2a135`, #49).
+> Slice B (membership gate) is this branch as `0.54.0`
+> (`REVOKED` is terminal — resume is `SUSPENDED` only).
+> Slices C–G are not started. Precursor: shipped `0.52.0`
+> (PR #48) puts a human-member gate on
+> `HarnessSession.authorize()`; later slices swap that gate
+> to the agent roster and replace the ~1h Supabase access JWT.
+> If this doc disagrees with `backend/app/` on this branch,
+> the code is what exists here and this file is the approved
+> change.
 >
 > Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway
 > or MCP child on Fly. FastAPI still must not import `app.harness`.
@@ -229,8 +230,8 @@ register it in `models/append_only.py`.
 | --- | --- | --- |
 | **Add (deploy)** | Human `OWNER` / `ADMIN` via `ensure_can_manage` | Mint (or reuse) an `Actor(type=agent)` owned by the acting account; insert roster row `status=active`, `deployed_by_account_id=acting account`, `responsible_account_id=acting account`. One transaction. Re-adding an `(project, actor)` pair is a `409`, not a second row (`uq_project_agent_member`). |
 | **Suspend** | Same | `status=suspended`. In-place. Live tokens for that pair get `revoked_at` in the same transaction. Subsequent MCP writes and `authorize()` / `record_spend` identity-load refuse. Existing checkpoints, contributions, and debits are untouched. |
-| **Resume** | Human `OWNER` only (`ensure_can_manage(require_owner=True)`) | `status=active`. Sets `responsible_account_id` to the acting owner's Account (who is now on the hook). Does **not** rewrite `Actor.account_id` or `deployed_by_account_id`. Does not un-revoke tokens; the owner mints a new one. |
-| **Revoke** | `OWNER` / `ADMIN` | `status=revoked`. Active session tokens for that `(project, actor)` get `revoked_at`. The Actor row stays (provenance). The roster row stays and remains **visible on Crew**, marked revoked. Re-deploy of the *same* Actor is a resume, not a second insert. |
+| **Resume** | Human `OWNER` only (`ensure_can_manage(require_owner=True)`) | Only `SUSPENDED` is resumable (what OWNER-transfer produces). `status=active`. Sets `responsible_account_id` to the acting owner's Account (who is now on the hook). Does **not** rewrite `Actor.account_id` or `deployed_by_account_id`. Does not un-revoke tokens; the owner mints a new one. `ACTIVE` → `409` already active. `REVOKED` is terminal → `409` deploy a new agent (`0.54.0` review). |
+| **Revoke** | `OWNER` / `ADMIN` | `status=revoked`. Active session tokens for that `(project, actor)` get `revoked_at`. The Actor row stays (provenance). The roster row stays and remains **visible on Crew**, marked revoked. `REVOKED` is terminal — resume refuses; deploy a **new** Actor (`0.54.0` review; the unique pair still blocks a second insert of the same Actor). |
 | **Mint token** | Human `OWNER` only | See §3. ADMIN may deploy / suspend / revoke; ADMIN may not mint. |
 | **Rotate token** | Human `OWNER` only | Mint new, revoke old, return the new compact JWT once. Optional and explicit. |
 
@@ -1361,8 +1362,8 @@ MCP behavior change, no UI, no Fly, no `AGENT_LOOP_ENABLED`.
 
 | Slice | Ships | Must stay out |
 | --- | --- | --- |
-| **1 — schema** | The inventory above. | Everything in "Not in slice one" |
-| **B — membership gate** | `ensure_is_member` type-aware; `ensure_can_manage` rejects agents; `ensure_is_human_member` on funding / validation / invites. OWNER-transfer hook: suspend Research crew + `responsible_account_id = outgoing` rows, revoke their tokens; ADMIN-deployed agents whose responsible account is not the outgoing owner stay active. `get_or_create_project_agent_actor` ensures a roster row. Dark loop, when later lit, uses this same roster gate. Account-less crew without a roster still `403`. | Token mint; Fly |
+| **1 — schema** | The inventory above. **Shipped `0.53.0`.** | Everything in "Not in slice one" |
+| **B — membership gate** | `ensure_is_member` type-aware; `ensure_can_manage` rejects agents; `ensure_is_human_member` on funding / validation / invites. OWNER-transfer hook: suspend Research crew + `responsible_account_id = outgoing` rows, revoke their tokens; ADMIN-deployed agents whose responsible account is not the outgoing owner stay active. `get_or_create_project_agent_actor` ensures a roster row. Dark loop, when later lit, uses this same roster gate. Account-less crew without a roster still `403`. **This branch as `0.54.0`.** | Token mint; Fly |
 | **C — agent token** | OWNER-only mint / rotate / revoke API; 30-day default; max TTL via settings (not `fly.toml [env]`); resolver in `deps.py` + `harness/auth.py`; secret setting. MCP writes with an agent file attribute to the agent + sponsor snapshot. **Swaps** the `0.52.0` human JWT on `authorize()` for the agent session token. Human Console JWT path unchanged. | Fly; UI mint; `AGENT_LOOP_ENABLED`; per-agent cap enforcement |
 | **D — spend** | `record_compute_debit` / `write_daily_cap_adjustment` take `actor_id`. `HarnessSession` binds the agent; `authorize` / `record_spend` load `jti` + roster. Outsider override closed. Hold notes / amount 0 / prefix / `hold_id` unchanged. Shared project daily cap (no per-agent split). Unfunded ≠ exhausted. Debit only when `tokens_used > 0` for spend. | Per-agent cap enforcement; Fly |
 | **E — Crew UI** | Deployed-agents bay on the Crew tab (revoked rows visible, marked revoked); OWNER mint / rotate reveal; members-only roster read; blame sponsor; ops `actor_*` + spend-by-agent. | New tab; Fly; lighting the loop |

@@ -1,14 +1,15 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-10-06 · **Current release line:** `0.53.0`
-> (agent identity schema), sitting on shipped `0.52.0` (harness
-> turn-spend membership, `c085586`, #48) on current `main`. See
-> `docs/completions/agent-identity-schema-0.53.0.md`.
+> **Last updated:** 2026-10-06 · **Current release line:** `0.54.0`
+> (agent identity membership gate), sitting on shipped `0.53.0`
+> (agent identity schema, `2b2a135`, #49) on current `main`. See
+> `docs/completions/agent-identity-membership-0.54.0.md`.
 >
 > **Next after this line:** Lean REPL / LeanDojo remain later.
 > Does not enable the gateway child on Fly.
 > Does not light `AGENT_LOOP_ENABLED`.
-> ~~Agent identity schema~~ ✅ this branch as `0.53.0`.
+> ~~Agent identity membership gate~~ ✅ this branch as `0.54.0`.
+> ~~Agent identity schema~~ ✅ shipped as `0.53.0`.
 > ~~Harness turn-spend membership~~ ✅ shipped as `0.52.0`.
 > ~~Harness actor-attribution audit~~ ✅ shipped as `0.51.1`.
 > ~~Harness serialization guard~~ ✅ shipped as `0.51.0`.
@@ -941,13 +942,25 @@ session / turn is running for is a current project member. No
 hold, no debit, no provider call. `record_spend` does not
 re-check.
 
-**`0.53.0` (agent identity schema)** is this branch: enums +
-roster + session-token tables, nullable
+**`0.53.0` (agent identity schema)** is shipped (`2b2a135`, #49):
+enums + roster + session-token tables, nullable
 `checkpoints.sponsored_by_actor_id` and `compute_debits.actor_id`,
 Research-crew / AgentRun backfill, Research-crew unique index.
 Schema-on, behavior-off. No `actors.agent_definition_id` (deferred
-with the catalog). No API / MCP / UI / auth change.
+with the catalog).
+
+**`0.54.0` (agent identity membership gate)** is this branch:
+type-aware `ensure_is_member` (human `ProjectMember` / agent
+ACTIVE roster / `system` 403); `ensure_can_manage` rejects
+agents before the account lookup; `ensure_is_human_member` on
+funding / validation / invite-accept. OWNER transfer suspends
+Research crew + outgoing-responsible rows and revokes their
+tokens; ADMIN-deployed agents whose responsible account is not
+the outgoing owner stay active. `get_or_create_project_agent_actor`
+ensures a roster row. Dark-loop commission uses the same roster
+gate. No token mint. No Fly. No `AGENT_LOOP_ENABLED`.
 
 **Next product step:** Lean REPL / LeanDojo remain later. `If` /
-ite remain later. Does not enable the gateway child on Fly. Does
-not light `AGENT_LOOP_ENABLED`.
+ite remain later. Agent identity slice C (OWNER-minted session
+token) is next on this line. Does not enable the gateway child
+on Fly. Does not light `AGENT_LOOP_ENABLED`.

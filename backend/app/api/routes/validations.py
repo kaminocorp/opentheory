@@ -5,7 +5,7 @@ from fastapi import APIRouter, status
 from app.api.deps import ActingActor, DbSession
 from app.schemas.validation import ValidationCreate, ValidationRead
 from app.services import validations as validation_service
-from app.services.project_members import ensure_is_member
+from app.services.project_members import ensure_is_human_member
 
 router = APIRouter()
 
@@ -22,7 +22,7 @@ async def create_validation(
     db: DbSession,
     actor: ActingActor,
 ) -> ValidationRead:
-    await ensure_is_member(db, project_id, actor)
+    await ensure_is_human_member(db, project_id, actor)
     return await validation_service.create_validation(db, project_id, payload, actor)
 
 

@@ -34,7 +34,6 @@ from app.models.contribution import Contribution
 from app.models.enums import ActorType, ComputeDebitKind, ComputeDebitRateSource, ProjectRole
 from app.models.funding import FundingAllocation
 from app.models.project_member import ProjectMember
-from app.services.agent_actors import get_or_create_project_agent_actor
 from app.services.compute import BUDGET_EXHAUSTED
 from app.services.harness_meter import load_today_adjustments
 from tests.principals import create_owned_project, make_dev_principal
@@ -412,20 +411,29 @@ async def test_outsider_actor_env_refuses_without_hold_debit_or_provider(
 async def test_accountless_research_crew_actor_refuses_spend(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
-    """Decision #3: Research crew is account-less and cannot authorize spend."""
+    """Un-rostered Research crew still cannot authorize spend (0.51.1 / 0.54.0 pin).
+
+    Inserted raw so ``get_or_create`` cannot heal a roster row onto it.
+    """
     owner_id = await make_dev_principal(client, display_name="Owner", roles=("internal",))
     project_id = await create_owned_project(client, owner_id, "harness-turn-agent")
     before = await _checkpoint_count(session_factory, project_id)
 
     async with session_factory() as session:
-        agent = await get_or_create_project_agent_actor(session, UUID(project_id))
+        agent = Actor(
+            type=ActorType.AGENT,
+            display_name="Research crew",
+            account_id=None,
+            actor_metadata={"project_id": project_id},
+        )
+        session.add(agent)
         await session.commit()
         agent_id = str(agent.id)
         assert agent.account_id is None
         assert agent.type is ActorType.AGENT
 
     def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover
-        raise AssertionError("account-less agent must refuse before the LLM call")
+        raise AssertionError("un-rostered agent must refuse before the LLM call")
 
     result = await supervise_turn(
         messages=[{"role": "user", "content": "hi"}],

@@ -1,9 +1,9 @@
 """Shared Account-backed principals for membership-gated write tests.
 
-``ensure_is_member`` 403s account-less actors. Production writes always have an
-Account (JWT → Account → human Actor). Tests that POST ledger writes must do
-the same: create an Account, link a human Actor, then create the project as that
-actor so they become OWNER.
+``ensure_is_member`` 403s account-less humans and un-rostered agents.
+Production writes always have an Account (JWT → Account → human Actor).
+Tests that POST ledger writes must do the same: create an Account, link a
+human Actor, then create the project as that actor so they become OWNER.
 """
 
 from httpx import AsyncClient

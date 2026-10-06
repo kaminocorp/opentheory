@@ -57,10 +57,11 @@ from app.services import claims as claim_service
 from app.services import compute as compute_service
 from app.services import funding as funding_service
 from app.services import validations as validation_service
-from app.services.agent_actors import get_or_create_project_agent_actor
+from app.services.agent_actors import find_research_crew_actor, get_or_create_project_agent_actor
 from app.services.claims import compute_signal
 from app.services.compute import BUDGET_EXHAUSTED, BUDGET_EXHAUSTED_REASON, ProjectBudgetPolicy
 from app.services.grounding import compute_yield, grounding_by_claim
+from app.services.project_members import ensure_is_member
 from app.services.tool_runs import run_instrument
 from app.toolbench.catalog import build_catalog
 from app.toolbench.registry import registry
@@ -371,7 +372,20 @@ async def _execute(
         )
 
     # 1. Resolve the agent Actor (lazily created, idempotent) and stamp it on the trace.
+    #    0.54.0: one roster gate for all agent authorship. get_or_create ensures a
+    #    seat when missing; a SUSPENDED / REVOKED / absent row is 403 → failed trace.
     agent_actor = await get_or_create_project_agent_actor(db, agent_run.project_id)
+    try:
+        await ensure_is_member(db, agent_run.project_id, agent_actor)
+    except HTTPException as exc:
+        if exc.status_code == status.HTTP_403_FORBIDDEN:
+            return await _finalize(
+                db,
+                agent_run,
+                status=AgentRunStatus.FAILED,
+                error="agent is not an active project member",
+            )
+        raise
     agent_run.agent_actor_id = agent_actor.id
 
     # 2. Resolve the role's model. An unassigned role is a recorded failed trace (mints nothing) —
@@ -877,6 +891,14 @@ async def start_agent_pass(
     thread = await db.get(Thread, thread_id)
     if thread is None or thread.project_id != project_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
+
+    # A commissioning human passing the HTTP route is not enough: an existing
+    # Research-crew Actor without an ACTIVE roster row is 403 (0.54.0). First
+    # pass on a project with no crew yet is allowed — run_agent_pass creates
+    # the actor + roster lazily.
+    crew = await find_research_crew_actor(db, project_id)
+    if crew is not None:
+        await ensure_is_member(db, project_id, crew)
 
     agent_run = AgentRun(
         project_id=project_id,

@@ -44,9 +44,10 @@ class ProjectAgentRole(StrEnum):
 class ProjectAgentStatus(StrEnum):
     """Lifecycle of one ``project_agent_members`` row (0.53.0) — mutable, not a ledger event.
 
-    ``ACTIVE`` may write (once later slices wire the gate). ``SUSPENDED`` /
+    ``ACTIVE`` may write through ``ensure_is_member`` (0.54.0). ``SUSPENDED`` /
     ``REVOKED`` refuse subsequent writes; the row stays visible (revoked agents
-    remain on Crew). Re-deploy of the same Actor is a resume, not a second insert.
+    remain on Crew). Only ``SUSPENDED`` is resumable; ``REVOKED`` is terminal
+    (deploy a new agent).
     """
 
     ACTIVE = "active"

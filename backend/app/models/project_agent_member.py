@@ -32,7 +32,7 @@ class ProjectAgentMember(IdMixin, TimestampMixin, Base):
         UniqueConstraint("project_id", "actor_id", name="uq_project_agent_member"),
         Index("ix_project_agent_members_project_status", "project_id", "status"),
         # OWNER-transfer lookup: suspend rows whose responsible account is the
-        # outgoing owner (later slice).
+        # outgoing owner (0.54.0).
         Index(
             "ix_project_agent_members_responsible",
             "project_id",
@@ -61,7 +61,7 @@ class ProjectAgentMember(IdMixin, TimestampMixin, Base):
         ForeignKey("accounts.id", ondelete="SET NULL"),
     )
     # Who is on the hook now. Equals deployer at insert; set to the new OWNER
-    # on resume. Transfer trigger (later slice) keys on this, not deployed_by.
+    # on resume. Transfer trigger (0.54.0) keys on this, not deployed_by.
     responsible_account_id: Mapped[UUID | None] = mapped_column(
         PgUUID(as_uuid=True),
         ForeignKey("accounts.id", ondelete="SET NULL"),
