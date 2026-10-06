@@ -58,6 +58,13 @@ no new column, no Alembic revision.
 - **Hold occupancy is not clamped to agent remaining.** That
   would split the project daily cap and re-open 0.47–0.51.
   Only `max_tokens` / turn clamp is the min.
+- **Built-in pass releases the project-row lock after the
+  start check** (`commit` before the planner). Holding it
+  through an injected `budget_policy` planner serialized
+  0.32 concurrent campaign cycles. A later start re-takes
+  the lock; mid-pass stop sees tokens billed after that
+  commit. Harness `authorize()` still holds until the
+  remaining-room hold writes.
 - **USD converts at a known live/catalog rate only.** An
   unknown rate does not invent a blended price; USD already-
   reached still refuses without a price.
