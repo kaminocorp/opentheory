@@ -44,11 +44,11 @@ class ComputeDebit(IdMixin, TimestampMixin, Base):
         nullable=False,
         index=True,
     )
-    # Who burned the tokens (0.53.0). Nullable: historical rows and pre-identity
-    # ``harness_session_turn`` hold/release/spend have no honest actor. SET NULL
-    # keeps the debit if an Actor is later removed. Indexed
-    # ``ix_compute_debits_actor_id``. This slice stores the column; writers still
-    # leave it null until the spend slice.
+    # Who burned the tokens (0.53.0 column, 0.56.0 writers). Nullable:
+    # historical rows and pre-identity ``harness_session_turn`` hold/release/spend
+    # have no honest actor. SET NULL keeps the debit if an Actor is later
+    # removed. Indexed ``ix_compute_debits_actor_id``. Harness spend / holds
+    # and built-in-pass debits stamp the spending agent (or human member).
     actor_id: Mapped[UUID | None] = mapped_column(
         PgUUID(as_uuid=True),
         ForeignKey("actors.id", ondelete="SET NULL"),

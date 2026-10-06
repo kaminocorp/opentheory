@@ -69,18 +69,19 @@ table.
 
 ``0.52.0`` closes the leftover membership gap on this spend path.
 ``authorize()`` resolves the actor the session / turn is running
-for (``actor_env``, else ``env`` — the same JWT-file / JWT /
-flagged ``OPENTHEORY_DEV_ACTOR_ID`` injection ``live_mcp`` uses)
-and calls ``ensure_is_member`` *before* any hold write or
+for and calls ``ensure_is_member`` *before* any hold write or
 provider call. A missing credential, a non-member, an
 un-rostered / suspended / revoked agent, or a ``system`` actor
 is ``TurnRefused``: no hold, no debit, no OpenRouter call.
 A rostered ``type=agent`` Actor passes the membership gate
-(0.54.0); token mint / resolver remains a later slice.
-``record_spend`` does not re-check. Membership is a start-of-turn
-gate (same as pot / daily cap / floor). Tokens that moved after
-a successful authorize are billed — a mid-turn removal does not
-erase the pot. The next authorize fails closed. No schema.
+(0.54.0); an agent session token is accepted (0.55.0).
+``0.56.0`` stamps ``ComputeDebit.actor_id`` on billed spend and
+on hold/release rows. Session ``env`` wins over a per-turn
+``actor_env`` so an outsider override cannot re-attribute
+spend. ``record_spend`` does not re-check membership: tokens
+that moved after a successful authorize are billed (load ``jti``
+for the stamp even if the token was revoked mid-turn). The next
+authorize fails closed.
 """
 
 from __future__ import annotations
@@ -98,6 +99,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agent.pricing import PriceQuote, quote_model_price
 from app.harness.composition import CompositionError, verify
+from app.models.actor import Actor
 from app.models.compute_debit import ComputeDebit
 from app.models.enums import ComputeDebitKind, ComputeDebitRateSource
 from app.models.project import Project
@@ -422,11 +424,17 @@ async def write_daily_cap_adjustment(
     *,
     tokens_used: int,
     notes: str,
+    actor_id: UUID | None = None,
 ) -> None:
-    """Append a hold or release row. Amount is 0 — not a pot debit. Does not commit."""
+    """Append a hold or release row. Amount is 0 — not a pot debit. Does not commit.
+
+    ``actor_id`` is audit-only (0.56.0). It does not split the project
+    daily cap or count as pot spend.
+    """
     db.add(
         ComputeDebit(
             project_id=project_id,
+            actor_id=actor_id,
             tokens_used=tokens_used,
             amount=Decimal("0"),
             currency="USD",
@@ -479,6 +487,7 @@ async def release_stale_holds(
             project_id,
             tokens_used=-hold.tokens_used,
             notes=release_notes(hold_id),
+            actor_id=getattr(hold, "actor_id", None),
         )
         released.append(hold_id)
     return released
@@ -503,7 +512,7 @@ async def assert_turn_member(
     db: AsyncSession,
     project_id: UUID,
     env: Mapping[str, str] | None,
-) -> None:
+) -> Actor:
     """Refuse before a hold when the acting actor is not a current member.
 
     Uses the existing helpers: ``resolve_mcp_actor`` (JWT file / JWT /
@@ -511,7 +520,8 @@ async def assert_turn_member(
     ``ProjectMember`` / agent ACTIVE roster). Mapped to ``TurnRefused`` so the gateway
     stays 422 with no provider call, no hold, and no debit. A missing
     credential is fail-closed — there is no "project-bound so skip"
-    escape. Does not write.
+    escape. Does not write. Returns the resolved actor so the session
+    can bind ``actor_id`` / ``jti`` for spend attribution.
     """
     from fastapi import HTTPException
 
@@ -532,6 +542,7 @@ async def assert_turn_member(
         if exc.status_code == 401:
             raise TurnRefused(REASON_ACTOR) from exc
         raise TurnRefused(REASON_NOT_MEMBER) from exc
+    return actor
 
 
 def _as_project_id(value: UUID | str) -> UUID:
@@ -568,6 +579,8 @@ class HarnessSession:
     actor_env: Mapping[str, str] | None = None
     notes: str = SESSION_NOTES
     extras: dict[str, Any] = field(default_factory=dict)
+    bound_actor_id: UUID | None = field(default=None, init=False, repr=False)
+    bound_jti: UUID | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
         self.project_id = _as_project_id(self.project_id)
@@ -607,15 +620,31 @@ class HarnessSession:
         return resolve_turn_token_floor(self.env)
 
     def _actor_lookup(self) -> Mapping[str, str] | None:
-        """Actor the session / turn is running for.
+        """Session-bound credential. ``env`` wins over ``actor_env``.
 
-        ``actor_env`` wins (``supervise_turn`` MCP credentials). Else
-        ``env`` (campaign / gateway process — operator-supplied JWT
-        file or flagged dev-actor, same injection as ``live_mcp``).
+        Once spend carries ``actor_id`` (0.56.0), a per-turn
+        ``actor_env`` must not override the campaign/session identity.
+        Tests that only pass ``actor_env`` still resolve that way.
         """
-        if self.actor_env is not None:
-            return self.actor_env
-        return self.env
+        from app.harness.auth import load_credential
+
+        if self.env is not None and load_credential(self.env) is not None:
+            return self.env
+        return self.actor_env
+
+    async def _spend_actor_id(self, db: AsyncSession) -> UUID | None:
+        """Actor to stamp on spend / convert. Loads ``jti`` even if revoked.
+
+        Does not refuse. Membership is the ``authorize()`` gate; tokens
+        that moved after a mid-turn revoke are still billed.
+        """
+        if self.bound_jti is not None:
+            from app.models.agent_session_token import AgentSessionToken
+
+            row = await db.get(AgentSessionToken, self.bound_jti)
+            if row is not None:
+                return row.actor_id
+        return self.bound_actor_id
 
     def _factory(self) -> async_sessionmaker[AsyncSession]:
         if self.session_factory is not None:
@@ -633,12 +662,13 @@ class HarnessSession:
         """Refuse before the LLM call on drift, membership, turn cap, daily cap, pot, or floor.
 
         Membership is first among the DB checks: resolve the acting
-        actor (agent session token, or human JWT / flagged dev-id)
-        and ``ensure_is_member`` before the project-row lock,
-        stale-hold release, or remaining-room hold. An agent session
-        whose ``proj`` is not this session's project refuses here.
-        A non-member, un-rostered agent, or ``system`` actor cannot
-        take a hold or call the provider.
+        actor from the session-bound credential (``env`` wins over
+        ``actor_env``) and ``ensure_is_member`` before the project-row
+        lock, stale-hold release, or remaining-room hold. Binds
+        ``bound_actor_id`` / ``bound_jti`` for spend attribution.
+        An agent session whose ``proj`` is not this session's project
+        refuses here. A non-member, un-rostered agent, or ``system``
+        actor cannot take a hold or call the provider.
 
         On a pass, locks the project row, releases unmatched holds older
         than the TTL, re-reads today's harness token sum (holds
@@ -660,7 +690,11 @@ class HarnessSession:
             resolved_quote = await quote_model_price(model)
         factory = self._factory()
         async with factory() as db:
-            await assert_turn_member(db, self.project_uuid, self._actor_lookup())
+            actor = await assert_turn_member(db, self.project_uuid, self._actor_lookup())
+            from app.services.agent_tokens import token_jti_of
+
+            self.bound_actor_id = actor.id
+            self.bound_jti = token_jti_of(actor)
             project = await _lock_project(db, self.project_uuid)
             cap = self.resolved_daily_token_cap()
             await release_stale_holds(
@@ -703,6 +737,7 @@ class HarnessSession:
                 self.project_uuid,
                 tokens_used=daily_room,
                 notes=hold_notes(hold_id),
+                actor_id=actor.id,
             )
             await db.commit()
             return DailyCapHold(
@@ -730,6 +765,7 @@ class HarnessSession:
                     self.project_uuid,
                     tokens_used=-hold.tokens,
                     notes=release_notes(hold.hold_id),
+                    actor_id=self.bound_actor_id,
                 )
             await db.commit()
 
@@ -752,12 +788,15 @@ class HarnessSession:
 
         Does not re-check membership. ``authorize()`` is the gate: a
         member removed mid-turn does not drop a debit for tokens that
-        already moved (pot honesty). The next authorize refuses.
+        already moved (pot honesty). Loads ``jti`` to stamp
+        ``actor_id`` even if the token was revoked mid-turn. The next
+        authorize refuses.
         """
         if tokens_used <= 0 and hold is None:
             return False
         factory = self._factory()
         async with factory() as db:
+            spend_actor_id = await self._spend_actor_id(db)
             if hold is not None and hold.tokens > 0:
                 await _lock_project(db, self.project_uuid)
                 if not await hold_has_release(
@@ -771,6 +810,7 @@ class HarnessSession:
                         self.project_uuid,
                         tokens_used=-hold.tokens,
                         notes=release_notes(hold.hold_id),
+                        actor_id=spend_actor_id,
                     )
             debit = None
             if tokens_used > 0:
@@ -779,6 +819,7 @@ class HarnessSession:
                     project_id=self.project_uuid,
                     tokens_used=tokens_used,
                     model=model,
+                    actor_id=spend_actor_id,
                     kind=ComputeDebitKind.PLANNING,
                     notes=notes or self.notes,
                     prompt_tokens=prompt_tokens,

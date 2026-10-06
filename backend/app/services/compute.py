@@ -121,6 +121,7 @@ async def record_compute_debit(
     tokens_used: int,
     model: str | None,
     agent_run_id: UUID | None = None,
+    actor_id: UUID | None = None,
     kind: ComputeDebitKind = ComputeDebitKind.PLANNING,
     notes: str | None = None,
     prompt_tokens: int | None = None,
@@ -163,6 +164,7 @@ async def record_compute_debit(
     debit = ComputeDebit(
         project_id=project_id,
         agent_run_id=agent_run_id,
+        actor_id=actor_id,
         tokens_used=tokens_used,
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,

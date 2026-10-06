@@ -1,6 +1,6 @@
 """0.55.0 — OWNER agent-session mint / rotate / revoke, resolver, authorize swap.
 
-DB-gated. Debit actor_id / Crew UI / per-agent caps stay out.
+DB-gated. Crew UI / per-agent caps stay out (spend stamp is 0.56.0).
 """
 
 from datetime import UTC, datetime, timedelta

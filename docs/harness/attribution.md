@@ -1,5 +1,11 @@
 # External harness — actor attribution (`0.51.1` / `0.52.0`)
 
+> **0.56.0.** `record_compute_debit` / `write_daily_cap_adjustment`
+> take `actor_id`. Harness spend and hold/release stamp the
+> session-bound actor (`env` wins over `actor_env`). Built-in
+> pass stamps `AgentRun.agent_actor_id`. Mid-turn revoke still
+> bills. Sit on shipped `0.55.0` (`149c36e`, #51).
+>
 > **0.55.0.** OWNER-only agent session mint / rotate / revoke.
 > Harness/MCP resolver verifies `typ=agent_session`. HTTP
 > `ActingActor` refuses that bearer (`403`). MCP writes with
@@ -79,17 +85,17 @@ explicitly does not mint an Actor (`campaign.py` `open_session`).
 
 | | |
 | --- | --- |
-| **Who is recorded as Actor** | Nobody. `ComputeDebit` has no `actor_id` (schema since `0.19.0`). `record_compute_debit` takes `project_id` + tokens + model + notes. Harness rows use notes `harness_session_turn` and leave `agent_run_id` null (no `AgentRun` on this path). Hold / release rows are amount `0` and are not pot spend. |
+| **Who is recorded as Actor** | The session-bound actor (`0.56.0`). `record_compute_debit(..., actor_id=)` and `write_daily_cap_adjustment(..., actor_id=)` stamp it on billed spend and on hold/release. Harness rows use notes `harness_session_turn` and leave `agent_run_id` null (no `AgentRun` on this path). Hold / release rows are amount `0` and are not pot spend. Historical pre-identity rows stay null. |
 | **Who is Account / owner** | The project's funded pot. `FundingAllocation.account_id` (the funder) is not read or written. Spend is `project_budget.spent` = Σ `ComputeDebit.amount`. |
-| **Membership** | `ensure_is_member` on `authorize()` (`0.52.0`). The actor the session / turn is running for is resolved from `actor_env` (the `supervise_turn` MCP credential) or, if unset, `env` (campaign / gateway process — operator-supplied JWT file / JWT / flagged `OPENTHEORY_DEV_ACTOR_ID`, same injection as `live_mcp`). Missing credential, non-member, or account-less actor is `TurnRefused` before any hold or provider call. `record_spend` does **not** re-check: a member removed mid-turn does not drop a debit for tokens that already moved; the next authorize refuses. Inbound HTTP auth on the gateway is still `OPENTHEORY_GATEWAY_TOKEN`. |
+| **Membership** | `ensure_is_member` on `authorize()` (`0.52.0` / `0.55.0`). The actor is resolved from session `env` when that mapping has a credential; `actor_env` cannot override (`0.56.0`). Missing credential, non-member, or account-less actor is `TurnRefused` before any hold or provider call. `record_spend` does **not** re-check membership: a member removed or a token revoked mid-turn does not drop a debit for tokens that already moved; it still stamps `actor_id`. The next authorize refuses. Inbound HTTP auth on the gateway is still `OPENTHEORY_GATEWAY_TOKEN`. |
 | **Chokepoint** | Membership + remaining-room hold on `authorize()`. `record_compute_debit` when `tokens_used > 0`. Hold / release go through `write_daily_cap_adjustment` (amount `0`). Neither path calls `create_checkpoint`. |
 
 This is not a hole that lets a non-member mint research
 provenance. A refused start cannot land a checkpoint either.
-Remapping spend onto an Actor would need a new
-`ComputeDebit.actor_id` column — a schema change this slice
-refuses. The built-in loop attributes spend via `agent_run_id`,
-which this path also does not have.
+`0.56.0` stamps `ComputeDebit.actor_id` on new harness spend
+and holds; historical `harness_session_turn` rows stay null.
+The built-in loop stamps the same column from
+`AgentRun.agent_actor_id`.
 
 `supervise_turn` passes `actor_env` onto `HarnessSession` so the
 library path and the session-owned gateway share the same

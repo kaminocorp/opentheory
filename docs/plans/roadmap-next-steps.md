@@ -1,14 +1,15 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-10-06 · **Current release line:** `0.55.0`
-> (agent session token), sitting on shipped `0.54.0`
-> (membership gate, `7a1fa0c`, #50) on current `main`. See
-> `docs/completions/agent-identity-token-0.55.0.md`.
+> **Last updated:** 2026-10-06 · **Current release line:** `0.56.0`
+> (spend attribution), sitting on shipped `0.55.0`
+> (agent session token, `149c36e`, #51) on current `main`. See
+> `docs/completions/agent-identity-spend-0.56.0.md`.
 >
 > **Next after this line:** Lean REPL / LeanDojo remain later.
 > Does not enable the gateway child on Fly.
 > Does not light `AGENT_LOOP_ENABLED`.
-> ~~Agent identity session token~~ ✅ this branch as `0.55.0`.
+> ~~Agent identity spend attribution~~ ✅ this branch as `0.56.0`.
+> ~~Agent identity session token~~ ✅ shipped as `0.55.0`.
 > ~~Agent identity membership gate~~ ✅ shipped as `0.54.0`.
 > ~~Agent identity schema~~ ✅ shipped as `0.53.0`.
 > ~~Harness turn-spend membership~~ ✅ shipped as `0.52.0`.
@@ -954,19 +955,23 @@ with the catalog).
 (`7a1fa0c`, #50): type-aware `ensure_is_member`; transfer hook;
 roster ensure. No token mint.
 
-**`0.55.0` (agent session token)** is this branch: OWNER-only
-mint / rotate / revoke; 30-day default TTL; max via
-`OPENTHEORY_AGENT_SESSION_MAX_TTL_SECONDS`; resolver
-(`typ=agent_session`, hash, expiry, `revoked_at`, ACTIVE roster,
-`last_used_at`); `authorize()` accepts the agent session token
-and refuses a token whose `proj` ≠ the session project. MCP
-writes with an agent token author as the agent and snapshot
-`sponsored_by`. Human Console JWT unchanged. No
-`record_compute_debit(actor_id=)`. No Crew UI. No Fly.
+**`0.55.0` (agent session token)** is shipped
+(`149c36e`, #51): OWNER-only mint / rotate / revoke; resolver;
+`authorize()` agent-session swap. No debit `actor_id`.
+
+**`0.56.0` (spend attribution)** is this branch:
+`record_compute_debit` / `write_daily_cap_adjustment` take
+`actor_id`. Harness spend + hold/release and the built-in pass
+stamp the spending agent. Session `env` wins over `actor_env`.
+`record_spend` still bills after a mid-turn revoke. Shared
+project daily cap. Holds stay amount `0` with the literal
+`harness_session_turn` prefix and `hold_id`. No Crew UI. No
+ops `actor_*` reads. No per-agent cap enforcement. No Fly.
 No `AGENT_LOOP_ENABLED`. **No migration** (0022 already has
-the table).
+the column).
 
 **Next product step:** Lean REPL / LeanDojo remain later. `If` /
-ite remain later. Agent identity slice D (debit `actor_id`) is
-next on this line. Does not enable the gateway child
-on Fly. Does not light `AGENT_LOOP_ENABLED`.
+ite remain later. Agent identity slice E (Crew UI / blame
+sponsor / ops actor fields) is next on this line. Does not
+enable the gateway child on Fly. Does not light
+`AGENT_LOOP_ENABLED`.
