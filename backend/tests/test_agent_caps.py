@@ -279,7 +279,11 @@ async def test_token_cap_reached_refuses_without_hold(
         raise AssertionError("reached token cap must refuse")
     except TurnRefused as refused:
         assert refused.reason == REASON_AGENT_TOKEN_CAP
-    holds = [row for row in await _adjustments(session_factory, project_id) if "daily_cap_hold" in (row.notes or "")]
+    holds = [
+        row
+        for row in await _adjustments(session_factory, project_id)
+        if "daily_cap_hold" in (row.notes or "")
+    ]
     assert holds == []
 
 
@@ -305,7 +309,11 @@ async def test_usd_cap_reached_refuses_without_hold(
         raise AssertionError("reached usd cap must refuse")
     except TurnRefused as refused:
         assert refused.reason == REASON_AGENT_USD_CAP
-    holds = [row for row in await _adjustments(session_factory, project_id) if "daily_cap_hold" in (row.notes or "")]
+    holds = [
+        row
+        for row in await _adjustments(session_factory, project_id)
+        if "daily_cap_hold" in (row.notes or "")
+    ]
     assert holds == []
 
 
@@ -381,7 +389,11 @@ async def test_overlapping_authorize_second_refuses_no_second_hold(
         raise AssertionError("overlapping authorize must refuse")
     except TurnRefused as refused:
         assert refused.reason in {REASON_DAILY_CAP, REASON_AGENT_TOKEN_CAP}
-    holds = [row for row in await _adjustments(session_factory, project_id) if "daily_cap_hold" in (row.notes or "")]
+    holds = [
+        row
+        for row in await _adjustments(session_factory, project_id)
+        if "daily_cap_hold" in (row.notes or "")
+    ]
     assert len(holds) == 1
 
 

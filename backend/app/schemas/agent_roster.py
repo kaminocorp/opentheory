@@ -5,6 +5,8 @@ Resume is OWNER only. Caps are lifetime per roster seat; null = none.
 Never email, never token hash, never the compact JWT.
 """
 
+from __future__ import annotations
+
 from datetime import datetime
 from decimal import Decimal
 from uuid import UUID

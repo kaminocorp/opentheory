@@ -732,7 +732,7 @@ class HarnessSession:
         model: str | None = None,
         quote: PriceQuote | None = None,
     ) -> DailyCapHold | None:
-        """Refuse before the LLM call on drift, membership, turn cap, daily cap, agent cap, pot, or floor.
+        """Refuse before the LLM: drift, membership, caps, pot, or floor.
 
         Membership is first among the DB checks: resolve the acting
         actor from the session-bound credential (``env`` wins over

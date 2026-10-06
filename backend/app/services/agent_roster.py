@@ -405,7 +405,11 @@ async def patch_project_agent(
 
     if payload.status == ProjectAgentStatus.ACTIVE:
         await resume_project_agent(db, project_id, actor_id, acting)
-        if "token_budget_cap" in payload.model_fields_set or "usd_budget_cap" in payload.model_fields_set:
+        cap_edit = (
+            "token_budget_cap" in payload.model_fields_set
+            or "usd_budget_cap" in payload.model_fields_set
+        )
+        if cap_edit:
             await ensure_can_manage(db, project_id, acting)
             row = await get_roster_row(db, project_id, actor_id)
             if row is None:
