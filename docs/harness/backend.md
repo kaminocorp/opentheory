@@ -1,6 +1,6 @@
 # External harness — backend skeleton
 
-> **Status — `0.49.0` perpetual ops dashboard.** Package exists. FastAPI
+> **Status — `0.49.1` perpetual ops Overview eyeball.** Package exists. FastAPI
 > does not import it. Fly does not run it. The product ops read uses
 > `app.services.harness_meter`, not this package.
 

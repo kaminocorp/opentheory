@@ -68,7 +68,8 @@ table.** Sits on shipped `0.48.0` (`7094d18`, #41).
   is unknown and labeled as such.
 - A single turn that burns more than the remaining room can still
   finish over the cap (the check is before the model).
-- Browser eyeball pass remains owed.
+- Browser eyeball pass of the Overview bay landed as `0.49.1`
+  (`docs/completions/perpetual-ops-browser-eyeball-0.49.1.md`).
 
 ## Tests
 
@@ -101,4 +102,4 @@ table.** Sits on shipped `0.48.0` (`7094d18`, #41).
 - A live OpenRouter call with a real key in this environment.
 - A full `dsh` session against the session-owned HTTP child.
 - Fly enablement of the harness child.
-- Pixel-level browser walk of the Overview bay.
+- Pixel-level browser walk of the Overview bay — closed in `0.49.1`.

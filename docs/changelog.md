@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.49.1` — **Perpetual ops Overview eyeball pass.** The leftover `0.49.0` browser walk: local FastAPI + Next against throwaway Postgres, seeded through the sanctioned writers / ledger fixtures. Unfunded ≠ exhausted on screen. Funded remaining, pot-exhausted, paired `hold_id` + legacy id-less hold, newest 20 harness rows, refusals honesty block, gateway/MCP `unknown`, invalid cap → cap unknown, missing project 404, five-tab contract, desktop + narrow 390. One honesty fix: `formatOpsMoney` keeps Numeric(12, 6) fraction digits so `$0.0004` is not rounded to `$0.00`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Frontend + docs — no schema, no migration.** Sits on shipped `0.49.0` (`ba7055b`, #42).
 - `0.49.0` — **Perpetual ops dashboard.** A read-only operator snapshot of the budgeted perpetual setup: per-project pot vs spent (unfunded ≠ exhausted), today's `harness_session_turn` `ComputeDebit` sum against `OPENTHEORY_HARNESS_DAILY_TOKEN_CAP` (holds paired by `hold_id`; legacy id-less holds pair FIFO), recent harness rows, and whether the built-in loop / gateway is enabled. Refused starts mint nothing and are labeled as not recorded. Gateway / MCP-on-Fly is `unknown` to this API process. FastAPI still does not import `app.harness` (shared meter in `app.services.harness_meter`). Quiet Overview bay; no sixth tab; no Start / Fund controls. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + frontend + docs — no schema, no migration.** Sits on shipped `0.48.0` (`7094d18`, #41).
 - `0.48.0` — **Harness daily-cap orphan-hold release.** Closes the leftover 0.47.0 crash pin: a remaining-room hold whose convert never ran used to occupy the project's daily room until UTC midnight. Hold notes now carry a `hold_id`. The next `authorize()` — still under the project-row `FOR UPDATE` — appends a matching `daily_cap_release` for an unmatched hold older than `OPENTHEORY_HARNESS_HOLD_TTL_SECONDS` (default **300**) and only then takes a new hold. A fresh in-flight hold is not released, so two overlapping authorizes still cannot both debit past the cap. Amount stays `0`. Notes prefix stays literal. Unfunded ≠ exhausted. Debit only when `tokens_used > 0`. No sweeper table. No campaign table. No ops dashboard. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + docs — no schema, no migration.** Sits on shipped `0.47.0` (`b92c5b2`, #40).
 - `0.47.0` — **Harness daily-cap reservation.** Closes the leftover 0.46.0 race: `HarnessSession.authorize()` no longer reads today's `ComputeDebit` sum unlocked. It takes the project row `FOR UPDATE`, then appends a remaining-room hold on the existing ledger (`harness_session_turn; daily_cap_hold`, amount `0` — not a pot debit). A second concurrent authorize sees the hold in today's sum and refuses (`TurnRefused` → 422, `tokens_used` 0, minted false, no OpenRouter call). After the model call the hold is released by a new credit row (append-only; never an edit) and the real spend is recorded only when `tokens_used > 0`. Notes prefix stays literal. Unfunded ≠ exhausted. No campaign table. No ops dashboard. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + docs — no schema, no migration.** Sits on shipped `0.46.0` (`8ee8ac0`, #39).
@@ -124,6 +125,40 @@
 
 ---
 
+## 0.49.1
+
+**Perpetual ops Overview eyeball pass.** The leftover `0.49.0`
+verification: a real browser walk of the Overview bay across the
+states the dashboard claims. **No schema, no migration.** Sits on
+shipped `0.49.0` (`ba7055b`, #42). Does not flip
+`AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly.
+
+- **Walked states.** Unfunded (`funded == 0`) reads Unfunded, not
+  Exhausted. Funded remaining keeps ledger money (`$0.0004` /
+  `$24.9996`). A funded pot at available ≤ 0 reads Exhausted while
+  the daily cap can still have room. Paired `hold_id` holds and a
+  legacy id-less hold (labeled `unknown hold_id`) render. Recent
+  harness rows cap at 20. Refusals stay the honesty block. Gateway /
+  MCP-on-Fly stay `unknown`. An invalid process-local
+  `OPENTHEORY_HARNESS_DAILY_TOKEN_CAP` is **Cap unknown**, not a
+  guessed 20,000. Missing project: `GET /ops` 404; Overview shows
+  Project unavailable. Five tabs, no sixth. Desktop 1280 and narrow
+  390.
+- **Money honesty.** Default currency rounding invented a zero.
+  `formatOpsMoney` keeps up to 6 fraction digits (the debit column).
+
+```bash
+cd frontend && npm test   # 63 passed (+1 money-precision honesty)
+```
+
+See `docs/completions/perpetual-ops-browser-eyeball-0.49.1.md`.
+
+**Not in this release:** Fly enablement of the gateway or MCP child;
+lighting `AGENT_LOOP_ENABLED`; a refusals table; a campaign table;
+Lean REPL / LeanDojo.
+
+---
+
 ## 0.49.0
 
 **Perpetual ops dashboard.** The operator who sets the question, roster,
@@ -161,7 +196,7 @@ See `docs/completions/perpetual-ops-dashboard-0.49.0.md`.
 
 **Not in this release:** Fly enablement of the gateway or MCP child;
 lighting `AGENT_LOOP_ENABLED`; a refusals table; a campaign table;
-Lean REPL / LeanDojo; the still-owed browser eyeball pass.
+Lean REPL / LeanDojo. The Overview browser walk landed as `0.49.1`.
 
 ---
 

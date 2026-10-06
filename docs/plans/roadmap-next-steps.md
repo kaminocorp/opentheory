@@ -1,113 +1,15 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-10-05 · **Current release line:** `0.49.0`
-> (perpetual ops dashboard), sitting on shipped `0.48.0`
-> (harness daily-cap orphan-hold release, `7094d18`, #41) on
-> current `main`. See
-> `docs/completions/perpetual-ops-dashboard-0.49.0.md`.
+> **Last updated:** 2026-10-06 · **Current release line:** `0.49.1`
+> (perpetual ops Overview eyeball pass), sitting on shipped `0.49.0`
+> (perpetual ops dashboard, `ba7055b`, #42) on current `main`. See
+> `docs/completions/perpetual-ops-browser-eyeball-0.49.1.md`.
 >
-> **Last updated:** 2026-10-02 · **Current release line:** `0.44.0`
-> (fail-closed metered harness composition), sitting on shipped
-> `0.43.0` (HarnessSession + odd-perfect reference campaign,
-> `51368da`, #36) on current `main`. See
-> `docs/completions/fail-closed-metered-composition-0.44.0.md`.
->
-> **Last updated:** 2026-10-02 · **Current release line:** `0.43.0`
-> (harness session owner + odd-perfect reference campaign), sitting on
-> shipped `0.42.0` (OpenRouter gateway + turn supervision, `a61affd`,
-> #35) on current `main`. See
-> `docs/completions/harness-session-owner-0.43.0.md`.
->
-> **Last updated:** 2026-09-26 · **Current release line:** `0.42.0`
-> (OpenRouter gateway + turn supervision), sitting on shipped `0.41.0`
-> (live OpenTheory MCP domain door, `06cfeab`, #34) on current `main`.
-> See `docs/completions/openrouter-gateway-0.42.0.md`.
->
-> **Last updated:** 2026-09-26 · **Current release line:** `0.41.0`
-> (live OpenTheory MCP domain door), sitting on shipped `0.40.0`
-> (external DeepSeek Harness M0, `901b3de`, #33) on current `main`.
-> See `docs/completions/live-mcp-domain-door-0.41.0.md`.
->
-> **Last updated:** 2026-09-26 · **Current release line:** `0.40.0`
-> (external DeepSeek Harness Milestone 0), sitting on shipped `0.39.0`
-> (Z3 first-order quantifiers, `00b20bc`, #31) on current `main`
-> (`921cdd1`). See `docs/completions/external-harness-m0-0.40.0.md`.
->
-> **Last updated:** 2026-09-26 · **Current release line:** `0.39.0`
-> (Z3 first-order quantifiers), sitting on shipped `0.38.0`
-> (boolean connectives, `e0e118b`, #28) on current `main`.
-> See `docs/completions/z3-quantifiers-0.39.0.md`.
->
-> **Last updated:** 2026-09-26 · **Current release line:** `0.36.1`
-> (research-git blame), sitting on shipped `0.35.0`
-> **Last updated:** 2026-09-26 · **Current release line:** `0.36.3`
-> (honesty polish on shipped `0.36.0` blame), sitting on shipped `0.36.0`
-> (`71a8929`) and shipped `0.35.0`
-> **Last updated:** 2026-09-26 · **Current release line:** `0.38.0`
-> (Z3 boolean connectives), sitting on shipped `0.36.0`
-> (research-git blame, `71a8929`) and shipped `0.35.0`
-> **Last updated:** 2026-09-26 · **Current release line:** `0.37.0`
-> (GitHub Actions CI with Postgres), sitting on shipped `0.36.0`
-> (research-git blame, `71a8929`) and the R1 assessment (`375733a`)
-> and shipped `0.35.0`
-> **Last updated:** 2026-09-26 · **Current release line:** `0.36.2`
-> (assessment R2 P2 bugfixes — ThreadCreate + agent-trace honesty +
-> write-path suite), sitting on `0.36.1` (assessment R1 remediation,
-> #23) and shipped `0.36.0` (research-git blame) and shipped `0.35.0`
-> (`interval.eval` proven enclosures, `1ca7116`) and shipped `0.34.0`
-> (Bench 6 tables & Vega-Lite plots, `a7cd946`) and shipped `0.33.0`
-> (`z3.satisfy` model-finding, `e3a07ea`) and shipped `0.32.0`
-> (concurrent campaign cycles under project budget), `0.31.0` (deepdive Phase D — shareable Research deep links), `0.30.0`
-> (Phase C polish — historical alias `0.14.2`), `0.29.0`
-> (semantic git diff), `0.28.0` (live OpenRouter price metering),
-> `0.27.0` (concurrent sub-passes under project budget), `0.26.0` (Mathlib /
-> lake Grade-A path on `lean.prove`), `0.25.0` (continuous
-> research under budget), `0.24.0` (CommandRail sync — historically the
-> deferred deepdive Phase B / `0.14.1`), `0.23.0` (Lean 4 Grade-A path —
-> prelude `lean.prove`), `0.22.0` (thin multi-thread orchestrator), `0.21.0`
-> (research-git merge + tag), `0.20.0` (plan → observe → replan), `0.19.0`
-> (project-budget metering), `0.18.0` (Tier-1 literature pins), `0.17.0`
-> (review is opt-in) and `0.16.3` (thread/project grounding rollup). For the
-> per-phase ledger see `docs/changelog.md`; for the line just closed see
-> `docs/completions/honesty-polish-0.36.3.md`. The deepdive line
-> `docs/completions/z3-boolean-connectives-0.38.0.md`. The deepdive line
-> `docs/completions/github-actions-ci-0.37.0.md`. The deepdive line
-> (A–D) is closed; the archive plan is at
-> `docs/archive/project-deepdive-tabs-0.14.md`.
->
-> **Next after this line:** the still-owed browser eyeball pass.
+> **Next after this line:** Lean REPL / LeanDojo remain later.
 > Does not enable the gateway child on Fly.
 > Does not light `AGENT_LOOP_ENABLED`.
-> ~~Perpetual ops dashboard~~ ✅ this branch as `0.49.0`.
-> ~~Harness daily-cap orphan-hold release~~ ✅ shipped as `0.48.0`.
-> ~~Harness daily-cap reservation~~ ✅ shipped as `0.47.0`.
-> ~~Harness daily token cap~~ ✅ shipped as `0.46.0`.
-> ~~`source.pin` bibliographic pin~~ ✅ shipped as `0.45.0`.
-> ~~Fail-closed metered composition~~ ✅ shipped as `0.44.0`.
-> ~~Session owner + odd-perfect reference campaign~~ ✅ shipped as `0.43.0`.
-> ~~OpenRouter gateway + turn supervision~~ ✅ shipped as `0.42.0`.
-> ~~Live OT MCP binding~~ ✅ shipped as `0.41.0` (`06cfeab`, #34).
-> ~~External harness M0~~ ✅ shipped as `0.40.0` (`901b3de`, #33).
-> ~~Quantifiers on Z3~~ ✅ shipped as `0.39.0`. Lean REPL / LeanDojo remain later.
-> Does not claim `0.36.1` / `0.36.2` / `0.37.0`. `0.33.0`–`0.36.0` are
-> on `main`. ~~Boolean connectives / `bool` sort~~ ✅ shipped as `0.38.0`.
-> Unmerged assessment remediations (`0.36.1` / `0.36.2`) are not
-> claimed as shipped. Lean REPL / LeanDojo remain later.
-> ~~Blame-as-an-op~~ ✅ shipped as `0.36.0`. ~~CI + Postgres~~ ✅
-> shipped as `0.37.0`. `0.33.0`–`0.36.0` are on `main`.
-> **Next after this line:** the still-owed browser eyeball pass. Unmerged
-> work is not claimed as shipped (`0.36.1` is this patch). Lean REPL /
-> LeanDojo remain later.
-> ~~Blame-as-an-op~~ ✅ shipped as `0.36.0` (`71a8929`). `0.33.0`–`0.36.0`
-> work is not claimed as shipped (`0.36.1` / `0.36.2` / `0.37.0` /
-> `0.38.0` remain open PRs). Lean REPL / LeanDojo remain later.
-> ~~Blame-as-an-op~~ ✅ shipped as `0.36.0` on `main`. `0.33.0`–`0.36.0`
-> are on `main`.
-> work is not claimed as shipped (`0.36.1` / `0.36.2` are stacked
-> branches, not `main`). Lean REPL / LeanDojo remain later. Remaining
-> R1/R2 P2s (file splits, CI, naming, confidence chrome) stay deferred.
-> ~~Blame-as-an-op~~ ✅ shipped as `0.36.0` on `main` (`71a8929`).
-> `0.33.0`–`0.36.0` are on `main`.
+> ~~Perpetual ops Overview eyeball pass~~ ✅ this branch as `0.49.1`.
+> ~~Perpetual ops dashboard~~ ✅ shipped as `0.49.0`.
 
 ## Where we are
 
@@ -199,20 +101,20 @@ bypassing the checkpoint chokepoint or conflating funder / contributor / validat
 
 ## Recommended next releases
 
-### `0.49.x` — Perpetual ops dashboard ✅ **this branch** (`0.49.0`)
+### `0.49.x` — Perpetual ops dashboard ✅ **this branch** (`0.49.1`)
 
 Delivered: a read-only operator snapshot of the budgeted perpetual
-setup. `GET /projects/{id}/ops` plus a quiet Overview bay. Today's
-`harness_session_turn` `ComputeDebit` sum (holds paired by `hold_id`)
-against the cap this API process sees. Unfunded ≠ exhausted. Refused
-starts are not on the ledger and are labeled that way. Gateway /
-MCP-on-Fly is `unknown`. FastAPI still does not import `app.harness`.
-**No schema, no migration, no campaign table, no sixth tab.** See
-`docs/completions/perpetual-ops-dashboard-0.49.0.md`.
+setup (`0.49.0`) plus the leftover Overview browser walk (`0.49.1`).
+`GET /projects/{id}/ops` plus a quiet Overview bay. Unfunded ≠
+exhausted on the API and on screen. Invalid process-local cap is
+unknown, not a guessed default. Five tabs, no sixth. One honesty
+fix: ledger money keeps up to 6 fraction digits. **No schema, no
+migration, no campaign table.** See
+`docs/completions/perpetual-ops-dashboard-0.49.0.md` and
+`docs/completions/perpetual-ops-browser-eyeball-0.49.1.md`.
 
 **Not in this release:** Fly enablement of the gateway or MCP child;
-lighting `AGENT_LOOP_ENABLED`; a refusals table; Lean REPL / LeanDojo;
-the still-owed browser eyeball pass.
+lighting `AGENT_LOOP_ENABLED`; a refusals table; Lean REPL / LeanDojo.
 
 ### `0.48.x` — Harness daily-cap orphan-hold release ✅ **shipped** (`0.48.0`)
 
@@ -769,9 +671,10 @@ changing branch protection.
     `0.48.0` — a crash leftover hold older than the TTL is released
     on the next authorize; two live overlapping turns still cannot
     both debit past the cap.
-    ~~**Perpetual ops dashboard**~~ ✅ this branch as `0.49.0` —
-    read-only pot / daily-cap / hold / enablement snapshot. Does
-    not enable the gateway child. Does not light
+    ~~**Perpetual ops dashboard**~~ ✅ shipped as `0.49.0` —
+    read-only pot / daily-cap / hold / enablement snapshot.
+    ~~**Overview eyeball pass**~~ ✅ this branch as `0.49.1`.
+    Does not enable the gateway child. Does not light
     `AGENT_LOOP_ENABLED`.
 
 ## Shipped milestones (reference)
@@ -822,7 +725,7 @@ changing branch protection.
 | `0.46.x` | Harness daily token cap — ledger-backed 20_000 tokens / UTC day |
 | `0.47.x` | Harness daily-cap reservation — overlapping authorize cannot both debit past the cap |
 | `0.48.x` | Harness daily-cap orphan-hold release — a crash leftover hold no longer pins the UTC day |
-| `0.49.x` | Perpetual ops dashboard — read-only pot / daily-cap / hold / enablement snapshot |
+| `0.49.x` | Perpetual ops dashboard + Overview eyeball pass (`0.49.1`) |
 
 ## Success criteria for the next milestone
 
@@ -953,13 +856,17 @@ both debit past the cap.
 hold older than the TTL is released on the next authorize; two
 live overlapping turns still cannot both debit past the cap.
 
-**`0.49.0` (perpetual ops dashboard)** is this branch: a read-only
-operator snapshot of the budgeted perpetual setup. Unfunded ≠
-exhausted. Refusals are not on the ledger. Gateway / MCP-on-Fly is
-`unknown`. FastAPI still does not import `app.harness`. No
-`AGENT_LOOP_ENABLED` flip. No schema, no migration.
+**`0.49.0` (perpetual ops dashboard)** is shipped (`ba7055b`, #42):
+a read-only operator snapshot of the budgeted perpetual setup.
+Unfunded ≠ exhausted. Refusals are not on the ledger. Gateway /
+MCP-on-Fly is `unknown`. FastAPI still does not import
+`app.harness`. No schema, no migration.
 
-**Next product step:** the still-owed browser eyeball pass. Lean
-REPL / LeanDojo remain later. `If` / ite remain later. Does not
-enable the gateway child on Fly. Does not light
-`AGENT_LOOP_ENABLED`.
+**`0.49.1` (perpetual ops Overview eyeball pass)** is this branch:
+the leftover browser walk. Unfunded ≠ exhausted on screen. Invalid
+cap is unknown. Five tabs. Ledger money is not rounded to an
+invented zero.
+
+**Next product step:** Lean REPL / LeanDojo remain later. `If` /
+ite remain later. Does not enable the gateway child on Fly. Does
+not light `AGENT_LOOP_ENABLED`.
