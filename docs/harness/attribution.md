@@ -1,15 +1,24 @@
-# External harness — actor attribution audit (`0.51.1`)
+# External harness — actor attribution (`0.51.1` / `0.52.0`)
 
-> **Finding.** No production-code gap. The shipped `0.41.0`–`0.51.0`
-> contract already attributes research writes to the JWT-resolved
-> **Actor** (the member who authorized the door), not to that
-> member's **Account**, and not to the built-in per-project
-> `Research crew` agent. A non-member — including the account-less
-> project agent — cannot write. `ComputeDebit` has no `actor_id`
-> column; spend is project-scoped and does not touch
-> `FundingAllocation`. Sit on shipped `0.51.0` (`fd9316d`, #45).
-> Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway
-> or MCP child on Fly. **No schema, no migration.**
+> **0.52.0.** The leftover spend-path gap is closed. Live MCP writes
+> still attribute to the JWT-resolved **Actor** and still pass
+> `ensure_is_member`. `HarnessSession.authorize()` now does the same
+> membership check for the actor the session / turn is running for
+> (`actor_env`, else `env`) *before* a hold or a provider call. A
+> non-member or account-less actor is `TurnRefused`. `ComputeDebit`
+> still has no `actor_id`; spend stays project-scoped and does not
+> touch `FundingAllocation`. Sit on shipped `0.51.1` (`3eeeaf5`,
+> #46). Does not light `AGENT_LOOP_ENABLED`. Does not enable the
+> gateway or MCP child on Fly. **No schema, no migration.**
+>
+> **0.51.1 finding (writes).** No production-code gap on MCP writes.
+> The shipped `0.41.0`–`0.51.0` contract already attributes research
+> writes to the JWT-resolved **Actor**, not that member's
+> **Account**, and not the built-in per-project `Research crew`
+> agent. A non-member — including the account-less project agent —
+> cannot mint. The 0.51.1 audit recorded that debit membership was
+> the MCP door, not `authorize()`; `0.52.0` moves that gate to the
+> spend chokepoint.
 
 This note is the audit. If it disagrees with `backend/app/harness/`,
 the code wins.
@@ -24,7 +33,8 @@ write or a debit?
 
 Invariants in play: an Account is not an Actor; funder /
 contributor / validator stay on separate tables; only
-`create_checkpoint` writes a `Checkpoint`.
+`create_checkpoint` writes a `Checkpoint`. Spend now also
+refuses a non-member before a hold (`0.52.0`).
 
 ## Write paths
 
@@ -57,21 +67,22 @@ explicitly does not mint an Actor (`campaign.py` `open_session`).
 | --- | --- |
 | **Who is recorded as Actor** | Nobody. `ComputeDebit` has no `actor_id` (schema since `0.19.0`). `record_compute_debit` takes `project_id` + tokens + model + notes. Harness rows use notes `harness_session_turn` and leave `agent_run_id` null (no `AgentRun` on this path). Hold / release rows are amount `0` and are not pot spend. |
 | **Who is Account / owner** | The project's funded pot. `FundingAllocation.account_id` (the funder) is not read or written. Spend is `project_budget.spent` = Σ `ComputeDebit.amount`. |
-| **Membership** | Not checked on `authorize` / `record_spend`. The campaign / gateway child is **project-bound** (`OPENTHEORY_PROJECT_ID`). The member JWT lives on the **MCP** child (`OPENTHEORY_ACTOR_JWT_FILE`). Those are separate processes. Inbound HTTP auth on the gateway is `OPENTHEORY_GATEWAY_TOKEN`, not a member JWT. |
-| **Chokepoint** | `record_compute_debit` when `tokens_used > 0`. Hold / release go through `write_daily_cap_adjustment` (amount `0`). Neither path calls `create_checkpoint`. |
+| **Membership** | `ensure_is_member` on `authorize()` (`0.52.0`). The actor the session / turn is running for is resolved from `actor_env` (the `supervise_turn` MCP credential) or, if unset, `env` (campaign / gateway process — operator-supplied JWT file / JWT / flagged `OPENTHEORY_DEV_ACTOR_ID`, same injection as `live_mcp`). Missing credential, non-member, or account-less actor is `TurnRefused` before any hold or provider call. `record_spend` does **not** re-check: a member removed mid-turn does not drop a debit for tokens that already moved; the next authorize refuses. Inbound HTTP auth on the gateway is still `OPENTHEORY_GATEWAY_TOKEN`. |
+| **Chokepoint** | Membership + remaining-room hold on `authorize()`. `record_compute_debit` when `tokens_used > 0`. Hold / release go through `write_daily_cap_adjustment` (amount `0`). Neither path calls `create_checkpoint`. |
 
 This is not a hole that lets a non-member mint research
-provenance. A debit without a member JWT cannot land a
-checkpoint. Remapping spend onto an Actor would need a new
+provenance. A refused start cannot land a checkpoint either.
+Remapping spend onto an Actor would need a new
 `ComputeDebit.actor_id` column — a schema change this slice
 refuses. The built-in loop attributes spend via `agent_run_id`,
 which this path also does not have.
 
-`supervise_turn` composes the same owner, then (only after a
-successful completion) dispatches `live_mcp.invoke` with
-`actor_env`. Membership is enforced on that MCP call, not on the
-debit. An outsider `actor_env` still records project-scoped spend
-when tokens moved and still cannot mint.
+`supervise_turn` passes `actor_env` onto `HarnessSession` so the
+library path and the session-owned gateway share the same
+membership gate. After a successful completion it still
+dispatches `live_mcp.invoke` with `actor_env` (writes stay on
+that door). An outsider `actor_env` now refuses before the
+model: no hold, no debit, no mint.
 
 ## What is not a gap
 
@@ -85,12 +96,15 @@ when tokens moved and still cannot mint.
   primary **human** Actor. Code wins; those sentences are
   tightened in `0.51.1`. Humans and agents still share the same
   primitives — there is no parallel data model.
-- **Debit without a member JWT on the gateway child.**
-  Architectural split, not an unattributed contributor. The
-  operator binds `OPENTHEORY_PROJECT_ID`. The process already
-  holds DB credentials. Membership stays on the domain door.
+- **Debit without a member JWT on the gateway child.** Closed in
+  `0.52.0` at `authorize()`. The operator still binds
+  `OPENTHEORY_PROJECT_ID`. The actor the turn is running for must
+  also be a current member (same credential injection as MCP). A
+  process that only has the gateway token and a project id
+  refuses (`actor required`) rather than spending.
 - **Account-less `Research crew` cannot pass `ensure_is_member`.**
-  Decision #3. Not a regression; a 0.51.1 test now pins it.
+  Decision #3. 0.51.1 pins the write door; 0.52.0 pins the spend
+  path. Not a regression.
 
 ## What would have been a real gap (not found)
 
@@ -119,5 +133,8 @@ Added in `0.51.1`:
   row is created.
 - Gateway / `supervise_turn` debit leaves `FundingAllocation`
   rows (funder, amount) unchanged.
-- `supervise_turn` with an outsider `actor_env` still debits when
-  tokens moved and still does not mint.
+- `supervise_turn` with an outsider `actor_env` refuses (`0.52.0`):
+  no hold, no debit, no provider call, no mint. A current member
+  is allowed. An account-less `Research crew` actor refuses. A
+  collaborator removed mid-session cannot authorize again;
+  `record_spend` after a successful authorize still bills.

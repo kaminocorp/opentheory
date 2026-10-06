@@ -33,15 +33,17 @@ writer the built-in planner uses. Harness turns have no ``AgentRun`` (this
 path does not light ``AGENT_LOOP_ENABLED``), so ``agent_run_id`` is left
 null and ``notes`` carry ``harness_session_turn``. Tokens that moved are
 always billed, including an attempted completion that then failed to parse.
-A refused start (drift / exhausted / turn cap / daily cap / room below
-floor / hold TTL) writes nothing: no tokens moved. ``0.50.0`` clamps
-the completion ``max_tokens`` to the authorize room and records a
-provider overshoot when usage exceeds that clamp. The 0.50 hold
-already occupies the whole remaining daily room, so a second
-overlapping authorize is refused. ``0.51.0`` keeps that occupancy
-and refuses composition / session / gateway start when the hold
-TTL is not strictly greater than the provider request timeout plus
-a margin — a live turn must never be released as an orphan.
+A refused start (drift / not a member / exhausted / turn cap / daily
+cap / room below floor / hold TTL) writes nothing: no tokens moved.
+``0.50.0`` clamps the completion ``max_tokens`` to the authorize
+room and records a provider overshoot when usage exceeds that clamp.
+The 0.50 hold already occupies the whole remaining daily room, so a
+second overlapping authorize is refused. ``0.51.0`` keeps that
+occupancy and refuses composition / session / gateway start when
+the hold TTL is not strictly greater than the provider request
+timeout plus a margin — a live turn must never be released as an
+orphan. ``0.52.0`` refuses ``authorize()`` unless the actor the
+turn is running for (``actor_env``) is a current project member.
 
 Exceptions still mint nothing. The MCP door is the only ledger writer.
 """
@@ -65,7 +67,9 @@ from app.harness.gateway import (
 from app.harness.session import (
     DEFAULT_MAX_TURNS,
     MAX_TURNS_ENV,
+    REASON_ACTOR,
     REASON_COMPOSITION,
+    REASON_NOT_MEMBER,
     REASON_PROJECT_BUDGET,
     REASON_TURN_BUDGET,
     SESSION_NOTES,
@@ -88,7 +92,9 @@ TURN_NOTES = SESSION_NOTES
 __all__ = [
     "DEFAULT_MAX_TURNS",
     "MAX_TURNS_ENV",
+    "REASON_ACTOR",
     "REASON_COMPOSITION",
+    "REASON_NOT_MEMBER",
     "REASON_PROJECT_BUDGET",
     "REASON_TURN_BUDGET",
     "SESSION_NOTES",
@@ -178,6 +184,7 @@ async def supervise_turn(
             max_turns=cap,
             session_factory=session_factory,
             env=env,
+            actor_env=actor_env,
         )
         factory = owner.session_factory or session_factory
         try:

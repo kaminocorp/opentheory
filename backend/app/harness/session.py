@@ -66,6 +66,19 @@ timeout — a per-phase httpx timeout is not enough, and ``stream``
 is 422 before authorize. An abandoned request may still be billed
 by OpenRouter; usage is unknown so we debit nothing. No campaign
 table.
+
+``0.52.0`` closes the leftover membership gap on this spend path.
+``authorize()`` resolves the actor the session / turn is running
+for (``actor_env``, else ``env`` — the same JWT-file / JWT /
+flagged ``OPENTHEORY_DEV_ACTOR_ID`` injection ``live_mcp`` uses)
+and calls ``ensure_is_member`` *before* any hold write or
+provider call. A missing credential, a non-member, or an
+account-less actor (including the built-in ``Research crew``)
+is ``TurnRefused``: no hold, no debit, no OpenRouter call.
+``record_spend`` does not re-check. Membership is a start-of-turn
+gate (same as pot / daily cap / floor). Tokens that moved after
+a successful authorize are billed — a mid-turn removal does not
+erase the pot. The next authorize fails closed. No schema.
 """
 
 from __future__ import annotations
@@ -135,6 +148,8 @@ REASON_DAILY_CAP = "daily token cap exhausted"
 REASON_TURN_ROOM = "turn room below floor"
 REASON_HOLD_TTL = "hold TTL does not exceed turn duration"
 REASON_PROJECT_BUDGET = compute_service.BUDGET_EXHAUSTED
+REASON_ACTOR = "actor required"
+REASON_NOT_MEMBER = "not a project member"
 
 __all__ = [
     "DAILY_TOKEN_CAP_ENV",
@@ -153,7 +168,9 @@ __all__ = [
     "REASON_DAILY_CAP",
     "REASON_PROJECT_BUDGET",
     "REASON_TURN_BUDGET",
+    "REASON_ACTOR",
     "REASON_HOLD_TTL",
+    "REASON_NOT_MEMBER",
     "REASON_TURN_ROOM",
     "RELEASE_NOTES",
     "RELEASE_NOTES_MARK",
@@ -170,6 +187,7 @@ __all__ = [
     "assert_project_budget",
     "assert_turn_in_budget",
     "assert_hold_ttl_covers_turn",
+    "assert_turn_member",
     "assert_turn_room_above_floor",
     "clamp_max_tokens",
     "clamp_rate_per_1k",
@@ -479,6 +497,36 @@ async def assert_project_budget(
         raise TurnRefused(REASON_PROJECT_BUDGET)
 
 
+async def assert_turn_member(
+    db: AsyncSession,
+    project_id: UUID,
+    env: Mapping[str, str] | None,
+) -> None:
+    """Refuse before a hold when the acting actor is not a current member.
+
+    Uses the existing helpers: ``resolve_mcp_actor`` (JWT file / JWT /
+    flagged dev-actor) then ``ensure_is_member`` (account membership;
+    account-less is ``403``). Mapped to ``TurnRefused`` so the gateway
+    stays 422 with no provider call, no hold, and no debit. A missing
+    credential is fail-closed — there is no "project-bound so skip"
+    escape. Does not write.
+    """
+    from fastapi import HTTPException
+
+    from app.harness.auth import load_credential, resolve_mcp_actor
+    from app.services.project_members import ensure_is_member
+
+    if load_credential(env) is None:
+        raise TurnRefused(REASON_ACTOR)
+    try:
+        actor = await resolve_mcp_actor(db, env)
+        await ensure_is_member(db, project_id, actor)
+    except HTTPException as exc:
+        if exc.status_code == 401:
+            raise TurnRefused(REASON_ACTOR) from exc
+        raise TurnRefused(REASON_NOT_MEMBER) from exc
+
+
 def _as_project_id(value: UUID | str) -> UUID:
     if isinstance(value, UUID):
         return value
@@ -510,6 +558,7 @@ class HarnessSession:
     turn_token_floor: int | None = None
     session_factory: async_sessionmaker[AsyncSession] | None = None
     env: Mapping[str, str] | None = None
+    actor_env: Mapping[str, str] | None = None
     notes: str = SESSION_NOTES
     extras: dict[str, Any] = field(default_factory=dict)
 
@@ -550,6 +599,17 @@ class HarnessSession:
             return self.turn_token_floor
         return resolve_turn_token_floor(self.env)
 
+    def _actor_lookup(self) -> Mapping[str, str] | None:
+        """Actor the session / turn is running for.
+
+        ``actor_env`` wins (``supervise_turn`` MCP credentials). Else
+        ``env`` (campaign / gateway process — operator-supplied JWT
+        file or flagged dev-actor, same injection as ``live_mcp``).
+        """
+        if self.actor_env is not None:
+            return self.actor_env
+        return self.env
+
     def _factory(self) -> async_sessionmaker[AsyncSession]:
         if self.session_factory is not None:
             return self.session_factory
@@ -563,7 +623,12 @@ class HarnessSession:
         model: str | None = None,
         quote: PriceQuote | None = None,
     ) -> DailyCapHold | None:
-        """Refuse before the LLM call on drift, turn cap, daily cap, pot, or floor.
+        """Refuse before the LLM call on drift, membership, turn cap, daily cap, pot, or floor.
+
+        Membership is first among the DB checks: resolve the acting
+        actor and ``ensure_is_member`` before the project-row lock,
+        stale-hold release, or remaining-room hold. A non-member or
+        account-less actor cannot take a hold or call the provider.
 
         On a pass, locks the project row, releases unmatched holds older
         than the TTL, re-reads today's harness token sum (holds
@@ -585,6 +650,7 @@ class HarnessSession:
             resolved_quote = await quote_model_price(model)
         factory = self._factory()
         async with factory() as db:
+            await assert_turn_member(db, self.project_uuid, self._actor_lookup())
             project = await _lock_project(db, self.project_uuid)
             cap = self.resolved_daily_token_cap()
             await release_stale_holds(
@@ -673,6 +739,10 @@ class HarnessSession:
         in the same transaction — convert, do not edit the hold. The
         project row is locked so a concurrent stale-hold recovery cannot
         write a second release for the same ``hold_id``.
+
+        Does not re-check membership. ``authorize()`` is the gate: a
+        member removed mid-turn does not drop a debit for tokens that
+        already moved (pot honesty). The next authorize refuses.
         """
         if tokens_used <= 0 and hold is None:
             return False
@@ -727,4 +797,5 @@ def session_from_env(
         project_id=raw,
         session_factory=session_factory,
         env=lookup,
+        actor_env=lookup,
     )

@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.52.0` — **Harness turn-spend membership.** Closes the leftover 0.51.1 gap: `HarnessSession.authorize()` now resolves the actor the session / turn is running for (`actor_env`, else `env` — the same JWT-file / JWT / flagged `OPENTHEORY_DEV_ACTOR_ID` injection `live_mcp` uses) and calls `ensure_is_member` *before* any remaining-room hold or provider call. A missing credential, a non-member, or an account-less actor (including the built-in `Research crew`) is `TurnRefused`: no hold, no debit, no OpenRouter call. `record_spend` does not re-check — membership is a start-of-turn gate; tokens that moved after a successful authorize are billed; the next authorize fails closed. `ComputeDebit` still has no `actor_id`. `create_checkpoint` remains the only Checkpoint writer. Unfunded ≠ exhausted. Debit only when `tokens_used > 0`. Hold/release amount stays `0` with the literal `harness_session_turn` prefix and `hold_id`. FastAPI still does not import `app.harness`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + docs — no schema, no migration.** Sits on shipped `0.51.1` (`3eeeaf5`, #46).
 - `0.51.1` — **Harness actor-attribution audit.** Investigated the external-harness write paths (`live_mcp`, `HarnessSession`, `supervise_turn`, gateway, `ComputeDebit`) against Account ≠ Actor and funder ≠ contributor. No production-code gap: MCP writes attribute to the JWT-resolved member **Actor** (not the Account, not the built-in `Research crew` agent); `ensure_is_member` refuses a non-member and the account-less project agent; `create_checkpoint` remains the only Checkpoint writer; `ComputeDebit` has no `actor_id` (project-scoped spend; `FundingAllocation` funder unchanged). Debit membership is the MCP door, not `authorize()` — the gateway child is project-bound. Docs tighten the leftover "type=agent" blueprint wording. Regression tests pin the untested guarantees. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend tests + docs — no schema, no migration.** Sits on shipped `0.51.0` (`fd9316d`, #45).
 - `0.51.0` — **Harness serialization guard.** `0.50.0` already serializes harness turns per project: the amount-0 hold occupies the whole remaining daily room under the project-row `FOR UPDATE`, so a second overlapping authorize is always refused (`TurnRefused` daily-cap, no provider call, no debit, no extra hold). There is no tight-pot race. This slice adds a Postgres regression for that (known price, price-unknown, and mid-flight pot top-up) and closes the real hole: a live turn that outlives `OPENTHEORY_HARNESS_HOLD_TTL_SECONDS` (default **300**) could be released as an orphan. Composition / session / gateway startup refuse unless the TTL is strictly greater than the provider request timeout (`AGENT_LLM_TIMEOUT_S` / `settings.agent_llm_timeout_s`, default **60**) plus a 5s margin (must be `> 65`). `GatewayClient.complete` wraps the whole provider call in a total deadline of that timeout (env mapping first, then settings); a per-phase httpx timeout is not a bound. Truthy `stream` is 422 before authorize. An abandoned request may still be billed by OpenRouter — usage unknown, so no debit. Hold occupancy stays the remaining daily room. No `pot_hold` mark. No Open-turns readout. Unfunded ≠ exhausted. Debit only when `tokens_used > 0`. Hold/release amount stays `0` with the literal `harness_session_turn` prefix and `hold_id`. FastAPI still does not import `app.harness`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + docs — no schema, no migration.** Sits on shipped `0.50.0` (`af7ee43`, #44).
 - `0.50.0` — **Harness turn-room clamp.** Closes the leftover 0.46–0.48 single-turn overshoot: `authorize()` still locks the project row, releases stale holds, and holds remaining daily tokens so two overlapping authorizes cannot both debit past the cap; it now also computes a clamp (`min` of remaining daily tokens and tokens the pot can buy at a live/catalog *completion* rate when the project is funded and that price is known) and the gateway sets `max_tokens` to it. Unfunded + known price clamps to daily room (`pot_room=none`); the Overview note does not claim pot room was used. A caller-smaller `max_tokens` is kept; invalid `max_tokens` is 422. The authorize model is the same resolved id the completion uses. A room below `OPENTHEORY_HARNESS_TURN_TOKEN_FLOOR` (default **16**) is `TurnRefused` → 422, `tokens_used` 0, minted false, no OpenRouter call. Provider usage above the clamp is recorded in full and flagged on the turn result and the Overview last-turn readout. Price unknown → clamp is the daily room only; the blended settings rate is not invented. Unfunded ≠ exhausted. Debit only when `tokens_used > 0`. Hold/release amount stays `0`. FastAPI still does not import `app.harness`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + frontend + docs — no schema, no migration.** Sits on shipped `0.49.1` (`f2362b1`, #43).
@@ -127,6 +128,55 @@
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
 
 ---
+
+## 0.52.0
+
+**Harness turn-spend membership.** The 0.51.1 audit pinned that an
+outsider `actor_env` on `supervise_turn` could still record
+project-scoped spend. This slice closes that: spend fails closed
+unless the actor the session / turn is running for is a current
+project member. **No schema, no migration.** Sits on shipped
+`0.51.1` (`3eeeaf5`, #46). Does not flip `AGENT_LOOP_ENABLED`.
+Does not enable the gateway or MCP child on Fly.
+
+- **Chokepoint.** `HarnessSession.authorize()` resolves the actor
+  via `resolve_mcp_actor` (`actor_env`, else `env`) and calls
+  `ensure_is_member` before the project-row lock writes a hold.
+  Missing credential → `TurnRefused("actor required")`. Non-member
+  or account-less (including `Research crew`) →
+  `TurnRefused("not a project member")`. No hold, no debit, no
+  provider call. `supervise_turn` passes `actor_env` onto the
+  session owner so the library path and the gateway path share
+  the same gate.
+- **`record_spend` does not re-check.** Membership is a
+  start-of-turn gate, same as pot / daily cap / floor. A member
+  removed mid-turn does not drop a debit for tokens that already
+  moved (pot honesty). The next authorize refuses. Documented in
+  `docs/harness/attribution.md`.
+- **Unchanged.** `ComputeDebit` has no `actor_id`.
+  `FundingAllocation` is untouched. Append-only stays append-only.
+  `0.47`–`0.51` serialization / TTL / deadline / clamp / hold
+  occupancy stay. Debit only when `tokens_used > 0`. Hold/release
+  amount `0`, literal `harness_session_turn` prefix, `hold_id`.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q
+# with TEST_DATABASE_URL: 1128 passed, 4 skipped
+# +3 vs shipped 0.51.1 (1125): member allowed + account-less refuse + removed-mid-session
+# (outsider flipped in place)
+cd backend && uv run pytest tests/harness -q
+# with TEST_DATABASE_URL: 139 passed
+cd frontend && npm run typecheck && npm run lint && npm test && npm run build
+# typecheck/lint/build clean; 64 tests (untouched)
+```
+
+See `docs/completions/harness-turn-membership-0.52.0.md`.
+
+**Not in this release:** a `ComputeDebit.actor_id` column;
+remapping harness writes onto the built-in agent Actor; Fly
+enablement of the gateway or MCP child; lighting
+`AGENT_LOOP_ENABLED`.
 
 ## 0.51.1
 

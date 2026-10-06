@@ -52,6 +52,11 @@ from app.services.compute import BUDGET_EXHAUSTED
 from app.services.harness_meter import load_today_adjustments
 from tests.principals import create_owned_project, make_dev_principal
 
+
+def _actor_env(actor_id: str) -> dict[str, str]:
+    return {"OPENTHEORY_DEV_ACTOR_ID": actor_id}
+
+
 _OK_BODY = {
     "choices": [{"message": {"content": "use calc.eval"}}],
     "usage": {"total_tokens": 20, "prompt_tokens": 15, "completion_tokens": 5},
@@ -149,7 +154,11 @@ async def test_exhausted_funded_project_does_not_call_model_or_mint(
     def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover
         raise AssertionError("exhausted pot must refuse before the LLM call")
 
-    owner = open_session(project_id, session_factory=session_factory)
+    owner = open_session(
+        project_id,
+        session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
+    )
     app = create_metered_gateway_app(
         owner,
         env={GATEWAY_TOKEN_ENV: "gw-secret"},
@@ -202,7 +211,11 @@ async def test_successful_gateway_turn_debits_only_when_tokens_moved(
         assert body["provider"]["allow_fallbacks"] is False
         return httpx.Response(200, json=_OK_BODY)
 
-    owner = open_session(project_id, session_factory=session_factory)
+    owner = open_session(
+        project_id,
+        session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
+    )
     app = create_metered_gateway_app(
         owner,
         env={GATEWAY_TOKEN_ENV: "gw-secret"},
@@ -250,7 +263,11 @@ async def test_successful_gateway_turn_debits_only_when_tokens_moved(
             },
         )
 
-    zero_owner = open_session(project_id, session_factory=session_factory)
+    zero_owner = open_session(
+        project_id,
+        session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
+    )
     zero_app = create_metered_gateway_app(
         zero_owner,
         env={GATEWAY_TOKEN_ENV: "gw-secret"},
@@ -277,7 +294,11 @@ async def test_unfunded_project_is_not_exhausted(
         calls["n"] += 1
         return httpx.Response(200, json=_OK_BODY)
 
-    owner = open_session(project_id, session_factory=session_factory)
+    owner = open_session(
+        project_id,
+        session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
+    )
     app = create_metered_gateway_app(
         owner,
         env={GATEWAY_TOKEN_ENV: "gw-secret"},
@@ -314,7 +335,11 @@ async def test_attempted_gateway_turn_debits_and_mints_nothing(
             },
         )
 
-    owner = HarnessSession(project_id=project_id, session_factory=session_factory)
+    owner = HarnessSession(
+        project_id=project_id,
+        session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
+    )
     app = create_metered_gateway_app(
         owner,
         env={GATEWAY_TOKEN_ENV: "gw-secret"},
@@ -347,7 +372,11 @@ async def test_live_mcp_after_session_turn_is_the_only_checkpoint_writer(
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=_OK_BODY)
 
-    owner = open_session(project_id, session_factory=session_factory)
+    owner = open_session(
+        project_id,
+        session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
+    )
     app = create_metered_gateway_app(
         owner,
         env={GATEWAY_TOKEN_ENV: "gw-secret"},
@@ -458,7 +487,8 @@ async def test_daily_token_cap_refuses_before_model_and_survives_restart(
     before = await _checkpoint_count(session_factory, project_id)
 
     first = open_session(
-        project_id, daily_token_cap=20, session_factory=session_factory
+        project_id, daily_token_cap=20, session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
     )
     first_app = create_metered_gateway_app(
         first,
@@ -481,6 +511,7 @@ async def test_daily_token_cap_refuses_before_model_and_survives_restart(
         turn_index=0,
         daily_token_cap=20,
         session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
     )
     assert restarted.turn_index == 0
     app = create_metered_gateway_app(
@@ -525,7 +556,8 @@ async def test_yesterday_harness_spend_does_not_hit_today_cap(
         return httpx.Response(200, json=_OK_BODY)
 
     owner = open_session(
-        project_id, daily_token_cap=20, session_factory=session_factory
+        project_id, daily_token_cap=20, session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
     )
     app = create_metered_gateway_app(
         owner,
@@ -559,7 +591,8 @@ async def test_non_harness_debits_do_not_count_toward_daily_cap(
         return httpx.Response(200, json=_OK_BODY)
 
     owner = open_session(
-        project_id, daily_token_cap=20, session_factory=session_factory
+        project_id, daily_token_cap=20, session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
     )
     app = create_metered_gateway_app(
         owner,
@@ -619,6 +652,7 @@ async def test_unfunded_project_still_hits_daily_cap(
         turn_index=0,
         daily_token_cap=20,
         session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
     )
     app = create_metered_gateway_app(
         owner,
@@ -651,11 +685,13 @@ async def test_overlapping_authorizations_cannot_both_spend_past_cap(
         project_id=project_id,
         daily_token_cap=20,
         session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
     )
     second = HarnessSession(
         project_id=project_id,
         daily_token_cap=20,
         session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
     )
 
     async def _authorize(owner: HarnessSession):
@@ -707,7 +743,8 @@ async def test_overlapping_authorizations_cannot_both_spend_past_cap(
     http_project = await create_owned_project(client, actor_id, "session-daily-race-http")
     pause = PauseGateway()
     owner = open_session(
-        http_project, daily_token_cap=20, session_factory=session_factory
+        http_project, daily_token_cap=20, session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
     )
     app = create_metered_gateway_app(
         owner,
@@ -761,11 +798,13 @@ async def test_orphaned_hold_is_released_after_ttl_without_reopening_race(
         project_id=fresh_project,
         daily_token_cap=20,
         session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
     )
     second = HarnessSession(
         project_id=fresh_project,
         daily_token_cap=20,
         session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
     )
     fresh_hold = await first.authorize()
     assert fresh_hold is not None
@@ -791,6 +830,7 @@ async def test_orphaned_hold_is_released_after_ttl_without_reopening_race(
         project_id=stale_project,
         daily_token_cap=20,
         session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
     )
     recovered_hold = await recovered.authorize()
     assert recovered_hold is not None
@@ -829,6 +869,7 @@ async def test_orphaned_hold_is_released_after_ttl_without_reopening_race(
         project_id=legacy_project,
         daily_token_cap=20,
         session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
     )
     legacy_hold = await legacy.authorize()
     assert legacy_hold is not None
@@ -844,11 +885,13 @@ async def test_orphaned_hold_is_released_after_ttl_without_reopening_race(
         project_id=race_project,
         daily_token_cap=20,
         session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
     )
     right = HarnessSession(
         project_id=race_project,
         daily_token_cap=20,
         session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
     )
 
     async def _authorize(owner: HarnessSession):
@@ -913,6 +956,7 @@ async def test_clamp_is_min_of_daily_and_pot_when_price_known(
         project_id=project_id,
         daily_token_cap=20_000,
         session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
     )
     hold = await owner.authorize(model=DEFAULT_MODEL, quote=_live_quote())
     assert hold is not None
@@ -937,6 +981,7 @@ async def test_clamp_is_min_of_daily_and_pot_when_price_known(
         project_id=tight,
         daily_token_cap=50,
         session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
     )
     tight_hold = await tight_owner.authorize(model=DEFAULT_MODEL, quote=_live_quote())
     assert tight_hold is not None
@@ -963,6 +1008,7 @@ async def test_clamp_is_daily_room_when_price_unknown(
         project_id=project_id,
         daily_token_cap=80,
         session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
     )
     hold = await owner.authorize(model=DEFAULT_MODEL, quote=_fallback_quote())
     assert hold is not None
@@ -1008,7 +1054,8 @@ async def test_gateway_clamps_max_tokens_to_pot_room_when_price_known(
         return httpx.Response(200, json=_OK_BODY)
 
     owner = open_session(
-        project_id, daily_token_cap=20_000, session_factory=session_factory
+        project_id, daily_token_cap=20_000, session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
     )
     app = create_metered_gateway_app(
         owner,
@@ -1049,6 +1096,7 @@ async def test_below_floor_refuses_without_provider_or_debit(
         daily_token_cap=20,
         turn_token_floor=100,
         session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
     )
     app = create_metered_gateway_app(
         owner,
@@ -1091,6 +1139,7 @@ async def test_provider_overshoot_is_recorded_truthfully(
         project_id=project_id,
         daily_token_cap=50,
         session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
     )
     app = create_metered_gateway_app(
         owner,
@@ -1137,7 +1186,12 @@ async def test_unfunded_known_price_clamps_to_daily_room(
         seen["max_tokens"] = body.get("max_tokens")
         return httpx.Response(200, json=_OK_BODY)
 
-    owner = open_session(project_id, daily_token_cap=80, session_factory=session_factory)
+    owner = open_session(
+        project_id,
+        daily_token_cap=80,
+        session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
+    )
     hold = await owner.authorize(model=DEFAULT_MODEL, quote=_live_quote())
     assert hold is not None
     assert hold.price_known is True
@@ -1150,7 +1204,12 @@ async def test_unfunded_known_price_clamps_to_daily_room(
     await owner.release_hold(hold)
 
     app = create_metered_gateway_app(
-        open_session(project_id, daily_token_cap=80, session_factory=session_factory),
+        open_session(
+            project_id,
+            daily_token_cap=80,
+            session_factory=session_factory,
+            actor_env=_actor_env(actor_id),
+        ),
         env={GATEWAY_TOKEN_ENV: "gw-secret"},
         gateway=_gateway(handler),
     )
@@ -1201,6 +1260,7 @@ async def test_pot_clamp_uses_completion_rate_not_live_mean(
         project_id=project_id,
         daily_token_cap=20_000,
         session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
     )
     hold = await owner.authorize(model=DEFAULT_MODEL, quote=quote)
     assert hold is not None
@@ -1238,7 +1298,8 @@ async def test_http_keeps_caller_smaller_max_tokens(
         return httpx.Response(200, json=_OK_BODY)
 
     owner = open_session(
-        project_id, daily_token_cap=20_000, session_factory=session_factory
+        project_id, daily_token_cap=20_000, session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
     )
     app = create_metered_gateway_app(
         owner,
@@ -1273,7 +1334,8 @@ async def test_http_omitted_model_authorizes_resolved_default(
         return httpx.Response(200, json=_OK_BODY)
 
     owner = open_session(
-        project_id, daily_token_cap=20_000, session_factory=session_factory
+        project_id, daily_token_cap=20_000, session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
     )
     app = create_metered_gateway_app(
         owner,
@@ -1298,7 +1360,12 @@ async def test_http_invalid_max_tokens_is_422(
         calls["n"] += 1
         raise AssertionError("invalid max_tokens must not reach OpenRouter")
 
-    owner = open_session(project_id, daily_token_cap=80, session_factory=session_factory)
+    owner = open_session(
+        project_id,
+        daily_token_cap=80,
+        session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
+    )
     app = create_metered_gateway_app(
         owner,
         env={GATEWAY_TOKEN_ENV: "gw-secret"},
@@ -1352,6 +1419,7 @@ async def test_overlapping_authorize_on_tight_pot_is_refused_for_daily_cap(
         project_id=project_id,
         daily_token_cap=20_000,
         session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
     )
     hold = await first.authorize(model=DEFAULT_MODEL, quote=_live_quote())
     assert hold is not None
@@ -1368,6 +1436,7 @@ async def test_overlapping_authorize_on_tight_pot_is_refused_for_daily_cap(
         project_id=project_id,
         daily_token_cap=20_000,
         session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
     )
     try:
         await second.authorize(model=DEFAULT_MODEL, quote=_live_quote())
@@ -1450,7 +1519,12 @@ async def test_deadline_releases_hold_without_debit(
     before = await _checkpoint_count(session_factory, project_id)
     transport = _TrickleTransport(delay_s=0.4)
     env = {GATEWAY_TOKEN_ENV: "gw-secret", TURN_TIMEOUT_ENV: "0.15"}
-    owner = open_session(project_id, session_factory=session_factory, env=env)
+    owner = open_session(
+        project_id,
+        session_factory=session_factory,
+        env=env,
+        actor_env=_actor_env(actor_id),
+    )
     app = create_metered_gateway_app(
         owner,
         env=env,
@@ -1490,7 +1564,11 @@ async def test_stream_refuses_before_authorize_or_provider(
         calls["n"] += 1
         raise AssertionError("truthy stream must not reach OpenRouter")
 
-    owner = open_session(project_id, session_factory=session_factory)
+    owner = open_session(
+        project_id,
+        session_factory=session_factory,
+        actor_env=_actor_env(actor_id),
+    )
     app = create_metered_gateway_app(
         owner,
         env={GATEWAY_TOKEN_ENV: "gw-secret"},

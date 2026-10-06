@@ -15,7 +15,13 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.harness.gateway import DEFAULT_MODEL, GatewayClient
-from app.harness.session import is_daily_cap_adjustment
+from app.harness.session import (
+    REASON_NOT_MEMBER,
+    HarnessSession,
+    TurnRefused,
+    is_daily_cap_adjustment,
+    unmatched_holds,
+)
 from app.harness.turns import (
     REASON_PROJECT_BUDGET,
     TURN_NOTES,
@@ -25,9 +31,12 @@ from app.models.actor import Actor
 from app.models.checkpoint import Checkpoint
 from app.models.compute_debit import ComputeDebit
 from app.models.contribution import Contribution
-from app.models.enums import ActorType, ComputeDebitKind, ComputeDebitRateSource
+from app.models.enums import ActorType, ComputeDebitKind, ComputeDebitRateSource, ProjectRole
 from app.models.funding import FundingAllocation
+from app.models.project_member import ProjectMember
+from app.services.agent_actors import get_or_create_project_agent_actor
 from app.services.compute import BUDGET_EXHAUSTED
+from app.services.harness_meter import load_today_adjustments
 from tests.principals import create_owned_project, make_dev_principal
 
 _OK_BODY = {
@@ -65,6 +74,11 @@ async def _debit_rows(session_factory: async_sessionmaker, project_id: str) -> l
             for row in result.scalars().all()
             if row.tokens_used > 0 and not is_daily_cap_adjustment(row.notes)
         ]
+
+
+async def _hold_rows(session_factory: async_sessionmaker, project_id: str) -> list:
+    async with session_factory() as session:
+        return await load_today_adjustments(session, UUID(project_id))
 
 
 async def test_successful_turn_debits_and_lands_instrument(
@@ -299,10 +313,42 @@ async def test_supervise_turn_sends_clamped_max_tokens_and_returns_clamp(
     assert "pot_room=none" in notes
 
 
-async def test_outsider_actor_env_debits_and_cannot_mint(
+async def test_member_actor_env_is_allowed(
     client: AsyncClient, session_factory: async_sessionmaker
 ) -> None:
-    """Debit is project-scoped; membership is the MCP door, not authorize()."""
+    """A current member may authorize: hold, provider call, debit when tokens moved."""
+    actor_id = await make_dev_principal(client, display_name="Member", roles=("internal",))
+    project_id = await create_owned_project(client, actor_id, "harness-turn-member")
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        return httpx.Response(200, json=_OK_BODY)
+
+    result = await supervise_turn(
+        messages=[{"role": "user", "content": "hi"}],
+        project_id=project_id,
+        gateway=_gateway(handler),
+        session_factory=session_factory,
+        actor_env={"OPENTHEORY_DEV_ACTOR_ID": actor_id},
+    )
+
+    assert result.ok is True
+    assert result.refused is False
+    assert result.tokens_used == 20
+    assert result.debit_recorded is True
+    assert result.minted is False
+    assert calls["n"] == 1
+    assert len(await _debit_rows(session_factory, project_id)) == 1
+    holds = await _hold_rows(session_factory, project_id)
+    assert any(row.tokens_used > 0 for row in holds)
+    assert any(row.tokens_used < 0 for row in holds)
+
+
+async def test_outsider_actor_env_refuses_without_hold_debit_or_provider(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """0.52.0: spend fails closed unless the acting actor is a current member."""
     owner_id = await make_dev_principal(client, display_name="Owner", roles=("internal",))
     outsider_id = await make_dev_principal(client, display_name="Eve")
     project_id = await create_owned_project(client, owner_id, "harness-turn-outsider")
@@ -314,8 +360,8 @@ async def test_outsider_actor_env_debits_and_cannot_mint(
     assert funded.status_code == 201, funded.text
     before = await _checkpoint_count(session_factory, project_id)
 
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json=_OK_BODY)
+    def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover
+        raise AssertionError("non-member must refuse before the LLM call")
 
     result = await supervise_turn(
         messages=[{"role": "user", "content": "evaluate 1+1"}],
@@ -333,21 +379,17 @@ async def test_outsider_actor_env_debits_and_cannot_mint(
         },
     )
 
-    assert result.ok is True
-    assert result.refused is False
-    assert result.tokens_used == 20
-    assert result.debit_recorded is True
+    assert result.ok is False
+    assert result.refused is True
+    assert result.reason == REASON_NOT_MEMBER
+    assert result.tokens_used == 0
+    assert result.debit_recorded is False
     assert result.minted is False
     assert result.checkpoint_id is None
-    assert result.mcp is not None
-    assert result.mcp["ok"] is False
-    assert result.mcp["status_code"] == 403
+    assert result.mcp is None
     assert await _checkpoint_count(session_factory, project_id) == before
-
-    debits = await _debit_rows(session_factory, project_id)
-    assert len(debits) == 1
-    assert debits[0].tokens_used == 20
-    assert debits[0].agent_run_id is None
+    assert await _debit_rows(session_factory, project_id) == []
+    assert await _hold_rows(session_factory, project_id) == []
 
     async with session_factory() as session:
         owner = await session.get(Actor, UUID(owner_id))
@@ -362,3 +404,126 @@ async def test_outsider_actor_env_debits_and_cannot_mint(
         assert len(allocations) == 1
         assert allocations[0].account_id == owner.account_id
         assert allocations[0].amount == Decimal("10.00")
+
+
+async def test_accountless_research_crew_actor_refuses_spend(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """Decision #3: Research crew is account-less and cannot authorize spend."""
+    owner_id = await make_dev_principal(client, display_name="Owner", roles=("internal",))
+    project_id = await create_owned_project(client, owner_id, "harness-turn-agent")
+    before = await _checkpoint_count(session_factory, project_id)
+
+    async with session_factory() as session:
+        agent = await get_or_create_project_agent_actor(session, UUID(project_id))
+        await session.commit()
+        agent_id = str(agent.id)
+        assert agent.account_id is None
+        assert agent.type is ActorType.AGENT
+
+    def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover
+        raise AssertionError("account-less agent must refuse before the LLM call")
+
+    result = await supervise_turn(
+        messages=[{"role": "user", "content": "hi"}],
+        project_id=project_id,
+        gateway=_gateway(handler),
+        session_factory=session_factory,
+        actor_env={"OPENTHEORY_DEV_ACTOR_ID": agent_id},
+    )
+
+    assert result.refused is True
+    assert result.reason == REASON_NOT_MEMBER
+    assert result.tokens_used == 0
+    assert result.debit_recorded is False
+    assert result.minted is False
+    assert await _checkpoint_count(session_factory, project_id) == before
+    assert await _debit_rows(session_factory, project_id) == []
+    assert await _hold_rows(session_factory, project_id) == []
+
+
+async def test_removed_member_refuses_next_authorize_mid_turn_spend_stands(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """Membership is a start-of-turn gate. Removal mid-turn does not drop the debit.
+
+    A collaborator who is a current member may authorize. If they are
+    removed after the hold (mid-turn), ``record_spend`` still converts
+    and bills tokens that moved — pot honesty. The next authorize
+    fails closed: no hold, no debit, no provider call.
+    """
+    owner_id = await make_dev_principal(client, display_name="Owner", roles=("internal",))
+    collab_id = await make_dev_principal(client, display_name="Collab")
+    project_id = await create_owned_project(client, owner_id, "harness-turn-removed")
+
+    async with session_factory() as session:
+        owner = await session.get(Actor, UUID(owner_id))
+        collab = await session.get(Actor, UUID(collab_id))
+        assert owner is not None and collab is not None
+        assert collab.account_id is not None
+        session.add(
+            ProjectMember(
+                project_id=UUID(project_id),
+                account_id=collab.account_id,
+                role=ProjectRole.ADMIN,
+                invited_by_account_id=owner.account_id,
+            )
+        )
+        await session.commit()
+        collab_account_id = str(collab.account_id)
+
+    owner_session = HarnessSession(
+        project_id=project_id,
+        session_factory=session_factory,
+        actor_env={"OPENTHEORY_DEV_ACTOR_ID": collab_id},
+    )
+    hold = await owner_session.authorize()
+    assert hold is not None
+    assert hold.tokens > 0
+    assert len(await _hold_rows(session_factory, project_id)) == 1
+
+    removed = await client.delete(
+        f"/api/v1/projects/{project_id}/members/{collab_account_id}",
+        headers={"X-Dev-Actor-Id": owner_id},
+    )
+    assert removed.status_code == 204, removed.text
+
+    spent = await owner_session.record_spend(
+        tokens_used=20,
+        model=DEFAULT_MODEL,
+        prompt_tokens=15,
+        completion_tokens=5,
+        hold=hold,
+    )
+    assert spent is True
+    debits = await _debit_rows(session_factory, project_id)
+    assert len(debits) == 1
+    assert debits[0].tokens_used == 20
+
+    def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover
+        raise AssertionError("removed member must refuse before the LLM call")
+
+    result = await supervise_turn(
+        messages=[{"role": "user", "content": "hi"}],
+        project_id=project_id,
+        gateway=_gateway(handler),
+        session_factory=session_factory,
+        actor_env={"OPENTHEORY_DEV_ACTOR_ID": collab_id},
+    )
+    assert result.refused is True
+    assert result.reason == REASON_NOT_MEMBER
+    assert result.tokens_used == 0
+    assert result.debit_recorded is False
+    assert len(await _debit_rows(session_factory, project_id)) == 1
+    later = HarnessSession(
+        project_id=project_id,
+        session_factory=session_factory,
+        actor_env={"OPENTHEORY_DEV_ACTOR_ID": collab_id},
+    )
+    try:
+        await later.authorize()
+        raise AssertionError("removed member must not take a hold")
+    except TurnRefused as exc:
+        assert exc.reason == REASON_NOT_MEMBER
+    # Convert already released the mid-turn hold; the refused authorize wrote none.
+    assert unmatched_holds(await _hold_rows(session_factory, project_id)) == []

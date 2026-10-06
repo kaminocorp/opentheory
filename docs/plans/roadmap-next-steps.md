@@ -1,14 +1,15 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-10-06 · **Current release line:** `0.51.1`
-> (harness actor-attribution audit), sitting on shipped `0.51.0`
-> (harness serialization guard, `fd9316d`, #45) on current
-> `main`. See `docs/completions/harness-actor-attribution-audit-0.51.1.md`.
+> **Last updated:** 2026-10-06 · **Current release line:** `0.52.0`
+> (harness turn-spend membership), sitting on shipped `0.51.1`
+> (harness actor-attribution audit, `3eeeaf5`, #46) on current
+> `main`. See `docs/completions/harness-turn-membership-0.52.0.md`.
 >
 > **Next after this line:** Lean REPL / LeanDojo remain later.
 > Does not enable the gateway child on Fly.
 > Does not light `AGENT_LOOP_ENABLED`.
-> ~~Harness actor-attribution audit~~ ✅ this branch as `0.51.1`.
+> ~~Harness turn-spend membership~~ ✅ this branch as `0.52.0`.
+> ~~Harness actor-attribution audit~~ ✅ shipped as `0.51.1`.
 > ~~Harness serialization guard~~ ✅ shipped as `0.51.0`.
 > ~~Harness turn-room clamp~~ ✅ shipped as `0.50.0`.
 > ~~Perpetual ops Overview eyeball pass~~ ✅ shipped as `0.49.1`.
@@ -104,7 +105,7 @@ bypassing the checkpoint chokepoint or conflating funder / contributor / validat
 
 ## Recommended next releases
 
-### `0.51.x` — Harness serialization guard ✅ **this branch** (`0.51.0`)
+### `0.51.x` — Harness serialization guard ✅ **shipped** (`0.51.0`)
 
 Delivered: `0.50.0` already serializes harness turns per project
 via the whole-daily-room hold, so no pot race exists. This slice
@@ -714,9 +715,13 @@ changing branch protection.
     ~~**Harness turn-room clamp**~~ ✅ shipped as `0.50.0` —
     `max_tokens` bounded to remaining daily / pot room; below-floor
     refuse; provider overshoot recorded as truth.
-    ~~**Harness serialization guard**~~ ✅ this branch as `0.51.0` —
+    ~~**Harness serialization guard**~~ ✅ shipped as `0.51.0` —
     0.50 already serializes via the daily-room hold; TTL must
     exceed max turn duration so a live turn is never an orphan.
+    ~~**Harness actor-attribution audit**~~ ✅ shipped as `0.51.1`.
+    ~~**Harness turn-spend membership**~~ ✅ this branch as
+    `0.52.0` — `authorize()` refuses unless the actor the
+    session / turn is running for is a current project member.
     Does not enable the gateway child. Does not light
     `AGENT_LOOP_ENABLED`.
 
@@ -770,7 +775,8 @@ changing branch protection.
 | `0.48.x` | Harness daily-cap orphan-hold release — a crash leftover hold no longer pins the UTC day |
 | `0.49.x` | Perpetual ops dashboard + Overview eyeball pass (`0.49.1`) |
 | `0.50.x` | Harness turn-room clamp — `max_tokens` bounded to remaining room |
-| `0.51.x` | Harness serialization guard — 0.50 occupancy + hold TTL covers turn |
+| `0.51.x` | Harness serialization guard — 0.50 occupancy + hold TTL covers turn; actor-attribution audit (`0.51.1`) |
+| `0.52.x` | Harness turn-spend membership — `authorize()` requires a current project member |
 
 ## Success criteria for the next milestone
 
@@ -918,11 +924,20 @@ daily / pot room. Pot room uses the completion rate when present;
 unfunded is `pot_room=none`. Price unknown → daily room only.
 Provider overshoot is recorded as truth.
 
-**`0.51.0` (harness serialization guard)** is this branch:
+**`0.51.0` (harness serialization guard)** is shipped:
 `0.50.0` already serializes turns per project via the
 whole-daily-room hold, so no pot race exists. This slice adds a
 regression for that and requires the hold TTL to exceed the max
 turn duration.
+
+**`0.51.1` (harness actor-attribution audit)** is shipped: MCP
+writes attribute to the JWT-resolved member Actor;
+`ensure_is_member` refuses a non-member on the write door.
+
+**`0.52.0` (harness turn-spend membership)** is this branch:
+`authorize()` refuses unless the actor the session / turn is
+running for is a current project member. No hold, no debit, no
+provider call. `record_spend` does not re-check.
 
 **Next product step:** Lean REPL / LeanDojo remain later. `If` /
 ite remain later. Does not enable the gateway child on Fly. Does

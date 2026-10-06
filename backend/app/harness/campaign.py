@@ -86,11 +86,14 @@ def open_session(
     daily_token_cap: int | None = None,
     session_factory: async_sessionmaker[AsyncSession] | None = None,
     env: Mapping[str, str] | None = None,
+    actor_env: Mapping[str, str] | None = None,
 ) -> HarnessSession:
     """Bind the reference campaign to a human-created project.
 
     Does not create the project, the roster, the budget, or an Actor.
-    Those are human writes through the existing APIs.
+    Those are human writes through the existing APIs. ``actor_env``
+    (JWT file / JWT / flagged dev-actor) is the actor ``authorize()``
+    membership-checks — same injection as ``live_mcp``.
     """
     return HarnessSession(
         project_id=project_id,
@@ -99,6 +102,7 @@ def open_session(
         daily_token_cap=daily_token_cap,
         session_factory=session_factory,
         env=env,
+        actor_env=actor_env,
         extras={"campaign": SLUG},
     )
 
