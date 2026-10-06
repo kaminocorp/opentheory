@@ -64,7 +64,13 @@ no new column, no Alembic revision.
 
 ## Verification
 
-- Filled after ruff / pytest / frontend suite on this branch.
+- `ruff check .` clean.
+- With `TEST_DATABASE_URL`: **1185 passed, 4 skipped**. +6 vs
+  `0.56.0` (1179) — roster members-only + spend, deploy/reuse
+  409, suspend/resume/admin, blame/checkpoint sponsor, ops
+  `actor_*` + spend-by-agent, credential-divergence refuse.
+  Lean / Mathlib stay off.
+- Frontend typecheck / lint / test (69 passed) / build clean.
 
 ## Unverified
 

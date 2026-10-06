@@ -31,6 +31,7 @@ export function formatAgentWhen(iso: string | null): string {
  * Token plaintext stays in component state for the reveal only.
  * Never a query key, never a cache value, never a log argument.
  */
-export function tokenRevealCacheKey(_token: string): null {
+export function tokenRevealCacheKey(token: string): null {
+  void token;
   return null;
 }

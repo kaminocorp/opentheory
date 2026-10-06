@@ -171,8 +171,12 @@ or MCP child on Fly.
 ```bash
 cd backend && uv run ruff check .   # clean
 cd backend && uv run pytest -q
-# with TEST_DATABASE_URL: (filled after the suite)
+# with TEST_DATABASE_URL: 1185 passed, 4 skipped
+# +6 vs 0.56.0 (1179): roster members-only + spend, deploy/reuse
+# conflict, suspend/resume/admin, blame/checkpoint sponsor, ops
+# actor_* + spend-by-agent, credential-divergence refuse
 cd frontend && npm run typecheck && npm run lint && npm test && npm run build
+# typecheck/lint/build clean; frontend tests 69 passed
 ```
 
 See `docs/completions/agent-identity-crew-0.57.0.md`.

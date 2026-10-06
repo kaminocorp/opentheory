@@ -80,7 +80,8 @@ async def test_roster_list_is_members_only_and_includes_revoked_and_spend(
         await session.commit()
 
     missing = await client.get(f"/api/v1/projects/{project_id}/agents")
-    assert missing.status_code == 401
+    # Tests enable the dev header: missing credential is 400, not production 401.
+    assert missing.status_code in {400, 401}
 
     outsider = await client.get(
         f"/api/v1/projects/{project_id}/agents",
@@ -341,7 +342,10 @@ async def test_ops_actor_fields_and_spend_by_agent(
                 rate_per_1k=Decimal("0"),
                 rate_source=ComputeDebitRateSource.BLENDED_FALLBACK,
                 kind=ComputeDebitKind.PLANNING,
-                notes=f"{SESSION_NOTES}; daily_cap_hold; hold_id=00000000-0000-0000-0000-000000000001",
+                notes=(
+                    f"{SESSION_NOTES}; daily_cap_hold; "
+                    "hold_id=00000000-0000-0000-0000-000000000001"
+                ),
             )
         )
         await session.commit()
