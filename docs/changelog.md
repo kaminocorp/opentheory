@@ -166,7 +166,9 @@ or MCP child on Fly.
 ```bash
 cd backend && uv run ruff check .   # clean
 cd backend && uv run pytest -q
-# with TEST_DATABASE_URL: counts after the suite
+# with TEST_DATABASE_URL: 1173 passed, 4 skipped
+# +17 vs 0.54.0 (1156): mint/rotate/revoke / resolver / MCP sponsor /
+# authorize swap / me+fund+validate refuse
 cd frontend && npm run typecheck && npm run lint && npm test && npm run build
 # frontend untouched
 ```

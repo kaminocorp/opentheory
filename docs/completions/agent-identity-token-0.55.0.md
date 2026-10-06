@@ -77,8 +77,10 @@ has `agent_session_tokens`). Sits on shipped `0.54.0`
 ## Verification
 
 - `ruff check .` clean.
-- With `TEST_DATABASE_URL`: counts recorded after the suite.
-  Lean / Mathlib stay off.
+- With `TEST_DATABASE_URL`: **1173 passed, 4 skipped**. +17 vs
+  `0.54.0` (1156) — mint/rotate/revoke, resolver, MCP sponsor,
+  authorize swap, `/me` + fund/validate refuse. Lean / Mathlib
+  stay off.
 - Frontend untouched.
 
 ## Unverified

@@ -324,7 +324,7 @@ async def test_resolver_stamps_last_used_and_never_returns_human(
             "iat": datetime.now(UTC),
             "exp": datetime.now(UTC) + timedelta(days=1),
         },
-        "other-secret-not-the-real-one!!",
+        "other-secret-not-the-real-one!!!",
         algorithm="HS256",
         headers={"typ": TYP},
     )
