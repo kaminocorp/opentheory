@@ -41,18 +41,25 @@ from app.harness.session import (
     DEFAULT_DAILY_TOKEN_CAP,
     DEFAULT_HOLD_TTL_SECONDS,
     DEFAULT_MAX_TURNS,
+    DEFAULT_TURN_TIMEOUT_SECONDS,
     DEFAULT_TURN_TOKEN_FLOOR,
     HOLD_NOTES,
     HOLD_TTL_ENV,
     PROJECT_ID_ENV,
     REASON_DAILY_CAP,
+    REASON_HOLD_TTL,
     REASON_TURN_BUDGET,
     REASON_TURN_ROOM,
     RELEASE_NOTES,
     SESSION_NOTES,
+    TURN_DURATION_MARGIN_SECONDS,
+    TURN_TIMEOUT_ENV,
     TURN_TOKEN_FLOOR_ENV,
     HarnessSession,
+    TurnRefused,
+    assert_composition,
     assert_daily_tokens_in_budget,
+    assert_hold_ttl_covers_turn,
     assert_turn_room_above_floor,
     harness_notes_prefix_match,
     hold_notes,
@@ -62,6 +69,7 @@ from app.harness.session import (
     release_notes,
     resolve_daily_token_cap,
     resolve_hold_ttl_seconds,
+    resolve_turn_timeout_seconds,
     resolve_turn_token_floor,
     session_from_env,
     unmatched_holds,
@@ -219,7 +227,7 @@ def test_fixture_probe_log_uses_protocol_maybe_log() -> None:
 
 
 def test_gateway_version_is_turn_room_clamp() -> None:
-    assert VERSION == "0.50.0"
+    assert VERSION == "0.51.0"
 
 
 def test_default_daily_token_cap_is_small_and_overridable() -> None:
@@ -284,6 +292,70 @@ def test_hold_ttl_is_small_and_overridable() -> None:
     assert is_hold_stale(created, ttl_seconds=300, now=now) is True
     assert is_hold_stale(now - timedelta(seconds=299), ttl_seconds=300, now=now) is False
     assert is_hold_stale(created, ttl_seconds=0, now=now) is False
+
+
+def test_hold_ttl_must_exceed_turn_duration_at_composition() -> None:
+    timeout = DEFAULT_TURN_TIMEOUT_SECONDS
+    needed = timeout + TURN_DURATION_MARGIN_SECONDS
+    assert needed == 65.0
+    assert_composition()
+    assert_hold_ttl_covers_turn(DEFAULT_HOLD_TTL_SECONDS, timeout)
+    assert_hold_ttl_covers_turn(66, timeout)
+    with pytest.raises(TurnRefused, match=REASON_HOLD_TTL):
+        assert_hold_ttl_covers_turn(65, timeout)
+    with pytest.raises(TurnRefused, match=REASON_HOLD_TTL):
+        assert_composition(env={HOLD_TTL_ENV: "65"})
+    with pytest.raises(TurnRefused, match=REASON_HOLD_TTL):
+        assert_composition(env={HOLD_TTL_ENV: "300", TURN_TIMEOUT_ENV: "400"})
+    bound = session_from_env({PROJECT_ID_ENV: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"})
+    assert bound is not None
+    with pytest.raises(TurnRefused, match=REASON_HOLD_TTL):
+        session_from_env(
+            {
+                PROJECT_ID_ENV: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                HOLD_TTL_ENV: "65",
+            }
+        )
+    with pytest.raises(TurnRefused, match=REASON_HOLD_TTL):
+        HarnessSession(
+            project_id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            hold_ttl_seconds=65,
+        )
+    create_gateway_app(env={})
+    with pytest.raises(TurnRefused, match=REASON_HOLD_TTL):
+        create_gateway_app(env={HOLD_TTL_ENV: "30"})
+    with pytest.raises(SystemExit, match=REASON_HOLD_TTL):
+        assert_process_may_serve(
+            {
+                PROJECT_ID_ENV: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                HOLD_TTL_ENV: "65",
+            }
+        )
+    with pytest.raises(SystemExit, match=REASON_HOLD_TTL):
+        require_bound_session(
+            {
+                PROJECT_ID_ENV: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                TURN_TIMEOUT_ENV: "400",
+            }
+        )
+
+
+def test_gateway_and_session_read_the_same_turn_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.core.config import settings
+    from app.harness.gateway import GatewayClient
+
+    monkeypatch.setenv(TURN_TIMEOUT_ENV, "12")
+    env = {TURN_TIMEOUT_ENV: "90"}
+    assert resolve_turn_timeout_seconds(env) == 90.0
+    client = GatewayClient(api_key="sk-test", env=env)
+    assert client.timeout == 90.0
+    empty = {}
+    fallback = float(settings.agent_llm_timeout_s)
+    assert resolve_turn_timeout_seconds(empty) == fallback
+    assert GatewayClient(api_key="sk-test", env=empty).timeout == fallback
+    assert fallback != 12.0
 
 
 def test_turn_token_floor_is_small_and_overridable() -> None:
@@ -380,7 +452,7 @@ async def test_health_reports_bound_session() -> None:
     async with AsyncClient(transport=ASGITransport(app=unbound), base_url="http://gw") as client:
         health = await client.get("/health")
     assert health.json()["session_owned"] is False
-    assert health.json()["version"] == "0.50.0"
+    assert health.json()["version"] == "0.51.0"
 
     session = open_session(
         "dddddddd-dddd-dddd-dddd-dddddddddddd",

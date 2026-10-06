@@ -49,12 +49,12 @@ def test_composition_ok_on_authored_patch() -> None:
 
 
 def test_composition_drift_refuses_before_llm(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.harness import turns as turns_mod
+    from app.harness import session as session_mod
 
     def _boom(*_args: object, **_kwargs: object) -> None:
         raise CompositionError("disabled plugin inventory drifted")
 
-    monkeypatch.setattr(turns_mod, "verify", _boom)
+    monkeypatch.setattr(session_mod, "verify", _boom)
 
     class _Boom(GatewayClient):
         async def complete(self, **_kwargs):  # type: ignore[no-untyped-def]

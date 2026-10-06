@@ -1,4 +1,4 @@
-"""Fail-closed OpenRouter gateway for the external DeepSeek Harness (0.50.0).
+"""Fail-closed OpenRouter gateway for the external DeepSeek Harness (0.51.0).
 
 Mirrors the OpenWorld gateway posture named in ``docs/harness/prior-art.md``:
 provider allowlist, ``allow_fallbacks: false``, ``require_parameters: true``,
@@ -23,6 +23,7 @@ is a different owner of the session and is left untouched.
 
 from __future__ import annotations
 
+import asyncio
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -41,13 +42,17 @@ from app.harness.session import (
     DailyCapHold,
     HarnessSession,
     TurnRefused,
+    assert_composition,
     clamp_max_tokens,
     overshoot_tokens,
+    resolve_turn_timeout_seconds,
     session_from_env,
     spend_notes,
 )
 
-VERSION = "0.50.0"
+VERSION = "0.51.0"
+REASON_TURN_DEADLINE = "provider call exceeded turn deadline"
+REASON_STREAM = "stream is not supported"
 DEFAULT_MODEL = "deepseek/deepseek-chat"
 DEFAULT_PROVIDERS: tuple[str, ...] = ("DeepSeek",)
 ALLOWED_OPENROUTER_HOSTS = frozenset({"openrouter.ai", "www.openrouter.ai"})
@@ -210,7 +215,14 @@ def build_fail_closed_body(
         }
         body.update(sanitized)
         body["provider"] = provider_preferences(allowlist)
+    assert_stream_not_requested(body)
     return body
+
+
+def assert_stream_not_requested(payload: Mapping[str, Any] | None) -> None:
+    """Refuse a streaming completion. The fail-closed path needs one JSON body with usage."""
+    if payload and payload.get("stream"):
+        raise GatewayError(REASON_STREAM)
 
 
 class GatewayClient:
@@ -240,8 +252,19 @@ class GatewayClient:
         raw_base = base_url or settings.openrouter_base_url
         self._base_url = assert_openrouter_base_url(raw_base)
         self._transport = transport
-        self._timeout = timeout if timeout is not None else settings.agent_llm_timeout_s
+        if timeout is not None:
+            self._timeout = float(timeout)
+        else:
+            try:
+                self._timeout = resolve_turn_timeout_seconds(env)
+            except TurnRefused as exc:
+                raise GatewayError(exc.reason) from exc
         self._env = env
+
+    @property
+    def timeout(self) -> float:
+        """Resolved turn timeout. Same source as ``resolve_turn_timeout_seconds``."""
+        return self._timeout
 
     async def complete(
         self,
@@ -263,24 +286,30 @@ class GatewayClient:
             env=self._env,
         )
         effective_timeout = timeout if timeout is not None else self._timeout
+        http_timeout = httpx.Timeout(effective_timeout)
         try:
-            async with httpx.AsyncClient(
-                timeout=effective_timeout, transport=self._transport
-            ) as client:
-                response = await client.post(
-                    f"{self._base_url}/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {self._api_key}",
-                        "Content-Type": "application/json",
-                    },
-                    json=payload,
-                )
-                response.raise_for_status()
-                data = response.json()
+            async with asyncio.timeout(effective_timeout):
+                async with httpx.AsyncClient(
+                    timeout=http_timeout, transport=self._transport
+                ) as client:
+                    response = await client.post(
+                        f"{self._base_url}/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {self._api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json=payload,
+                    )
+                    response.raise_for_status()
+                    data = response.json()
         except GatewayError:
             raise
-        except httpx.TimeoutException as exc:
-            raise GatewayError(f"OpenRouter request timed out after {effective_timeout}s") from exc
+        except (TimeoutError, httpx.TimeoutException) as exc:
+            raise GatewayError(
+                f"{REASON_TURN_DEADLINE}: abandoned after {effective_timeout:g}s; "
+                "OpenRouter may still bill a request we cannot see usage for",
+                tokens_used=0,
+            ) from exc
         except httpx.HTTPStatusError as exc:
             raise GatewayError(f"OpenRouter returned {exc.response.status_code}") from exc
         except Exception as exc:
@@ -397,13 +426,14 @@ def create_gateway_app(
 
     Not mounted on the product FastAPI app. ``python -m app.harness.gateway``.
     ``gateway`` is the test injection seam (MockTransport client).
-    ``session`` is the 0.43.0 / 0.50.0 owner — turn cap, daily token
+    ``session`` is the 0.43.0 / 0.51.0 owner — turn cap, daily token
     cap (with a remaining-room hold, stale-hold release, and turn-room
     clamp), exhaust, and debit. When omitted,
     ``OPENTHEORY_PROJECT_ID`` binds one. The process entrypoint refuses
     an unbound child unless ``OPENTHEORY_HARNESS_UNMETERED_PROBE`` is
     set. In-process tests may still construct an unbound app.
     """
+    assert_composition(env=env)
     bound = session if session is not None else session_from_env(env)
 
     app = FastAPI(title="OpenTheory OpenRouter gateway", version=VERSION)
@@ -446,6 +476,7 @@ def create_gateway_app(
                 raise GatewayError("messages must be a list")
             extra = {key: value for key, value in raw.items() if key not in {"model", "messages"}}
             requested_max = parse_requested_max_tokens(extra.pop("max_tokens", None))
+            assert_stream_not_requested(extra)
             resolved_model = resolve_model(str(model) if model else None, env=env)
             if owner is not None:
                 hold = await owner.authorize(model=resolved_model)
@@ -554,7 +585,11 @@ def assert_process_may_serve(
     may start a child that looks like the harness.
     """
     lookup = env if env is not None else os.environ
-    session = session_from_env(lookup)
+    try:
+        assert_composition(env=lookup)
+        session = session_from_env(lookup)
+    except TurnRefused as exc:
+        raise SystemExit(f"refusing gateway — {exc.reason}") from exc
     if session is not None:
         return session
     if unmetered_probe_enabled(lookup):

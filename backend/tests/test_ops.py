@@ -21,18 +21,22 @@ from app.services.harness_meter import (
     DAILY_TOKEN_CAP_ENV,
     DEFAULT_DAILY_TOKEN_CAP,
     DEFAULT_HOLD_TTL_SECONDS,
+    DEFAULT_TURN_TIMEOUT_SECONDS,
     DEFAULT_TURN_TOKEN_FLOOR,
     HOLD_TTL_ENV,
     POT_ROOM_NONE,
     PRICE_UNKNOWN_MARK,
     SESSION_NOTES,
+    TURN_DURATION_MARGIN_SECONDS,
     TURN_TOKEN_FLOOR_ENV,
     budget_state,
     clamp_max_tokens,
     clamp_rate_per_1k,
     classify_harness_row,
     hold_notes,
+    hold_ttl_covers_turn,
     is_daily_cap_adjustment,
+    max_turn_duration_seconds,
     overshoot_tokens,
     pair_holds,
     parse_clamp,
@@ -165,6 +169,19 @@ def test_pair_holds_by_hold_id_and_legacy_fifo() -> None:
     assert len(legacy) == 2
     assert {item.status for item in legacy} == {"open", "released"}
     assert sum(1 for item in legacy if item.status == "open") == 1
+
+
+def test_hold_ttl_must_strictly_exceed_max_turn_duration() -> None:
+    timeout = DEFAULT_TURN_TIMEOUT_SECONDS
+    margin = TURN_DURATION_MARGIN_SECONDS
+    needed = max_turn_duration_seconds(timeout)
+    assert needed == timeout + margin == 65.0
+    assert hold_ttl_covers_turn(DEFAULT_HOLD_TTL_SECONDS, timeout) is True
+    assert hold_ttl_covers_turn(66, timeout) is True
+    assert hold_ttl_covers_turn(65, timeout) is False
+    assert hold_ttl_covers_turn(64, timeout) is False
+    assert hold_ttl_covers_turn(300, 400.0) is False
+    assert hold_ttl_covers_turn(0, timeout) is False
 
 
 def test_refusals_are_not_invented() -> None:

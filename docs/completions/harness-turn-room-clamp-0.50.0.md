@@ -122,3 +122,13 @@ truth. Price unknown → daily room only.
 - Spend-notes prefix stays the literal `harness_session_turn` string;
   a structured notes type is later.
 - How often a provider overshoots the clamp is not measured here.
+
+## Correction (0.51.0)
+
+The first 0.51 brief treated a leftover "two concurrent turns can
+still both spend a tight pot" as open. That was wrong: this slice
+already occupies the whole remaining daily room under the
+project-row lock, so a second overlapping authorize is always
+refused. There is no pot race. `0.51.0` records that as a
+regression guard and closes the real hole (hold TTL must strictly
+exceed max turn duration).

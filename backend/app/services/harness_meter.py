@@ -1,15 +1,18 @@
-"""Shared harness ``ComputeDebit`` meter (0.50.0).
+"""Shared harness ``ComputeDebit`` meter (0.51.0).
 
 The session owner in ``app.harness.session`` *writes* remaining-room
 holds and spend against today's ``harness_session_turn`` prefix. The
 product ops dashboard *reads* the same ledger. This module is the
 shared meter so those two paths cannot drift.
 
-``0.50.0`` adds the turn-room clamp: remaining daily tokens, and — only
-when a live/catalog price is known — the tokens the pot can still buy.
-Math lives here so FastAPI can parse clamp / overshoot notes without
-importing ``app.harness``. A blended settings fallback is not a known
-price; do not invent one.
+``0.50.0`` added the turn-room clamp: remaining daily tokens, and —
+only when a live/catalog price is known — the tokens the pot can
+still buy. The ledger hold occupies the whole remaining daily room
+so two overlapping authorizes cannot both pass. ``0.51.0`` requires
+the hold TTL to be strictly greater than the provider request
+timeout plus a margin, so a live turn is never released as an
+orphan. A blended settings fallback is not a known price; do not
+invent one.
 
 FastAPI may import this module. It must not import ``app.harness``.
 Nothing here writes. ``create_checkpoint`` is still the only Checkpoint
@@ -36,9 +39,12 @@ from app.models.enums import ComputeDebitRateSource
 DAILY_TOKEN_CAP_ENV = "OPENTHEORY_HARNESS_DAILY_TOKEN_CAP"
 HOLD_TTL_ENV = "OPENTHEORY_HARNESS_HOLD_TTL_SECONDS"
 TURN_TOKEN_FLOOR_ENV = "OPENTHEORY_HARNESS_TURN_TOKEN_FLOOR"
+TURN_TIMEOUT_ENV = "AGENT_LLM_TIMEOUT_S"
 DEFAULT_DAILY_TOKEN_CAP = 20_000
 DEFAULT_HOLD_TTL_SECONDS = 300
 DEFAULT_TURN_TOKEN_FLOOR = 16
+DEFAULT_TURN_TIMEOUT_SECONDS = 60.0
+TURN_DURATION_MARGIN_SECONDS = 5.0
 SESSION_NOTES = "harness_session_turn"
 HOLD_NOTES_MARK = "daily_cap_hold"
 RELEASE_NOTES_MARK = "daily_cap_release"
@@ -121,6 +127,27 @@ def is_daily_cap_adjustment(notes: str | None) -> bool:
 def hold_notes(hold_id: UUID) -> str:
     """Hold notes: literal ``harness_session_turn`` prefix plus ``hold_id``."""
     return f"{HOLD_NOTES}; {HOLD_ID_MARK}{hold_id}"
+
+
+def max_turn_duration_seconds(
+    provider_timeout_s: float,
+    *,
+    margin_s: float = TURN_DURATION_MARGIN_SECONDS,
+) -> float:
+    """Longest a live hold may stay open: provider request plus authorize margin."""
+    return provider_timeout_s + margin_s
+
+
+def hold_ttl_covers_turn(
+    ttl_seconds: int,
+    provider_timeout_s: float,
+    *,
+    margin_s: float = TURN_DURATION_MARGIN_SECONDS,
+) -> bool:
+    """True when TTL is strictly greater than provider timeout + margin."""
+    if ttl_seconds < 1 or provider_timeout_s <= 0 or margin_s < 0:
+        return False
+    return ttl_seconds > max_turn_duration_seconds(provider_timeout_s, margin_s=margin_s)
 
 
 def release_notes(hold_id: UUID | None) -> str:

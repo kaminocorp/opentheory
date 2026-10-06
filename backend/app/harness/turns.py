@@ -34,9 +34,14 @@ path does not light ``AGENT_LOOP_ENABLED``), so ``agent_run_id`` is left
 null and ``notes`` carry ``harness_session_turn``. Tokens that moved are
 always billed, including an attempted completion that then failed to parse.
 A refused start (drift / exhausted / turn cap / daily cap / room below
-floor) writes nothing: no tokens moved. ``0.50.0`` clamps the
-completion ``max_tokens`` to the authorize room and records a
-provider overshoot when usage exceeds that clamp.
+floor / hold TTL) writes nothing: no tokens moved. ``0.50.0`` clamps
+the completion ``max_tokens`` to the authorize room and records a
+provider overshoot when usage exceeds that clamp. The 0.50 hold
+already occupies the whole remaining daily room, so a second
+overlapping authorize is refused. ``0.51.0`` keeps that occupancy
+and refuses composition / session / gateway start when the hold
+TTL is not strictly greater than the provider request timeout plus
+a margin — a live turn must never be released as an orphan.
 
 Exceptions still mint nothing. The MCP door is the only ledger writer.
 """
@@ -50,7 +55,6 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.harness.composition import CompositionError, verify
 from app.harness.gateway import (
     DEFAULT_MODEL,
     GatewayClient,
@@ -74,6 +78,9 @@ from app.harness.session import (
     overshoot_tokens,
     resolve_max_turns,
     spend_notes,
+)
+from app.harness.session import (
+    assert_composition as assert_session_composition,
 )
 
 TURN_NOTES = SESSION_NOTES
@@ -121,14 +128,12 @@ class SupervisedTurn:
     extras: dict[str, Any] = field(default_factory=dict)
 
 
-def assert_composition(*, version: str | None = None) -> None:
-    try:
-        if version is None:
-            verify()
-        else:
-            verify(version=version)
-    except CompositionError as exc:
-        raise TurnRefused(f"{REASON_COMPOSITION}: {exc}") from exc
+def assert_composition(
+    *,
+    version: str | None = None,
+    env: Mapping[str, str] | None = None,
+) -> None:
+    assert_session_composition(version=version, env=env)
 
 
 async def supervise_turn(
@@ -153,7 +158,7 @@ async def supervise_turn(
     records a debit when tokens moved.
     """
     try:
-        assert_composition()
+        assert_composition(env=env)
         cap = max_turns if max_turns is not None else resolve_max_turns(env)
         assert_turn_in_budget(turn_index, cap)
         resolved_model = resolve_model(model, env=env)

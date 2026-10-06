@@ -1,4 +1,4 @@
-"""Session owner for an external DeepSeek Harness run (0.43.0 / 0.50.0).
+"""Session owner for an external DeepSeek Harness run (0.43.0 / 0.51.0).
 
 One :class:`HarnessSession` owns one campaign-bound run: the project, the
 process-local turn cap, the daily token cap, pre-LLM exhaust, and
@@ -51,7 +51,21 @@ unknown-price turns have no pot room and clamp to the daily room
 to that clamp. A room below
 ``OPENTHEORY_HARNESS_TURN_TOKEN_FLOOR`` (default 16) is
 ``TurnRefused``. Provider usage above the clamp is recorded in full
-and flagged. No campaign table.
+and flagged.
+
+``0.51.0`` does not reserve the pot: the 0.50 hold already occupies
+the whole remaining daily room, so a second overlapping authorize
+on the same project is always refused. The real hole is a live turn
+that outlives ``OPENTHEORY_HARNESS_HOLD_TTL_SECONDS`` — the next
+authorize would release that hold as an orphan. Composition /
+session startup refuse when the TTL is not strictly greater than
+the provider request timeout (``AGENT_LLM_TIMEOUT_S``, default 60)
+plus a margin (5s). ``GatewayClient.complete`` wraps the whole
+provider call (post + body read) in a total deadline of that
+timeout — a per-phase httpx timeout is not enough, and ``stream``
+is 422 before authorize. An abandoned request may still be billed
+by OpenRouter; usage is unknown so we debit nothing. No campaign
+table.
 """
 
 from __future__ import annotations
@@ -78,6 +92,7 @@ from app.services.harness_meter import (
     DAILY_TOKEN_CAP_ENV,
     DEFAULT_DAILY_TOKEN_CAP,
     DEFAULT_HOLD_TTL_SECONDS,
+    DEFAULT_TURN_TIMEOUT_SECONDS,
     DEFAULT_TURN_TOKEN_FLOOR,
     HOLD_ID_MARK,
     HOLD_NOTES,
@@ -86,6 +101,8 @@ from app.services.harness_meter import (
     RELEASE_NOTES,
     RELEASE_NOTES_MARK,
     SESSION_NOTES,
+    TURN_DURATION_MARGIN_SECONDS,
+    TURN_TIMEOUT_ENV,
     TURN_TOKEN_FLOOR_ENV,
     AdjustmentRow,
     clamp_max_tokens,
@@ -93,9 +110,11 @@ from app.services.harness_meter import (
     harness_notes_prefix_match,
     harness_tokens_used_today,
     hold_notes,
+    hold_ttl_covers_turn,
     is_daily_cap_adjustment,
     is_hold_stale,
     load_today_adjustments,
+    max_turn_duration_seconds,
     overshoot_tokens,
     parse_hold_id,
     pot_tokens_from_available,
@@ -114,6 +133,7 @@ REASON_COMPOSITION = "composition drifted"
 REASON_TURN_BUDGET = "turn budget exhausted"
 REASON_DAILY_CAP = "daily token cap exhausted"
 REASON_TURN_ROOM = "turn room below floor"
+REASON_HOLD_TTL = "hold TTL does not exceed turn duration"
 REASON_PROJECT_BUDGET = compute_service.BUDGET_EXHAUSTED
 
 __all__ = [
@@ -121,6 +141,7 @@ __all__ = [
     "DEFAULT_DAILY_TOKEN_CAP",
     "DEFAULT_HOLD_TTL_SECONDS",
     "DEFAULT_MAX_TURNS",
+    "DEFAULT_TURN_TIMEOUT_SECONDS",
     "DEFAULT_TURN_TOKEN_FLOOR",
     "HOLD_ID_MARK",
     "HOLD_NOTES",
@@ -132,10 +153,13 @@ __all__ = [
     "REASON_DAILY_CAP",
     "REASON_PROJECT_BUDGET",
     "REASON_TURN_BUDGET",
+    "REASON_HOLD_TTL",
     "REASON_TURN_ROOM",
     "RELEASE_NOTES",
     "RELEASE_NOTES_MARK",
     "SESSION_NOTES",
+    "TURN_DURATION_MARGIN_SECONDS",
+    "TURN_TIMEOUT_ENV",
     "TURN_TOKEN_FLOOR_ENV",
     "AdjustmentRow",
     "DailyCapHold",
@@ -145,6 +169,7 @@ __all__ = [
     "assert_daily_tokens_in_budget",
     "assert_project_budget",
     "assert_turn_in_budget",
+    "assert_hold_ttl_covers_turn",
     "assert_turn_room_above_floor",
     "clamp_max_tokens",
     "clamp_rate_per_1k",
@@ -154,7 +179,9 @@ __all__ = [
     "hold_notes",
     "is_daily_cap_adjustment",
     "is_hold_stale",
+    "hold_ttl_covers_turn",
     "load_today_adjustments",
+    "max_turn_duration_seconds",
     "overshoot_tokens",
     "parse_hold_id",
     "pot_tokens_from_available",
@@ -164,6 +191,7 @@ __all__ = [
     "resolve_daily_token_cap",
     "resolve_hold_ttl_seconds",
     "resolve_max_turns",
+    "resolve_turn_timeout_seconds",
     "resolve_turn_token_floor",
     "session_from_env",
     "spend_notes",
@@ -255,6 +283,45 @@ def resolve_hold_ttl_seconds(env: Mapping[str, str] | None = None) -> int:
     return value
 
 
+def resolve_turn_timeout_seconds(env: Mapping[str, str] | None = None) -> float:
+    """Provider request timeout. Same source ``GatewayClient`` uses (default 60s)."""
+    lookup = env if env is not None else os.environ
+    raw = (lookup.get(TURN_TIMEOUT_ENV) or "").strip()
+    if not raw:
+        from app.core.config import settings
+
+        return float(settings.agent_llm_timeout_s)
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise TurnRefused(f"{TURN_TIMEOUT_ENV} must be a number") from exc
+    if value <= 0:
+        raise TurnRefused(f"{TURN_TIMEOUT_ENV} must be > 0")
+    return value
+
+
+def assert_hold_ttl_covers_turn(
+    ttl_seconds: int,
+    provider_timeout_s: float | None = None,
+    *,
+    env: Mapping[str, str] | None = None,
+) -> None:
+    """Refuse when a live turn could outlive the hold and be released as an orphan."""
+    timeout = (
+        provider_timeout_s
+        if provider_timeout_s is not None
+        else resolve_turn_timeout_seconds(env)
+    )
+    if hold_ttl_covers_turn(ttl_seconds, timeout):
+        return
+    needed = max_turn_duration_seconds(timeout)
+    raise TurnRefused(
+        f"{REASON_HOLD_TTL}: {HOLD_TTL_ENV}={ttl_seconds}s must be > "
+        f"{timeout:g}s + {TURN_DURATION_MARGIN_SECONDS:g}s "
+        f"({needed:g}s)"
+    )
+
+
 def resolve_turn_token_floor(env: Mapping[str, str] | None = None) -> int:
     """Minimum honest room before a provider call. Default 16."""
     lookup = env if env is not None else os.environ
@@ -292,7 +359,11 @@ def assert_turn_room_above_floor(room: int, floor: int) -> None:
         raise TurnRefused(REASON_TURN_ROOM)
 
 
-def assert_composition(*, version: str | None = None) -> None:
+def assert_composition(
+    *,
+    version: str | None = None,
+    env: Mapping[str, str] | None = None,
+) -> None:
     try:
         if version is None:
             verify()
@@ -300,6 +371,10 @@ def assert_composition(*, version: str | None = None) -> None:
             verify(version=version)
     except CompositionError as exc:
         raise TurnRefused(f"{REASON_COMPOSITION}: {exc}") from exc
+    assert_hold_ttl_covers_turn(
+        resolve_hold_ttl_seconds(env),
+        env=env,
+    )
 
 
 async def assert_daily_token_cap(
@@ -421,10 +496,10 @@ class HarnessSession:
     (question + roster), ``FundingAllocation`` (budget), and
     ``ComputeDebit`` (spend, including the daily token cap, the 0.47.0
     remaining-room hold / release pair, the 0.48.0 stale-hold
-    release, and the 0.50.0 turn-room clamp). Turn index is
-    process-local — a restart starts a new bound session at turn 0.
-    Today's harness token sum does not reset. No schema, no second
-    campaign table, no ``AgentRun``.
+    release, the 0.50.0 turn-room clamp, and the 0.51.0 hold-TTL
+    bound). Turn index is process-local — a restart starts a
+    new bound session at turn 0. Today's harness token sum does not
+    reset. No schema, no second campaign table, no ``AgentRun``.
     """
 
     project_id: UUID | str
@@ -448,6 +523,10 @@ class HarnessSession:
             self.hold_ttl_seconds = resolve_hold_ttl_seconds(self.env)
         if self.turn_token_floor is None:
             self.turn_token_floor = resolve_turn_token_floor(self.env)
+        assert_hold_ttl_covers_turn(
+            self.resolved_hold_ttl_seconds(),
+            env=self.env,
+        )
 
     @property
     def project_uuid(self) -> UUID:
@@ -490,7 +569,7 @@ class HarnessSession:
         than the TTL, re-reads today's harness token sum (holds
         included), computes the turn clamp, and appends a remaining-room
         hold so a second concurrent authorize cannot also pass. The
-        ledger hold still occupies remaining daily tokens (0.47/0.48).
+        ledger hold occupies remaining daily tokens (0.47/0.48 / 0.50).
         ``clamp`` is ``min(daily room, pot room)`` when the project is
         funded and ``quote`` (or a live/catalog fetch for ``model``)
         is a known price; pot dollars convert at the completion rate
@@ -499,7 +578,7 @@ class HarnessSession:
         reserved. Returns the hold the caller must convert
         (``record_spend``) or release.
         """
-        assert_composition()
+        assert_composition(env=self.env)
         assert_turn_in_budget(self.turn_index, self.resolved_max_turns())
         resolved_quote = quote
         if resolved_quote is None and model:

@@ -1,6 +1,6 @@
 # External harness actor path
 
-> **What is (`0.50.0`).** Milestone 0 composition + fixture, the live
+> **What is (`0.51.0`).** Milestone 0 composition + fixture, the live
 > MCP door (`live_mcp.py`), the fail-closed OpenRouter gateway, a
 > session owner (`HarnessSession`) plus the odd-perfect reference
 > campaign, a fail-closed campaign composition that cannot start the
@@ -10,7 +10,9 @@
 > overlapping authorizes cannot both debit past that cap, a
 > stale-hold release so a crash after authorize does not pin the UTC
 > day, a turn-room clamp so one completion cannot be sent unbounded
-> against the remaining daily / pot room, and a read-only perpetual
+> against the remaining daily / pot room, a hold TTL that must
+> exceed max turn duration so a live turn is never released as an
+> orphan, and a read-only perpetual
 > ops dashboard (`GET /projects/{id}/ops`). Fly enablement is not
 > shipped. If this blueprint disagrees with `backend/app/harness/`,
 > the code wins.
@@ -110,7 +112,12 @@ The gateway sets `max_tokens` to the clamp (a caller-smaller request
 is kept; invalid `max_tokens` is 422). A room below
 `OPENTHEORY_HARNESS_TURN_TOKEN_FLOOR` (default 16) refuses before
 the model. Provider usage above the clamp is recorded in full and
-flagged.
+flagged. The hold occupies the whole remaining daily room, so a
+second overlapping authorize is always refused — there is no pot
+race. `0.51.0` requires `OPENTHEORY_HARNESS_HOLD_TTL_SECONDS`
+(default 300) to be strictly greater than the provider request
+timeout (default 60s) plus a 5s margin, so a live turn cannot be
+released as an orphan.
 
 ## Relationship to the built-in planner
 

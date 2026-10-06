@@ -1,17 +1,20 @@
 # External harness — compatibility
 
-> **Status — `0.50.0` turn-room clamp.** Pin is unchanged. Live
+> **Status — `0.51.0` serialization guard.** Pin is unchanged. Live
 > OpenRouter probe is implemented behind `OPENTHEORY_HARNESS_LIVE`.
 > An unmetered HTTP child is opt-in
 > (`OPENTHEORY_HARNESS_UNMETERED_PROBE`) and is not the campaign
 > composition. Default CI does not install the SDK and does not need
 > `OPENROUTER_API_KEY`. The daily cap is `OPENTHEORY_HARNESS_DAILY_TOKEN_CAP`
 > (default 20_000 tokens / UTC day). Overlapping authorizes take a
-> remaining-room hold on the existing `ComputeDebit` ledger. An
-> unmatched hold older than `OPENTHEORY_HARNESS_HOLD_TTL_SECONDS`
-> (default 300) is released on the next authorize. A single turn is
-> clamped to remaining daily room, and to pot room when a funded pot
-> has a live/catalog price (completion rate). Room below `OPENTHEORY_HARNESS_TURN_TOKEN_FLOOR`
+> remaining-room hold on the existing `ComputeDebit` ledger (the
+> whole remaining daily room — 0.50 already serializes per project).
+> An unmatched hold older than `OPENTHEORY_HARNESS_HOLD_TTL_SECONDS`
+> (default 300) is released on the next authorize. That TTL must be
+> strictly greater than the provider request timeout (default 60s)
+> plus a 5s margin. A single turn is clamped to remaining daily
+> room, and to pot room when a funded pot has a live/catalog price
+> (completion rate). Room below `OPENTHEORY_HARNESS_TURN_TOKEN_FLOOR`
 > (default 16) refuses before the model.
 
 ## Pin
