@@ -81,7 +81,10 @@ schema. No new table, no new column, no Alembic revision.
 ## Verification
 
 - `ruff check .` clean.
-- With `TEST_DATABASE_URL`: counts filled after the suite run.
+- With `TEST_DATABASE_URL`: **1154 passed, 4 skipped**. +10 vs
+  `0.53.0` (1144) — type-aware gate, roster ensure, OWNER-transfer
+  hook, dark-loop commission, human-only fund/validate/invite.
+  Lean / Mathlib stay off. Harness suite **139 passed**.
 - Frontend untouched.
 
 ## Unverified

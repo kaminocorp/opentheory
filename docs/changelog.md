@@ -175,7 +175,9 @@ or MCP child on Fly.
 ```bash
 cd backend && uv run ruff check .   # clean
 cd backend && uv run pytest -q
-# with TEST_DATABASE_URL: counts filled after the suite run
+# with TEST_DATABASE_URL: 1154 passed, 4 skipped
+# +10 vs 0.53.0 (1144): type-aware gate / roster ensure / transfer hook /
+# dark-loop commission / human-only fund-validate-invite
 cd frontend && npm run typecheck && npm run lint && npm test && npm run build
 # frontend untouched
 ```
