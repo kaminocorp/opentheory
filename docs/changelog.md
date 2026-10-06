@@ -160,6 +160,7 @@ Sits on shipped `0.57.0` (`16bf679`, #53).
 
 ```bash
 cd frontend && npm run typecheck && npm run lint && npm test && npm run build
+# typecheck/lint/build clean; frontend tests 73 passed (+4 vs 0.57.0)
 ```
 
 See `docs/completions/frontend-backend-skew-0.57.1.md`.
