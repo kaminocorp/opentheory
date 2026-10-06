@@ -67,4 +67,10 @@ behavior change.
 
 ## Tests
 
-See `docs/changelog.md` §0.58.1.
+- `ruff` clean.
+- With `TEST_DATABASE_URL`: **1205 passed, 4 skipped**. +6 vs
+  `0.58.0` (1199): 0023 linkage / only-head / `pg_tables` loop /
+  transactional, Alembic-head RLS+FORCE hook, downgrade
+  round-trip does not re-GRANT.
+- Frontend `typecheck` / `lint` / `test` / `build` clean.
+  **75 passed** (unchanged).

@@ -173,9 +173,12 @@ gateway or MCP child on Fly.
 ```bash
 cd backend && uv run ruff check .   # clean
 cd backend && uv run pytest -q
-# with TEST_DATABASE_URL: counts filled after the suite
+# with TEST_DATABASE_URL: 1205 passed, 4 skipped
+# +6 vs 0.58.0 (1199): 0023 linkage/only-head/pg_tables-loop/
+# transactional, alembic-head RLS+FORCE hook, downgrade
+# round-trip does not re-GRANT
 cd frontend && npm run typecheck && npm run lint && npm test && npm run build
-# typecheck/lint/build clean; frontend tests unchanged
+# typecheck/lint/build clean; frontend tests 75 passed (unchanged)
 ```
 
 See `docs/completions/lock-public-api-rls-0.58.1.md`.
