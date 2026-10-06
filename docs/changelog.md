@@ -156,9 +156,13 @@ MCP child on Fly.
 
 ```bash
 cd backend && uv run ruff check .   # clean
-cd backend && uv run pytest -q
+cd backend && uv run pytest -q      # 844 passed, 263 skipped (no TEST_DATABASE_URL)
+# +5 passed vs shipped 0.49.1 (839); +6 skipped (clamp / floor / overshoot ledger)
 cd backend && uv run pytest tests/harness -q
+# 88 passed, 30 skipped (no TEST_DATABASE_URL)
+# 118 passed with TEST_DATABASE_URL (clamp + floor + overshoot + existing race/TTL)
 cd frontend && npm run typecheck && npm run lint && npm test && npm run build
+# typecheck/lint/build clean; 64 tests (+1 last-turn honesty)
 ```
 
 See `docs/completions/harness-turn-room-clamp-0.50.0.md`.

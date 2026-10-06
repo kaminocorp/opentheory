@@ -17,10 +17,10 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from app.agent.pricing import PriceQuote
 from app.harness.campaign import QUESTION, TITLE, create_metered_gateway_app, open_session
 from app.harness.gateway import DEFAULT_MODEL, GATEWAY_TOKEN_ENV, GatewayClient, GatewayResponse
 from app.harness.live_mcp import invoke
-from app.agent.pricing import PriceQuote
 from app.harness.session import (
     HOLD_NOTES,
     REASON_DAILY_CAP,

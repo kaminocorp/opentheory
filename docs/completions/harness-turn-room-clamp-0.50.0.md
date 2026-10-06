@@ -73,9 +73,18 @@ truth. Price unknown → daily room only.
 
 ## Verification
 
-Recorded after the local run on this branch. CI is the
-`Backend (ruff + pytest + Postgres)` job plus frontend
-typecheck / lint / test / build.
+- `ruff check .` clean.
+- Default pytest (no `TEST_DATABASE_URL`, no `OPENROUTER_API_KEY`):
+  **844 passed, 263 skipped**. +5 passed vs shipped `0.49.1` (839)
+  (room math / floor / spend-note parse). +6 skipped (clamp ledger).
+- With `TEST_DATABASE_URL`: **1103 passed, 4 skipped**.
+- Harness pytest: **88 passed, 30 skipped** without Postgres;
+  **118 passed** with Postgres (includes overlapping-authorize race
+  and orphan TTL).
+- Frontend: typecheck / lint / build clean. **64** node:test cases
+  (+1 last-turn honesty).
+- Ledger suite skips without `TEST_DATABASE_URL` (CI Postgres runs
+  it). Lean / Mathlib stay off.
 
 ## Unverified
 
