@@ -1,18 +1,20 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-10-06 · **Current release line:** `0.58.0`
-> (per-agent lifetime caps: `token_budget_cap` /
-> `usd_budget_cap` enforced at `authorize()` and the built-in
-> pass; Crew edit), sitting on shipped `0.57.1` (`2ed3d23`,
-> #54) on current `main`. See
-> `docs/completions/agent-identity-caps-0.58.0.md`.
+> **Last updated:** 2026-10-06 · **Current release line:** `0.58.1`
+> (lock public PostgREST: forced empty RLS + revoke
+> `anon`/`authenticated`), sitting on shipped `0.58.0`
+> (`c1a4ca5`, #55) on current `main`. See
+> `docs/completions/lock-public-api-rls-0.58.1.md`.
 >
 > **Next after this line:** Lean REPL / LeanDojo remain later.
 > Does not enable the gateway child on Fly.
 > Does not light `AGENT_LOOP_ENABLED`.
-> Agent identity slice F is this branch as `0.58.0`. Slice G
-> (definition catalog) is not started.
-> ~~Agent identity per-agent caps~~ ✅ this branch as `0.58.0`.
+> Public API RLS lock is this branch as `0.58.1`. Slice G
+> (definition catalog, #56) must rebase so catalog `0023`
+> becomes `0024` revising this lock. Do not merge either PR
+> until the 0022 Fly deploy is verified.
+> ~~Public PostgREST lock~~ ✅ this branch as `0.58.1`.
+> ~~Agent identity per-agent caps~~ ✅ shipped as `0.58.0`.
 > ~~Frontend version-skew hotfix~~ ✅ shipped as `0.57.1`.
 > ~~Agent identity Crew UI~~ ✅ shipped as `0.57.0`.
 > ~~Agent identity spend attribution~~ ✅ shipped as `0.56.0`.
@@ -994,16 +996,27 @@ still pre-0.53 (0022 unapplied). Overview must not throw on
 a missing `spend_by_agent`. Crew roster `404` is a quiet
 "not on this backend yet" line.
 
-**`0.58.0` (per-agent caps)** is this branch. Lifetime
-`token_budget_cap` / `usd_budget_cap` enforced at
+**`0.58.0` (per-agent caps)** shipped as `c1a4ca5` (#55).
+Lifetime `token_budget_cap` / `usd_budget_cap` enforced at
 `authorize()` and the built-in pass. Crew edit. Cap reached
 is `TurnRefused` with a distinct reason and no hold. Shared
 project daily cap stays (hold occupancy is not split).
 Unfunded ≠ exhausted. No migration. No slice G. No Fly
 deploy. No live Supabase apply.
 
+**`0.58.1` (public PostgREST lock)** is this branch.
+`0023_lock_public_api_rls` revises `0022_agent_actor_identity`.
+Idempotent ENABLE+FORCE on every `public` table (`pg_tables`
+loop) plus REVOKE ALL tables/sequences/default privileges from
+`anon` / `authenticated`. No policies. Downgrade reverses
+FORCE/ENABLE and does not re-GRANT. Alembic-head pytest fails
+CI if any public table lacks RLS+FORCE. Live is already
+locked out-of-band; this records it. No Fly deploy. No live
+Supabase write. Slice G (#56) must rebase so catalog
+`0023_agent_definitions` becomes `0024` revising this lock.
+
 **Next product step:** Lean REPL / LeanDojo remain later. `If` /
 ite remain later. Agent identity slice G (definition catalog)
-is next on this line after the first multi-agent campaign.
-Does not enable the gateway child on Fly. Does not light
-`AGENT_LOOP_ENABLED`.
+rebases onto this lock as `0024`. Do not merge this PR or #56
+until the 0022 Fly deploy is verified. Does not enable the
+gateway child on Fly. Does not light `AGENT_LOOP_ENABLED`.

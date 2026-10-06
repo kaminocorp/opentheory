@@ -344,6 +344,7 @@ deterministic blended rate.
 
 ## Operating notes
 
+- **Public PostgREST lock (0.58.1).** Every `public` table is `ENABLE` + `FORCE` row-level security, with **no policies** and **no grants** to `anon` / `authenticated` (tables and sequences, including default privileges). PostgREST therefore returns `401` / `42501` on table access. The FastAPI backend connects as `postgres` (owner / `bypassrls`); app traffic is unaffected. Frontend uses Supabase Auth only — never PostgREST table access. Do not `GRANT` those roles. Do not add a policy that opens a table. Re-GRANT is a deliberate ops step, not an Alembic downgrade (`0023_lock_public_api_rls` reverses FORCE/ENABLE only). Live was locked out-of-band before this revision; the migration is idempotent so a later `alembic upgrade head` matches that state. This runbook does not apply 0022/0023 from the agent — hold Fly until the operator verifies the 0022 deploy.
 - **Always-warm:** `fly.toml` sets `min_machines_running = 1`, so one machine stays running and
   there is no scale-to-zero cold start on the first request after idle. (It was `0`; the boot added
   several seconds on top of DB latency.) Set it back to `0` only to trade that latency for a cheaper
