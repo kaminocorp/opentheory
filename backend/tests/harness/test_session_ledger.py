@@ -43,9 +43,11 @@ from app.harness.session import (
     parse_hold_id,
     release_notes,
 )
+from app.models.actor import Actor
 from app.models.checkpoint import Checkpoint
 from app.models.compute_debit import ComputeDebit
 from app.models.enums import ComputeDebitKind, ComputeDebitRateSource
+from app.models.funding import FundingAllocation
 from app.services.compute import BUDGET_EXHAUSTED
 from app.services.harness_meter import load_today_adjustments
 from tests.principals import create_owned_project, make_dev_principal
@@ -220,6 +222,21 @@ async def test_successful_gateway_turn_debits_only_when_tokens_moved(
     assert debits[0].kind is ComputeDebitKind.PLANNING
     assert debits[0].model == DEFAULT_MODEL
     assert SESSION_NOTES in (debits[0].notes or "")
+    assert not hasattr(ComputeDebit, "actor_id")
+
+    async with session_factory() as session:
+        actor = await session.get(Actor, UUID(actor_id))
+        assert actor is not None
+        allocations = (
+            await session.execute(
+                select(FundingAllocation).where(
+                    FundingAllocation.project_id == UUID(project_id)
+                )
+            )
+        ).scalars().all()
+        assert len(allocations) == 1
+        assert allocations[0].account_id == actor.account_id
+        assert allocations[0].amount == Decimal("10.00")
 
     zero_calls = {"n": 0}
 

@@ -1,6 +1,6 @@
 # External harness actor path
 
-> **What is (`0.51.0`).** Milestone 0 composition + fixture, the live
+> **What is (`0.51.1`).** Milestone 0 composition + fixture, the live
 > MCP door (`live_mcp.py`), the fail-closed OpenRouter gateway, a
 > session owner (`HarnessSession`) plus the odd-perfect reference
 > campaign, a fail-closed campaign composition that cannot start the
@@ -20,10 +20,14 @@
 ## The rule
 
 Humans and agents use the **same** primitives. An external DeepSeek
-Harness session is an `Actor` (`type=agent`). It authenticates, passes
-membership, and writes the ledger only through `run_instrument` and
-`create_checkpoint`. There is no side door and no settlement outside
-instruments.
+Harness session authenticates as a JWT Actor (bearer → Account →
+that account's primary `human` Actor; local/test may use a flagged
+dev-actor id), passes `ensure_is_member`, and writes the ledger only
+through `run_instrument` and `create_checkpoint`. The acting identity
+is that member Actor — not the Account, and not the built-in
+per-project `Research crew` agent (`AGENT_LOOP_ENABLED`, dark).
+There is no side door and no settlement outside instruments.
+See `docs/harness/attribution.md`.
 
 This is the same design rule as `docs/blueprints/primitives.md` and
 `docs/blueprints/conceptual-model.md`. The external runtime does not

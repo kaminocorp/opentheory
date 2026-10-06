@@ -21,9 +21,12 @@ from app.harness.turns import (
     TURN_NOTES,
     supervise_turn,
 )
+from app.models.actor import Actor
 from app.models.checkpoint import Checkpoint
 from app.models.compute_debit import ComputeDebit
-from app.models.enums import ComputeDebitKind, ComputeDebitRateSource
+from app.models.contribution import Contribution
+from app.models.enums import ActorType, ComputeDebitKind, ComputeDebitRateSource
+from app.models.funding import FundingAllocation
 from app.services.compute import BUDGET_EXHAUSTED
 from tests.principals import create_owned_project, make_dev_principal
 
@@ -115,6 +118,33 @@ async def test_successful_turn_debits_and_lands_instrument(
     assert debits[0].kind is ComputeDebitKind.PLANNING
     assert debits[0].model == DEFAULT_MODEL
     assert TURN_NOTES in (debits[0].notes or "")
+    assert not hasattr(ComputeDebit, "actor_id")
+
+    async with session_factory() as session:
+        author = await session.get(Actor, UUID(actor_id))
+        assert author is not None
+        assert author.type is ActorType.HUMAN
+        checkpoint = await session.get(Checkpoint, UUID(result.checkpoint_id))
+        assert checkpoint is not None
+        assert str(checkpoint.author_id) == actor_id
+        contrib = (
+            await session.execute(
+                select(Contribution).where(
+                    Contribution.checkpoint_id == UUID(result.checkpoint_id)
+                )
+            )
+        ).scalar_one()
+        assert str(contrib.actor_id) == actor_id
+        allocations = (
+            await session.execute(
+                select(FundingAllocation).where(
+                    FundingAllocation.project_id == UUID(project_id)
+                )
+            )
+        ).scalars().all()
+        assert len(allocations) == 1
+        assert allocations[0].account_id == author.account_id
+        assert allocations[0].amount == Decimal("10.00")
 
 
 async def test_attempted_turn_debits_and_mints_nothing(
@@ -267,3 +297,68 @@ async def test_supervise_turn_sends_clamped_max_tokens_and_returns_clamp(
     assert "clamp=40" in notes
     assert "overshoot=40" in notes
     assert "pot_room=none" in notes
+
+
+async def test_outsider_actor_env_debits_and_cannot_mint(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """Debit is project-scoped; membership is the MCP door, not authorize()."""
+    owner_id = await make_dev_principal(client, display_name="Owner", roles=("internal",))
+    outsider_id = await make_dev_principal(client, display_name="Eve")
+    project_id = await create_owned_project(client, owner_id, "harness-turn-outsider")
+    funded = await client.post(
+        f"/api/v1/projects/{project_id}/funding",
+        json={"amount": "10.00", "currency": "USD", "kind": "top_up", "source": "native"},
+        headers={"X-Dev-Actor-Id": owner_id},
+    )
+    assert funded.status_code == 201, funded.text
+    before = await _checkpoint_count(session_factory, project_id)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=_OK_BODY)
+
+    result = await supervise_turn(
+        messages=[{"role": "user", "content": "evaluate 1+1"}],
+        project_id=project_id,
+        gateway=_gateway(handler),
+        session_factory=session_factory,
+        actor_env={"OPENTHEORY_DEV_ACTOR_ID": outsider_id},
+        mcp_call={
+            "name": "run_instrument",
+            "arguments": {
+                "project_id": project_id,
+                "name": "calc.eval",
+                "input": {"expression": "1 + 1"},
+            },
+        },
+    )
+
+    assert result.ok is True
+    assert result.refused is False
+    assert result.tokens_used == 20
+    assert result.debit_recorded is True
+    assert result.minted is False
+    assert result.checkpoint_id is None
+    assert result.mcp is not None
+    assert result.mcp["ok"] is False
+    assert result.mcp["status_code"] == 403
+    assert await _checkpoint_count(session_factory, project_id) == before
+
+    debits = await _debit_rows(session_factory, project_id)
+    assert len(debits) == 1
+    assert debits[0].tokens_used == 20
+    assert debits[0].agent_run_id is None
+
+    async with session_factory() as session:
+        owner = await session.get(Actor, UUID(owner_id))
+        assert owner is not None
+        allocations = (
+            await session.execute(
+                select(FundingAllocation).where(
+                    FundingAllocation.project_id == UUID(project_id)
+                )
+            )
+        ).scalars().all()
+        assert len(allocations) == 1
+        assert allocations[0].account_id == owner.account_id
+        assert allocations[0].amount == Decimal("10.00")

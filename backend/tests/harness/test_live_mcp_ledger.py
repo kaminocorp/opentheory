@@ -19,10 +19,15 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.core.config import settings
 from app.harness.auth import JWT_FILE_ENV, resolve_mcp_actor
 from app.harness.live_mcp import invoke
+from app.models.actor import Actor
 from app.models.checkpoint import Checkpoint
 from app.models.compute_debit import ComputeDebit
 from app.models.contribution import Contribution
-from app.models.enums import ComputeDebitKind, ComputeDebitRateSource
+from app.models.enums import ActorType, ComputeDebitKind, ComputeDebitRateSource
+from app.services.agent_actors import (
+    AGENT_ACTOR_DISPLAY_NAME,
+    get_or_create_project_agent_actor,
+)
 from app.services.compute import BUDGET_EXHAUSTED
 from tests.principals import create_owned_project, make_dev_principal
 
@@ -126,6 +131,23 @@ async def test_member_dev_actor_runs_calc_eval_through_chokepoint(
         ).scalar_one()
         assert contrib.action == "tool_run"
         assert str(contrib.actor_id) == actor_id
+        checkpoint = await session.get(Checkpoint, UUID(result["checkpoint_id"]))
+        assert checkpoint is not None
+        assert str(checkpoint.author_id) == actor_id
+        author = await session.get(Actor, UUID(actor_id))
+        assert author is not None
+        assert author.type is ActorType.HUMAN
+        assert author.account_id is not None
+        crew = (
+            await session.execute(
+                select(Actor).where(
+                    Actor.type == ActorType.AGENT,
+                    Actor.display_name == AGENT_ACTOR_DISPLAY_NAME,
+                    Actor.actor_metadata["project_id"].as_string() == project_id,
+                )
+            )
+        ).scalar_one_or_none()
+        assert crew is None
 
 
 async def test_member_can_create_checkpoint_through_chokepoint(
@@ -146,6 +168,19 @@ async def test_member_can_create_checkpoint_through_chokepoint(
     assert result["minted"] is True
     assert result["contribution_kind"] == "create_checkpoint"
     assert await _checkpoint_count(session_factory, project_id) == before + 1
+
+    async with session_factory() as session:
+        checkpoint = await session.get(Checkpoint, UUID(result["checkpoint_id"]))
+        assert checkpoint is not None
+        assert str(checkpoint.author_id) == actor_id
+        contrib = (
+            await session.execute(
+                select(Contribution).where(
+                    Contribution.checkpoint_id == UUID(result["checkpoint_id"])
+                )
+            )
+        ).scalar_one()
+        assert str(contrib.actor_id) == actor_id
 
 
 async def test_non_member_cannot_write(
@@ -171,6 +206,47 @@ async def test_non_member_cannot_write(
         {"project_id": project_id, "summary": "should not land"},
         session_factory=session_factory,
         env={"OPENTHEORY_DEV_ACTOR_ID": outsider_id},
+    )
+
+    assert run["ok"] is False
+    assert run["minted"] is False
+    assert run["status_code"] == 403
+    assert note["ok"] is False
+    assert note["minted"] is False
+    assert note["status_code"] == 403
+    assert await _checkpoint_count(session_factory, project_id) == before
+
+
+async def test_accountless_project_agent_cannot_write(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """Decision #3: Research crew is not a ProjectMember and cannot pass the door."""
+    owner_id = await make_dev_principal(client, display_name="Owner")
+    project_id = await create_owned_project(client, owner_id, "live-mcp-agent-403")
+    before = await _checkpoint_count(session_factory, project_id)
+
+    async with session_factory() as session:
+        agent = await get_or_create_project_agent_actor(session, UUID(project_id))
+        await session.commit()
+        agent_id = str(agent.id)
+        assert agent.account_id is None
+        assert agent.type is ActorType.AGENT
+
+    run = await invoke(
+        "run_instrument",
+        {
+            "project_id": project_id,
+            "name": "calc.eval",
+            "input": {"expression": "2 + 2"},
+        },
+        session_factory=session_factory,
+        env={"OPENTHEORY_DEV_ACTOR_ID": agent_id},
+    )
+    note = await invoke(
+        "create_checkpoint",
+        {"project_id": project_id, "summary": "agent should not land"},
+        session_factory=session_factory,
+        env={"OPENTHEORY_DEV_ACTOR_ID": agent_id},
     )
 
     assert run["ok"] is False
