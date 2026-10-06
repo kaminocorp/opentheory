@@ -35,6 +35,15 @@ class Checkpoint(IdMixin, TimestampMixin, Base):
         ForeignKey("actors.id", ondelete="SET NULL"),
         index=True,
     )
+    # Who minted the agent session that authorized this write (0.53.0). Null on
+    # human-authored rows (the author *is* the accountable human) and on every
+    # historical checkpoint — we do not invent a sponsor. Set at INSERT by
+    # ``create_checkpoint`` (later slice); append-only forbids later edits.
+    sponsored_by_actor_id: Mapped[UUID | None] = mapped_column(
+        PgUUID(as_uuid=True),
+        ForeignKey("actors.id", ondelete="SET NULL"),
+        index=True,
+    )
     # The line of exploration this checkpoint sits on (0.4.2). NULL = the project's main
     # line; a non-null value places the checkpoint on a Branch. SET NULL on branch delete
     # keeps the checkpoint (append-only) while detaching it. Note: this is the *second* FK
@@ -69,7 +78,8 @@ class Checkpoint(IdMixin, TimestampMixin, Base):
 
     project = relationship("Project", back_populates="checkpoints")
     thread = relationship("Thread", back_populates="checkpoints")
-    author = relationship("Actor", back_populates="checkpoints")
+    author = relationship("Actor", back_populates="checkpoints", foreign_keys=[author_id])
+    sponsored_by = relationship("Actor", foreign_keys=[sponsored_by_actor_id])
     # The branch this checkpoint is on (via checkpoints.branch_id); pinned because two FKs
     # span checkpoints<->branches.
     branch = relationship(

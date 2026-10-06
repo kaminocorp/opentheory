@@ -27,6 +27,33 @@ class ProjectRole(StrEnum):
     ADMIN = "admin"
 
 
+class ProjectAgentRole(StrEnum):
+    """Roster role for a deployed agent Actor (0.53.0) — access control, not credit.
+
+    Separate from ``ProjectRole`` on purpose: those labels are human governance
+    (``uq_project_one_owner`` is written against ``role = 'OWNER'``). An agent is
+    never an OWNER/ADMIN. ``RESEARCHER`` is the only value, **deliberately,
+    forever** — there is no room on this enum for a validator agent.
+    Contributor and validator stay on separate tables; a human member writes
+    ``Validation``.
+    """
+
+    RESEARCHER = "researcher"
+
+
+class ProjectAgentStatus(StrEnum):
+    """Lifecycle of one ``project_agent_members`` row (0.53.0) — mutable, not a ledger event.
+
+    ``ACTIVE`` may write (once later slices wire the gate). ``SUSPENDED`` /
+    ``REVOKED`` refuse subsequent writes; the row stays visible (revoked agents
+    remain on Crew). Re-deploy of the same Actor is a resume, not a second insert.
+    """
+
+    ACTIVE = "active"
+    SUSPENDED = "suspended"
+    REVOKED = "revoked"
+
+
 class InvitationStatus(StrEnum):
     """Lifecycle of a project collaboration invitation (0.8.7) — governance, not credit.
 

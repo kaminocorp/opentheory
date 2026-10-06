@@ -132,7 +132,9 @@ async def test_successful_turn_debits_and_lands_instrument(
     assert debits[0].kind is ComputeDebitKind.PLANNING
     assert debits[0].model == DEFAULT_MODEL
     assert TURN_NOTES in (debits[0].notes or "")
-    assert not hasattr(ComputeDebit, "actor_id")
+    # 0.53.0 ships the column; this slice does not stamp it on harness turns.
+    assert hasattr(ComputeDebit, "actor_id")
+    assert debits[0].actor_id is None
 
     async with session_factory() as session:
         author = await session.get(Actor, UUID(actor_id))
@@ -141,6 +143,7 @@ async def test_successful_turn_debits_and_lands_instrument(
         checkpoint = await session.get(Checkpoint, UUID(result.checkpoint_id))
         assert checkpoint is not None
         assert str(checkpoint.author_id) == actor_id
+        assert checkpoint.sponsored_by_actor_id is None
         contrib = (
             await session.execute(
                 select(Contribution).where(

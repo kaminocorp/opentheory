@@ -424,7 +424,7 @@ async def _execute(
 
     if pending:
         # Mint the per-project agent Actor once so concurrent sub-passes do not
-        # race ``uq_actors_one_agent_per_project`` on first use.
+        # race ``uq_actors_one_research_crew_per_project`` on first use.
         await get_or_create_project_agent_actor(db, run.project_id)
         await db.commit()
 

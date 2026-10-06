@@ -446,7 +446,7 @@ async def _execute(
             )
 
         # Mint the per-project agent Actor once so concurrent cycles do not
-        # race ``uq_actors_one_agent_per_project`` on first use (same reason
+        # race ``uq_actors_one_research_crew_per_project`` on first use (same reason
         # 0.27.0 mints it before a sub-pass wave).
         await get_or_create_project_agent_actor(db, campaign.project_id)
         await db.commit()

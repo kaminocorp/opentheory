@@ -93,3 +93,15 @@ class Project(IdMixin, TimestampMixin, Base):
         back_populates="project",
         cascade="all, delete-orphan",
     )
+    # Per-project agent roster (0.53.0). Mutable, not append-only — like
+    # ``ProjectMember``. Cascade-delete on project removal.
+    agent_members = relationship(
+        "ProjectAgentMember",
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )
+    agent_session_tokens = relationship(
+        "AgentSessionToken",
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )

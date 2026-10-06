@@ -235,7 +235,9 @@ async def test_successful_gateway_turn_debits_only_when_tokens_moved(
     assert debits[0].kind is ComputeDebitKind.PLANNING
     assert debits[0].model == DEFAULT_MODEL
     assert SESSION_NOTES in (debits[0].notes or "")
-    assert not hasattr(ComputeDebit, "actor_id")
+    # 0.53.0 ships the column; this slice does not stamp it on harness turns.
+    assert hasattr(ComputeDebit, "actor_id")
+    assert debits[0].actor_id is None
 
     async with session_factory() as session:
         actor = await session.get(Actor, UUID(actor_id))

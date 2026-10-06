@@ -1,16 +1,19 @@
 """Agent-actor provisioning (0.12.0) — the first production creation path for ``Actor(type=agent)``.
 
-Decision #3: **one account-less agent Actor per project** (``display_name="Research crew"``),
-created lazily on the first pass. It is *not* a ``ProjectMember`` and needs no account — the
-commissioning human's membership is the authorization (route gate), and
-``run_instrument`` / ``create_checkpoint`` attribute to whatever Actor they are handed. The agent is
-an *authored identity*, not a governance principal — mirroring the funder-vs-contributor separation.
+Decision #3: **one ``Research crew`` agent Actor per project** (``display_name="Research crew"``),
+created lazily on the first pass. It is *not* a ``ProjectMember`` — the commissioning human's
+membership is the authorization (route gate), and ``run_instrument`` / ``create_checkpoint``
+attribute to whatever Actor they are handed. The agent is an *authored identity*, not a
+governance principal — mirroring the funder-vs-contributor separation.
 
-Idempotency is the durable answer, not a hope: a partial unique index on
-``actor_metadata->>'project_id'`` scoped to ``type = 'AGENT'`` (declared on the ``Actor`` model,
-mirrored by migration 0013) means two concurrent first passes cannot mint two agent actors — the
-loser hits the constraint, and this service refetches the winner. Like the other write helpers, it
-composes with the caller's transaction: it ``flush``es but **never commits**.
+``0.53.0`` narrowed the durable uniqueness guard: a partial unique index on
+``actor_metadata->>'project_id'`` scoped to ``type = 'AGENT' AND display_name = 'Research crew'``
+(declared on the ``Actor`` model, mirrored by migration 0022). Named harness agents are
+unconstrained here. Two concurrent first passes still cannot mint two Research-crew
+actors — the loser hits the constraint, and this service refetches the winner. This
+slice does **not** attach an account or write a roster row (later membership slice).
+Like the other write helpers, it composes with the caller's transaction: it ``flush``es
+but **never commits**.
 """
 
 from uuid import UUID
@@ -31,14 +34,18 @@ _PROJECT_ID_KEY = "project_id"
 
 
 async def _find_agent_actor(db: AsyncSession, project_id: UUID) -> Actor | None:
-    """The existing agent Actor for ``project_id`` (matching the partial unique index), or ``None``.
+    """The existing Research-crew Actor for ``project_id`` (matching the partial unique index).
 
     ``actor_metadata[...].as_string()`` renders the Postgres ``actor_metadata ->> 'project_id'``
-    accessor — the same expression the unique index is built on.
+    accessor — the same expression the unique index is built on. Scoped to
+    ``display_name = 'Research crew'`` so a later named harness agent on the same
+    project cannot be mistaken for the default slot (and so ``scalar_one_or_none``
+    cannot raise once a roster of two exists).
     """
     result = await db.execute(
         select(Actor).where(
             Actor.type == ActorType.AGENT,
+            Actor.display_name == AGENT_ACTOR_DISPLAY_NAME,
             Actor.actor_metadata[_PROJECT_ID_KEY].as_string() == str(project_id),
         )
     )

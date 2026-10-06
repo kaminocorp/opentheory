@@ -19,8 +19,10 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from app.api.deps import resolve_actor_from_bearer
 from app.core.auth import AuthError, verify_bearer_token
 from app.core.config import settings
+from app.harness.auth import JWT_ENV, resolve_mcp_actor
 from app.models.account import Account
 from app.models.actor import Actor
 from app.models.contribution import Contribution
@@ -338,3 +340,79 @@ async def test_one_human_actor_per_account_is_enforced(
     async with session_factory() as session:
         session.add(Actor(type=ActorType.AGENT, display_name="Agent", account_id=account_id))
         await session.commit()  # no error
+
+
+async def test_owner_account_with_research_crew_still_resolves_to_human(
+    client: AsyncClient, session_factory: async_sessionmaker, auth_settings
+) -> None:
+    """0.53.0: attaching Research crew to the owner Account must not steal identity.
+
+    Bearer (``GET /me`` + ``resolve_actor_from_bearer``) and MCP
+    (``resolve_mcp_actor``) still return the primary human. Member / actor /
+    account listings do not double-count the owner.
+    """
+    token = _mint("idp-crew-owner", email="owner@example.com", name="Owner Ada")
+    me = await client.get("/api/v1/me", headers=_bearer(token))
+    assert me.status_code == 200, me.text
+    human_id = me.json()["id"]
+    account_id = me.json()["account"]["id"]
+    assert me.json()["type"] == "human"
+
+    project = await client.post(
+        "/api/v1/projects",
+        json={"title": "Crew Owner", "slug": "crew-owner", "question": "q?"},
+        headers=_bearer(token),
+    )
+    assert project.status_code == 201, project.text
+    project_id = project.json()["id"]
+
+    async with session_factory() as session:
+        session.add(
+            Actor(
+                type=ActorType.AGENT,
+                display_name="Research crew",
+                account_id=UUID(account_id),
+                actor_metadata={"project_id": project_id},
+            )
+        )
+        await session.commit()
+
+    again = await client.get("/api/v1/me", headers=_bearer(token))
+    assert again.status_code == 200
+    assert again.json()["id"] == human_id
+    assert again.json()["type"] == "human"
+    assert again.json()["account"]["id"] == account_id
+
+    async with session_factory() as session:
+        bearer_actor = await resolve_actor_from_bearer(session, token)
+        assert str(bearer_actor.id) == human_id
+        assert bearer_actor.type == ActorType.HUMAN
+
+        mcp_actor = await resolve_mcp_actor(session, {JWT_ENV: token})
+        assert str(mcp_actor.id) == human_id
+        assert mcp_actor.type == ActorType.HUMAN
+
+        owned = (
+            await session.execute(select(Actor).where(Actor.account_id == UUID(account_id)))
+        ).scalars().all()
+        assert {actor.type for actor in owned} == {ActorType.HUMAN, ActorType.AGENT}
+        humans = [actor for actor in owned if actor.type == ActorType.HUMAN]
+        assert len(humans) == 1
+        assert str(humans[0].id) == human_id
+
+    members = await client.get(f"/api/v1/projects/{project_id}/members")
+    assert members.status_code == 200
+    rows = members.json()
+    assert len(rows) == 1
+    assert rows[0]["account"]["id"] == account_id
+
+    actors = await client.get("/api/v1/actors")
+    assert actors.status_code == 200
+    on_account = [actor for actor in actors.json() if actor["account_id"] == account_id]
+    assert len(on_account) == 2
+    assert {actor["type"] for actor in on_account} == {"human", "agent"}
+    assert sum(1 for actor in on_account if actor["type"] == "human") == 1
+
+    accounts = await client.get("/api/v1/accounts")
+    assert accounts.status_code == 200
+    assert sum(1 for account in accounts.json() if account["id"] == account_id) == 1

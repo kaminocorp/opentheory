@@ -1,14 +1,15 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-10-06 · **Current release line:** `0.52.0`
-> (harness turn-spend membership), sitting on shipped `0.51.1`
-> (harness actor-attribution audit, `3eeeaf5`, #46) on current
-> `main`. See `docs/completions/harness-turn-membership-0.52.0.md`.
+> **Last updated:** 2026-10-06 · **Current release line:** `0.53.0`
+> (agent identity schema), sitting on shipped `0.52.0` (harness
+> turn-spend membership, `c085586`, #48) on current `main`. See
+> `docs/completions/agent-identity-schema-0.53.0.md`.
 >
 > **Next after this line:** Lean REPL / LeanDojo remain later.
 > Does not enable the gateway child on Fly.
 > Does not light `AGENT_LOOP_ENABLED`.
-> ~~Harness turn-spend membership~~ ✅ this branch as `0.52.0`.
+> ~~Agent identity schema~~ ✅ this branch as `0.53.0`.
+> ~~Harness turn-spend membership~~ ✅ shipped as `0.52.0`.
 > ~~Harness actor-attribution audit~~ ✅ shipped as `0.51.1`.
 > ~~Harness serialization guard~~ ✅ shipped as `0.51.0`.
 > ~~Harness turn-room clamp~~ ✅ shipped as `0.50.0`.
@@ -934,10 +935,18 @@ turn duration.
 writes attribute to the JWT-resolved member Actor;
 `ensure_is_member` refuses a non-member on the write door.
 
-**`0.52.0` (harness turn-spend membership)** is this branch:
-`authorize()` refuses unless the actor the session / turn is
-running for is a current project member. No hold, no debit, no
-provider call. `record_spend` does not re-check.
+**`0.52.0` (harness turn-spend membership)** is shipped
+(`c085586`, #48): `authorize()` refuses unless the actor the
+session / turn is running for is a current project member. No
+hold, no debit, no provider call. `record_spend` does not
+re-check.
+
+**`0.53.0` (agent identity schema)** is this branch: enums +
+roster + session-token tables, nullable
+`checkpoints.sponsored_by_actor_id` and `compute_debits.actor_id`,
+Research-crew / AgentRun backfill, Research-crew unique index.
+Schema-on, behavior-off. No `actors.agent_definition_id` (deferred
+with the catalog). No API / MCP / UI / auth change.
 
 **Next product step:** Lean REPL / LeanDojo remain later. `If` /
 ite remain later. Does not enable the gateway child on Fly. Does

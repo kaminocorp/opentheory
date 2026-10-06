@@ -1,6 +1,7 @@
 from app.models.account import Account
 from app.models.actor import Actor
 from app.models.agent_run import AgentRun
+from app.models.agent_session_token import AgentSessionToken
 from app.models.append_only import AppendOnlyError
 from app.models.artifact import Artifact
 from app.models.branch import Branch
@@ -13,6 +14,7 @@ from app.models.funding import FundingAllocation
 from app.models.links import CheckpointRef, ClaimEvidenceLink, EvidenceArtifactLink
 from app.models.orchestration_run import OrchestrationRun
 from app.models.project import Project
+from app.models.project_agent_member import ProjectAgentMember
 from app.models.project_invitation import ProjectInvitation
 from app.models.project_member import ProjectMember
 from app.models.research_campaign import ResearchCampaign
@@ -24,6 +26,7 @@ __all__ = [
     "Account",
     "Actor",
     "AgentRun",
+    "AgentSessionToken",
     "AppendOnlyError",
     "Artifact",
     "Branch",
@@ -38,6 +41,7 @@ __all__ = [
     "FundingAllocation",
     "OrchestrationRun",
     "Project",
+    "ProjectAgentMember",
     "ProjectInvitation",
     "ProjectMember",
     "ResearchCampaign",

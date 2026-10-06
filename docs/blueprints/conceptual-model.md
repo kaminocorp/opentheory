@@ -150,7 +150,7 @@ Account                      (auth principal; owns Actors — added 0.7.0)
   └── Actor                  (human | agent | system; performs every action)
         ├── Contribution
         ├── FundingAllocation
-        ├── Checkpoint        (authors)
+        ├── Checkpoint        (authors; optional sponsored_by — 0.53.0)
         └── Validation        (performs)
 
 Project
@@ -167,7 +167,10 @@ Project
   ├── Checkpoint
   ├── Validation
   ├── Tag
-  └── Contribution
+  ├── Contribution
+  ├── ProjectMember          (human-account governance)
+  ├── ProjectAgentMember     (agent roster; 0.53.0, schema-on / behavior-off)
+  └── AgentSessionToken      (hash at rest; no mint in 0.53.0)
 ```
 
 ---
@@ -184,7 +187,7 @@ with metadata describing its model/provider/version/run-context. The backend is
 the single source of truth and enforces every invariant — so when agents arrive,
 they simply use what humans already could.
 
-### External harness (`0.40.0`–`0.51.1`)
+### External harness (`0.40.0`–`0.52.0`) and identity schema (`0.53.0`)
 
 An external DeepSeek Harness session uses that same `Actor` primitive.
 The live door authenticates as a JWT Actor (Account → primary `human`
@@ -195,6 +198,10 @@ instruments. The built-in OpenRouter planner (`AGENT_LOOP_ENABLED`)
 stays dark; this path does not light it. See
 `docs/blueprints/external-harness.md` and
 `docs/harness/attribution.md`.
+
+`0.53.0` adds the roster and session-token **tables** and the nullable
+attribution columns so a later slice can make the agent the author
+without another schema change. Behaviour is unchanged in this release.
 
 ---
 

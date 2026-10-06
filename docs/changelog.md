@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.53.0` — **Agent identity schema.** First slice of the approved agent-actor identity design. Adds `project_agent_role` (`RESEARCHER` only) and `project_agent_status` (`ACTIVE` / `SUSPENDED` / `REVOKED`); mutable `project_agent_members` (unique `(project_id, actor_id)`, `responsible_account_id`, stored-not-enforced caps) and `agent_session_tokens` (hash at rest, no mint/verify). Nullable `checkpoints.sponsored_by_actor_id` and `compute_debits.actor_id` (FK `actors` `ON DELETE SET NULL`). Drops `uq_actors_one_agent_per_project`; adds `uq_actors_one_research_crew_per_project`. Backfill: Research crew `account_id` = project OWNER + ACTIVE RESEARCHER roster row (owner-less / invalid project left null and unrostered); `ComputeDebit.actor_id` from `AgentRun.agent_actor_id` only (`harness_session_turn` stays null). **No** `actors.agent_definition_id` (deferred with the catalog). Schema-on, behavior-off: `ensure_is_member` unchanged, Crew tab unchanged, no token mint, no API/MCP/UI/auth change. `create_checkpoint` remains the only Checkpoint writer. Debit only when `tokens_used > 0`. Hold/release amount stays `0` with the literal `harness_session_turn` prefix and `hold_id`. FastAPI still does not import `app.harness`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. Five tabs only. Migration `0022_agent_actor_identity` is **one transaction** (plain `CREATE INDEX` / `DROP INDEX`; no `CONCURRENTLY` / autocommit — prod at review is empty). Bearer and MCP still resolve the owner's human Actor when Research crew shares that Account. Sits on shipped `0.52.0` (`c085586`, #48).
 - `0.52.0` — **Harness turn-spend membership.** Closes the leftover 0.51.1 gap: `HarnessSession.authorize()` now resolves the actor the session / turn is running for (`actor_env`, else `env` — the same JWT-file / JWT / flagged `OPENTHEORY_DEV_ACTOR_ID` injection `live_mcp` uses) and calls `ensure_is_member` *before* any remaining-room hold or provider call. A missing credential, a non-member, or an account-less actor (including the built-in `Research crew`) is `TurnRefused`: no hold, no debit, no OpenRouter call. `record_spend` does not re-check — membership is a start-of-turn gate; tokens that moved after a successful authorize are billed; the next authorize fails closed. `ComputeDebit` still has no `actor_id`. `create_checkpoint` remains the only Checkpoint writer. Unfunded ≠ exhausted. Debit only when `tokens_used > 0`. Hold/release amount stays `0` with the literal `harness_session_turn` prefix and `hold_id`. FastAPI still does not import `app.harness`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + docs — no schema, no migration.** Sits on shipped `0.51.1` (`3eeeaf5`, #46).
 - `0.51.1` — **Harness actor-attribution audit.** Investigated the external-harness write paths (`live_mcp`, `HarnessSession`, `supervise_turn`, gateway, `ComputeDebit`) against Account ≠ Actor and funder ≠ contributor. No production-code gap: MCP writes attribute to the JWT-resolved member **Actor** (not the Account, not the built-in `Research crew` agent); `ensure_is_member` refuses a non-member and the account-less project agent; `create_checkpoint` remains the only Checkpoint writer; `ComputeDebit` has no `actor_id` (project-scoped spend; `FundingAllocation` funder unchanged). Debit membership is the MCP door, not `authorize()` — the gateway child is project-bound. Docs tighten the leftover "type=agent" blueprint wording. Regression tests pin the untested guarantees. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend tests + docs — no schema, no migration.** Sits on shipped `0.51.0` (`fd9316d`, #45).
 - `0.51.0` — **Harness serialization guard.** `0.50.0` already serializes harness turns per project: the amount-0 hold occupies the whole remaining daily room under the project-row `FOR UPDATE`, so a second overlapping authorize is always refused (`TurnRefused` daily-cap, no provider call, no debit, no extra hold). There is no tight-pot race. This slice adds a Postgres regression for that (known price, price-unknown, and mid-flight pot top-up) and closes the real hole: a live turn that outlives `OPENTHEORY_HARNESS_HOLD_TTL_SECONDS` (default **300**) could be released as an orphan. Composition / session / gateway startup refuse unless the TTL is strictly greater than the provider request timeout (`AGENT_LLM_TIMEOUT_S` / `settings.agent_llm_timeout_s`, default **60**) plus a 5s margin (must be `> 65`). `GatewayClient.complete` wraps the whole provider call in a total deadline of that timeout (env mapping first, then settings); a per-phase httpx timeout is not a bound. Truthy `stream` is 422 before authorize. An abandoned request may still be billed by OpenRouter — usage unknown, so no debit. Hold occupancy stays the remaining daily room. No `pot_hold` mark. No Open-turns readout. Unfunded ≠ exhausted. Debit only when `tokens_used > 0`. Hold/release amount stays `0` with the literal `harness_session_turn` prefix and `hold_id`. FastAPI still does not import `app.harness`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + docs — no schema, no migration.** Sits on shipped `0.50.0` (`af7ee43`, #44).
@@ -128,6 +129,67 @@
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
 
 ---
+
+## 0.53.0
+
+**Agent identity schema.** Slice A of the approved agent-actor
+identity design (`docs/plans/agent-actor-identity.md`, PR #47;
+owner overrides 2026-10-06). **Schema-on, behavior-off.** Sits on shipped
+`0.52.0` (`c085586`, #48). Does not flip `AGENT_LOOP_ENABLED`. Does not
+enable the gateway or MCP child on Fly.
+
+- **Roster.** `project_agent_members` is mutable governance, not
+  append-only and not credit. Unique `(project_id, actor_id)`.
+  Role is `RESEARCHER` only — no validator value, ever. Status
+  `ACTIVE` / `SUSPENDED` / `REVOKED`; revoked rows stay (visible
+  later on Crew). Caps (`token_budget_cap`, `usd_budget_cap`)
+  stored, enforced later. One shared project daily cap.
+- **Session tokens.** `agent_session_tokens` holds the SHA-256
+  of the compact JWT (`token_hash`), `jti` = row id, mint/expiry/
+  revoke columns. No mint, no verify, no resolver in this slice.
+  OWNER-only mint is a later slice.
+- **Ledger columns.** `checkpoints.sponsored_by_actor_id` and
+  `compute_debits.actor_id` are nullable FKs to `actors`
+  (`ON DELETE SET NULL`). Append-only guards still forbid ORM
+  UPDATE/DELETE. `create_checkpoint` / `record_compute_debit`
+  keep working; new columns stay null until later slices.
+- **Index surgery.** Drop `uq_actors_one_agent_per_project`.
+  Add `uq_actors_one_research_crew_per_project` on
+  `(actor_metadata->>'project_id') WHERE type = 'AGENT' AND
+  display_name = 'Research crew'`. Display name stays
+  `Research crew`.
+- **Backfill.** Research crew `account_id` = the project's
+  `OWNER` account + an ACTIVE RESEARCHER roster row (deployed_by
+  and responsible = owner). Owner-less or invalid `project_id`
+  left null and unrostered. `ComputeDebit.actor_id` only from
+  `AgentRun.agent_actor_id`; every `harness_session_turn` row
+  stays null. No `actors.agent_definition_id` — deferred with
+  `agent_definitions`.
+- **Unchanged.** `ensure_is_member`. Crew tab. Five tabs.
+  FastAPI does not import `app.harness`. Debit only when
+  `tokens_used > 0`. Hold/release amount `0`, literal
+  `harness_session_turn` prefix, `hold_id`. Secrets never in
+  `fly.toml [env]`.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q
+# with TEST_DATABASE_URL: 1142 passed, 4 skipped
+# +14 vs 0.52.0 (1128): 0022 upgrade/downgrade/backfill/constraints + named-agent unique
+# (two 0.52.0 "no actor_id attribute" pins flipped to "column exists, harness writes leave it null")
+cd backend && uv run pytest tests/harness -q
+# with TEST_DATABASE_URL: 139 passed (count unchanged; two assertions flipped)
+cd frontend && npm run typecheck && npm run lint && npm test && npm run build
+# typecheck/lint/build clean; 64 tests (untouched)
+```
+
+See `docs/completions/agent-identity-schema-0.53.0.md`.
+
+**Not in this release:** token mint / rotate / revoke; type-aware
+`ensure_is_member`; `create_checkpoint(sponsored_by=…)`;
+`record_compute_debit(actor_id=…)`; Crew roster bay; per-agent
+cap enforcement; `agent_definitions`; Fly enablement; lighting
+`AGENT_LOOP_ENABLED`.
 
 ## 0.52.0
 
