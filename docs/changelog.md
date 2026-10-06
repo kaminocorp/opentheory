@@ -180,8 +180,14 @@ or MCP child on Fly.
 ```bash
 cd backend && uv run ruff check .   # clean
 cd backend && uv run pytest -q
-# with TEST_DATABASE_URL: see completion note
+# with TEST_DATABASE_URL: 1199 passed, 4 skipped
+# +14 vs 0.57.0 (1185): lifetime math + clamp, null/human authorize,
+# token/USD refuse no hold, clamp vs hold occupancy, unfunded ≠
+# exhausted, overlapping refuse, mid-turn still bills, clear-and-
+# retry, built-in start refuse + mid-pass skip, PATCH caps +
+# reached reads, turn_clamp agent_room
 cd frontend && npm run typecheck && npm run lint && npm test && npm run build
+# typecheck/lint/build clean; frontend tests 75 passed (+2 vs 0.57.1)
 ```
 
 See `docs/completions/agent-identity-caps-0.58.0.md`.

@@ -96,9 +96,11 @@ no new column, no Alembic revision.
 
 ## Verification
 
-- `ruff check .` and the full Postgres pytest: see the PR
-  / changelog once the suite has run on this branch.
-- Frontend typecheck / lint / test / build: same.
+- `ruff check .` clean.
+- With `TEST_DATABASE_URL`: **1199 passed, 4 skipped**. +14 vs
+  `0.57.0` (1185). Lean / Mathlib stay off.
+- Frontend typecheck / lint / test (**75 passed**, +2 vs
+  `0.57.1`) / build clean.
 
 ## Unverified
 
