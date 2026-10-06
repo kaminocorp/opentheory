@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import asyncio
 import json
 from pathlib import Path
 
@@ -17,6 +18,8 @@ from app.harness.gateway import (
     FAIL_CLOSED_DATA_COLLECTION,
     FAIL_CLOSED_REQUIRE_PARAMETERS,
     GATEWAY_TOKEN_ENV,
+    REASON_STREAM,
+    REASON_TURN_DEADLINE,
     GatewayClient,
     GatewayError,
     assert_openrouter_base_url,
@@ -224,6 +227,83 @@ def test_parse_requested_max_tokens_rejects_invalid() -> None:
     for bad in (0, -1, "16", 1.5, True, False, "nope", ""):
         with pytest.raises(GatewayError, match="positive integer"):
             parse_requested_max_tokens(bad)
+
+
+class _TrickleStream(httpx.AsyncByteStream):
+    def __init__(self, chunks: list[bytes], delay_s: float) -> None:
+        self._chunks = chunks
+        self._delay_s = delay_s
+
+    async def __aiter__(self):
+        for index, chunk in enumerate(self._chunks):
+            if index:
+                await asyncio.sleep(self._delay_s)
+            yield chunk
+
+
+class _TrickleTransport(httpx.AsyncBaseTransport):
+    def __init__(self, delay_s: float = 0.4) -> None:
+        self.calls = 0
+        self._delay_s = delay_s
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        self.calls += 1
+        body = json.dumps(_OK_BODY).encode()
+        mid = max(1, len(body) // 2)
+        return httpx.Response(
+            200,
+            headers={"content-type": "application/json"},
+            stream=_TrickleStream([body[:mid], body[mid:]], delay_s=self._delay_s),
+        )
+
+
+async def test_complete_total_deadline_cuts_off_trickle() -> None:
+    transport = _TrickleTransport(delay_s=0.4)
+    client = GatewayClient(
+        api_key="sk-test",
+        base_url="https://openrouter.ai/api/v1",
+        transport=transport,
+        timeout=0.15,
+    )
+    with pytest.raises(GatewayError, match=REASON_TURN_DEADLINE) as exc:
+        await client.complete(model=DEFAULT_MODEL, messages=[{"role": "user", "content": "hi"}])
+    assert exc.value.tokens_used == 0
+    assert "may still bill" in str(exc.value)
+    assert transport.calls == 1
+
+
+async def test_http_stream_is_422_before_provider() -> None:
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover
+        calls["n"] += 1
+        raise AssertionError("truthy stream must not reach OpenRouter")
+
+    env = {GATEWAY_TOKEN_ENV: "gw-secret"}
+    app = create_gateway_app(env=env, gateway=_client(handler, env=env))
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://gw") as client:
+        for stream in (True, 1, "true", "yes"):
+            refused = await client.post(
+                "/v1/chat/completions",
+                headers={"Authorization": "Bearer gw-secret"},
+                json={
+                    "model": DEFAULT_MODEL,
+                    "messages": [{"role": "user", "content": "hi"}],
+                    "stream": stream,
+                },
+            )
+            assert refused.status_code == 422, refused.text
+            payload = refused.json()
+            assert payload["error"] == REASON_STREAM
+            assert payload["tokens_used"] == 0
+            assert payload.get("refused") is not True
+    assert calls["n"] == 0
+    with pytest.raises(GatewayError, match=REASON_STREAM):
+        build_fail_closed_body(
+            model=DEFAULT_MODEL,
+            messages=[{"role": "user", "content": "hi"}],
+            extra={"stream": True},
+        )
 
 
 async def test_http_invalid_max_tokens_is_422_before_provider() -> None:

@@ -39,7 +39,8 @@ project-row lock — appends a matching release for an unmatched hold
 older than ``OPENTHEORY_HARNESS_HOLD_TTL_SECONDS`` (default 300) and
 only then takes a new hold. A fresh in-flight hold is not released.
 
-``0.50.0`` closes the leftover single-turn overshoot: the hold
+``0.50.0`` closes the leftover single-turn overshoot: the hold still
+occupies remaining daily tokens (the 0.47/0.48 race close), and also
 carries a ``clamp`` — ``min(daily room, pot room)`` when pot room
 was applied (funded + live/catalog price). Pot dollars convert at
 the completion rate, or ``max(prompt, completion)`` when both are
@@ -59,7 +60,12 @@ that outlives ``OPENTHEORY_HARNESS_HOLD_TTL_SECONDS`` — the next
 authorize would release that hold as an orphan. Composition /
 session startup refuse when the TTL is not strictly greater than
 the provider request timeout (``AGENT_LLM_TIMEOUT_S``, default 60)
-plus a margin (5s). No campaign table.
+plus a margin (5s). ``GatewayClient.complete`` wraps the whole
+provider call (post + body read) in a total deadline of that
+timeout — a per-phase httpx timeout is not enough, and ``stream``
+is 422 before authorize. An abandoned request may still be billed
+by OpenRouter; usage is unknown so we debit nothing. No campaign
+table.
 """
 
 from __future__ import annotations

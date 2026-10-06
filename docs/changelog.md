@@ -2,7 +2,7 @@
 
 ## Index
 
-- `0.51.0` — **Harness serialization guard.** `0.50.0` already serializes harness turns per project: the amount-0 hold occupies the whole remaining daily room under the project-row `FOR UPDATE`, so a second overlapping authorize is always refused (`TurnRefused` daily-cap, no provider call, no debit, no extra hold). There is no tight-pot race. This slice adds a Postgres regression for that (known price, price-unknown, and mid-flight pot top-up) and closes the real hole: a live turn that outlives `OPENTHEORY_HARNESS_HOLD_TTL_SECONDS` (default **300**) could be released as an orphan. Composition / session / gateway startup refuse unless the TTL is strictly greater than the provider request timeout (`AGENT_LLM_TIMEOUT_S` / `settings.agent_llm_timeout_s`, default **60**) plus a 5s margin (must be `> 65`). Hold occupancy stays the remaining daily room. No `pot_hold` mark. No Open-turns readout. Unfunded ≠ exhausted. Debit only when `tokens_used > 0`. Hold/release amount stays `0` with the literal `harness_session_turn` prefix and `hold_id`. FastAPI still does not import `app.harness`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + docs — no schema, no migration.** Sits on shipped `0.50.0` (`af7ee43`, #44).
+- `0.51.0` — **Harness serialization guard.** `0.50.0` already serializes harness turns per project: the amount-0 hold occupies the whole remaining daily room under the project-row `FOR UPDATE`, so a second overlapping authorize is always refused (`TurnRefused` daily-cap, no provider call, no debit, no extra hold). There is no tight-pot race. This slice adds a Postgres regression for that (known price, price-unknown, and mid-flight pot top-up) and closes the real hole: a live turn that outlives `OPENTHEORY_HARNESS_HOLD_TTL_SECONDS` (default **300**) could be released as an orphan. Composition / session / gateway startup refuse unless the TTL is strictly greater than the provider request timeout (`AGENT_LLM_TIMEOUT_S` / `settings.agent_llm_timeout_s`, default **60**) plus a 5s margin (must be `> 65`). `GatewayClient.complete` wraps the whole provider call in a total deadline of that timeout (env mapping first, then settings); a per-phase httpx timeout is not a bound. Truthy `stream` is 422 before authorize. An abandoned request may still be billed by OpenRouter — usage unknown, so no debit. Hold occupancy stays the remaining daily room. No `pot_hold` mark. No Open-turns readout. Unfunded ≠ exhausted. Debit only when `tokens_used > 0`. Hold/release amount stays `0` with the literal `harness_session_turn` prefix and `hold_id`. FastAPI still does not import `app.harness`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + docs — no schema, no migration.** Sits on shipped `0.50.0` (`af7ee43`, #44).
 - `0.50.0` — **Harness turn-room clamp.** Closes the leftover 0.46–0.48 single-turn overshoot: `authorize()` still locks the project row, releases stale holds, and holds remaining daily tokens so two overlapping authorizes cannot both debit past the cap; it now also computes a clamp (`min` of remaining daily tokens and tokens the pot can buy at a live/catalog *completion* rate when the project is funded and that price is known) and the gateway sets `max_tokens` to it. Unfunded + known price clamps to daily room (`pot_room=none`); the Overview note does not claim pot room was used. A caller-smaller `max_tokens` is kept; invalid `max_tokens` is 422. The authorize model is the same resolved id the completion uses. A room below `OPENTHEORY_HARNESS_TURN_TOKEN_FLOOR` (default **16**) is `TurnRefused` → 422, `tokens_used` 0, minted false, no OpenRouter call. Provider usage above the clamp is recorded in full and flagged on the turn result and the Overview last-turn readout. Price unknown → clamp is the daily room only; the blended settings rate is not invented. Unfunded ≠ exhausted. Debit only when `tokens_used > 0`. Hold/release amount stays `0`. FastAPI still does not import `app.harness`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + frontend + docs — no schema, no migration.** Sits on shipped `0.49.1` (`f2362b1`, #43).
 - `0.49.1` — **Perpetual ops Overview eyeball pass.** The leftover `0.49.0` browser walk: local FastAPI + Next against throwaway Postgres, seeded through the sanctioned writers / ledger fixtures. Unfunded ≠ exhausted on screen. Funded remaining, pot-exhausted, paired `hold_id` + legacy id-less hold, newest 20 harness rows, refusals honesty block, gateway/MCP `unknown`, invalid cap → cap unknown, missing project 404, five-tab contract, desktop + narrow 390. One honesty fix: `formatOpsMoney` keeps Numeric(12, 6) fraction digits so `$0.0004` is not rounded to `$0.00`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Frontend + docs — no schema, no migration.** Sits on shipped `0.49.0` (`ba7055b`, #42).
 - `0.49.0` — **Perpetual ops dashboard.** A read-only operator snapshot of the budgeted perpetual setup: per-project pot vs spent (unfunded ≠ exhausted), today's `harness_session_turn` `ComputeDebit` sum against `OPENTHEORY_HARNESS_DAILY_TOKEN_CAP` (holds paired by `hold_id`; legacy id-less holds pair FIFO), recent harness rows, and whether the built-in loop / gateway is enabled. Refused starts mint nothing and are labeled as not recorded. Gateway / MCP-on-Fly is `unknown` to this API process. FastAPI still does not import `app.harness` (shared meter in `app.services.harness_meter`). Quiet Overview bay; no sixth tab; no Start / Fund controls. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + frontend + docs — no schema, no migration.** Sits on shipped `0.48.0` (`7094d18`, #41).
@@ -149,10 +149,19 @@ migration.** Sits on shipped `0.50.0` (`af7ee43`, #44). Does not flip
   `settings.agent_llm_timeout_s`, default **60**) plus a 5s
   authorize margin (`> 65`). `assert_composition`, session
   construction, and gateway / campaign startup refuse when it is
-  not. `GatewayClient.complete` is already bounded at that 60s
-  timeout; the hold is released after the provider returns and
-  before MCP. A crash leftover older than the TTL is still released
-  as an orphan (0.48).
+  not. `GatewayClient.complete` wraps the whole provider call
+  (`client.post` + response read/json) in a total
+  `asyncio.timeout` equal to the resolved turn timeout (same
+  source as the TTL check: env mapping first, then settings) and
+  uses an explicit `httpx.Timeout`. A per-phase httpx timeout is
+  not a bound — the read timer resets on every chunk, so a trickle
+  or SSE could outlive the hold. On deadline: `GatewayError`
+  (`provider call exceeded turn deadline`), hold released,
+  `tokens_used` 0, no debit. OpenRouter may still bill a request
+  we abandoned; we cannot see usage. Truthy `stream` is 422 before
+  authorize / provider — an SSE body would fail `response.json()`
+  the same way. A crash leftover older than the TTL is still
+  released as an orphan (0.48).
 - **No pot reservation mark.** `pot_hold`, `open_pot_holds`,
   `reserved_by_open_turns`, and the Overview "Open turns" readout
   are gone. Under serialization they added no guarantee, and
@@ -161,11 +170,11 @@ migration.** Sits on shipped `0.50.0` (`af7ee43`, #44). Does not flip
 
 ```bash
 cd backend && uv run ruff check .   # clean
-cd backend && uv run pytest -q      # 851 passed, 271 skipped (no TEST_DATABASE_URL)
-# +2 passed vs shipped 0.50.0 (849): TTL covers turn (meter + composition/session/gateway)
-# +1 skipped: tight-pot overlapping daily-cap regression (CI Postgres runs it)
+cd backend && uv run pytest -q      # 854 passed, 273 skipped (no TEST_DATABASE_URL)
+# +5 passed vs shipped 0.50.0 (849): TTL covers turn, shared timeout, total deadline, stream refuse
+# +3 skipped: tight-pot overlapping daily-cap + deadline hold-release + stream-before-authorize
 cd backend && uv run pytest tests/harness -q
-# 92 passed, 37 skipped (no TEST_DATABASE_URL)
+# 95 passed, 39 skipped (no TEST_DATABASE_URL)
 cd frontend && npm run typecheck && npm run lint && npm test && npm run build
 # typecheck/lint/build clean; 64 tests
 ```

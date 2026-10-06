@@ -1,4 +1,4 @@
-// Perpetual ops dashboard (0.49.0 / 0.51.0). Mirrors app/schemas/ops.py.
+// Perpetual ops dashboard (0.49.0). Mirrors app/schemas/ops.py.
 // Every number is on the ledger or a setting this API process can see.
 // Anything else is labeled unknown.
 

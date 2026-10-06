@@ -68,8 +68,8 @@ holds `OPENTHEORY_GATEWAY_TOKEN`; the gateway holds
 
 Daily turn/request caps beyond the token ceiling remain later. The
 ops dashboard shipped as `0.49.0` on the product API; `0.50.0` adds
-the last-turn clamp / overshoot readout; `0.51.0` adds
-reserved-by-open-turns. This package still must
-not hold settlement, validation, or funding.
+the last-turn clamp / overshoot readout. `0.51.0` does not add an
+Open-turns figure — occupancy stays the remaining daily room.
+This package still must not hold settlement, validation, or funding.
 
 Do not put settlement, validation, or funding on this package.

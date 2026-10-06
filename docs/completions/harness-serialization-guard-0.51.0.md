@@ -25,11 +25,18 @@ the provider request timeout plus a margin.
   no guarantee.
 - The real hole is TTL: a live turn that outlives
   `OPENTHEORY_HARNESS_HOLD_TTL_SECONDS` (default 300) can have its
-  hold released by the next authorize as an orphan. `GatewayClient`
-  already bounds `complete()` at `settings.agent_llm_timeout_s`
-  (default 60, `AGENT_LLM_TIMEOUT_S`). `supervise_turn` releases
-  the hold after that call and before MCP. Fail-closed: TTL must
-  be `> timeout + 5s` (default `300 > 65`).
+  hold released by the next authorize as an orphan. A per-phase
+  `httpx.AsyncClient(timeout=60)` is not a bound — connect / write
+  / read / pool each get 60s and the read timer resets on every
+  chunk, so a trickle or SSE can run well past 60s. `complete()`
+  wraps post + body read in a total `asyncio.timeout` of the
+  resolved turn timeout (env mapping first, then
+  `settings.agent_llm_timeout_s` / `AGENT_LLM_TIMEOUT_S`, default
+  60) and uses an explicit `httpx.Timeout`. On deadline the hold
+  is released, `tokens_used` is 0, and nothing is debited.
+  OpenRouter may still bill a request we abandoned — we cannot see
+  usage. Truthy `stream` is 422 before authorize. Fail-closed: TTL
+  must be `> timeout + 5s` (default `300 > 65`).
 
 ## What shipped
 
@@ -42,8 +49,12 @@ the provider request timeout plus a margin.
   `max_turn_duration_seconds` in `app.services.harness_meter`.
   `assert_composition`, `HarnessSession.__post_init__`,
   `create_gateway_app`, and the campaign / gateway process
-  entrypoints refuse when misconfigured. FastAPI still does not
-  import `app.harness`.
+  entrypoints refuse when misconfigured. `GatewayClient` and
+  `resolve_turn_timeout_seconds` read the same value (env mapping
+  first, then settings). `complete()` wraps post + body read in a
+  total deadline; on cut-off the hold is released and nothing is
+  debited (OpenRouter may still bill). Truthy `stream` is 422
+  before authorize. FastAPI still does not import `app.harness`.
 - **Occupancy unchanged.** Hold notes stay
   `harness_session_turn; daily_cap_hold; hold_id=<uuid>`. Amount
   `0`. No `pot_hold` mark. No Overview "Open turns" figure.
@@ -61,7 +72,10 @@ the provider request timeout plus a margin.
 
 - DB-free: TTL 300 covers 60+5; TTL 65 / timeout 400 refuse;
   composition / session / gateway / campaign entrypoints refuse
-  when misconfigured; FastAPI still does not import `app.harness`.
+  when misconfigured; GatewayClient and resolve_turn_timeout_seconds
+  share an env mapping; a trickled body is cut off at the total
+  deadline; truthy `stream` is 422 before the provider; FastAPI
+  still does not import `app.harness`.
 - DB-gated: tight-pot overlapping authorize refused for the
   daily-cap reason (known price, unknown price, mid-flight top-up);
   existing 0.50 clamp / floor / overshoot / race / orphan TTL
@@ -71,11 +85,12 @@ the provider request timeout plus a margin.
 
 - `ruff check .` clean.
 - Default pytest (no `TEST_DATABASE_URL`, no `OPENROUTER_API_KEY`):
-  **851 passed, 271 skipped**. +2 passed vs shipped `0.50.0` (849)
-  (TTL covers turn at the meter and at composition / session /
-  gateway / campaign start). +1 skipped (tight-pot overlapping
-  daily-cap regression; CI Postgres runs it).
-- Harness pytest: **92 passed, 37 skipped** without Postgres.
+  **854 passed, 273 skipped**. +5 passed vs shipped `0.50.0` (849)
+  (TTL covers turn; shared timeout; total deadline on a trickled
+  body; truthy `stream` 422). +3 skipped (tight-pot overlapping
+  daily-cap; deadline hold-release; stream-before-authorize; CI
+  Postgres runs them).
+- Harness pytest: **95 passed, 39 skipped** without Postgres.
 - Frontend: typecheck / lint / build clean. **64** node:test cases.
 - Ledger suite skips without `TEST_DATABASE_URL` (CI Postgres runs
   it). Lean / Mathlib stay off.

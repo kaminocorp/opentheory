@@ -19,7 +19,14 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.agent.pricing import PriceQuote
 from app.harness.campaign import QUESTION, TITLE, create_metered_gateway_app, open_session
-from app.harness.gateway import DEFAULT_MODEL, GATEWAY_TOKEN_ENV, GatewayClient, GatewayResponse
+from app.harness.gateway import (
+    DEFAULT_MODEL,
+    GATEWAY_TOKEN_ENV,
+    REASON_STREAM,
+    REASON_TURN_DEADLINE,
+    GatewayClient,
+    GatewayResponse,
+)
 from app.harness.live_mcp import invoke
 from app.harness.session import (
     HOLD_NOTES,
@@ -27,6 +34,7 @@ from app.harness.session import (
     REASON_PROJECT_BUDGET,
     REASON_TURN_ROOM,
     SESSION_NOTES,
+    TURN_TIMEOUT_ENV,
     HarnessSession,
     TurnRefused,
     harness_tokens_used_today,
@@ -1387,3 +1395,99 @@ async def test_overlapping_authorize_on_tight_pot_is_refused_for_daily_cap(
     async with session_factory() as session:
         assert await harness_tokens_used_today(session, UUID(project_id)) == 20_000
     await first.release_hold(hold)
+
+
+class _TrickleStream(httpx.AsyncByteStream):
+    def __init__(self, chunks: list[bytes], delay_s: float) -> None:
+        self._chunks = chunks
+        self._delay_s = delay_s
+
+    async def __aiter__(self):
+        for index, chunk in enumerate(self._chunks):
+            if index:
+                await asyncio.sleep(self._delay_s)
+            yield chunk
+
+
+class _TrickleTransport(httpx.AsyncBaseTransport):
+    def __init__(self, delay_s: float = 0.4) -> None:
+        self.calls = 0
+        self._delay_s = delay_s
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        self.calls += 1
+        body = json.dumps(_OK_BODY).encode()
+        mid = max(1, len(body) // 2)
+        return httpx.Response(
+            200,
+            headers={"content-type": "application/json"},
+            stream=_TrickleStream([body[:mid], body[mid:]], delay_s=self._delay_s),
+        )
+
+
+async def test_deadline_releases_hold_without_debit(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    actor_id = await make_dev_principal(client, display_name="Deadline", roles=("internal",))
+    project_id = await create_owned_project(client, actor_id, "session-turn-deadline")
+    before = await _checkpoint_count(session_factory, project_id)
+    transport = _TrickleTransport(delay_s=0.4)
+    env = {GATEWAY_TOKEN_ENV: "gw-secret", TURN_TIMEOUT_ENV: "0.15"}
+    owner = open_session(project_id, session_factory=session_factory, env=env)
+    app = create_metered_gateway_app(
+        owner,
+        env=env,
+        gateway=GatewayClient(
+            api_key="sk-test",
+            base_url="https://openrouter.ai/api/v1",
+            transport=transport,
+            env=env,
+        ),
+    )
+    refused = await _complete(app)
+    assert refused.status_code == 422, refused.text
+    payload = refused.json()
+    assert REASON_TURN_DEADLINE in payload["error"]
+    assert "may still bill" in payload["error"]
+    assert payload["tokens_used"] == 0
+    assert payload["minted"] is False
+    assert transport.calls == 1
+    assert len(await _debit_rows(session_factory, project_id)) == 0
+    notes = await _adjustment_notes(session_factory, project_id)
+    assert any(HOLD_NOTES in row for row in notes)
+    assert any("daily_cap_release" in row for row in notes)
+    async with session_factory() as session:
+        assert await harness_tokens_used_today(session, UUID(project_id)) == 0
+    assert await _checkpoint_count(session_factory, project_id) == before
+
+
+async def test_stream_refuses_before_authorize_or_provider(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    actor_id = await make_dev_principal(client, display_name="Stream", roles=("internal",))
+    project_id = await create_owned_project(client, actor_id, "session-stream-refuse")
+    before = await _checkpoint_count(session_factory, project_id)
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover
+        calls["n"] += 1
+        raise AssertionError("truthy stream must not reach OpenRouter")
+
+    owner = open_session(project_id, session_factory=session_factory)
+    app = create_metered_gateway_app(
+        owner,
+        env={GATEWAY_TOKEN_ENV: "gw-secret"},
+        gateway=_gateway(handler),
+    )
+    refused = await _complete(app, extra={"stream": True})
+    assert refused.status_code == 422, refused.text
+    payload = refused.json()
+    assert payload["error"] == REASON_STREAM
+    assert payload["tokens_used"] == 0
+    assert payload["minted"] is False
+    assert calls["n"] == 0
+    assert len(await _debit_rows(session_factory, project_id)) == 0
+    assert await _adjustment_notes(session_factory, project_id) == []
+    async with session_factory() as session:
+        assert await harness_tokens_used_today(session, UUID(project_id)) == 0
+    assert await _checkpoint_count(session_factory, project_id) == before

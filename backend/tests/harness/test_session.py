@@ -69,6 +69,7 @@ from app.harness.session import (
     release_notes,
     resolve_daily_token_cap,
     resolve_hold_ttl_seconds,
+    resolve_turn_timeout_seconds,
     resolve_turn_token_floor,
     session_from_env,
     unmatched_holds,
@@ -337,6 +338,24 @@ def test_hold_ttl_must_exceed_turn_duration_at_composition() -> None:
                 TURN_TIMEOUT_ENV: "400",
             }
         )
+
+
+def test_gateway_and_session_read_the_same_turn_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.core.config import settings
+    from app.harness.gateway import GatewayClient
+
+    monkeypatch.setenv(TURN_TIMEOUT_ENV, "12")
+    env = {TURN_TIMEOUT_ENV: "90"}
+    assert resolve_turn_timeout_seconds(env) == 90.0
+    client = GatewayClient(api_key="sk-test", env=env)
+    assert client.timeout == 90.0
+    empty = {}
+    fallback = float(settings.agent_llm_timeout_s)
+    assert resolve_turn_timeout_seconds(empty) == fallback
+    assert GatewayClient(api_key="sk-test", env=empty).timeout == fallback
+    assert fallback != 12.0
 
 
 def test_turn_token_floor_is_small_and_overridable() -> None:
