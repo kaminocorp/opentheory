@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.58.1` — **Lock public PostgREST.** Records the live public-schema lock in the repo. `0023_lock_public_api_rls` revises `0022_agent_actor_identity`: idempotent `ENABLE` + `FORCE` RLS on every `public` base table (`pg_tables` loop, not a hard-coded list) and `REVOKE ALL` tables/sequences + default privileges from `anon` / `authenticated`. No policies — empty forced RLS denies non-bypass roles. The backend connects as `postgres` (owner / `bypassrls`); app traffic is unaffected. Frontend uses Supabase Auth only, never PostgREST table access. Downgrade reverses FORCE/ENABLE and does **not** re-GRANT (deliberate ops step). Alembic-head pytest fails CI if a later public table lacks ENABLE+FORCE. Live was already locked out-of-band; this revision is a no-op match. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Five tabs only. No slice G. Sits on shipped `0.58.0` (`c1a4ca5`, #55).
 - `0.58.0` — **Per-agent lifetime caps.** Slice F of the approved agent-actor identity design. `token_budget_cap` / `usd_budget_cap` on `project_agent_members` are enforced at `HarnessSession.authorize()` and on the built-in pass. Remaining room is lifetime billed `ComputeDebit` for that `(project_id, actor_id)` (`tokens_used > 0`, holds/releases excluded) plus that agent's outstanding remaining-room holds, under the project-row lock. Cap reached is `TurnRefused` with a distinct reason and no hold. The turn clamp is `min(daily room, pot room, agent remaining)`. The ledger hold still occupies the whole remaining daily room — not a per-agent split. Null cap = no per-agent limit. Unfunded ≠ exhausted. Debit only when `tokens_used > 0`. Mid-turn spend after a successful authorize still writes. Crew edit via existing `PATCH`; ops `spend_by_agent` and roster reads expose optional `*_cap_reached` (frontend derives if a pre-0.58 backend omits them). **No migration** (columns exist on 0022). Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Five tabs only. No slice G. Sits on shipped `0.57.1` (`2ed3d23`, #54).
 - `0.57.1` — **Frontend version-skew hotfix.** Vercel ships `main`'s frontend while live Fly is still pre-0.53 (0022 unapplied). `GET /ops` omits `spend_by_agent` / `actor_*`; `GET /projects/{id}/agents` is 404. Overview no longer throws on `undefined.length`. Crew roster 404 is a quiet "not on this backend yet" line — no raw error, no deploy controls. New 0.57.0 read fields (ops, blame `sponsor`, checkpoint `sponsored_by`) are optional. **Frontend + docs — no schema, no migration, no backend change.** Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Five tabs only. Sits on shipped `0.57.0` (`16bf679`, #53).
 - `0.57.0` — **Crew UI / blame sponsor / ops actor fields.** Slice E of the approved agent-actor identity design. Deployed-agents bay on the existing Crew tab (revoked rows visible, marked revoked). Members-only `GET /projects/{id}/agents` (status, responsible handle, last used, billed spend Σ, live token metadata — never hash or plaintext). OWNER/ADMIN `POST` deploy + `PATCH` suspend/revoke; OWNER resume. OWNER mint / rotate / revoke token with a one-time Console reveal (component state only; never React Query cache). Blame `sponsor: BlameActor`; `CheckpointRead.sponsored_by`. Ops `actor_id` / `actor_display_name` / `actor_type` on turns + spend-by-agent grouped from `compute_debits.actor_id`. HTTP stays human-only (`ActingActor` 403s an agent session). `authorize()` refuses when session and MCP credentials both resolve and differ (`TurnRefused`, no hold). **No** per-agent cap enforcement, no `agent_definitions`. No migration. `create_checkpoint` remains the only Checkpoint writer. FastAPI still does not import `app.harness`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. Five tabs only. Sits on shipped `0.56.0` (`2a2a018`, #52).
@@ -135,6 +136,56 @@
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
 
 ---
+
+## 0.58.1
+
+**Lock public PostgREST.** Records the live public-schema lock
+in the repo. Sits on shipped `0.58.0` (`c1a4ca5`, #55).
+Does not flip `AGENT_LOOP_ENABLED`. Does not enable the
+gateway or MCP child on Fly.
+
+- **Upgrade (`0023_lock_public_api_rls`).** Revises
+  `0022_agent_actor_identity`. One transaction. A `DO` block
+  loops `pg_tables` where `schemaname = 'public'` and runs
+  `ENABLE` then `FORCE` row-level security on each table
+  (idempotent; covers whatever is present at apply time, not
+  a hard-coded list of today's tables). Then `REVOKE ALL` on
+  all tables and sequences in `public` from `anon` and
+  `authenticated`, plus `ALTER DEFAULT PRIVILEGES` the same
+  way. Roles that do not exist (local / CI Postgres) are
+  skipped. **No policies.** Empty forced RLS denies
+  non-bypass roles.
+- **Owner path.** The backend connects as `postgres` (table
+  owner / `bypassrls`). App traffic is unaffected. Frontend
+  uses Supabase Auth only — never PostgREST table access.
+- **Downgrade.** Reverses `FORCE` then `ENABLE`. Does **not**
+  re-GRANT to `anon` / `authenticated`. Re-GRANT is a
+  deliberate ops step, not automatic.
+- **CI hook.** After `alembic upgrade head`, every public
+  base table must have `relrowsecurity` and
+  `relforcerowsecurity`, and those roles must have no table
+  privileges. A later revision that creates a public table
+  without calling `LOCK_PUBLIC_TABLES_SQL` fails CI.
+- **Live.** Already locked out-of-band (PostgREST `401` /
+  `42501`). This revision is a no-op match. No Fly deploy.
+  No live Supabase write from this change.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q
+# with TEST_DATABASE_URL: 1205 passed, 4 skipped
+# +6 vs 0.58.0 (1199): 0023 linkage/only-head/pg_tables-loop/
+# transactional, alembic-head RLS+FORCE hook, downgrade
+# round-trip does not re-GRANT
+cd frontend && npm run typecheck && npm run lint && npm test && npm run build
+# typecheck/lint/build clean; frontend tests 75 passed (unchanged)
+```
+
+See `docs/completions/lock-public-api-rls-0.58.1.md`.
+
+**Not in this release:** policies that open any table;
+re-GRANT; slice G (`agent_definitions`); Fly enablement;
+`AGENT_LOOP_ENABLED`.
 
 ## 0.58.0
 

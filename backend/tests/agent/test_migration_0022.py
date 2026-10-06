@@ -55,13 +55,14 @@ def test_revision_linkage() -> None:
     assert mod.down_revision == _DOWN
 
 
-def test_it_is_the_only_head() -> None:
+def test_it_is_revised_by_0023() -> None:
+    """0023 (public API RLS lock) revises 0022; a second head is a deploy footgun."""
     down_revisions = {
         match.group(1)
         for path in _VERSIONS.glob("*.py")
         if (match := re.search(r'down_revision[^=]*=\s*"([^"]+)"', path.read_text()))
     }
-    assert _REVISION not in down_revisions
+    assert _REVISION in down_revisions
 
 
 def test_enum_labels_match_the_model() -> None:

@@ -96,6 +96,7 @@ Why:
 - Postgres fits the domain: relational primitives, graph-like relationships, provenance, funding ledger entries, and audit history.
 - Supabase provides managed Postgres, backups, dashboard tooling, and optional auth/storage features.
 - The backend can connect directly to Postgres using SQLAlchemy rather than coupling domain logic to Supabase client APIs.
+- Public PostgREST is locked (`0.58.1`): forced empty RLS on every `public` table and zero grants to `anon` / `authenticated`. Frontend uses Supabase Auth only; all table access goes through FastAPI.
 
 Initial database principles:
 
