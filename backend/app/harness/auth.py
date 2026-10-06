@@ -103,10 +103,11 @@ def read_jwt_file(path: str) -> str:
 async def resolve_mcp_actor(
     db: AsyncSession, env: Mapping[str, str] | None = None
 ) -> Actor:
-    """Resolve the acting Actor the same way FastAPI does. Never logs the bearer.
+    """Resolve the acting Actor for the live MCP / authorize path.
 
     An ``typ=agent_session`` file/env bearer resolves to the **agent** Actor
-    (0.55.0) with sponsor/jti/project bound on the instance. A flagged
+    (0.55.0) with sponsor/jti/project bound on the instance. HTTP
+    ``ActingActor`` refuses that same bearer. A flagged
     ``OPENTHEORY_DEV_ACTOR_ID`` may name a rostered agent. Human JWTs stay
     the primary human.
     """
@@ -117,6 +118,13 @@ async def resolve_mcp_actor(
             "Authentication required",
         )
     if credential.kind == "jwt":
+        from app.services.agent_tokens import (
+            looks_like_agent_session,
+            resolve_agent_session_token,
+        )
+
+        if looks_like_agent_session(credential.value):
+            return await resolve_agent_session_token(db, credential.value)
         return await resolve_actor_from_bearer(db, credential.value)
     return await resolve_actor_from_dev_id(db, credential.value)
 

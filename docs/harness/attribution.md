@@ -1,9 +1,10 @@
 # External harness — actor attribution (`0.51.1` / `0.52.0`)
 
 > **0.55.0.** OWNER-only agent session mint / rotate / revoke.
-> Resolver verifies `typ=agent_session` (never falls through to
-> Supabase). MCP writes with that bearer author as the agent and
-> snapshot `sponsored_by_actor_id` from the minting human.
+> Harness/MCP resolver verifies `typ=agent_session`. HTTP
+> `ActingActor` refuses that bearer (`403`). MCP writes with
+> that bearer author as the agent and snapshot
+> `sponsored_by_actor_id` from the minting human.
 > `authorize()` accepts the agent token (and still accepts a
 > human JWT / flagged rostered-agent `DEV_ACTOR_ID`). Sit on
 > shipped `0.54.0` (`7a1fa0c`, #50).

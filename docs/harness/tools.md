@@ -81,8 +81,11 @@ regress it:
    `X-Dev-Actor-Id` resolver, and only when `auth_dev_header_enabled` is
    on. Production (flag off) is `401`.
 
-Resolution is the FastAPI `ActingActor` path: verified bearer → Account
-→ primary `human` Actor. Do not invent a header that bypasses JWT in
+Resolution for a **human** JWT is the FastAPI `ActingActor` path:
+verified bearer → Account → primary `human` Actor. An
+`typ=agent_session` file (0.55.0) is accepted only here
+(`resolve_mcp_actor`); the HTTP `ActingActor` refuses it.
+Do not invent a header that bypasses JWT in
 production. Do not put the bearer on `tools/call` arguments — those
 land in session JSONL.
 

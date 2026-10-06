@@ -13,6 +13,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from app.api.deps import AGENT_SESSION_HTTP_DETAIL
 from app.core.config import settings
 from app.harness.auth import resolve_mcp_actor
 from app.harness.live_mcp import invoke
@@ -21,11 +22,13 @@ from app.models.actor import Actor
 from app.models.agent_session_token import AgentSessionToken
 from app.models.checkpoint import Checkpoint
 from app.models.contribution import Contribution
-from app.models.enums import ActorType, ProjectAgentStatus, ProjectRole
+from app.models.enums import ActorType, ProjectAgentRole, ProjectAgentStatus, ProjectRole
+from app.models.project_agent_member import ProjectAgentMember
 from app.models.project_member import ProjectMember
 from app.services.agent_actors import get_or_create_project_agent_actor
 from app.services.agent_tokens import (
     TYP,
+    encode_agent_session,
     hash_compact_jwt,
     looks_like_agent_session,
     resolve_agent_session_token,
@@ -475,40 +478,46 @@ async def test_agent_token_authorize_and_cross_project_refuse(
         assert refused.reason == REASON_NOT_MEMBER
 
 
-async def test_me_rejects_agent_session_token(
-    client: AsyncClient,
-    session_factory: async_sessionmaker,
-    internal_funder,
-    agent_secret,
-) -> None:
-    owner_id, _ = await internal_funder(client, roles=(), display_name="Owner")
-    project_id = await create_owned_project(client, owner_id, "me-agent")
-    agent_id = await _roster_crew(session_factory, project_id)
-    minted = await _mint(client, project_id, agent_id, owner_id)
-    me = await client.get(
-        "/api/v1/me",
-        headers={"Authorization": f"Bearer {minted['body']['token']}"},
-    )
-    assert me.status_code == 401
-
-
-async def test_agent_token_cannot_fund_or_validate(
+async def test_agent_token_is_403_on_http_routes(
     client: AsyncClient,
     session_factory: async_sessionmaker,
     internal_funder,
     agent_secret,
 ) -> None:
     owner_id, _ = await internal_funder(client, roles=("internal",), display_name="Owner")
-    project_id = await create_owned_project(client, owner_id, "agent-gov")
+    project_id = await create_owned_project(client, owner_id, "http-refuse")
     agent_id = await _roster_crew(session_factory, project_id)
     minted = await _mint(client, project_id, agent_id, owner_id)
     bearer = {"Authorization": f"Bearer {minted['body']['token']}"}
-    funded = await client.post(
-        f"/api/v1/projects/{project_id}/funding",
-        json={"amount": "1.00", "currency": "USD", "kind": "top_up", "source": "native"},
-        headers=bearer,
-    )
-    assert funded.status_code == 403
+
+    reads_and_writes = [
+        await client.get("/api/v1/me", headers=bearer),
+        await client.get("/api/v1/me/invitations", headers=bearer),
+        await client.post(
+            f"/api/v1/projects/{project_id}/threads",
+            json={"title": "T", "question": "q?"},
+            headers=bearer,
+        ),
+        await client.post(
+            f"/api/v1/projects/{project_id}/checkpoints",
+            json={"summary": "http agent note"},
+            headers=bearer,
+        ),
+        await client.post(
+            f"/api/v1/projects/{project_id}/instruments/calc.eval/run",
+            json={"inputs": {"expression": "1+1"}},
+            headers=bearer,
+        ),
+        await client.post(
+            f"/api/v1/projects/{project_id}/funding",
+            json={"amount": "1.00", "currency": "USD", "kind": "top_up", "source": "native"},
+            headers=bearer,
+        ),
+    ]
+    for resp in reads_and_writes:
+        assert resp.status_code == 403, resp.text
+        assert resp.json()["detail"] == AGENT_SESSION_HTTP_DETAIL
+
     thread = await client.post(
         f"/api/v1/projects/{project_id}/threads",
         json={"title": "T", "question": "q?"},
@@ -518,19 +527,96 @@ async def test_agent_token_cannot_fund_or_validate(
     claim = await client.post(
         f"/api/v1/threads/{thread.json()['id']}/claims",
         json={"kind": "hypothesis", "statement": "s"},
-        headers=_headers(owner_id),
-    )
-    assert claim.status_code == 201, claim.text
-    validated = await client.post(
-        f"/api/v1/projects/{project_id}/validations",
-        json={
-            "target_type": "claim",
-            "target_id": claim.json()["id"],
-            "outcome": "passed",
-        },
         headers=bearer,
     )
-    assert validated.status_code == 403
+    assert claim.status_code == 403, claim.text
+    assert claim.json()["detail"] == AGENT_SESSION_HTTP_DETAIL
+
+    # MCP path still works end-to-end (author = agent, sponsor = owner).
+    mcp = await invoke(
+        "create_checkpoint",
+        {"project_id": project_id, "summary": "mcp after http refuse"},
+        session_factory=session_factory,
+        env={"OPENTHEORY_ACTOR_JWT": minted["body"]["token"]},
+    )
+    assert mcp["minted"] is True, mcp
+    async with session_factory() as session:
+        checkpoint = await session.get(Checkpoint, UUID(mcp["checkpoint_id"]))
+        assert checkpoint is not None
+        assert str(checkpoint.author_id) == agent_id
+        assert str(checkpoint.sponsored_by_actor_id) == owner_id
+
+
+async def test_token_for_a_refuses_mcp_write_on_b_even_when_rostered_on_both(
+    client: AsyncClient,
+    session_factory: async_sessionmaker,
+    internal_funder,
+    agent_secret,
+) -> None:
+    owner_id, owner_account = await internal_funder(client, roles=(), display_name="Owner")
+    project_a = await create_owned_project(client, owner_id, "dual-a")
+    project_b = await create_owned_project(client, owner_id, "dual-b")
+    agent_id = await _roster_crew(session_factory, project_a)
+    async with session_factory() as session:
+        session.add(
+            ProjectAgentMember(
+                project_id=UUID(project_b),
+                actor_id=UUID(agent_id),
+                deployed_by_account_id=UUID(owner_account),
+                responsible_account_id=UUID(owner_account),
+                role=ProjectAgentRole.RESEARCHER,
+                status=ProjectAgentStatus.ACTIVE,
+            )
+        )
+        await session.commit()
+    minted = await _mint(client, project_a, agent_id, owner_id)
+    result = await invoke(
+        "create_checkpoint",
+        {"project_id": project_b, "summary": "cross project"},
+        session_factory=session_factory,
+        env={"OPENTHEORY_ACTOR_JWT": minted["body"]["token"]},
+    )
+    assert result["minted"] is False, result
+    assert result.get("status_code") == 403
+
+
+async def test_resolver_rejects_future_iat(
+    client: AsyncClient,
+    session_factory: async_sessionmaker,
+    internal_funder,
+    agent_secret,
+) -> None:
+    owner_id, owner_account = await internal_funder(client, roles=(), display_name="Owner")
+    project_id = await create_owned_project(client, owner_id, "future-iat")
+    agent_id = await _roster_crew(session_factory, project_id)
+    now = datetime.now(UTC)
+    jti = uuid4()
+    compact = encode_agent_session(
+        jti=jti,
+        actor_id=UUID(agent_id),
+        project_id=UUID(project_id),
+        minted_by_account_id=UUID(owner_account),
+        minted_by_actor_id=UUID(owner_id),
+        expires_at=now + timedelta(days=1),
+        issued_at=now + timedelta(hours=1),
+        secret=agent_secret,
+    )
+    async with session_factory() as session:
+        session.add(
+            AgentSessionToken(
+                id=jti,
+                project_id=UUID(project_id),
+                actor_id=UUID(agent_id),
+                minted_by_account_id=UUID(owner_account),
+                minted_by_actor_id=UUID(owner_id),
+                token_hash=hash_compact_jwt(compact),
+                expires_at=now + timedelta(days=1),
+            )
+        )
+        await session.commit()
+        with pytest.raises(HTTPException) as exc:
+            await resolve_agent_session_token(session, compact)
+        assert exc.value.status_code == 401
 
 
 async def test_agent_jwt_file_alias_resolves(

@@ -26,24 +26,28 @@ has `agent_session_tokens`). Sits on shipped `0.54.0`
   `iat` / `exp`. Signed with `AGENT_SESSION_JWT_SECRET`
   (settings; never `fly.toml [env]`).
 - Missing secret fails closed: mint/rotate `503`; a
-  `typ=agent_session` bearer is `401` and never falls through
-  to the Supabase verifier.
-- Resolver (`deps.py` + `harness/auth.py`): verify signature,
-  typ, claims, hash lookup, `expires_at`, `revoked_at`, ACTIVE
-  roster, stamp `last_used_at`. Returns the **agent** Actor.
-  `OPENTHEORY_AGENT_JWT_FILE` aliases the existing file path.
+  `typ=agent_session` bearer on the **harness** is `401`.
+- HTTP `ActingActor` / `resolve_actor_from_bearer` refuse
+  `typ=agent_session` (`403` "agent sessions are only valid
+  on the harness") and never fall through to Supabase.
+  Acceptance is `resolve_mcp_actor` / `authorize()` only.
+- Resolver (`harness/auth.py`): verify signature, typ, claims,
+  hash lookup, `expires_at`, `revoked_at`, ACTIVE roster,
+  `iat` not more than 60s in the future, stamp `last_used_at`.
+  Returns the **agent** Actor. `OPENTHEORY_AGENT_JWT_FILE`
+  aliases the existing file path.
 - MCP writes with an agent token: `author_id` = agent,
   `sponsored_by_actor_id` = minting human (`create_checkpoint`
   trusted arg; never a client field). Human writes stay
   unsponsored. No second Contribution for the sponsor.
 - `authorize()` accepts the agent session token and refuses
-  when `proj` ≠ `HarnessSession.project_id`. Human JWT /
-  flagged `OPENTHEORY_DEV_ACTOR_ID` (including a rostered
-  agent) still pass via type-aware `ensure_is_member` so the
-  0.52.0 pins and local harness stay. `record_spend` does not
-  re-check (mid-turn debit-when-tokens-moved).
-- `GET /me` refuses an agent session (`401`) — it stays the
-  human Account + primary human Actor.
+  when `proj` ≠ `HarnessSession.project_id`. `ensure_is_member`
+  also refuses a bound token `proj` that differs from the
+  requested project (even if the actor is rostered on both).
+  Human JWT / flagged `OPENTHEORY_DEV_ACTOR_ID` (including a
+  rostered agent) still pass via type-aware `ensure_is_member`
+  so the 0.52.0 pins and local harness stay. `record_spend`
+  does not re-check (mid-turn debit-when-tokens-moved).
 
 ## What did not change
 
@@ -65,22 +69,27 @@ has `agent_session_tokens`). Sits on shipped `0.54.0`
   `authorize()`.
 - Revoke → next resolve `401`.
 - Resolver never returns a human; wrong key / expired / hash
-  mismatch / missing secret → `401`; `last_used_at` stamped.
+  mismatch / missing secret / `iat` more than 60s in the
+  future → `401`; `last_used_at` stamped.
 - Agent-token checkpoint: author = agent, sponsor = owner,
   Contribution.actor_id = agent. Human checkpoint has no
   sponsor.
-- Authorize on matching project; token for A on B refuses.
-- `GET /me` + fund/validate with agent token `401`/`403`.
+- Authorize on matching project; token for A on B refuses
+  even when the actor is rostered on both.
+- HTTP ActingActor: agent token is `403` on checkpoint /
+  claim / thread / instrument-run writes, `GET /me`, and
+  fund/validate. MCP path still authors as the agent with
+  `sponsored_by_actor_id` = minting human.
 - Flagged rostered-agent `DEV_ACTOR_ID` still authorizes.
 - `OPENTHEORY_AGENT_JWT_FILE` resolves.
 
 ## Verification
 
 - `ruff check .` clean.
-- With `TEST_DATABASE_URL`: **1173 passed, 4 skipped**. +17 vs
+- With `TEST_DATABASE_URL`: **1174 passed, 4 skipped**. +18 vs
   `0.54.0` (1156) — mint/rotate/revoke, resolver, MCP sponsor,
-  authorize swap, `/me` + fund/validate refuse. Lean / Mathlib
-  stay off.
+  authorize swap, HTTP 403 harness-only, dual-roster bound-proj,
+  future-iat refuse. Lean / Mathlib stay off.
 - Frontend untouched.
 
 ## Unverified

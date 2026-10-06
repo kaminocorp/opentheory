@@ -207,7 +207,7 @@ Roster role is a separate enum, `ProjectAgentRole`, v1 value
 
 | May | Must not |
 | --- | --- |
-| `run_instrument`, `create_checkpoint` (MCP and, if a token is presented to HTTP, the same two chokepoints) | `ensure_can_manage` actions |
+| `run_instrument`, `create_checkpoint` (**MCP / harness only** — an agent session on the human HTTP API is `403`) | `ensure_can_manage` actions |
 | `list_claims`, `get_thread_context`, `get_budget` | mint `FundingAllocation` |
 | debit the project pot via the session-owned gateway, once rostered and token-bound | mint `Validation` |
 | | mint a session token for itself or for a human |
@@ -529,15 +529,21 @@ secret. **Not** in `fly.toml [env]`. Hash of the compact JWT
 bearer is shown once at mint and then only exists in the `0600`
 file.
 
-Resolver algorithm (`resolve_mcp_actor` / `get_acting_actor`),
-order matters:
+Resolver algorithm, order matters. **HTTP `ActingActor` /
+`resolve_actor_from_bearer` refuse `typ=agent_session`**
+(`403` "agent sessions are only valid on the harness") and
+never fall through to the Supabase verifier. Acceptance is
+**only** `resolve_mcp_actor` / `authorize()`:
 
-1. Read the bearer (file / env / `Authorization`).
+1. Read the bearer (file / env — not the Console
+   `Authorization` header).
 2. If it verifies as `typ=agent_session` with our secret: load
    `agent_session_tokens` by `jti`, require
    `revoked_at IS NULL`, `expires_at > now()`,
    `token_hash` matches, `actor_id = sub`, `project_id = proj`,
    actor `type=agent`, roster `status=active` for that pair.
+   A bound `proj` that differs from the requested project is
+   `403` (defense in depth on `ensure_is_member`).
    Return **that agent Actor**. Never the minting human.
 3. Else existing Supabase / dev-id path. That path returns a
    **human** (or a flagged dev Actor). It must refuse a token

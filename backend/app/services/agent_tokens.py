@@ -33,6 +33,7 @@ AUD = "harness"
 TYP = "agent_session"
 ALG = "HS256"
 DEFAULT_TTL_SECONDS = 2_592_000  # 30 days
+IAT_FUTURE_SKEW_SECONDS = 60
 SECRET_MISSING_DETAIL = "Agent session signing key is not configured"
 
 # Stashed on the resolved Actor so create_checkpoint can snapshot the sponsor
@@ -302,6 +303,19 @@ async def resolve_agent_session_token(db: AsyncSession, compact: str) -> Actor:
             detail="Invalid or expired authentication token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    now = datetime.now(UTC)
+    iat_raw = claims.get("iat")
+    if iat_raw is not None:
+        if isinstance(iat_raw, datetime):
+            iat_dt = iat_raw if iat_raw.tzinfo else iat_raw.replace(tzinfo=UTC)
+        else:
+            iat_dt = datetime.fromtimestamp(int(iat_raw), UTC)
+        if iat_dt > now + timedelta(seconds=IAT_FUTURE_SKEW_SECONDS):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired authentication token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
     jti = _uuid_claim(claims, "jti")
     sub = _uuid_claim(claims, "sub")
@@ -312,7 +326,6 @@ async def resolve_agent_session_token(db: AsyncSession, compact: str) -> Actor:
         select(AgentSessionToken).where(AgentSessionToken.id == jti)
     )
     row = result.scalar_one_or_none()
-    now = datetime.now(UTC)
     if (
         row is None
         or row.token_hash != token_hash
