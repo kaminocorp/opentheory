@@ -1,10 +1,14 @@
 # Design: first-class agent Actor identity (proposal)
 
-> **Status — design proposal only.** No production code, no Alembic
-> revision, no tests, no changelog bump, no roadmap banner. Sits on
-> current `main` after `0.51.1` (`3eeeaf5`, #46). If this doc
-> disagrees with `backend/app/`, the code is what exists today and
-> this file is the proposed change.
+> **Status — design proposal only** (revised after owner review).
+> No production code, no Alembic revision, no tests, no changelog
+> bump, no roadmap banner. Sits on `3eeeaf5` (`0.51.1`, #46).
+> **Precursor on the harness line:** shipped `0.52.0` (PR #48)
+> puts a human-member gate on `HarnessSession.authorize()`; this
+> design swaps that gate to the agent roster and replaces the
+> ~1h Supabase access JWT the gateway now holds. If this doc
+> disagrees with `backend/app/` on this branch, the code is
+> what exists here and this file is the proposed change.
 >
 > Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway
 > or MCP child on Fly. FastAPI still must not import `app.harness`.
@@ -32,7 +36,7 @@ found no production-code gap against the **shipped** contract:
 | Path | Who is recorded | Membership |
 | --- | --- | --- |
 | Live MCP `run_instrument` / `create_checkpoint` | JWT → Account → that account's primary `human` Actor (`app/api/deps.py` `resolve_actor_from_bearer`; `app/harness/auth.py` `resolve_mcp_actor`). `Checkpoint.author_id` and `Contribution.actor_id` are that human. | `ensure_is_member` (`app/services/project_members.py`) keys on **`ProjectMember.account_id`**. Account-less Actors — `system`, dev-bootstrap, the per-project `Research crew` agent — are `403`. |
-| `HarnessSession.authorize` / `record_spend` / `supervise_turn` | Nobody. `ComputeDebit` has no `actor_id` (schema since `0.19.0`, migration `0015`). Notes `harness_session_turn`. `agent_run_id` null. | **Not checked.** The campaign child is project-bound (`OPENTHEORY_PROJECT_ID`). Inbound HTTP auth is `OPENTHEORY_GATEWAY_TOKEN`. The member JWT lives on the **MCP** child. |
+| `HarnessSession.authorize` / `record_spend` / `supervise_turn` | Nobody. `ComputeDebit` has no `actor_id` (schema since `0.19.0`, migration `0015`). Notes `harness_session_turn`. `agent_run_id` null. | **`0.51.1`:** not checked. **`0.52.0` (PR #48):** `authorize()` resolves the JWT-file / JWT / flagged-dev actor (`actor_env`, else `env` — same injection as `live_mcp`) and calls `ensure_is_member` *before* any hold or provider call. A missing credential, a non-member, or an account-less actor (including `Research crew`) is `TurnRefused`. `record_spend` does **not** re-check — tokens that moved after a successful authorize are billed; the next authorize fails closed. The credential is still the human member's **Supabase access JWT** (~1h expiry). |
 
 That is the `0.41.0` contract: the harness is another client of the
 human APIs, authenticated as a member. The Account is not the
@@ -46,6 +50,13 @@ passed the route gate (`AgentRun.triggered_by_actor_id` +
 
 `0.51.1` was correct to refuse remapping, a schema change, or a
 membership bypass. Those would have been a hole, not a feature.
+
+`0.52.0` closed the leftover debit-path membership gap **as a
+human-member check**. It is the precursor this design composes
+with: the roster slice keeps the `authorize()`-before-hold
+shape and swaps the principal from "JWT-resolved human member"
+to "rostered agent Actor." It also inherits `0.52.0`'s known
+limitation and fixes it — see §3.
 
 ### Why that contract breaks the end vision
 
@@ -77,8 +88,8 @@ The shipped contract is **on-behalf-of-the-operator**:
    partial unique index on `actor_metadata->>'project_id'` where
    `type = 'AGENT'`. A roster of two named agents cannot exist.
 5. **Spend has no actor.** Gateway / `supervise_turn` debit is
-   project-scoped. An outsider `actor_env` can still record spend
-   when tokens moved (`0.51.1` pins this). The pot is attributed
+   project-scoped. `0.52.0` now refuses a non-member *start*, but
+   the debit row still has no `actor_id`. The pot is attributed
    to a funder `Account` (`FundingAllocation.account_id`); the
    contributor who burned tokens is missing. The end vision's
    "humans set the budget; agents spend it" needs the spender
@@ -87,6 +98,11 @@ The shipped contract is **on-behalf-of-the-operator**:
    author, "who deployed this" is overloaded onto authorship. The
    moment authorship moves to the agent, that implicit pointer
    vanishes unless we record the sponsor separately.
+7. **A long-running gateway dies with the human JWT.** `0.52.0`
+   binds `authorize()` to a Supabase access token (~1h). Weeks of
+   autonomous research cannot be that token's lifetime, and
+   refreshing it is a human in the loop. The agent session token
+   in §3 is what removes that limit.
 
 The product failure mode of leaving this as-is: a year of
 autonomous exploration that, on the ledger, looks like one human
@@ -195,9 +211,12 @@ Roster role is a separate enum, `ProjectAgentRole`, v1 value
 | | mint a session token for itself or for a human |
 | | impersonate a human Actor |
 
-Room on the enum for a later `validator` agent is intentional and
-**dark**. v1 does not ship it. An agent validating its own
-checkpoints would conflate contributor and validator.
+`ProjectAgentRole` is `researcher` only, **deliberately, forever.**
+There is no room on this enum for a later `validator` agent.
+Contributor and validator stay on separate tables and separate
+Actors; an agent that assessed its own checkpoints would
+conflate those roles. A human member writes `Validation`. MCP
+never grows a validate stem.
 
 ### Lifecycle
 
@@ -207,15 +226,18 @@ register it in `models/append_only.py`.
 
 | Action | Who | Effect |
 | --- | --- | --- |
-| **Add (deploy)** | Human `OWNER` / `ADMIN` via `ensure_can_manage` | Mint (or reuse) an `Actor(type=agent)` owned by the acting account; insert roster row `status=active`, `deployed_by_account_id=acting account`. One transaction. Re-adding an `(project, actor)` pair is a `409`, not a second row (`uq_project_agent_member`). |
-| **Suspend** | Same | `status=suspended`. In-place. Subsequent MCP writes and `authorize()` are `403`. Existing checkpoints, contributions, and debits are untouched. |
-| **Resume** | Same | `status=active`. Does not un-revoke tokens; admin mints a new token. |
-| **Revoke** | Same | `status=revoked`. Active session tokens for that `(project, actor)` get `revoked_at`. The Actor row stays (provenance). The roster row stays (Crew can show "revoked"). Re-deploy of the *same* Actor is a resume, not a second insert. |
+| **Add (deploy)** | Human `OWNER` / `ADMIN` via `ensure_can_manage` | Mint (or reuse) an `Actor(type=agent)` owned by the acting account; insert roster row `status=active`, `deployed_by_account_id=acting account`, `responsible_account_id=acting account`. One transaction. Re-adding an `(project, actor)` pair is a `409`, not a second row (`uq_project_agent_member`). |
+| **Suspend** | Same | `status=suspended`. In-place. Live tokens for that pair get `revoked_at` in the same transaction. Subsequent MCP writes and `authorize()` / `record_spend` identity-load refuse. Existing checkpoints, contributions, and debits are untouched. |
+| **Resume** | Human `OWNER` only (`ensure_can_manage(require_owner=True)`) | `status=active`. Sets `responsible_account_id` to the acting owner's Account (who is now on the hook). Does **not** rewrite `Actor.account_id` or `deployed_by_account_id`. Does not un-revoke tokens; the owner mints a new one. |
+| **Revoke** | `OWNER` / `ADMIN` | `status=revoked`. Active session tokens for that `(project, actor)` get `revoked_at`. The Actor row stays (provenance). The roster row stays and remains **visible on Crew**, marked revoked. Re-deploy of the *same* Actor is a resume, not a second insert. |
+| **Mint token** | Human `OWNER` only | See §3. ADMIN may deploy / suspend / revoke; ADMIN may not mint. |
+| **Rotate token** | Human `OWNER` only | Mint new, revoke old, return the new compact JWT once. Optional and explicit. |
 
 Deleting an Actor is out of scope. `ON DELETE` on ledger FKs is
 already `SET NULL`; we do not need a new delete path.
 
-Mid-turn revoke is specified under §3.
+Mid-turn revoke and ownership transfer are specified under §3
+and §2 "Ownership transfer."
 
 ### Relation to the existing `Research crew` Actor
 
@@ -242,8 +264,8 @@ Migration (§6):
    slot: `uq_actors_one_research_crew_per_project` on
    `(actor_metadata->>'project_id') WHERE type = 'AGENT' AND
    display_name = 'Research crew'`.
-5. Leave `display_name = "Research crew"`. Renaming is an owner
-   question (§9). The Crew tab's existing "Research crew" bay
+5. Leave `display_name = "Research crew"`. Renaming remains an
+   open question (§9). The Crew tab's existing "Research crew" bay
    (`ResearchCrewPanel`) stays the **model-assignment** surface
    for the four dark-loop roles (`project.agent_models`). The new
    bay is the **roster**. Do not collapse them in v1 — one is
@@ -273,6 +295,142 @@ meaningful on every project the account can reach unless every
 verifier re-checks the roster (we will check anyway; scoping the
 Actor still shrinks blast radius).
 
+### Cross-project track record (definition seam)
+
+Project-scoped Actors are the write identity. A human choosing
+the roster still needs to see **one agent's history** across
+projects — checkpoints authored, validations *received* (a
+human validated that Actor's work), spend. That rollup is a
+**read join**, not a second Actor and not a merge.
+
+**v1 ships the seam, not the catalog.** Add nullable
+`actors.agent_definition_id UUID` with **no foreign key** in
+the first schema slice (an untyped UUID is the placeholder).
+Leave it `NULL` on every migrated `Research crew` row and
+every v1 deploy. Do **not** create `agent_definitions` in v1
+— an empty table would invite writes we are not ready to
+govern. A later catalog slice creates the table and then
+`ALTER … ADD CONSTRAINT` the FK.
+
+Future `agent_definitions` (catalog slice, not v1):
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | UUID PK | what `actors.agent_definition_id` will point at |
+| `account_id` | UUID FK `accounts` SET NULL | the human Account that owns this *kind* of agent |
+| `family_id` | UUID | stable across versions of the same kind |
+| `version` | INTEGER | monotonic per `family_id` |
+| `display_name` | VARCHAR(200) | catalog name ("DeepSeek researcher") |
+| `config_fingerprint` | TEXT | hash of model id + harness SDK pin + Cordis inventory + persona hash |
+| `config` | JSON | the fingerprint inputs, for display |
+| `created_at` / `updated_at` | timestamptz | mutable catalog row (not append-only) |
+
+Unique `(family_id, version)`. Index on `account_id`,
+`family_id`.
+
+**Rollup (read-only).**
+
+```text
+agent_definitions (family)
+    └── agent_definitions (version)     -- one fingerprint
+            └── actors                  -- one per project deploy
+                    ├── checkpoints.author_id
+                    ├── contributions.actor_id
+                    └── compute_debits.actor_id
+```
+
+A Crew / catalog view for one family is `JOIN actors ON
+actors.agent_definition_id IN (versions of family)` then Σ
+checkpoints, incoming `Validation` rows that target those
+checkpoints, and billed `ComputeDebit` (amount > 0). The
+query never `UPDATE`s an Actor, never collapses two project
+Actors into one UUID, and never rewrites `author_id`. Blame
+on a claim still shows the **project** Actor that wrote the
+checkpoint. The definition is a grouping key, not an
+identity.
+
+**Config-change semantics.**
+
+| Change | What happens |
+| --- | --- |
+| Cosmetic catalog rename, notes, display copy that do **not** change `config_fingerprint` | Same definition row / same version. Existing Actors keep the pointer. |
+| Model id, harness pin, Cordis inventory, or persona hash changes | **New version** of the same `family_id` (new `agent_definitions` row, `version += 1`). |
+| Deploy / upgrade that new version onto a project | **New project-scoped Actor** pointing at the new version. The previous Actor on that project is revoked (visible, marked revoked), not edited, not merged. Its checkpoints stay its own. |
+
+Same-Actor retarget (`UPDATE actors SET agent_definition_id`)
+is rejected: it would make one author UUID span two
+fingerprints with no snapshot on the checkpoint, and it is
+the merge we just forbade in another coat. Upgrade is a new
+roster slot in the same family.
+
+v1 deploys with `agent_definition_id IS NULL` have no
+cross-project rollup. That is honest — there is no catalog
+yet. The column is there so the catalog slice does not
+rewrite `actors` shape a second time.
+
+### Ownership transfer
+
+`set_member_role` already transfers `OWNER` in one transaction
+(demote prior owner to `ADMIN`, then promote; `ensure_can_manage`
+holds the project row `FOR UPDATE`). This design adds a
+composing step in that same transaction — the helper
+`db.add`s and does not commit.
+
+**Rule.** When a project's OWNER changes:
+
+1. **Do not rewrite `Actor.account_id`.** That column is who
+   originally sponsored the identity. Rewriting it on transfer
+   forges provenance (the outgoing owner *did* deploy it).
+2. **Do not rewrite `deployed_by_account_id`.** Same reason —
+   it is "who put this row on the roster," analogous to
+   `ProjectMember.invited_by_account_id`.
+3. **Suspend and revoke tokens** for (a) the project's
+   migrated `Research crew` Actor and (b) every roster row
+   whose **`responsible_account_id`** is the outgoing owner
+   (at first deploy this equals `deployed_by_account_id`;
+   after a later resume it is whoever last took
+   responsibility). Agents an ADMIN deployed, and whose
+   responsible account is not the outgoing owner, stay
+   active — that ADMIN did not lose the project.
+4. The new owner **explicitly resumes** each agent they want
+   running. Resume (OWNER only) sets
+   `responsible_account_id` to the new owner's Account and
+   leaves `Actor.account_id` / `deployed_by_account_id`
+   untouched. The new owner then mints a token (OWNER only).
+   Auto-resume is rejected: choosing the roster is the new
+   owner's job.
+
+`responsible_account_id` is the live "who is on the hook
+now." Using it — not `deployed_by_account_id` — as the
+transfer trigger is what makes a *second* transfer correct:
+after Alice deploys, Bob takes ownership and resumes, Carol
+taking ownership must suspend those agents too. Keying only
+on `deployed_by` would leave Bob's resumed agents running
+under Carol with Alice still listed as deployer and nobody
+suspended.
+
+**In-flight turns.** Same shape as `0.52.0` mid-session
+member removal and as §3 mid-turn revoke. A completion that
+already passed `authorize()` may still hit the provider.
+`record_spend` still writes when `tokens_used > 0` (debit
+when tokens moved; do not leave the pot uncharged) and
+stamps the agent `actor_id`. The matching hold release is
+still amount `0`, `harness_session_turn` prefix, `hold_id`
+paired. The next `authorize()` and the next MCP write load
+`agent_session_tokens` by `jti`, see `revoked_at` and/or
+roster `suspended`, and refuse. We do not UPDATE the hold
+row. We do not kill an in-flight OpenRouter request.
+
+Rejected variants:
+
+- Auto-rewrite `Actor.account_id` to the new owner — the
+  sponsor becomes a lie.
+- Auto-resume under the new owner — the incoming owner did
+  not choose the roster or the budget those agents will burn.
+- Leave tokens live until expiry — a 30-day token would keep
+  the outgoing owner's agents writing after they lost the
+  project. Revoke is the control; expiry is the backstop.
+
 ---
 
 ## 3. Authentication
@@ -295,7 +453,9 @@ actor in `create_checkpoint`).
 
 ### Recommendation: scoped agent session token
 
-Minted by a human `OWNER` / `ADMIN`. Bound to
+Minted by a human **`OWNER` only**
+(`ensure_can_manage(require_owner=True)`). ADMIN may deploy and
+suspend; ADMIN may not mint or rotate. Bound to
 **project + agent Actor + expiry + jti**. Injected through the
 existing file path (`OPENTHEORY_ACTOR_JWT_FILE`). Verified by
 OpenTheory, not by Supabase.
@@ -303,6 +463,45 @@ OpenTheory, not by Supabase.
 This is a second bearer *kind*, not a second injection channel.
 Probe redaction (`SECRET_ENV_KEYS`, `redact`) is unchanged — the
 file path may be logged; the contents must not.
+
+#### Lifetime (30-day default; revoke is the control)
+
+The end vision is weeks of autonomous research with no human
+in the loop. A 12-hour token would force the owner to re-mint
+twice a day and puts a human on the critical path. A ~1h
+Supabase access JWT is worse — that is the `0.52.0` gateway
+limitation this token removes.
+
+| Rule | Value |
+| --- | --- |
+| Default `expires_at` | **30 days** from mint |
+| Max TTL | Configurable via settings / env (`OPENTHEORY_AGENT_SESSION_MAX_TTL_SECONDS`, default `2592000`). **Not** in `fly.toml [env]`. A mint may request shorter, never longer. |
+| Control | **Revoke**, not expiry. Every MCP write, every `authorize()`, and every `record_spend()` loads `agent_session_tokens` by `jti` and checks `revoked_at IS NULL` plus roster `status = active` in the DB. Expiry (`expires_at > now()`) is a backstop for a row nobody revoked. |
+| Token revoke | `POST …/tokens/{jti}/revoke` (OWNER). Takes effect on the **next** MCP write / `authorize()`. |
+| Roster suspend / revoke | Sets `revoked_at` on every live token for that `(project, actor)` in the same transaction. Same next-call effect. |
+| Rotate | Optional, OWNER-only, explicit: mint new, revoke old, return the new compact JWT once. The operator replaces the `0600` file. |
+| Self-renew | **Forbidden.** The agent has no mint / rotate / refresh stem. A stolen agent token cannot extend itself. |
+
+`record_spend` loads the same `jti` row so spend is stamped
+with the agent and so a revoked token is visible. It does
+**not** refuse a debit when `tokens_used > 0` after this
+turn's `authorize()` already passed — that is the `0.52.0`
+mid-turn rule (do not leave the pot uncharged). The refuse
+lands on the next `authorize()` / MCP write.
+
+#### Why this also fixes `0.52.0`
+
+`0.52.0` (PR #48) correctly put `ensure_is_member` on
+`HarnessSession.authorize()` using the JWT-resolved **human**
+member. The gateway child's member credential is a Supabase
+access JWT (~1h expiry). A long-running campaign child would
+start refusing after that hour even though the human is still
+a member — there is no refresh in the child, and building one
+would put a human session in a weeks-long process. The roster
+slice **swaps that gate** from "human `ProjectMember`" to
+"rostered agent + agent session token." The 30-day,
+DB-revocable token is what makes the long run possible
+without a human in the loop.
 
 #### Token payload (OT-issued JWT)
 
@@ -346,13 +545,16 @@ A human Supabase JWT **cannot** carry an agent claim we honor.
 Gateway / `HarnessSession`: bind `actor_id` at session start from
 the same file (new env name `OPENTHEORY_AGENT_JWT_FILE` may alias
 the same path; do not put the bearer on a tool argument).
-`authorize()` and `record_spend()` resolve the agent, require
-roster `active`, and refuse when the token is revoked or the
-bound `project_id` ≠ `OPENTHEORY_PROJECT_ID`.
-`OPENTHEORY_GATEWAY_TOKEN` remains the HTTP process secret; it is
-no longer sufficient by itself to debit once this slice is on.
-Unbound / unmetered probe (`OPENTHEORY_HARNESS_UNMETERED_PROBE`)
-is unchanged and still not the campaign composition.
+`authorize()` and `record_spend()` load the token by `jti`,
+require roster `active` and `revoked_at IS NULL`, and refuse a
+*start* when the token is revoked or the bound `project_id` ≠
+`OPENTHEORY_PROJECT_ID`. This **replaces** the `0.52.0` human
+`ensure_is_member` call on `authorize()` — same fail-closed
+shape, different principal. `OPENTHEORY_GATEWAY_TOKEN` remains
+the HTTP process secret; it is no longer sufficient by itself
+to debit once this slice is on. Unbound / unmetered probe
+(`OPENTHEORY_HARNESS_UNMETERED_PROBE`) is unchanged and still
+not the campaign composition.
 
 `write_daily_cap_adjustment` and `record_compute_debit` stay in
 `app.services` / `app.harness.session`. FastAPI continues to read
@@ -390,9 +592,9 @@ Why reject:
 
 | Threat | Mitigation |
 | --- | --- |
-| **Token theft** | `0600` file; never on `tools/call` args; `redact` unchanged; short `exp` (default 12h, owner question); hash-at-rest; `jti` revoke; no refresh grant to the agent; new mint requires a human member. Stolen token is one project + one agent + remaining TTL. |
+| **Token theft** | `0600` file; never on `tools/call` args; `redact` unchanged; hash-at-rest; `jti` revoke; no self-renew. Blast radius is **one project + one agent until the owner revokes** (or suspends / revokes the roster row, or rotates). Expiry (default 30 days, max via settings) is a backstop, not the kill switch — every MCP write and every `authorize()` re-reads `revoked_at` + roster status. Detection is the Crew / Overview **spend-by-agent** readout (`ComputeDebit.actor_id`): unexpected tokens on that agent is the signal to revoke. |
 | **Cross-project use** | `proj` claim + roster row + `HarnessSession.project_id` must agree. A token for A presented on B is `401`/`403` before a write or a debit. Actor is project-scoped, so `sub` is meaningless on B even before the roster check. |
-| **An agent minting as a human** | Only `ensure_can_manage` (human OWNER/ADMIN) mints. Agent routes cannot call the mint service. Resolver never returns a `human` Actor from `typ=agent_session`. `CheckpointCreate` has no `author_id`. |
+| **An agent minting as a human** | Only the project **OWNER** mints or rotates. Agent routes cannot call the mint service. Resolver never returns a `human` Actor from `typ=agent_session`. `CheckpointCreate` has no `author_id`. |
 | **A human impersonating an agent** | A human JWT resolves to the primary human. There is no `X-On-Behalf-Of` and no client `author_id`. A human who wants work credited to an agent deploys it and mints a token — the agent, not the human, then authors. A human running instruments themselves is still the author (correct). |
 | **Revoked / suspended agent mid-turn** | Every MCP write re-resolves (roster + `revoked_at`). `authorize()` re-checks before the model. An in-flight completion that already passed `authorize()` may still hit the provider (tokens may move). `record_spend` **still writes** when `tokens_used > 0` — debit-when-tokens-moved is load-bearing — with `actor_id` set. The matching hold release is still amount `0`, notes prefix `harness_session_turn`, `hold_id` paired. The next `authorize()` and the next MCP write refuse. We do not UPDATE the hold row. |
 | **Gateway token without agent identity** | After the spend slice: `authorize()` / `record_spend()` without a resolvable rostered agent refuse. Today's "outsider `actor_env` still debits" pin is **deliberately inverted** for the new path. The process still holds DB credentials; membership is now a domain check on that path, not only on MCP. |
@@ -468,8 +670,8 @@ on `BlameStep` (and the matching field on `CheckpointRead` /
 
 - Author = who produced.
 - Sponsor = who deployed the session.
-- Validator = whoever wrote the `Validation` row (still a
-  separate human member in v1).
+- Validator = whoever wrote the `Validation` row (a human
+  member; there is no agent validator role).
 - Funder = `FundingAllocation.account_id`, unchanged.
 
 Overview / Crew can join roster + sponsor + Σ `ComputeDebit`
@@ -519,16 +721,21 @@ column.
 
 ### Membership on `authorize` / `record_spend`
 
-After the spend slice, both methods:
+This **replaces** the `0.52.0` human `ensure_is_member` call.
+Same place (`authorize()` before any hold or provider call),
+different principal (rostered agent + agent session token).
+Both `authorize()` and `record_spend()` load `agent_session_tokens`
+by `jti` and read roster status:
 
-1. Resolve the bound agent (token / flagged dev id).
-2. Require roster `active` on `HarnessSession.project_id`.
+1. Resolve the bound agent (agent token / flagged dev id).
+2. Require roster `active` on `HarnessSession.project_id` and
+   `revoked_at IS NULL`.
 3. Then existing composition / turn-cap / daily-cap / pot /
    floor / hold lock.
 
 A missing or revoked identity refuses **before** the model and
 writes nothing. A completion that spent tokens after a mid-turn
-revoke still records the debit (§3).
+revoke still records the debit (§3 / `0.52.0` mid-turn rule).
 
 `supervise_turn`'s outsider-`actor_env`-still-debits pin is
 replaced: `actor_env` must resolve to the bound rostered agent
@@ -560,10 +767,12 @@ funding:
 - `usd_budget_cap NUMERIC(12,6) NULL` — same against Σ
   `amount`. Null = none.
 
-v1 ships the columns. Enforcement is the spend slice; default
+v1 **stores** the columns. Enforcement is a **later** slice
+(§9 slice F), so identity + the `0.52.0` gate-swap do not
+change daily-cap occupancy math in the same release. Default
 null means "project pot + project daily cap only," which is
-today's shape plus an actor stamp. A later slice can expose the
-caps on Crew.
+today's shape plus an actor stamp. Slice F enforces and
+exposes the caps on Crew.
 
 Rejected: a `FundingAllocation` per agent, a reserved slice
 carved out of the pot as a second funding row, or treating an
@@ -616,8 +825,9 @@ Mutable. Not append-only.
 | `id` | UUID PK | no | `IdMixin` |
 | `project_id` | UUID FK `projects.id` ON DELETE CASCADE | no | indexed |
 | `actor_id` | UUID FK `actors.id` ON DELETE CASCADE | no | indexed; service requires `actors.type = 'AGENT'` |
-| `deployed_by_account_id` | UUID FK `accounts.id` ON DELETE SET NULL | yes | who put it on the roster |
-| `role` | `project_agent_role` | no | v1 `RESEARCHER` |
+| `deployed_by_account_id` | UUID FK `accounts.id` ON DELETE SET NULL | yes | who put it on the roster (historical; never rewritten on transfer) |
+| `responsible_account_id` | UUID FK `accounts.id` ON DELETE SET NULL | yes | who is on the hook now; equals deployer at insert; set to the new OWNER on resume |
+| `role` | `project_agent_role` | no | `RESEARCHER` only; no validator value, ever |
 | `status` | `project_agent_status` | no | default `ACTIVE` |
 | `token_budget_cap` | INTEGER | yes | null = no per-agent token cap |
 | `usd_budget_cap` | NUMERIC(12,6) | yes | null = no per-agent USD cap |
@@ -630,6 +840,9 @@ Constraints / indexes:
   `(project_id, status)`
 - `ix_project_agent_members_actor_id` on `(actor_id)` (the FK
   index is enough if named)
+- `ix_project_agent_members_responsible` on
+  `(project_id, responsible_account_id)` (OWNER-transfer
+  lookup)
 
 No unique on `(project_id, deployed_by_account_id)` — one
 account deploys many agents.
@@ -647,8 +860,8 @@ primitive.
 | `minted_by_account_id` | UUID FK `accounts.id` ON DELETE SET NULL | yes | |
 | `minted_by_actor_id` | UUID FK `actors.id` ON DELETE SET NULL | yes | human Actor who minted |
 | `token_hash` | BYTEA | no | SHA-256 of compact JWT; unique |
-| `expires_at` | timestamptz | no | |
-| `revoked_at` | timestamptz | yes | null = live |
+| `expires_at` | timestamptz | no | default mint = now + 30 days; capped by settings max TTL |
+| `revoked_at` | timestamptz | yes | null = live; the control (expiry is the backstop) |
 | `last_used_at` | timestamptz | yes | optional; not load-bearing |
 | `created_at` / `updated_at` | timestamptz | no | |
 
@@ -678,6 +891,14 @@ Constraints / indexes:
   for the AgentRun backfill in the same migration (bulk Core
   bypasses ORM guards by design; that is the documented caveat
   in `models/append_only.py`). Do not ORM-update debit rows.
+
+**`actors.agent_definition_id`**
+
+- UUID, nullable, **no FK in v1**
+- Index `ix_actors_agent_definition_id`
+- The catalog-slice seam (§2). All v1 rows stay `NULL`.
+  Later `agent_definitions` table + `ALTER … ADD CONSTRAINT`
+  the FK. Do not create the table in v1.
 
 ### 6.5 Index surgery on `actors`
 
@@ -714,6 +935,8 @@ the deploy helper require `account_id IS NOT NULL` and
 - No `AgentRun` on the harness path.
 - No refusals table.
 - No campaign table.
+- No `agent_definitions` table in v1 (column only).
+- No `ProjectAgentRole.validator`.
 
 ### 6.7 Migration + backfill plan (reversible, live-safe)
 
@@ -729,7 +952,9 @@ append-only tables).
 4. `ADD COLUMN` `checkpoints.sponsored_by_actor_id` NULL + FK
    + index. PG 11+ additive nullable column is metadata-only.
 5. `ADD COLUMN` `compute_debits.actor_id` NULL + FK + index.
-6. Backfill Research crew (set-based, no row loop in Python if
+6. `ADD COLUMN` `actors.agent_definition_id` NULL (no FK) +
+   index. All existing actors stay `NULL`.
+7. Backfill Research crew (set-based, no row loop in Python if
    it can be avoided):
 
    ```sql
@@ -745,9 +970,11 @@ append-only tables).
 
    Then insert roster rows for those actors (INSERT…SELECT
    from actors ⨝ projects, skip if project id missing or
-   invalid UUID). `ON CONFLICT DO NOTHING` on
-   `uq_project_agent_member`.
-7. Backfill debit actors from the dark loop:
+   invalid UUID). Set `deployed_by_account_id` **and**
+   `responsible_account_id` to the owner Account.
+   `ON CONFLICT DO NOTHING` on `uq_project_agent_member`.
+   `agent_definition_id` stays `NULL`.
+8. Backfill debit actors from the dark loop:
 
    ```sql
    UPDATE compute_debits AS d
@@ -759,16 +986,16 @@ append-only tables).
    ```
 
    Leave all `harness_session_turn` rows null.
-8. `DROP INDEX uq_actors_one_agent_per_project`.
-9. `CREATE UNIQUE INDEX uq_actors_one_research_crew_per_project …`.
+9. `DROP INDEX uq_actors_one_agent_per_project`.
+10. `CREATE UNIQUE INDEX uq_actors_one_research_crew_per_project …`.
    If two Research-crew rows already share a project_id
    (should be impossible under the old index), the create
    fails closed — fix data before retry; do not DISTINCT-on
    guess.
 
-Steps 1–5 are rollback-safe by drop. Steps 6–7 are
+Steps 1–6 are rollback-safe by drop. Steps 7–8 are
 reconstructible (crew account_id from owner; debit actor from
-`agent_runs`). Steps 8–9 are the only structural tightening;
+`agent_runs`). Steps 9–10 are the only structural tightening;
 downgrade recreates the old index only if the new multi-agent
 rows are gone (downgrade **refuses** if a project has two
 `type=agent` actors — fail closed rather than silently
@@ -783,8 +1010,9 @@ deleting).
 3. `UPDATE compute_debits SET actor_id = NULL`.
 4. Drop column `compute_debits.actor_id`.
 5. Drop column `checkpoints.sponsored_by_actor_id`.
-6. Drop `agent_session_tokens`, `project_agent_members`, enums.
-7. Optionally `UPDATE actors SET account_id = NULL WHERE type =
+6. Drop column `actors.agent_definition_id`.
+7. Drop `agent_session_tokens`, `project_agent_members`, enums.
+8. Optionally `UPDATE actors SET account_id = NULL WHERE type =
    'AGENT' AND display_name = 'Research crew'` to restore
    Decision #3 account-lessness.
 
@@ -808,16 +1036,18 @@ the first release slice.
 ### 7.1 Product API (FastAPI, not `app.harness`)
 
 All writes: `ActingActor` then `ensure_can_manage` (deploy /
-token / lifecycle) or the type-aware `ensure_is_member`
+suspend / revoke) or `ensure_can_manage(require_owner=True)`
+(mint / rotate / resume) or the type-aware `ensure_is_member`
 (research). Dark behind the existing auth; no Fly flag.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/projects/{id}/agents` | Roster list (id, display_name, status, role, deployed_by handle, caps, created_at). Public-read like `GET …/members`, or members-only — owner question (§9). Never email, never token hash. |
-| `POST` | `/projects/{id}/agents` | Deploy. Body: `display_name`, optional caps, optional `reuse_research_crew: true` to roster the migrated default without minting. 409 on unique conflict. |
-| `PATCH` | `/projects/{id}/agents/{actor_id}` | Suspend / resume / revoke / cap edit. Revoke fans out `revoked_at` on live tokens in the same transaction. |
-| `POST` | `/projects/{id}/agents/{actor_id}/tokens` | Mint. Returns the compact JWT **once** + `expires_at` + `jti`. 403 if roster not `active`. |
-| `POST` | `/projects/{id}/agents/{actor_id}/tokens/{jti}/revoke` | Revoke one token. |
+| `GET` | `/projects/{id}/agents` | Roster list (id, display_name, status, role, deployed_by handle, responsible handle, caps, created_at). **Members only** (`ensure_is_member`). Includes revoked rows, marked revoked. Never email, never token hash. |
+| `POST` | `/projects/{id}/agents` | Deploy (`OWNER` / `ADMIN`). Body: `display_name`, optional caps, optional `reuse_research_crew: true` to roster the migrated default without minting. 409 on unique conflict. |
+| `PATCH` | `/projects/{id}/agents/{actor_id}` | Suspend / revoke (`OWNER` / `ADMIN`); resume (`OWNER` only — sets `responsible_account_id`). Revoke / suspend fans out `revoked_at` on live tokens in the same transaction. |
+| `POST` | `/projects/{id}/agents/{actor_id}/tokens` | **OWNER only.** Mint. Default `expires_at` = now + 30 days, capped by settings max TTL. Optional `ttl_seconds` shorter than the max. Returns the compact JWT **once** + `expires_at` + `jti`. 403 if roster not `active`. |
+| `POST` | `/projects/{id}/agents/{actor_id}/tokens/{jti}/rotate` | **OWNER only.** Mint new, revoke old, return the new compact JWT once. |
+| `POST` | `/projects/{id}/agents/{actor_id}/tokens/{jti}/revoke` | **OWNER only.** Revoke one token. Takes effect on the next MCP write / `authorize()`. |
 
 No `author_id` on `CheckpointCreate`. `create_checkpoint` grows
 an optional trusted `sponsored_by` argument from the resolver,
@@ -837,11 +1067,15 @@ not from the payload.
 - Composition pin `0.1.5rc1` unchanged. `verify()` still
   rejects an unmetered gateway child.
 - `HarnessSession` stores `actor_id`. `authorize` /
-  `record_spend` / `write_daily_cap_adjustment` pass it
-  through. Notes prefix and `hold_id` format unchanged.
-- `OPENTHEORY_ACTOR_JWT_FILE` may hold either kind. Document
-  that production campaign + MCP children get the **agent**
-  file, not the operator's Supabase JWT.
+  `record_spend` load `agent_session_tokens` by `jti` (this
+  **replaces** the `0.52.0` human `ensure_is_member` on
+  `authorize()`). `write_daily_cap_adjustment` passes
+  `actor_id` through. Notes prefix and `hold_id` format
+  unchanged.
+- `OPENTHEORY_ACTOR_JWT_FILE` holds the **agent** session
+  token on the production campaign + MCP children, not the
+  operator's Supabase JWT (that ~1h token is the `0.52.0`
+  limitation this removes).
 
 ### 7.3 UI — Crew tab only
 
@@ -855,10 +1089,13 @@ agents** bay on that tab — same page, no new route, no sixth
 tab. Natural place: full-width above the two-column grid, or a
 third bay under Research crew (identity next to model config).
 
-The bay shows roster, status, sponsor handle, optional spend
-Σ, and (owner/admin) Deploy / Suspend / Revoke / Mint token
-(one-time reveal). Token bytes are not persisted in React
-query cache beyond the reveal.
+The bay shows the full roster including **revoked** agents
+(marked revoked — not filtered out), status, responsible
+handle, optional spend Σ, and Deploy / Suspend / Revoke
+(`OWNER` / `ADMIN`) plus Mint / Rotate token (`OWNER` only,
+one-time reveal). Token bytes are not persisted in React
+query cache beyond the reveal. Spend-by-agent on this bay
+and on Overview is the theft-detection readout.
 
 Research-tab `BlamePanel` and Overview ops bay consume the
 read-model changes below. Instruments tab does not grow a
@@ -886,7 +1123,9 @@ present) so the Console can mark agent commits. Add sponsor id
 
 - `OpsTurnRead` / last-turn grow optional `actor_id`,
   `actor_display_name`, `actor_type`. Null on pre-identity
-  rows — unknown stays unknown.
+  rows — unknown stays unknown. Overview can group billed
+  spend by `actor_id` (the Crew / Overview theft-detection
+  readout).
 - Meter math unchanged: prefix `harness_session_turn`, holds
   included, `hold_id` pairing. FastAPI still does not import
   `app.harness`.
@@ -905,15 +1144,19 @@ kind.
 Give each deployed agent its own `Actor(type=agent)` owned by
 the deploying Account; put that Actor on a **separate roster
 table**; authenticate the harness with a **scoped agent session
-token** bound to project + agent + expiry; attribute
-`author_id` / `Contribution.actor_id` to the agent and snapshot
-the minting human on `checkpoints.sponsored_by_actor_id`; stamp
-nullable `ComputeDebit.actor_id` the same way, check roster on
-`authorize` / `record_spend`, and keep money on
-`FundingAllocation` + the project pot. Reuse and migrate
-`Research crew`; drop one-agent-per-project; keep a narrower
-unique index on the default display name so the dark loop
-cannot fork.
+token** (OWNER-minted, 30-day default, instantly revocable,
+no self-renew) that **replaces** the `0.52.0` human-JWT gate
+on `authorize()`; attribute `author_id` /
+`Contribution.actor_id` to the agent and snapshot the minting
+human on `checkpoints.sponsored_by_actor_id`; stamp nullable
+`ComputeDebit.actor_id` the same way; keep money on
+`FundingAllocation` + the project pot. Leave
+`Actor.account_id` / `deployed_by` alone on OWNER transfer;
+suspend outgoing-responsible agents and revoke their tokens
+until the new owner resumes (`responsible_account_id`).
+Project-scoped Actors; nullable `agent_definition_id` as a
+read-only rollup seam. Reuse and migrate `Research crew`.
+No validator agent role.
 
 That is the smallest change that makes the end vision true
 without punching a hole in membership, without making Account
@@ -930,8 +1173,13 @@ an Actor, and without letting an agent fund or self-validate.
 - Nullable debit `actor_id` means ops must show "unknown" for
   every pre-identity harness turn. Honest; not pretty.
 - Project-scoped Actors mean the same "kind" of agent is a
-  different UUID per project. Blame stays readable; reuse
-  across projects is a deploy click, not a shared identity.
+  different UUID per project. Blame stays readable; the
+  definition seam is how a human sees history across
+  projects without merging those UUIDs.
+- A 30-day token is a longer-lived secret than 12h. Revoke
+  on next DB read is the kill switch; Crew / Overview
+  spend-by-agent is the detection. That is the trade
+  against putting a human in the loop twice a day.
 - `ensure_is_member` becomes type-aware. Every caller must
   keep using it; a missed `ensure_is_human_member` on
   validation/funding is a regression we test.
@@ -1008,28 +1256,45 @@ an Actor, and without letting an agent fund or self-validate.
     (those writes *were* the human JWT). Corrections are new
     rows.
 
+13. **12-hour token, no renew.** Forces a human to re-mint
+    twice a day and recreates the `0.52.0` ~1h JWT problem
+    at a slightly longer interval. Revoke-on-next-read with
+    a 30-day backstop is what the end vision needs.
+
+14. **Merge project Actors that share a definition into one
+    UUID.** The definition seam is a read join. Merging
+    would make Blame show the same author on unrelated
+    questions and would enlarge a stolen token's `sub`.
+
 ---
 
-## 9. Phased rollout, tests, open questions
+## 9. Phased rollout, tests, decided / open questions
 
 Each slice stays small, deployable, and **dark**: no Fly
 enablement, `AGENT_LOOP_ENABLED` default `false`, FastAPI does
 not import `app.harness`, five tabs. Version numbers below are
-placeholders after `0.51.1`; the owner assigns them when a
+placeholders after `0.52.0`; the owner assigns them when a
 slice is scheduled. This proposal is not itself a release.
+
+**Precursor (already shipped):** `0.52.0` (PR #48) — human
+`ensure_is_member` on `HarnessSession.authorize()`;
+`record_spend` does not re-check; no schema. The roster
+slices below **swap** that gate; they do not invent a second
+one.
 
 | Slice | Ships | Must stay out |
 | --- | --- | --- |
-| **A — schema** | Alembic: enums, both tables, two nullable columns, crew + AgentRun backfill, index swap. Models + `__init__.py` exports. `create_all` lockstep. No resolver change. | MCP behavior change; UI; Fly; lighting the loop |
-| **B — membership gate** | `ensure_is_member` type-aware; `ensure_can_manage` rejects agents; `ensure_is_human_member` on funding / validation / invites. `get_or_create_project_agent_actor` ensures a roster row. Account-less crew without a roster still `403`. | Token mint; Fly |
-| **C — agent token** | Mint / revoke API; resolver in `deps.py` + `harness/auth.py`; secret setting. MCP writes with an agent file attribute to the agent + sponsor snapshot. Human JWT path unchanged. | Fly; UI mint; `AGENT_LOOP_ENABLED` |
-| **D — spend** | `record_compute_debit` / `write_daily_cap_adjustment` take `actor_id`. `HarnessSession` binds the agent; `authorize` / `record_spend` require roster. Outsider override closed. Hold notes / amount 0 / prefix / `hold_id` unchanged. Unfunded ≠ exhausted. Debit only when `tokens_used > 0` for spend. | Per-agent cap enforcement can wait until columns are used; Fly |
-| **E — Crew UI** | Deployed-agents bay on the Crew tab; mint-once reveal; blame sponsor; ops `actor_*` fields. | New tab; Fly; lighting the loop |
+| **A — schema** | Alembic: enums, both tables (`responsible_account_id` on the roster), `sponsored_by_actor_id`, `compute_debits.actor_id`, `actors.agent_definition_id` (no FK), crew + AgentRun backfill, index swap. Models + `__init__.py` exports. `create_all` lockstep. No resolver change. | MCP behavior change; `agent_definitions` table; UI; Fly; lighting the loop |
+| **B — membership gate** | `ensure_is_member` type-aware; `ensure_can_manage` rejects agents; `ensure_is_human_member` on funding / validation / invites. OWNER-transfer hook: suspend Research crew + `responsible_account_id = outgoing` rows, revoke their tokens. `get_or_create_project_agent_actor` ensures a roster row. Account-less crew without a roster still `403`. | Token mint; Fly |
+| **C — agent token** | OWNER-only mint / rotate / revoke API; 30-day default; max TTL via settings (not `fly.toml [env]`); resolver in `deps.py` + `harness/auth.py`; secret setting. MCP writes with an agent file attribute to the agent + sponsor snapshot. **Swaps** the `0.52.0` human JWT on `authorize()` for the agent session token. Human Console JWT path unchanged. | Fly; UI mint; `AGENT_LOOP_ENABLED`; per-agent cap enforcement |
+| **D — spend** | `record_compute_debit` / `write_daily_cap_adjustment` take `actor_id`. `HarnessSession` binds the agent; `authorize` / `record_spend` load `jti` + roster. Outsider override closed. Hold notes / amount 0 / prefix / `hold_id` unchanged. Unfunded ≠ exhausted. Debit only when `tokens_used > 0` for spend. | Per-agent cap enforcement; Fly |
+| **E — Crew UI** | Deployed-agents bay on the Crew tab (revoked rows visible, marked revoked); OWNER mint / rotate reveal; members-only roster read; blame sponsor; ops `actor_*` + spend-by-agent. | New tab; Fly; lighting the loop |
 | **F — optional caps** | Enforce `token_budget_cap` / `usd_budget_cap` at `authorize` when non-null. Crew edit. | Changing the project daily cap to per-agent; funding rows |
+| **G — definition catalog** (later) | `agent_definitions` table + FK on `actors.agent_definition_id`; deploy-time pointer; read-only family rollup. Upgrade = new version + new project Actor. | Merging Actors; rewriting `author_id`; lighting the loop |
 
 Slice A can deploy alone. Slices C–D are the first time a
-live MCP child can honestly speak as an agent; they still do
-not run on Fly.
+live MCP child can honestly speak as an agent and run longer
+than a Supabase access JWT; they still do not run on Fly.
 
 ### Test plan (when an implementation slice lands)
 
@@ -1067,7 +1332,16 @@ DB-gated unless noted. Default CI already provisions Postgres.
   prefix and `hold_id`.
 - Flag-off `OPENTHEORY_DEV_ACTOR_ID` is `401`.
 - Mint as a non-member is `403`; as a mere rostered agent is
-  `403`.
+  `403`; as an ADMIN (not OWNER) is `403`.
+- Rotate mints a new `jti`, sets `revoked_at` on the old
+  row; old compact JWT fails the next `authorize()`.
+- OWNER transfer: Research crew + outgoing-responsible
+  agents go `suspended`, their tokens revoked; in-flight
+  `record_spend` with `tokens_used > 0` still writes; next
+  `authorize()` refuses. `Actor.account_id` and
+  `deployed_by_account_id` unchanged. Resume by the new
+  OWNER sets `responsible_account_id` and does not un-revoke
+  old tokens.
 
 **Spend**
 
@@ -1098,52 +1372,50 @@ DB-gated unless noted. Default CI already provisions Postgres.
 - Five tab ids in `project-tab.ts`.
 - Composition pin and disabled-tool set unchanged.
 
-### Open questions for the owner
+### Decided (owner)
 
-1. **Public roster?** `GET /projects/{id}/members` is public
-   (privacy-safe handles). Should `GET …/agents` be public so
-   a validator who is not a member can see which agents are
-   deployed, or members-only?
-2. **Who may deploy / mint — OWNER only, or OWNER + ADMIN?**
-   This doc uses `ensure_can_manage` (both), matching invites.
-   Owner-only is tighter if a token is treated as a capability
-   grant.
-3. **Default token TTL and whether a live token can be
-   renewed** without minting a second `jti`. Recommendation:
-   12 hours, no renew, mint again.
-4. **Rename `Research crew` on migrate, or keep the string?**
+| Decision | Rationale |
+| --- | --- |
+| Only **OWNER** mints / rotates / revokes tokens (not ADMIN). | A live token is a weeks-long capability grant, not an invite; ADMIN already deploys and can suspend. |
+| Roster `GET` is **members only**. | Deployed agents are a capability surface (and a theft-detection surface), not a public contributor list. Human `GET …/members` staying public does not force this one open. |
+| Per-agent caps are **stored in v1, enforced in slice F**. | Identity + the `0.52.0` gate-swap must not change daily-cap occupancy math in the same release. |
+| **No validator agent role, ever.** | Contributor and validator stay on separate tables; an agent must not assess its own work. The enum has no room for it. |
+| **Revoked agents stay visible on Crew**, marked revoked. | Hiding them loses "who burned the pot" and the forensic trail after a revoke. |
+| Default token TTL **30 days**, instantly revocable, no self-renew; max TTL via settings (not `fly.toml [env]`). | Weeks of autonomous research cannot require a human to re-mint twice a day; `revoked_at` on the next DB read is the control. |
+| OWNER transfer **does not rewrite** `Actor.account_id` / `deployed_by`; suspends outgoing-responsible agents + Research crew; new owner resumes and mints. | Provenance stays honest; the incoming owner chooses the roster. |
+
+### Remaining open questions for the owner
+
+1. **Rename `Research crew` on migrate, or keep the string?**
    Keeping it preserves the dark-loop unique index and the
    existing bay's language. Renaming needs a coordinated
    unique-index predicate change.
-5. **v1 per-agent caps: columns only (this doc) or enforce
-   immediately in the spend slice?** Recommendation: columns
-   in A, enforce in F, so the daily-cap occupancy math does
-   not change in the same slice as identity.
-6. **Shared daily cap when two agents run on one project.**
+2. **Shared daily cap when two agents run on one project.**
    This doc keeps one project-wide 20_000 / UTC day and one
    remaining-room hold (serializes overlapping turns). A
    per-agent daily cap is a later change and must not re-open
    the `0.47` race.
-7. **When `AGENT_LOOP_ENABLED` someday lights, does the
+3. **When `AGENT_LOOP_ENABLED` someday lights, does the
    built-in loop require a roster row for `Research crew`, or
    keep "commissioning human already passed the route gate"?**
-   Recommendation: require the roster (one rule). The migrate
-   step already inserts that row for existing crew Actors.
-8. **May a later agent `ProjectAgentRole.validator` exist at
-   all?** v1 is no. If yes, it must be a *different* Actor
-   from the contributor, commissioned by a human, or we have
-   rebuilt self-validation.
-9. **Should revoked agents remain visible on Crew
-   (recommended) or be filtered to `active` + `suspended`
-   only?** The row is the governance history; hiding it makes
-   "who burned the pot last month" harder.
-10. **Ops on Fly after identity ships.** This proposal does
-    not enable the gateway or MCP child. When that *is*
-    scheduled, the agent token file has to exist on that
-    machine without landing in `fly.toml [env]` — same secret
-    discipline as `OPENTHEORY_GATEWAY_TOKEN`. Confirm the
-    injection story (Fly secrets volume vs operator-side
-    file) before that enablement, not in slice A.
+   This doc's recommendation is still: require the roster
+   (one rule). The migrate step already inserts that row.
+4. **Ops on Fly after identity ships.** This proposal does
+   not enable the gateway or MCP child. When that *is*
+   scheduled, the 30-day agent token file has to exist on
+   that machine without landing in `fly.toml [env]` — same
+   secret discipline as `OPENTHEORY_GATEWAY_TOKEN`. Confirm
+   the injection story (Fly secrets volume vs operator-side
+   file) before that enablement, not in slice A.
+5. **Definition catalog timing.** v1 ships only the nullable
+   `agent_definition_id` column. When does slice G land, and
+   does the first catalog row backfill `Research crew` into
+   one family or leave historical crew Actors `NULL`?
+6. **May an ADMIN deploy but never resume after a transfer?**
+   Resume is OWNER-only in this doc (responsibility + mint
+   sit together). Confirm that an ADMIN-deployed agent whose
+   responsible account is *not* the outgoing owner stays
+   running across a transfer (this doc's default: yes).
 
 ---
 
@@ -1166,7 +1438,9 @@ DB-gated unless noted. Default CI already provisions Postgres.
 
 ## Pointers (current code this design is written against)
 
-- Attribution audit: `docs/harness/attribution.md` (`0.51.1`)
+- Attribution audit: `docs/harness/attribution.md` (`0.51.1`);
+  precursor membership gate: `0.52.0` (PR #48) —
+  `HarnessSession.authorize()` + human JWT `ensure_is_member`
 - Blueprints: `docs/blueprints/conceptual-model.md`,
   `primitives.md`, `external-harness.md`
 - Harness: `docs/harness/*.md`; `app/harness/auth.py`,
