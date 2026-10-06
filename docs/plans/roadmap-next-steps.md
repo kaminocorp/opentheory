@@ -1,16 +1,19 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-10-06 · **Current release line:** `0.57.1`
-> (frontend version-skew hotfix: ops `spend_by_agent` / `actor_*`
-> optional, Crew roster 404 quiet), sitting on shipped `0.57.0`
-> (`16bf679`, #53) on current `main`. See
-> `docs/completions/frontend-backend-skew-0.57.1.md`.
+> **Last updated:** 2026-10-06 · **Current release line:** `0.58.0`
+> (per-agent lifetime caps: `token_budget_cap` /
+> `usd_budget_cap` enforced at `authorize()` and the built-in
+> pass; Crew edit), sitting on shipped `0.57.1` (`2ed3d23`,
+> #54) on current `main`. See
+> `docs/completions/agent-identity-caps-0.58.0.md`.
 >
 > **Next after this line:** Lean REPL / LeanDojo remain later.
 > Does not enable the gateway child on Fly.
 > Does not light `AGENT_LOOP_ENABLED`.
-> Agent identity Crew UI shipped as `0.57.0`. This branch is the
-> `0.57.1` skew hotfix only — not slice F.
+> Agent identity slice F is this branch as `0.58.0`. Slice G
+> (definition catalog) is not started.
+> ~~Agent identity per-agent caps~~ ✅ this branch as `0.58.0`.
+> ~~Frontend version-skew hotfix~~ ✅ shipped as `0.57.1`.
 > ~~Agent identity Crew UI~~ ✅ shipped as `0.57.0`.
 > ~~Agent identity spend attribution~~ ✅ shipped as `0.56.0`.
 > ~~Agent identity session token~~ ✅ shipped as `0.55.0`.
@@ -985,15 +988,22 @@ credentials both resolve and differ (no hold). Five tabs. No
 per-agent cap enforcement. No Fly. No `AGENT_LOOP_ENABLED`.
 **No migration.**
 
-**`0.57.1` (frontend version skew)** is this branch. Vercel
-ships `main`'s frontend while live Fly is still pre-0.53
-(0022 unapplied). Overview must not throw on a missing
-`spend_by_agent`. Crew roster `404` is a quiet "not on this
-backend yet" line, not a raw error and not deploy controls.
-No slice F. No Fly deploy. No live Supabase apply.
+**`0.57.1` (frontend version skew)** shipped as `2ed3d23`
+(#54). Vercel ships `main`'s frontend while live Fly is
+still pre-0.53 (0022 unapplied). Overview must not throw on
+a missing `spend_by_agent`. Crew roster `404` is a quiet
+"not on this backend yet" line.
+
+**`0.58.0` (per-agent caps)** is this branch. Lifetime
+`token_budget_cap` / `usd_budget_cap` enforced at
+`authorize()` and the built-in pass. Crew edit. Cap reached
+is `TurnRefused` with a distinct reason and no hold. Shared
+project daily cap stays (hold occupancy is not split).
+Unfunded ≠ exhausted. No migration. No slice G. No Fly
+deploy. No live Supabase apply.
 
 **Next product step:** Lean REPL / LeanDojo remain later. `If` /
-ite remain later. Agent identity slice F (per-agent cap
-enforcement) is next on this line after this hotfix. Does not
-enable the gateway child on Fly. Does not light
+ite remain later. Agent identity slice G (definition catalog)
+is next on this line after the first multi-agent campaign.
+Does not enable the gateway child on Fly. Does not light
 `AGENT_LOOP_ENABLED`.

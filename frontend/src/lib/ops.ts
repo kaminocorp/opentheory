@@ -132,3 +132,31 @@ export function lastTurnTone(turn: OpsLastTurnRead): "fail" | "mute" | "ok" {
   if (turn.clamp === null) return "mute";
   return "ok";
 }
+
+/**
+ * Cap-reached is 0.58.0. A pre-0.58 `spend_by_agent` row has no cap
+ * fields — treat as not reached. When caps are present without the
+ * flag (skew), derive from billed vs cap. Never throw.
+ */
+export function actorTokenCapReached(row: {
+  token_budget_cap?: number | null;
+  tokens_used: number;
+  token_cap_reached?: boolean | null;
+}): boolean {
+  if (typeof row.token_cap_reached === "boolean") return row.token_cap_reached;
+  if (row.token_budget_cap == null) return false;
+  return row.tokens_used >= row.token_budget_cap;
+}
+
+export function actorUsdCapReached(row: {
+  usd_budget_cap?: string | null;
+  amount: string;
+  usd_cap_reached?: boolean | null;
+}): boolean {
+  if (typeof row.usd_cap_reached === "boolean") return row.usd_cap_reached;
+  if (row.usd_budget_cap == null || row.usd_budget_cap === "") return false;
+  const cap = Number(row.usd_budget_cap);
+  const billed = Number(row.amount);
+  if (!Number.isFinite(cap) || !Number.isFinite(billed)) return false;
+  return billed >= cap;
+}

@@ -90,7 +90,7 @@ class OpsLastTurnRead(BaseModel):
 
 
 class OpsActorSpendRead(BaseModel):
-    """Billed harness spend grouped by ``ComputeDebit.actor_id`` (0.57.0)."""
+    """Billed harness spend grouped by ``ComputeDebit.actor_id`` (0.57.0 / 0.58.0)."""
 
     actor_id: UUID | None = None
     actor_display_name: str | None = None
@@ -98,6 +98,10 @@ class OpsActorSpendRead(BaseModel):
     tokens_used: int
     amount: Decimal
     turn_count: int
+    token_budget_cap: int | None = None
+    usd_budget_cap: Decimal | None = None
+    token_cap_reached: bool | None = None
+    usd_cap_reached: bool | None = None
 
 
 class OpsRefusalsRead(BaseModel):

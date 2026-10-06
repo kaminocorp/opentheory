@@ -74,6 +74,11 @@ export type OpsActorSpendRead = {
   tokens_used: number;
   amount: string;
   turn_count: number;
+  // 0.58.0 — omitted on a pre-0.58 backend. Derive from billed vs cap when present.
+  token_budget_cap?: number | null;
+  usd_budget_cap?: string | null;
+  token_cap_reached?: boolean | null;
+  usd_cap_reached?: boolean | null;
 };
 
 export type OpsRefusalsRead = {

@@ -12,6 +12,8 @@ import {
   lastTurnLine,
   lastTurnTone,
   loopLine,
+  actorTokenCapReached,
+  actorUsdCapReached,
   opsSpendByAgent,
   spendByAgentLine,
   turnActorLabel,
@@ -180,6 +182,29 @@ describe("pre-0.57 ops payload (live Fly lag)", () => {
     assert.equal(turnActorLabel({}), "unattributed");
     assert.equal(turnActorLabel({ actor_id: null, actor_display_name: null }), "unattributed");
     assert.equal(spendByAgentLine(40, undefined), "unknown actor · 40 tok");
+  });
+
+  it("treats missing 0.58 cap fields as not reached and derives when only caps are present", () => {
+    const pre58 = { actor_id: "a1", tokens_used: 80, amount: "0.40", turn_count: 1 };
+    assert.equal(actorTokenCapReached(pre58), false);
+    assert.equal(actorUsdCapReached(pre58), false);
+    assert.equal(
+      actorTokenCapReached({ tokens_used: 80, amount: "0.40", token_budget_cap: 80 }),
+      true,
+    );
+    assert.equal(
+      actorUsdCapReached({ tokens_used: 80, amount: "0.40", usd_budget_cap: "0.40" }),
+      true,
+    );
+    assert.equal(
+      actorTokenCapReached({
+        tokens_used: 10,
+        amount: "1",
+        token_budget_cap: 10,
+        token_cap_reached: false,
+      }),
+      false,
+    );
   });
 });
 

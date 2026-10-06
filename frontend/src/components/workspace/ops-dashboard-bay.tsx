@@ -6,6 +6,8 @@ import { Gauge } from "lucide-react";
 import { Bay, BayHeader, Icon, MetricReadout, ReadoutLabel, StatusPill } from "@/components/console";
 import { getProjectOps } from "@/lib/api";
 import {
+  actorTokenCapReached,
+  actorUsdCapReached,
   budgetStateLabel,
   budgetStateTone,
   dailyCapLine,
@@ -54,6 +56,8 @@ function HoldRow({ hold }: { hold: OpsHoldRead }) {
 }
 
 function SpendByAgentRow({ row }: { row: OpsActorSpendRead }) {
+  const tokenReached = actorTokenCapReached(row);
+  const usdReached = actorUsdCapReached(row);
   return (
     <li className="grid gap-0.5 py-2" style={{ borderTop: "1px solid var(--hairline)" }}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -63,6 +67,8 @@ function SpendByAgentRow({ row }: { row: OpsActorSpendRead }) {
         <span className="font-mono text-[11px] text-text-faint">
           {row.turn_count} turn{row.turn_count === 1 ? "" : "s"}
         </span>
+        {tokenReached ? <StatusPill tone="fail" label="token cap reached" /> : null}
+        {usdReached ? <StatusPill tone="fail" label="usd cap reached" /> : null}
       </div>
     </li>
   );

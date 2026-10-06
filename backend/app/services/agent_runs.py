@@ -51,6 +51,7 @@ from app.models.project import Project
 from app.models.thread import Thread
 from app.schemas.branch import BranchCreate
 from app.schemas.claim import ClaimGrounding, ClaimSignal
+from app.services import agent_caps as agent_caps_service
 from app.services import branches as branch_service
 from app.services import checkpoints as checkpoint_service
 from app.services import claims as claim_service
@@ -65,6 +66,8 @@ from app.services.project_members import ensure_is_member
 from app.services.tool_runs import run_instrument
 from app.toolbench.catalog import build_catalog
 from app.toolbench.registry import registry
+
+AGENT_CAP_EXHAUSTED_REASON = "agent_budget_cap_exhausted"
 
 logger = logging.getLogger(__name__)
 
@@ -387,6 +390,13 @@ async def _execute(
             )
         raise
     agent_run.agent_actor_id = agent_actor.id
+    await db.execute(select(Project).where(Project.id == agent_run.project_id).with_for_update())
+    cap_room = await agent_caps_service.load_agent_cap_room(
+        db, agent_run.project_id, agent_actor.id
+    )
+    cap_reason = agent_caps_service.refuse_reason(cap_room)
+    if cap_reason is not None:
+        return await _finalize(db, agent_run, status=AgentRunStatus.FAILED, error=cap_reason)
 
     # 2. Resolve the role's model. An unassigned role is a recorded failed trace (mints nothing) —
     #    not a 500, not a commission-time reject (the plan wants it visible on the trace).
@@ -554,16 +564,22 @@ async def _execute(
     grounding_now = grounding_before
     signals_now = signals_before
 
-    async def _budget_exhausted() -> bool:
+    async def _stop_reason() -> str | None:
         if budget_policy is not None and not budget_policy.check(
             tokens_used=tokens_used, ran_count=ran_count
         ):
-            return True
+            return BUDGET_EXHAUSTED_REASON
         if enforce_project_ceiling:
             remaining = await funding_service.project_budget(db, agent_run.project_id)
             if remaining.available <= 0:
-                return True
-        return False
+                return BUDGET_EXHAUSTED_REASON
+        if agent_run.agent_actor_id is not None:
+            room = await agent_caps_service.load_agent_cap_room(
+                db, agent_run.project_id, agent_run.agent_actor_id
+            )
+            if agent_caps_service.refuse_reason(room) is not None:
+                return AGENT_CAP_EXHAUSTED_REASON
+        return None
 
     while True:
         batch = plan_result.runnable[:_batch_cap(remaining_runs)]
@@ -575,7 +591,8 @@ async def _execute(
         for run_i, run in enumerate(batch):
             if remaining_runs <= 0:
                 break
-            if await _budget_exhausted():
+            stop_reason = await _stop_reason()
+            if stop_reason is not None:
                 # Record every remaining step in this batch so the trace shows what the
                 # ceiling cut, not just the first one the loop happened to be on.
                 # Do not replan after a budget stop — the pot is empty.
@@ -585,7 +602,7 @@ async def _execute(
                             step_index,
                             later_run,
                             status="skipped",
-                            reason=BUDGET_EXHAUSTED_REASON,
+                            reason=stop_reason,
                             plan_version=plan_version,
                         )
                     )

@@ -1,6 +1,6 @@
-"""0.57.0 — Crew roster list / deploy / lifecycle, blame sponsor, ops actor_*.
+"""0.57.0 / 0.58.0 — Crew roster list / deploy / lifecycle, blame, ops, caps.
 
-DB-gated. Per-agent cap enforcement and the definition catalog stay out.
+DB-gated. Definition catalog (slice G) stays out.
 """
 
 from decimal import Decimal
@@ -103,6 +103,9 @@ async def test_roster_list_is_members_only_and_includes_revoked_and_spend(
     assert row["responsible"]["display_name"] == "Owner"
     assert row["tokens_used"] == 40
     assert Decimal(row["amount"]) == Decimal("0.20")
+    assert row["token_budget_cap"] is None
+    assert row["token_cap_reached"] is False
+    assert row["usd_cap_reached"] is False
     assert len(row["live_tokens"]) == 1
     assert row["live_tokens"][0]["jti"] == minted.json()["jti"]
     assert "token_hash" not in row
@@ -221,6 +224,94 @@ async def test_suspend_resume_and_admin_cannot_resume(
         headers=_headers(owner_id),
     )
     assert resume_revoked.status_code == 409
+
+
+async def test_patch_caps_owner_admin_outsider_and_reached_read(
+    client: AsyncClient,
+    session_factory: async_sessionmaker,
+    internal_funder,
+) -> None:
+    owner_id, _ = await internal_funder(client, roles=(), display_name="Owner")
+    admin_id, admin_account = await internal_funder(client, roles=(), display_name="Admin")
+    outsider_id, _ = await internal_funder(client, roles=(), display_name="Eve")
+    project_id = await create_owned_project(client, owner_id, "roster-caps")
+    async with session_factory() as session:
+        session.add(
+            ProjectMember(
+                project_id=UUID(project_id),
+                account_id=UUID(admin_account),
+                role=ProjectRole.ADMIN,
+            )
+        )
+        await session.commit()
+
+    deployed = await client.post(
+        f"/api/v1/projects/{project_id}/agents",
+        json={"display_name": "Capped agent"},
+        headers=_headers(owner_id),
+    )
+    assert deployed.status_code == 201, deployed.text
+    agent_id = deployed.json()["actor_id"]
+
+    empty = await client.patch(
+        f"/api/v1/projects/{project_id}/agents/{agent_id}",
+        json={},
+        headers=_headers(owner_id),
+    )
+    assert empty.status_code == 422
+
+    outsider = await client.patch(
+        f"/api/v1/projects/{project_id}/agents/{agent_id}",
+        json={"token_budget_cap": 50},
+        headers=_headers(outsider_id),
+    )
+    assert outsider.status_code == 403
+
+    admin = await client.patch(
+        f"/api/v1/projects/{project_id}/agents/{agent_id}",
+        json={"token_budget_cap": 50, "usd_budget_cap": "0.20"},
+        headers=_headers(admin_id),
+    )
+    assert admin.status_code == 200, admin.text
+    assert admin.json()["token_budget_cap"] == 50
+    assert Decimal(admin.json()["usd_budget_cap"]) == Decimal("0.20")
+    assert admin.json()["token_cap_reached"] is False
+
+    async with session_factory() as session:
+        session.add(
+            ComputeDebit(
+                project_id=UUID(project_id),
+                actor_id=UUID(agent_id),
+                tokens_used=50,
+                amount=Decimal("0.20"),
+                currency="USD",
+                rate_per_1k=Decimal("4"),
+                rate_source=ComputeDebitRateSource.BLENDED_FALLBACK,
+                kind=ComputeDebitKind.PLANNING,
+                notes=f"{SESSION_NOTES}; billed",
+            )
+        )
+        await session.commit()
+
+    listed = await client.get(
+        f"/api/v1/projects/{project_id}/agents",
+        headers=_headers(owner_id),
+    )
+    assert listed.status_code == 200, listed.text
+    row = listed.json()[0]
+    assert row["token_cap_reached"] is True
+    assert row["usd_cap_reached"] is True
+
+    cleared = await client.patch(
+        f"/api/v1/projects/{project_id}/agents/{agent_id}",
+        json={"token_budget_cap": None, "usd_budget_cap": None},
+        headers=_headers(owner_id),
+    )
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["token_budget_cap"] is None
+    assert cleared.json()["usd_budget_cap"] is None
+    assert cleared.json()["token_cap_reached"] is False
+    assert cleared.json()["usd_cap_reached"] is False
 
 
 async def test_blame_and_checkpoint_carry_sponsor(
@@ -366,3 +457,7 @@ async def test_ops_actor_fields_and_spend_by_agent(
     assert grouped["tokens_used"] == 80
     assert Decimal(grouped["amount"]) == Decimal("0.40")
     assert grouped["turn_count"] == 1
+    assert grouped["token_budget_cap"] is None
+    assert grouped["usd_budget_cap"] is None
+    assert grouped["token_cap_reached"] is False
+    assert grouped["usd_cap_reached"] is False

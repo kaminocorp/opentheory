@@ -220,6 +220,14 @@ def test_clamp_rate_prefers_completion_or_higher_split() -> None:
     assert pot_tokens_from_available(Decimal("0.05"), mean) == 20
 
 
+def test_turn_clamp_is_min_of_daily_pot_and_agent_room() -> None:
+    assert turn_clamp(daily_room=20_000, pot_room=80, agent_room=50) == 50
+    assert turn_clamp(daily_room=40, pot_room=80, agent_room=50) == 40
+    assert turn_clamp(daily_room=20_000, pot_room=None, agent_room=50) == 50
+    assert turn_clamp(daily_room=20_000, pot_room=80, agent_room=None) == 80
+    assert turn_clamp(daily_room=20_000, pot_room=None, agent_room=None) == 20_000
+
+
 def test_turn_clamp_is_daily_room_when_price_unknown() -> None:
     assert turn_clamp(daily_room=20_000, pot_room=None) == 20_000
     assert turn_clamp(daily_room=7, pot_room=None) == 7

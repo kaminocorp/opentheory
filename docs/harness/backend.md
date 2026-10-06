@@ -21,7 +21,7 @@ backend/app/harness/
   auth.py                 JWT-file / JWT-env / flagged dev-actor; redaction
   protocol.py             shared stdio JSON-RPC framing
   gateway.py              fail-closed OpenRouter client + HTTP proxy
-  session.py              HarnessSession — turn cap, daily token cap + remaining-room hold + stale-hold release + turn-room clamp + hold TTL covers turn, exhaust, debit, membership on authorize
+  session.py              HarnessSession — turn cap, daily token cap + remaining-room hold + stale-hold release + turn-room clamp (daily / pot / per-agent remaining) + hold TTL covers turn, exhaust, debit, membership + lifetime per-seat caps on authorize
   campaign.py             odd-perfect reference campaign (instrument-only)
   turns.py                library helper; composes HarnessSession
   probe.py                composition + fixture; opt-in live OpenRouter

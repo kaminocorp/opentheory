@@ -6,8 +6,9 @@
 > Slice C (agent session token) shipped as `0.55.0` (`149c36e`, #51).
 > Slice D (spend attribution) shipped as `0.56.0` (`2a2a018`, #52).
 > Slice E (Crew UI) shipped as `0.57.0` (`16bf679`, #53).
-> `0.57.1` is a frontend-only version-skew hotfix (this branch):
-> tolerate a pre-0.53 Fly backend. Slices F–G are not started. Precursor: shipped `0.52.0`
+> `0.57.1` is a frontend-only version-skew hotfix (`2ed3d23`, #54).
+> Slice F (per-agent caps) this branch as `0.58.0`. Slice G is
+> not started. Precursor: shipped `0.52.0`
 > (PR #48) puts a human-member gate on
 > `HarnessSession.authorize()`; this slice swaps that gate
 > onto the agent session token (human Console JWT unchanged).
@@ -775,18 +776,23 @@ Optional per-agent ceilings live on the roster row, not on
 funding:
 
 - `token_budget_cap INT NULL` — additional refuse-before-model
-  when this agent's Σ `tokens_used` on billed
-  `harness_session_turn` spend (amount > 0, this `actor_id`)
-  has reached the cap. Null = no per-agent token ceiling.
+  when this agent's lifetime Σ `tokens_used` on billed
+  `ComputeDebit` for this `actor_id` on the project
+  (`tokens_used > 0`, hold/release excluded — harness
+  `harness_session_turn` *and* the built-in pass) plus that
+  agent's outstanding remaining-room holds has reached the
+  cap. Null = no per-agent token ceiling. The design names
+  no period; **lifetime per roster seat**.
 - `usd_budget_cap NUMERIC(12,6) NULL` — same against Σ
-  `amount`. Null = none.
+  billed `amount`. Null = none.
 
-v1 **stores** the columns. Enforcement is a **later** slice
-(§9 slice F), so identity + the `0.52.0` gate-swap do not
-change daily-cap occupancy math in the same release. Default
-null means "project pot + project daily cap only," which is
-today's shape plus an actor stamp. Slice F enforces and
-exposes the caps on Crew.
+v1 **stored** the columns. Enforcement shipped as `0.58.0`
+(§9 slice F). Default null means "project pot + project
+daily cap only." The turn clamp is `min` of remaining daily
+room, pot room, and agent remaining. The remaining-room hold
+still occupies the whole remaining daily room — not a
+per-agent split. Crew edit and cap-reached reads land in
+the same slice.
 
 Rejected: a `FundingAllocation` per agent, a reserved slice
 carved out of the pot as a second funding row, or treating an
@@ -1365,8 +1371,7 @@ MCP behavior change, no UI, no Fly, no `AGENT_LOOP_ENABLED`.
 - Token mint / resolver / `authorize()` gate-swap (slice C)
 - `record_compute_debit(..., actor_id=)` wiring (slice D)
 - Crew UI / blame sponsor / ops actor fields (slice E — shipped `0.57.0`; `0.57.1` frontend skew hotfix on this branch)
-- Per-agent cap **enforcement** (slice F) — columns exist,
-  stay unused
+- Per-agent cap **enforcement** (slice F — this branch as `0.58.0`)
 - Fly enablement / secret-file injection (enablement-time)
 
 | Slice | Ships | Must stay out |
@@ -1375,8 +1380,8 @@ MCP behavior change, no UI, no Fly, no `AGENT_LOOP_ENABLED`.
 | **B — membership gate** | `ensure_is_member` type-aware; `ensure_can_manage` rejects agents; `ensure_is_human_member` on funding / validation / invites. OWNER-transfer hook: suspend Research crew + `responsible_account_id = outgoing` rows, revoke their tokens; ADMIN-deployed agents whose responsible account is not the outgoing owner stay active. `get_or_create_project_agent_actor` ensures a roster row. Dark loop, when later lit, uses this same roster gate. Account-less crew without a roster still `403`. **This branch as `0.54.0`.** | Token mint; Fly |
 | **C — agent token** | OWNER-only mint / rotate / revoke API; 30-day default; max TTL via settings (not `fly.toml [env]`); resolver in `deps.py` + `harness/auth.py`; secret setting. MCP writes with an agent file attribute to the agent + sponsor snapshot. **Swaps** the `0.52.0` human JWT on `authorize()` for the agent session token. Human Console JWT path unchanged. **Shipped `0.55.0`.** | Fly; UI mint; `AGENT_LOOP_ENABLED`; per-agent cap enforcement |
 | **D — spend** | `record_compute_debit` / `write_daily_cap_adjustment` take `actor_id`. `HarnessSession` binds the agent; `authorize` / `record_spend` load `jti` + roster. Outsider override closed. Hold notes / amount 0 / prefix / `hold_id` unchanged; holds carry `actor_id` for audit. Shared project daily cap (no per-agent split). Unfunded ≠ exhausted. Debit only when `tokens_used > 0` for spend. **This branch as `0.56.0`.** | Per-agent cap enforcement; Fly; Crew / ops actor_* reads |
-| **E — Crew UI** | Deployed-agents bay on the Crew tab (revoked rows visible, marked revoked); OWNER mint / rotate reveal; members-only roster read; blame sponsor; ops `actor_*` + spend-by-agent. **Shipped `0.57.0`.** `0.57.1` (this branch) is the frontend skew hotfix so a pre-0.53 Fly response does not throw. | New tab; Fly; lighting the loop |
-| **F — optional caps** | Enforce `token_budget_cap` / `usd_budget_cap` at `authorize` when non-null. Crew edit. | Splitting the project daily cap per agent; funding rows |
+| **E — Crew UI** | Deployed-agents bay on the Crew tab (revoked rows visible, marked revoked); OWNER mint / rotate reveal; members-only roster read; blame sponsor; ops `actor_*` + spend-by-agent. **Shipped `0.57.0`.** `0.57.1` is the frontend skew hotfix so a pre-0.53 Fly response does not throw. | New tab; Fly; lighting the loop |
+| **F — optional caps** | Enforce `token_budget_cap` / `usd_budget_cap` at `authorize` when non-null. Crew edit. **This branch as `0.58.0`.** Lifetime per roster seat (design names no period). Built-in pass too. Turn clamp is `min(daily, pot, agent remaining)`; hold occupancy stays the whole remaining daily room. | Splitting the project daily cap per agent; funding rows |
 | **G — definition catalog** (after first multi-agent campaign) | `agent_definitions` table **and** `actors.agent_definition_id` (nullable FK) in the same revision; deploy-time pointer; read-only family rollup. Upgrade = new version + new project Actor. | Merging Actors; rewriting `author_id`; lighting the loop |
 
 Slice one can deploy alone. Slices C–D are the first time a

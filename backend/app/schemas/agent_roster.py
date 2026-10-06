@@ -1,7 +1,7 @@
-"""Project agent roster reads and lifecycle writes (0.57.0).
+"""Project agent roster reads and lifecycle writes (0.57.0 / 0.58.0).
 
 Members-only list. Deploy / suspend / revoke are OWNER or ADMIN.
-Resume is OWNER only. Caps are stored, not enforced (slice F).
+Resume is OWNER only. Caps are lifetime per roster seat; null = none.
 Never email, never token hash, never the compact JWT.
 """
 
@@ -9,7 +9,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.enums import ProjectAgentRole, ProjectAgentStatus
 from app.schemas.account import AccountSummary
@@ -41,6 +41,8 @@ class AgentRosterRead(BaseModel):
     last_used_at: datetime | None = None
     tokens_used: int = 0
     amount: Decimal = Decimal("0")
+    token_cap_reached: bool = False
+    usd_cap_reached: bool = False
     live_tokens: list[AgentLiveTokenRead] = Field(default_factory=list)
     created_at: datetime
 
@@ -55,6 +57,20 @@ class AgentDeployRequest(BaseModel):
 
 
 class AgentRosterPatch(BaseModel):
-    """Lifecycle change. ``active`` is resume (OWNER only)."""
+    """Lifecycle and/or cap edit. ``active`` is resume (OWNER only)."""
 
-    status: ProjectAgentStatus
+    status: ProjectAgentStatus | None = None
+    token_budget_cap: int | None = None
+    usd_budget_cap: Decimal | None = None
+
+    @model_validator(mode="after")
+    def at_least_one_field(self) -> AgentRosterPatch:
+        if not self.model_fields_set:
+            raise ValueError("nothing to update")
+        if "token_budget_cap" in self.model_fields_set and self.token_budget_cap is not None:
+            if self.token_budget_cap < 1:
+                raise ValueError("token_budget_cap must be >= 1")
+        if "usd_budget_cap" in self.model_fields_set and self.usd_budget_cap is not None:
+            if self.usd_budget_cap < 0:
+                raise ValueError("usd_budget_cap must be >= 0")
+        return self
