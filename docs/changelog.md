@@ -174,7 +174,11 @@ enable the gateway or MCP child on Fly.
 ```bash
 cd backend && uv run ruff check .   # clean
 cd backend && uv run pytest -q
-# with TEST_DATABASE_URL: (filled after the suite run)
+# with TEST_DATABASE_URL: 1142 passed, 4 skipped
+# +14 vs 0.52.0 (1128): 0022 upgrade/downgrade/backfill/constraints + named-agent unique
+# (two 0.52.0 "no actor_id attribute" pins flipped to "column exists, harness writes leave it null")
+cd backend && uv run pytest tests/harness -q
+# with TEST_DATABASE_URL: 139 passed (count unchanged; two assertions flipped)
 cd frontend && npm run typecheck && npm run lint && npm test && npm run build
 # typecheck/lint/build clean; 64 tests (untouched)
 ```
