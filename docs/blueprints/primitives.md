@@ -32,9 +32,14 @@ Key relationships:
 - has many `Contribution`
 
 Authorization is **membership, not credit** (`0.8.1`, closed on every research write in
-`0.36.1`). A `ProjectMember` row (account + role) is access control. It never touches
-`Contribution` / `Validation` / `FundingAllocation`. Public reads are public; writes
+`0.36.1`). A `ProjectMember` row (account + role) is human-account access control. It never
+touches `Contribution` / `Validation` / `FundingAllocation`. Public reads are public; writes
 authenticate, then `ensure_is_member` (`404` missing project / `403` non-member).
+
+A deployed agent is **not** a `ProjectMember`. `0.53.0` adds a separate mutable roster
+(`ProjectAgentMember`) keyed on `(project_id, actor_id)`. The roster is schema-on and
+behavior-off in this release — `ensure_is_member` is still account-keyed; later slices
+make the gate type-aware. Agents never sit on `ProjectRole` (`OWNER` / `ADMIN`).
 
 Funding note:
 
@@ -101,6 +106,10 @@ Typical fields:
 - `id`
 - `project_id`
 - `agent_run_id` — the pass that incurred the spend (one debit per pass)
+- `actor_id` — who burned the tokens (`0.53.0`; nullable). Historical rows and
+  pre-identity `harness_session_turn` hold/release/spend stay null. Dark-loop
+  rows with an `AgentRun.agent_actor_id` were backfilled. Writers still leave
+  new rows null until the spend slice.
 - `tokens_used` / `prompt_tokens` / `completion_tokens`
 - `amount` / `currency` — snapshot of the billed cost (USD)
 - `model` / `rate_per_1k` — effective rate used, so a later change never rewrites history
@@ -239,6 +248,10 @@ Key relationships:
 - may have parent checkpoints
 - may create or modify claims, artifacts, evidence links, validations, branch state, and confidence
 - has many `Contribution`
+- may name a `sponsored_by` Actor (`0.53.0`; nullable). The human who minted
+  the agent session that authorized the write. Null on human-authored rows
+  and on every historical checkpoint. Set at INSERT only; append-only
+  forbids later edits. `create_checkpoint` does not take this argument yet.
 
 Checkpoints should be append-only. Corrections, reversals, and retractions are new checkpoints, not edits to old ones.
 
@@ -381,7 +394,7 @@ Possible actor types:
 - `agent`
 - `system`
 
-An external harness-driven agent (`0.40.0`–`0.51.1`) uses the same
+An external harness-driven agent (`0.40.0`–`0.52.0`) uses the same
 `Actor` primitive — not a parallel data model. The live MCP door
 authenticates as a JWT Actor (Account → primary `human` Actor),
 passes membership, and writes only through `run_instrument` /
@@ -391,6 +404,46 @@ fail-closed gateway, session owner, and campaign composition are
 shipped; Fly enablement and `AGENT_LOOP_ENABLED` stay dark. See
 `docs/blueprints/external-harness.md` and
 `docs/harness/attribution.md`.
+
+`0.53.0` ships the identity **schema** so a later slice can make
+that agent a first-class author: a project may have many agent
+Actors (the unique index is now Research-crew only), a
+`ProjectAgentMember` roster row is the deploy seat, and
+`AgentSessionToken` will hold the OWNER-minted bearer (table only;
+no mint yet). Migrated `Research crew` rows keep that display name
+and, when the project has an OWNER, gain that owner's `account_id`
+plus an ACTIVE RESEARCHER roster row. `actors.agent_definition_id`
+is **not** in v1 — deferred with the `agent_definitions` catalog.
+
+## ProjectAgentMember
+
+A mutable per-project agent roster row (`0.53.0`). Access control,
+not credit — the same sentence `ProjectMember` already uses. It
+never touches `Contribution` / `Validation` / `FundingAllocation`.
+Not append-only; do not register it in `models/append_only.py`.
+
+Typical fields:
+
+- `project_id` / `actor_id` — unique pair (`uq_project_agent_member`)
+- `deployed_by_account_id` — who put it on the roster (historical)
+- `responsible_account_id` — who is on the hook now
+- `role` — `RESEARCHER` only; no validator value, ever
+- `status` — `ACTIVE` / `SUSPENDED` / `REVOKED` (revoked rows stay)
+- `token_budget_cap` / `usd_budget_cap` — stored; enforced later
+
+## AgentSessionToken
+
+A mutable OWNER-minted harness session credential (`0.53.0` schema).
+Not a ledger primitive. Hash of the compact JWT at rest; `id` is
+the JWT `jti`. This release creates the table only — no mint, no
+verify, no resolver change.
+
+Typical fields:
+
+- `project_id` / `actor_id`
+- `minted_by_account_id` / `minted_by_actor_id`
+- `token_hash` — unique SHA-256 of the compact JWT
+- `expires_at` / `revoked_at` / `last_used_at`
 
 ## Suggested Relationship Map
 
@@ -409,7 +462,10 @@ Project
   ├── Checkpoint
   ├── Validation
   ├── Tag
-  └── Contribution
+  ├── Contribution
+  ├── ProjectMember          (human-account governance)
+  ├── ProjectAgentMember     (agent roster; 0.53.0)
+  └── AgentSessionToken      (schema only; 0.53.0)
 
 Account                       (auth principal — owns Actors)
   ├── Actor
@@ -417,8 +473,9 @@ Account                       (auth principal — owns Actors)
 
 Actor
   ├── Contribution
-  ├── Checkpoint        (authors)
-  └── Validation        (performs)
+  ├── Checkpoint        (authors; may name sponsored_by)
+  ├── Validation        (performs)
+  └── ComputeDebit      (optional actor_id; 0.53.0)
 ```
 
 ## Implementation Bias

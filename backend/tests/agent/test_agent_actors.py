@@ -1,8 +1,9 @@
 """Agent-actor provisioning (0.12.0) — idempotency + the durable uniqueness guard (DB-backed).
 
 Skips without ``TEST_DATABASE_URL``. The test schema is built from the ORM models
-(``Base.metadata.create_all``), so the partial functional unique index declared on the ``Actor``
-model is present here exactly as migration 0013 installs it in prod.
+(``Base.metadata.create_all``), so the partial functional unique index declared on the
+``Actor`` model is present here exactly as migration 0022 installs it in prod
+(``uq_actors_one_research_crew_per_project``).
 """
 
 from uuid import uuid4
@@ -56,8 +57,9 @@ async def test_unique_index_blocks_a_second_agent_for_the_same_project(
         await get_or_create_project_agent_actor(session, project_id)
         await session.commit()
 
-    # A raw duplicate insert (bypassing the service's race guard) must be rejected by the partial
-    # unique index — proving the DB-level idempotency guarantee, not just the app-level check.
+    # A raw duplicate Research-crew insert (bypassing the service's race guard) must be
+    # rejected by the partial unique index — proving the DB-level idempotency guarantee,
+    # not just the app-level check.
     async with session_factory() as session:
         dup = Actor(
             type=ActorType.AGENT,
@@ -68,3 +70,24 @@ async def test_unique_index_blocks_a_second_agent_for_the_same_project(
         session.add(dup)
         with pytest.raises(IntegrityError):
             await session.flush()
+
+
+async def test_a_named_agent_may_share_a_project_with_research_crew(
+    session_factory: async_sessionmaker,
+) -> None:
+    """0.53.0: the unique index is Research-crew only; a roster of two is legal."""
+    project_id = uuid4()
+    async with session_factory() as session:
+        crew = await get_or_create_project_agent_actor(session, project_id)
+        named = Actor(
+            type=ActorType.AGENT,
+            display_name="DeepSeek researcher",
+            account_id=None,
+            actor_metadata={"project_id": str(project_id)},
+        )
+        session.add(named)
+        await session.flush()
+        assert named.id != crew.id
+        # The default slot is still the Research-crew row, not the named agent.
+        again = await get_or_create_project_agent_actor(session, project_id)
+        assert again.id == crew.id

@@ -25,14 +25,14 @@ def test_revision_linkage() -> None:
     assert mod.down_revision == "0020_compute_debit_live_rates"
 
 
-def test_it_is_the_only_head() -> None:
-    """Nothing revises 0021 — a second head makes ``alembic upgrade head`` ambiguous on deploy."""
+def test_it_is_revised_by_0022() -> None:
+    """0022 (agent identity schema) revises 0021; a second head is a deploy footgun."""
     down_revisions = {
         match.group(1)
         for path in _VERSIONS.glob("*.py")
         if (match := re.search(r'down_revision[^=]*=\s*"([^"]+)"', path.read_text()))
     }
-    assert _REVISION not in down_revisions
+    assert _REVISION in down_revisions
 
 
 def test_the_column_the_model_declares_is_the_column_the_migration_adds() -> None:

@@ -55,10 +55,12 @@ reads the same `ComputeDebit` meter through
 
 ## What does not exist yet
 
-- Any new Alembic revision
+- Token mint / verify / type-aware membership (tables exist in `0.53.0`;
+  behaviour is still the `0.52.0` human-member path)
 - Fly enablement of the gateway or MCP child
 - A live `dsh` loop in production (`AGENT_LOOP_ENABLED` stays false)
 - A refusals table (refused starts mint nothing)
+- `actors.agent_definition_id` / `agent_definitions` (deferred)
 
 ## Capability tree
 

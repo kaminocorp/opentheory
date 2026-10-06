@@ -44,6 +44,17 @@ class ComputeDebit(IdMixin, TimestampMixin, Base):
         nullable=False,
         index=True,
     )
+    # Who burned the tokens (0.53.0). Nullable: historical rows and pre-identity
+    # ``harness_session_turn`` hold/release/spend have no honest actor. SET NULL
+    # keeps the debit if an Actor is later removed. Indexed
+    # ``ix_compute_debits_actor_id``. This slice stores the column; writers still
+    # leave it null until the spend slice.
+    actor_id: Mapped[UUID | None] = mapped_column(
+        PgUUID(as_uuid=True),
+        ForeignKey("actors.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     # The pass that incurred the spend. SET NULL keeps the debit if a trace is later removed;
     # the unique index (migration + ``__table_args__``) is partial on non-null so a debit
     # without a run (not used in v1) would still be legal.
@@ -81,3 +92,4 @@ class ComputeDebit(IdMixin, TimestampMixin, Base):
 
     project = relationship("Project", back_populates="compute_debits")
     agent_run = relationship("AgentRun")
+    actor = relationship("Actor", foreign_keys=[actor_id])
