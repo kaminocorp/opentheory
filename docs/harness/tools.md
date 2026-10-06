@@ -1,6 +1,6 @@
 # External harness — MCP tool contracts
 
-> **Status — `0.48.0` daily-cap orphan-hold release + live door.** Stems are pinned. The
+> **Status — `0.49.0` perpetual ops dashboard + live door.** Stems are pinned. The
 > fixture in `backend/app/harness/fixture_mcp.py` still **mints nothing**
 > (M0 probes). The live server is `backend/app/harness/live_mcp.py`.
 > LLM tokens are metered by the session-owned gateway, not by these

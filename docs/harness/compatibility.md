@@ -1,6 +1,6 @@
 # External harness — compatibility
 
-> **Status — `0.48.0` daily-cap orphan-hold release.** Pin is unchanged. Live
+> **Status — `0.49.0` perpetual ops dashboard.** Pin is unchanged. Live
 > OpenRouter probe is implemented behind `OPENTHEORY_HARNESS_LIVE`.
 > An unmetered HTTP child is opt-in
 > (`OPENTHEORY_HARNESS_UNMETERED_PROBE`) and is not the campaign
@@ -142,5 +142,6 @@ Two secrets, one job: the child never holds the upstream key.
 - The SDK is installed in CI or on Fly.
 - A live model call succeeded in default CI (it is skipped without a key).
 - The built-in agent loop is on.
-- Daily turn/request caps or an ops dashboard.
+- Daily turn/request caps beyond the token ceiling. The ops dashboard
+  is a product API read (`0.49.0`), not part of this package.
 - Fly enablement of the gateway or MCP child.

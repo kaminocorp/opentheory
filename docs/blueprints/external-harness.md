@@ -1,16 +1,17 @@
 # External harness actor path
 
-> **What is (`0.48.0`).** Milestone 0 composition + fixture, the live
+> **What is (`0.49.0`).** Milestone 0 composition + fixture, the live
 > MCP door (`live_mcp.py`), the fail-closed OpenRouter gateway, a
 > session owner (`HarnessSession`) plus the odd-perfect reference
 > campaign, a fail-closed campaign composition that cannot start the
 > unmetered gateway proxy, a daily token cap counted from today's
 > `harness_session_turn` `ComputeDebit` rows (default 20_000 / UTC
 > day; survives a process restart), a remaining-room hold so two
-> overlapping authorizes cannot both debit past that cap, and a
+> overlapping authorizes cannot both debit past that cap, a
 > stale-hold release so a crash after authorize does not pin the UTC
-> day. Fly enablement is not shipped. If this blueprint disagrees
-> with `backend/app/harness/`, the code wins.
+> day, and a read-only perpetual ops dashboard
+> (`GET /projects/{id}/ops`). Fly enablement is not shipped. If this
+> blueprint disagrees with `backend/app/harness/`, the code wins.
 
 ## The rule
 
@@ -36,16 +37,20 @@ earn a parallel data model.
 - Optional `[harness]` extra for `deepseek-harness-sdk==0.1.5rc1`
 - Tests that run in default CI without a key or a `dsh` binary; ledger
   tests skip without `TEST_DATABASE_URL`
+- Read-only ops dashboard (`GET /projects/{id}/ops`, Overview bay) —
+  same `ComputeDebit` meter, no `app.harness` import
 
-The FastAPI app does not import this package. Fly does not run it.
+The FastAPI app does not import this package. The ops dashboard
+reads the same `ComputeDebit` meter through
+`app.services.harness_meter`. Fly does not run the harness.
 `AGENT_LOOP_ENABLED` is untouched (default `false`).
 
 ## What does not exist yet
 
-- Perpetual ops dashboard
 - Any new Alembic revision
 - Fly enablement of the gateway or MCP child
 - A live `dsh` loop in production (`AGENT_LOOP_ENABLED` stays false)
+- A refusals table (refused starts mint nothing)
 
 ## Capability tree
 

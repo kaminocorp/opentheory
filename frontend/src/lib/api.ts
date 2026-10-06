@@ -20,6 +20,7 @@ import type {
   ProjectCreate,
   ProjectUpdate,
 } from "@/types/project";
+import type { ProjectOpsRead } from "@/types/ops";
 import type { InstrumentDescriptor, ToolRunRequest, ToolRunResult } from "@/types/toolbench";
 import type {
   AccountUpdate,
@@ -351,6 +352,10 @@ export function listFunding(projectId: string): Promise<Funding[]> {
 
 export function getProjectBudget(projectId: string): Promise<ProjectBudget> {
   return request<ProjectBudget>(`/projects/${projectId}/budget`);
+}
+
+export function getProjectOps(projectId: string): Promise<ProjectOpsRead> {
+  return request<ProjectOpsRead>(`/projects/${projectId}/ops`);
 }
 
 export function createFunding(projectId: string, payload: FundingCreate): Promise<Funding> {
