@@ -7,7 +7,7 @@ tokens, and attribute harness writes without another `actors` /
 UI, or auth behaviour change. Do not light `AGENT_LOOP_ENABLED`.
 Do not enable the gateway or MCP child on Fly. Do not apply to
 the live Supabase project in this PR — the owner reviews before
-prod. Sits on `0.52.0` (PR #48).
+prod. Sits on shipped `0.52.0` (`c085586`, #48).
 
 **Shape.** Alembic `0022_agent_actor_identity` + SQLAlchemy
 models in lockstep with `create_all`. Schema-on, behavior-off.

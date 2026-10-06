@@ -1,15 +1,15 @@
 # Roadmap Next Steps
 
 > **Last updated:** 2026-10-06 · **Current release line:** `0.53.0`
-> (agent identity schema), sitting on `0.52.0` (harness
-> turn-spend membership, PR #48). See
+> (agent identity schema), sitting on shipped `0.52.0` (harness
+> turn-spend membership, `c085586`, #48) on current `main`. See
 > `docs/completions/agent-identity-schema-0.53.0.md`.
 >
 > **Next after this line:** Lean REPL / LeanDojo remain later.
 > Does not enable the gateway child on Fly.
 > Does not light `AGENT_LOOP_ENABLED`.
 > ~~Agent identity schema~~ ✅ this branch as `0.53.0`.
-> ~~Harness turn-spend membership~~ ✅ `0.52.0`.
+> ~~Harness turn-spend membership~~ ✅ shipped as `0.52.0`.
 > ~~Harness actor-attribution audit~~ ✅ shipped as `0.51.1`.
 > ~~Harness serialization guard~~ ✅ shipped as `0.51.0`.
 > ~~Harness turn-room clamp~~ ✅ shipped as `0.50.0`.
@@ -935,10 +935,11 @@ turn duration.
 writes attribute to the JWT-resolved member Actor;
 `ensure_is_member` refuses a non-member on the write door.
 
-**`0.52.0` (harness turn-spend membership)** sits under this
-line: `authorize()` refuses unless the actor the session / turn
-is running for is a current project member. No hold, no debit,
-no provider call. `record_spend` does not re-check.
+**`0.52.0` (harness turn-spend membership)** is shipped
+(`c085586`, #48): `authorize()` refuses unless the actor the
+session / turn is running for is a current project member. No
+hold, no debit, no provider call. `record_spend` does not
+re-check.
 
 **`0.53.0` (agent identity schema)** is this branch: enums +
 roster + session-token tables, nullable
