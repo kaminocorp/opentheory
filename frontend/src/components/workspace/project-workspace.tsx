@@ -15,6 +15,7 @@ import {
   listThreads,
 } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import { formatOpsMoney } from "@/lib/ops";
 import { queryKeys } from "@/lib/query-keys";
 import { useActingIdentity } from "@/lib/use-identity";
 import { setProjectPassRunning } from "@/lib/project-live-state";
@@ -477,16 +478,6 @@ function GroundingRollupBay({
   );
 }
 
-function formatBudgetMoney(amount: string, currency: string): string {
-  const value = Number(amount);
-  if (Number.isNaN(value)) return `${amount} ${currency}`;
-  try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(value);
-  } catch {
-    return `${value.toFixed(2)} ${currency}`;
-  }
-}
-
 function BudgetOverviewBay({
   budget,
   loading,
@@ -510,16 +501,16 @@ function BudgetOverviewBay({
         <dl className="grid grid-cols-3 gap-3">
           <MetricReadout
             label="Funded"
-            value={formatBudgetMoney(budget.funded, budget.currency)}
+            value={formatOpsMoney(budget.funded, budget.currency)}
           />
           <MetricReadout
             label="Spent"
             title="Σ agent-pass compute debits"
-            value={formatBudgetMoney(budget.spent, budget.currency)}
+            value={formatOpsMoney(budget.spent, budget.currency)}
           />
           <MetricReadout
             label="Available"
-            value={formatBudgetMoney(budget.available, budget.currency)}
+            value={formatOpsMoney(budget.available, budget.currency)}
           />
         </dl>
       ) : (

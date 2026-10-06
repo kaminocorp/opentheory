@@ -1,6 +1,6 @@
 # External harness actor path
 
-> **What is (`0.49.0`).** Milestone 0 composition + fixture, the live
+> **What is (`0.49.1`).** Milestone 0 composition + fixture, the live
 > MCP door (`live_mcp.py`), the fail-closed OpenRouter gateway, a
 > session owner (`HarnessSession`) plus the odd-perfect reference
 > campaign, a fail-closed campaign composition that cannot start the

@@ -6,6 +6,7 @@ import {
   budgetStateTone,
   dailyCapLine,
   dailyCapTone,
+  formatOpsMoney,
   holdIdLabel,
   holdStatusLabel,
   loopLine,
@@ -30,6 +31,18 @@ function cap(overrides: Partial<OpsDailyCapRead> = {}): OpsDailyCapRead {
 }
 
 describe("budget honesty", () => {
+  it("does not round ledger dust to an invented zero", () => {
+    const twoDp = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" });
+    const dust = formatOpsMoney("0.000400", "USD");
+    const remainder = formatOpsMoney("24.999600", "USD");
+    assert.notEqual(dust, twoDp.format(0.0004));
+    assert.match(dust, /0\.0004/);
+    assert.notEqual(remainder, twoDp.format(24.9996));
+    assert.match(remainder, /24\.9996/);
+    assert.equal(formatOpsMoney("25.00", "USD"), twoDp.format(25));
+    assert.equal(formatOpsMoney("1.000000", "USD"), twoDp.format(1));
+  });
+
   it("does not call unfunded exhausted", () => {
     assert.equal(budgetStateLabel("unfunded"), "Unfunded");
     assert.equal(budgetStateTone("unfunded"), "mute");
