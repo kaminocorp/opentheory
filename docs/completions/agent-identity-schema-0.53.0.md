@@ -305,10 +305,11 @@ is NULL again and the old one-agent-per-project unique is back.
 ## Verification
 
 - `ruff check .` clean.
-- With `TEST_DATABASE_URL`: **1142 passed, 4 skipped**. +14 vs
+- With `TEST_DATABASE_URL`: **1144 passed, 4 skipped**. +16 vs
   `0.52.0` (1128) — 0022 upgrade/downgrade/backfill/constraints +
-  named-agent unique. Two 0.52.0 "no `actor_id` attribute" pins
-  flipped to "column exists, harness writes leave it null."
+  named-agent unique + transactional-index pin + owner+Research-crew
+  human-resolution regression. Two 0.52.0 "no `actor_id` attribute"
+  pins flipped to "column exists, harness writes leave it null."
   Harness suite **139 passed**. Lean / Mathlib stay off.
 - Frontend untouched: typecheck / lint / build clean; **64 tests**.
 
