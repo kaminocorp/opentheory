@@ -182,7 +182,6 @@ async def test_exhausted_funded_project_does_not_call_model_or_mint(
             "input": {"expression": "1 + 1"},
         },
         session_factory=session_factory,
-        actor_env=_actor_env(actor_id),
         env={"OPENTHEORY_DEV_ACTOR_ID": actor_id},
     )
     assert mcp["ok"] is False
@@ -395,7 +394,6 @@ async def test_live_mcp_after_session_turn_is_the_only_checkpoint_writer(
             "input": {"expression": "1 + 1"},
         },
         session_factory=session_factory,
-        actor_env=_actor_env(actor_id),
         env={"OPENTHEORY_DEV_ACTOR_ID": actor_id},
     )
     assert landed["ok"] is True

@@ -162,9 +162,13 @@ Does not enable the gateway or MCP child on Fly.
 ```bash
 cd backend && uv run ruff check .   # clean
 cd backend && uv run pytest -q
-# counts filled after the Postgres run
+# with TEST_DATABASE_URL: 1128 passed, 4 skipped
+# +3 vs shipped 0.51.1 (1125): member allowed + account-less refuse + removed-mid-session
+# (outsider flipped in place)
+cd backend && uv run pytest tests/harness -q
+# with TEST_DATABASE_URL: 139 passed
 cd frontend && npm run typecheck && npm run lint && npm test && npm run build
-# typecheck/lint/build; frontend untouched
+# typecheck/lint/build clean; 64 tests (untouched)
 ```
 
 See `docs/completions/harness-turn-membership-0.52.0.md`.
