@@ -16,11 +16,12 @@ import {
   lastTurnLine,
   lastTurnTone,
   loopLine,
+  spendByAgentLine,
   turnKindLabel,
   unknownProcessLine,
 } from "@/lib/ops";
 import { queryKeys } from "@/lib/query-keys";
-import type { OpsHoldRead, OpsTurnRead, ProjectOpsRead } from "@/types/ops";
+import type { OpsActorSpendRead, OpsHoldRead, OpsTurnRead, ProjectOpsRead } from "@/types/ops";
 
 import { PanelError, PanelLoading } from "./panel-state";
 
@@ -50,6 +51,21 @@ function HoldRow({ hold }: { hold: OpsHoldRead }) {
   );
 }
 
+function SpendByAgentRow({ row }: { row: OpsActorSpendRead }) {
+  return (
+    <li className="grid gap-0.5 py-2" style={{ borderTop: "1px solid var(--hairline)" }}>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="text-[12px] font-medium text-text-soft">
+          {spendByAgentLine(row.tokens_used, row.actor_display_name)}
+        </span>
+        <span className="font-mono text-[11px] text-text-faint">
+          {row.turn_count} turn{row.turn_count === 1 ? "" : "s"}
+        </span>
+      </div>
+    </li>
+  );
+}
+
 function TurnRow({ turn }: { turn: OpsTurnRead }) {
   return (
     <li className="grid gap-0.5 py-2" style={{ borderTop: "1px solid var(--hairline)" }}>
@@ -59,6 +75,9 @@ function TurnRow({ turn }: { turn: OpsTurnRead }) {
           {turn.tokens_used.toLocaleString()} tok
         </span>
         <span className="text-[12px] text-text-faint">{formatWhen(turn.created_at)}</span>
+        <span className="text-[12px] text-text-faint">
+          {turn.actor_display_name ?? (turn.actor_id ? "unknown actor" : "unattributed")}
+        </span>
       </div>
       {turn.notes ? (
         <p className="truncate font-mono text-[11px] text-text-faint">{turn.notes}</p>
@@ -74,6 +93,7 @@ function OpsBody({ data }: { data: ProjectOpsRead }) {
     holds,
     recent_turns: turns,
     last_turn: lastTurn,
+    spend_by_agent: spendByAgent,
     refusals,
     enablement,
   } = data;
@@ -152,6 +172,21 @@ function OpsBody({ data }: { data: ProjectOpsRead }) {
           <ul>
             {holds.map((hold, index) => (
               <HoldRow key={hold.hold_id ?? `legacy-${index}`} hold={hold} />
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="grid gap-2">
+        <ReadoutLabel as="h3">Spend by agent</ReadoutLabel>
+        {spendByAgent.length === 0 ? (
+          <p className="text-[13px] text-text-faint">
+            No billed harness spend attributed yet. Pre-identity rows stay unknown.
+          </p>
+        ) : (
+          <ul>
+            {spendByAgent.map((row, index) => (
+              <SpendByAgentRow key={row.actor_id ?? `unknown-${index}`} row={row} />
             ))}
           </ul>
         )}

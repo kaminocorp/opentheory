@@ -78,10 +78,13 @@ A rostered ``type=agent`` Actor passes the membership gate
 ``0.56.0`` stamps ``ComputeDebit.actor_id`` on billed spend and
 on hold/release rows. Session ``env`` wins over a per-turn
 ``actor_env`` so an outsider override cannot re-attribute
-spend. ``record_spend`` does not re-check membership: tokens
-that moved after a successful authorize are billed (load ``jti``
-for the stamp even if the token was revoked mid-turn). The next
-authorize fails closed.
+spend. ``0.57.0`` refuses when both credentials resolve and
+name different actors (``TurnRefused``, no hold) so checkpoint
+author and spend actor cannot silently diverge. ``record_spend``
+does not re-check membership: tokens that moved after a
+successful authorize are billed (load ``jti`` for the stamp
+even if the token was revoked mid-turn). The next authorize
+fails closed.
 """
 
 from __future__ import annotations
@@ -154,6 +157,7 @@ REASON_HOLD_TTL = "hold TTL does not exceed turn duration"
 REASON_PROJECT_BUDGET = compute_service.BUDGET_EXHAUSTED
 REASON_ACTOR = "actor required"
 REASON_NOT_MEMBER = "not a project member"
+REASON_CREDENTIAL_DIVERGENCE = "session and MCP credentials differ"
 
 __all__ = [
     "DAILY_TOKEN_CAP_ENV",
@@ -173,6 +177,7 @@ __all__ = [
     "REASON_PROJECT_BUDGET",
     "REASON_TURN_BUDGET",
     "REASON_ACTOR",
+    "REASON_CREDENTIAL_DIVERGENCE",
     "REASON_HOLD_TTL",
     "REASON_NOT_MEMBER",
     "REASON_TURN_ROOM",
@@ -545,6 +550,43 @@ async def assert_turn_member(
     return actor
 
 
+async def assert_credentials_agree(
+    db: AsyncSession,
+    env: Mapping[str, str] | None,
+    actor_env: Mapping[str, str] | None,
+) -> None:
+    """Refuse when session and MCP credentials both resolve and name different actors.
+
+    Spend stamps the gateway/session credential. MCP writes author as the
+    child credential. If both resolve and they differ, checkpoint author
+    and spend actor would diverge. ``TurnRefused`` here writes nothing
+    (no hold). A missing or unresolvable side is not this check —
+    ``assert_turn_member`` still gates the bound credential.
+    """
+    from fastapi import HTTPException
+
+    from app.harness.auth import load_credential, resolve_mcp_actor
+
+    if env is None or actor_env is None or env is actor_env:
+        return
+    try:
+        session_cred = load_credential(env)
+        mcp_cred = load_credential(actor_env)
+    except HTTPException:
+        return
+    if session_cred is None or mcp_cred is None:
+        return
+    if session_cred.kind == mcp_cred.kind and session_cred.value == mcp_cred.value:
+        return
+    try:
+        session_actor = await resolve_mcp_actor(db, env)
+        mcp_actor = await resolve_mcp_actor(db, actor_env)
+    except HTTPException:
+        return
+    if session_actor.id != mcp_actor.id:
+        raise TurnRefused(REASON_CREDENTIAL_DIVERGENCE)
+
+
 def _as_project_id(value: UUID | str) -> UUID:
     if isinstance(value, UUID):
         return value
@@ -667,8 +709,11 @@ class HarnessSession:
         lock, stale-hold release, or remaining-room hold. Binds
         ``bound_actor_id`` / ``bound_jti`` for spend attribution.
         An agent session whose ``proj`` is not this session's project
-        refuses here. A non-member, un-rostered agent, or ``system``
-        actor cannot take a hold or call the provider.
+        refuses here. When both ``env`` and ``actor_env`` resolve and
+        name different actors, refuses here (no hold) so spend and
+        MCP authorship cannot diverge. A non-member, un-rostered
+        agent, or ``system`` actor cannot take a hold or call the
+        provider.
 
         On a pass, locks the project row, releases unmatched holds older
         than the TTL, re-reads today's harness token sum (holds
@@ -690,6 +735,7 @@ class HarnessSession:
             resolved_quote = await quote_model_price(model)
         factory = self._factory()
         async with factory() as db:
+            await assert_credentials_agree(db, self.env, self.actor_env)
             actor = await assert_turn_member(db, self.project_uuid, self._actor_lookup())
             from app.services.agent_tokens import token_jti_of
 

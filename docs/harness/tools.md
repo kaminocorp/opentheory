@@ -89,6 +89,14 @@ Do not invent a header that bypasses JWT in
 production. Do not put the bearer on `tools/call` arguments — those
 land in session JSONL.
 
+**Spend stamps the gateway / session credential.** Put the same
+agent session token on the campaign/session `env` (the
+`0600` file the gateway reads) that the MCP child uses. If the
+MCP child and the gateway carry different resolvable
+credentials, checkpoint `author_id` and `ComputeDebit.actor_id`
+diverge; `authorize()` refuses that pair (`TurnRefused`, no
+hold) as of `0.57.0`.
+
 ## Fixture payloads (M0)
 
 `run_instrument`:

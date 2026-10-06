@@ -493,6 +493,17 @@ async def test_agent_token_is_403_on_http_routes(
     reads_and_writes = [
         await client.get("/api/v1/me", headers=bearer),
         await client.get("/api/v1/me/invitations", headers=bearer),
+        await client.get(f"/api/v1/projects/{project_id}/agents", headers=bearer),
+        await client.post(
+            f"/api/v1/projects/{project_id}/agents",
+            json={"display_name": "Rogue"},
+            headers=bearer,
+        ),
+        await client.patch(
+            f"/api/v1/projects/{project_id}/agents/{agent_id}",
+            json={"status": "suspended"},
+            headers=bearer,
+        ),
         await client.post(
             f"/api/v1/projects/{project_id}/threads",
             json={"title": "T", "question": "q?"},

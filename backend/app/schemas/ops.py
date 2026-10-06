@@ -12,6 +12,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.models.enums import ActorType
 from app.schemas.funding import ProjectBudget
 
 BudgetState = Literal["unfunded", "available", "exhausted"]
@@ -69,6 +70,9 @@ class OpsTurnRead(BaseModel):
     overshoot: int | None = None
     price_known: bool | None = None
     pot_room: int | None = None
+    actor_id: UUID | None = None
+    actor_display_name: str | None = None
+    actor_type: ActorType | None = None
 
 
 class OpsLastTurnRead(BaseModel):
@@ -80,6 +84,20 @@ class OpsLastTurnRead(BaseModel):
     price_known: bool | None
     pot_room: int | None = None
     note: str
+    actor_id: UUID | None = None
+    actor_display_name: str | None = None
+    actor_type: ActorType | None = None
+
+
+class OpsActorSpendRead(BaseModel):
+    """Billed harness spend grouped by ``ComputeDebit.actor_id`` (0.57.0)."""
+
+    actor_id: UUID | None = None
+    actor_display_name: str | None = None
+    actor_type: ActorType | None = None
+    tokens_used: int
+    amount: Decimal
+    turn_count: int
 
 
 class OpsRefusalsRead(BaseModel):
@@ -114,5 +132,6 @@ class ProjectOpsRead(BaseModel):
     holds: list[OpsHoldRead] = Field(default_factory=list)
     recent_turns: list[OpsTurnRead] = Field(default_factory=list)
     last_turn: OpsLastTurnRead | None = None
+    spend_by_agent: list[OpsActorSpendRead] = Field(default_factory=list)
     refusals: OpsRefusalsRead
     enablement: OpsEnablementRead

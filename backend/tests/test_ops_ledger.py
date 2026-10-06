@@ -79,6 +79,7 @@ async def test_ops_empty_project_is_honest_unfunded(
     assert body["holds"] == []
     assert body["recent_turns"] == []
     assert body["last_turn"] is None
+    assert body["spend_by_agent"] == []
     assert body["refusals"]["recorded"] is False
     assert body["enablement"]["loop"]["enabled"] is False
     assert body["enablement"]["gateway"]["enabled"] == "unknown"

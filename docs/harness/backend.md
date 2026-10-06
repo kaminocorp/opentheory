@@ -1,11 +1,13 @@
 # External harness — backend skeleton
 
-> **Status — `0.52.0` turn-spend membership.** Package exists. FastAPI
+> **Status — `0.57.0` credential agree.** Package exists. FastAPI
 > does not import it. Fly does not run it. The product ops read uses
-> `app.services.harness_meter`, not this package. `authorize()` now
+> `app.services.harness_meter`, not this package. `authorize()`
 > membership-checks the actor the session / turn is running for
-> before a hold or a provider call. Actor attribution of live MCP
-> writes and `ComputeDebit` spend is recorded in
+> before a hold or a provider call, and refuses when the session
+> and MCP credentials both resolve and differ. The agent session
+> token must be the gateway/session credential for spend to stamp
+> that agent. Actor attribution is recorded in
 > `docs/harness/attribution.md`.
 
 ## Where it lives

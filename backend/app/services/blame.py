@@ -284,14 +284,19 @@ async def blame_claim(
 
     ordered_ids = sort_checkpoint_ids(set(touching), created_at)
 
-    author_ids = {
+    actor_ids = {
         checkpoints[cid].author_id
         for cid in ordered_ids
         if checkpoints[cid].author_id is not None
     }
+    actor_ids.update(
+        checkpoints[cid].sponsored_by_actor_id
+        for cid in ordered_ids
+        if checkpoints[cid].sponsored_by_actor_id is not None
+    )
     authors: dict[UUID, Actor] = {}
-    if author_ids:
-        author_rows = await db.execute(select(Actor).where(Actor.id.in_(author_ids)))
+    if actor_ids:
+        author_rows = await db.execute(select(Actor).where(Actor.id.in_(actor_ids)))
         authors = {row.id: row for row in author_rows.scalars()}
 
     contribution_kind: dict[UUID, str] = {}
@@ -362,6 +367,20 @@ async def blame_claim(
             if author_row is not None
             else None
         )
+        sponsor_row = (
+            authors.get(checkpoint.sponsored_by_actor_id)
+            if checkpoint.sponsored_by_actor_id
+            else None
+        )
+        sponsor = (
+            BlameActor(
+                id=sponsor_row.id,
+                display_name=sponsor_row.display_name,
+                type=sponsor_row.type,
+            )
+            if sponsor_row is not None
+            else None
+        )
 
         chain.append(
             BlameStep(
@@ -372,6 +391,7 @@ async def blame_claim(
                 branch_id=checkpoint.branch_id,
                 parent_ids=parents,
                 author=author,
+                sponsor=sponsor,
                 contribution_kind=contribution_kind.get(checkpoint_id),
                 roles=touching[checkpoint_id],
                 instruments=instruments_by_checkpoint.get(checkpoint_id, []),

@@ -82,13 +82,23 @@ export function unknownProcessLine(label: string, enabled: "unknown"): string {
 
 export function lastTurnLine(turn: OpsLastTurnRead): string {
   const used = `${turn.tokens_used.toLocaleString()} used`;
+  const who = turn.actor_display_name
+    ? ` · ${turn.actor_display_name}`
+    : turn.actor_id
+      ? " · unknown actor"
+      : " · unattributed";
   if (turn.clamp === null) {
-    return `${used} · clamp unknown`;
+    return `${used}${who} · clamp unknown`;
   }
   const overshoot =
     turn.overshoot && turn.overshoot > 0 ? ` · overshoot ${turn.overshoot.toLocaleString()}` : "";
   const price = turn.price_known === false ? " · price unknown" : "";
-  return `${used} · clamp ${turn.clamp.toLocaleString()}${overshoot}${price}`;
+  return `${used}${who} · clamp ${turn.clamp.toLocaleString()}${overshoot}${price}`;
+}
+
+export function spendByAgentLine(tokensUsed: number, displayName: string | null): string {
+  const who = displayName ?? "unknown actor";
+  return `${who} · ${tokensUsed.toLocaleString()} tok`;
 }
 
 export function lastTurnTone(turn: OpsLastTurnRead): "fail" | "mute" | "ok" {

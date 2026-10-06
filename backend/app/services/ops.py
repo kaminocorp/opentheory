@@ -21,11 +21,15 @@ from decimal import Decimal
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.models.actor import Actor
+from app.models.compute_debit import ComputeDebit
 from app.models.project import Project
 from app.schemas.ops import (
+    OpsActorSpendRead,
     OpsBudgetRead,
     OpsDailyCapRead,
     OpsEnablementRead,
@@ -45,7 +49,9 @@ from app.services.harness_meter import (
     SESSION_NOTES,
     budget_state,
     classify_harness_row,
+    harness_notes_prefix_match,
     harness_tokens_used_today,
+    is_daily_cap_adjustment,
     is_hold_stale,
     load_recent_harness_rows,
     load_today_adjustments,
@@ -133,7 +139,62 @@ def _last_turn_read(turn: OpsTurnRead) -> OpsLastTurnRead:
             price_known=turn.price_known,
             pot_room=turn.pot_room,
         ),
+        actor_id=turn.actor_id,
+        actor_display_name=turn.actor_display_name,
+        actor_type=turn.actor_type,
     )
+
+
+async def _actor_labels(
+    db: AsyncSession, actor_ids: set[UUID]
+) -> dict[UUID, Actor]:
+    if not actor_ids:
+        return {}
+    rows = await db.execute(select(Actor).where(Actor.id.in_(actor_ids)))
+    return {row.id: row for row in rows.scalars()}
+
+
+async def _spend_by_agent(
+    db: AsyncSession, project_id: UUID, labels: dict[UUID, Actor]
+) -> list[OpsActorSpendRead]:
+    """Billed harness spend grouped by ``actor_id``. Unknown stays unknown."""
+    result = await db.execute(
+        select(
+            ComputeDebit.actor_id,
+            ComputeDebit.tokens_used,
+            ComputeDebit.amount,
+            ComputeDebit.notes,
+        ).where(
+            ComputeDebit.project_id == project_id,
+            harness_notes_prefix_match(),
+        )
+    )
+    grouped: dict[UUID | None, tuple[int, Decimal, int]] = {}
+    for actor_id, tokens_used, amount, notes in result:
+        if tokens_used <= 0 or is_daily_cap_adjustment(notes):
+            continue
+        used, spent, count = grouped.get(actor_id, (0, Decimal("0"), 0))
+        grouped[actor_id] = (used + int(tokens_used), spent + Decimal(amount), count + 1)
+    out: list[OpsActorSpendRead] = []
+    for actor_id, (tokens_used, amount, turn_count) in grouped.items():
+        actor = labels.get(actor_id) if actor_id is not None else None
+        out.append(
+            OpsActorSpendRead(
+                actor_id=actor_id,
+                actor_display_name=actor.display_name if actor is not None else None,
+                actor_type=actor.type if actor is not None else None,
+                tokens_used=tokens_used,
+                amount=amount,
+                turn_count=turn_count,
+            )
+        )
+    out.sort(
+        key=lambda row: (
+            -(row.tokens_used),
+            str(row.actor_id) if row.actor_id is not None else "",
+        )
+    )
+    return out
 
 
 def _cap_note(source: str) -> str:
@@ -214,24 +275,40 @@ async def project_ops(
     recent_rows = await load_recent_harness_rows(
         db, project_id, limit=RECENT_TURNS_LIMIT
     )
-    recent = [
-        OpsTurnRead(
-            id=row.id,
-            created_at=row.created_at,
-            tokens_used=row.tokens_used,
-            amount=Decimal(row.amount),
-            notes=row.notes,
-            kind=classify_harness_row(row.notes),
-            hold_id=parse_hold_id(row.notes),
-            clamp=parse_clamp(row.notes),
-            overshoot=parse_overshoot(row.notes),
-            price_known=parse_price_known(row.notes),
-            pot_room=parse_pot_room(row.notes),
+    label_ids = {row.actor_id for row in recent_rows if row.actor_id is not None}
+    spend_ids_result = await db.execute(
+        select(ComputeDebit.actor_id).where(
+            ComputeDebit.project_id == project_id,
+            harness_notes_prefix_match(),
+            ComputeDebit.actor_id.is_not(None),
         )
-        for row in recent_rows
-    ]
+    )
+    label_ids.update(aid for (aid,) in spend_ids_result if aid is not None)
+    labels = await _actor_labels(db, label_ids)
+    recent = []
+    for row in recent_rows:
+        actor = labels.get(row.actor_id) if row.actor_id is not None else None
+        recent.append(
+            OpsTurnRead(
+                id=row.id,
+                created_at=row.created_at,
+                tokens_used=row.tokens_used,
+                amount=Decimal(row.amount),
+                notes=row.notes,
+                kind=classify_harness_row(row.notes),
+                hold_id=parse_hold_id(row.notes),
+                clamp=parse_clamp(row.notes),
+                overshoot=parse_overshoot(row.notes),
+                price_known=parse_price_known(row.notes),
+                pot_room=parse_pot_room(row.notes),
+                actor_id=row.actor_id,
+                actor_display_name=actor.display_name if actor is not None else None,
+                actor_type=actor.type if actor is not None else None,
+            )
+        )
     last_spend = next((row for row in recent if row.kind == "spend"), None)
     last_turn = _last_turn_read(last_spend) if last_spend is not None else None
+    spend_by_agent = await _spend_by_agent(db, project_id, labels)
 
     return ProjectOpsRead(
         project_id=project_id,
@@ -256,6 +333,7 @@ async def project_ops(
         holds=holds,
         recent_turns=recent,
         last_turn=last_turn,
+        spend_by_agent=spend_by_agent,
         refusals=_REFUSALS,
         enablement=OpsEnablementRead(
             loop=OpsLoopRead(enabled=settings.agent_loop_enabled),

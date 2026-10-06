@@ -2,7 +2,7 @@
 // Every number is on the ledger or a setting this API process can see.
 // Anything else is labeled unknown.
 
-import type { ProjectBudget } from "./research";
+import type { ActorType, ProjectBudget } from "./research";
 
 export type OpsBudgetState = "unfunded" | "available" | "exhausted";
 export type OpsProcessIntSource = "default" | "process_env" | "invalid";
@@ -49,6 +49,9 @@ export type OpsTurnRead = {
   overshoot: number | null;
   price_known: boolean | null;
   pot_room: number | null;
+  actor_id: string | null;
+  actor_display_name: string | null;
+  actor_type: ActorType | null;
 };
 
 export type OpsLastTurnRead = {
@@ -58,6 +61,18 @@ export type OpsLastTurnRead = {
   price_known: boolean | null;
   pot_room: number | null;
   note: string;
+  actor_id: string | null;
+  actor_display_name: string | null;
+  actor_type: ActorType | null;
+};
+
+export type OpsActorSpendRead = {
+  actor_id: string | null;
+  actor_display_name: string | null;
+  actor_type: ActorType | null;
+  tokens_used: number;
+  amount: string;
+  turn_count: number;
 };
 
 export type OpsRefusalsRead = {
@@ -90,6 +105,7 @@ export type ProjectOpsRead = {
   holds: OpsHoldRead[];
   recent_turns: OpsTurnRead[];
   last_turn: OpsLastTurnRead | null;
+  spend_by_agent: OpsActorSpendRead[];
   refusals: OpsRefusalsRead;
   enablement: OpsEnablementRead;
 };

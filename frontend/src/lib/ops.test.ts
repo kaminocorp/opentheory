@@ -94,8 +94,11 @@ describe("last turn", () => {
       price_known: null,
       pot_room: null,
       note: "legacy",
+      actor_id: null,
+      actor_display_name: null,
+      actor_type: null,
     };
-    assert.equal(lastTurnLine(unknown), "80 used · clamp unknown");
+    assert.equal(lastTurnLine(unknown), "80 used · unattributed · clamp unknown");
     assert.equal(lastTurnTone(unknown), "mute");
 
     const over: OpsLastTurnRead = {
@@ -105,8 +108,11 @@ describe("last turn", () => {
       price_known: true,
       pot_room: 50,
       note: "overshoot",
+      actor_id: "agent-1",
+      actor_display_name: "Research crew",
+      actor_type: "agent",
     };
-    assert.equal(lastTurnLine(over), "80 used · clamp 50 · overshoot 30");
+    assert.equal(lastTurnLine(over), "80 used · Research crew · clamp 50 · overshoot 30");
     assert.equal(lastTurnTone(over), "fail");
 
     const unknownPrice: OpsLastTurnRead = {
@@ -116,8 +122,11 @@ describe("last turn", () => {
       price_known: false,
       pot_room: null,
       note: "daily only",
+      actor_id: null,
+      actor_display_name: null,
+      actor_type: null,
     };
-    assert.equal(lastTurnLine(unknownPrice), "20 used · clamp 20 · price unknown");
+    assert.equal(lastTurnLine(unknownPrice), "20 used · unattributed · clamp 20 · price unknown");
     assert.equal(lastTurnTone(unknownPrice), "ok");
   });
 });

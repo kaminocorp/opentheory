@@ -241,14 +241,27 @@ export function CheckpointTimelinePanel({
                     >
                       {checkpoint.contribution_kind.replace(/_/g, " ")}
                     </span>
-                    {checkpoint.author ? <span>by {checkpoint.author.display_name}</span> : null}
+                    {checkpoint.author ? (
+                      <span>
+                        by {checkpoint.author.display_name}
+                        {checkpoint.author.type === "agent" ? " · agent" : ""}
+                        {checkpoint.sponsored_by
+                          ? ` · sponsored by ${checkpoint.sponsored_by.display_name}`
+                          : ""}
+                      </span>
+                    ) : null}
                   </p>
                 ) : null}
 
                 <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-text-faint">
                   <span className="font-mono tabular-nums">{formatTimestamp(checkpoint.created_at)}</span>
                   {!checkpoint.contribution_kind && checkpoint.author ? (
-                    <span>· by {checkpoint.author.display_name}</span>
+                    <span>
+                      · by {checkpoint.author.display_name}
+                      {checkpoint.sponsored_by
+                        ? ` · sponsored by ${checkpoint.sponsored_by.display_name}`
+                        : ""}
+                    </span>
                   ) : null}
                   {checkpoint.stage ? (
                     <span

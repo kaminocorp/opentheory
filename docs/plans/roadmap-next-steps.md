@@ -1,14 +1,15 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-10-06 · **Current release line:** `0.56.0`
-> (spend attribution), sitting on shipped `0.55.0`
-> (agent session token, `149c36e`, #51) on current `main`. See
-> `docs/completions/agent-identity-spend-0.56.0.md`.
+> **Last updated:** 2026-10-06 · **Current release line:** `0.57.0`
+> (Crew UI / blame sponsor / ops actor fields), sitting on
+> shipped `0.56.0` (spend attribution, `2a2a018`, #52) on current
+> `main`. See `docs/completions/agent-identity-crew-0.57.0.md`.
 >
 > **Next after this line:** Lean REPL / LeanDojo remain later.
 > Does not enable the gateway child on Fly.
 > Does not light `AGENT_LOOP_ENABLED`.
-> ~~Agent identity spend attribution~~ ✅ this branch as `0.56.0`.
+> ~~Agent identity Crew UI~~ ✅ this branch as `0.57.0`.
+> ~~Agent identity spend attribution~~ ✅ shipped as `0.56.0`.
 > ~~Agent identity session token~~ ✅ shipped as `0.55.0`.
 > ~~Agent identity membership gate~~ ✅ shipped as `0.54.0`.
 > ~~Agent identity schema~~ ✅ shipped as `0.53.0`.
@@ -959,19 +960,29 @@ roster ensure. No token mint.
 (`149c36e`, #51): OWNER-only mint / rotate / revoke; resolver;
 `authorize()` agent-session swap. No debit `actor_id`.
 
-**`0.56.0` (spend attribution)** is this branch:
-`record_compute_debit` / `write_daily_cap_adjustment` take
-`actor_id`. Harness spend + hold/release and the built-in pass
-stamp the spending agent. Session `env` wins over `actor_env`.
-`record_spend` still bills after a mid-turn revoke. Shared
-project daily cap. Holds stay amount `0` with the literal
-`harness_session_turn` prefix and `hold_id`. No Crew UI. No
-ops `actor_*` reads. No per-agent cap enforcement. No Fly.
-No `AGENT_LOOP_ENABLED`. **No migration** (0022 already has
-the column).
+**`0.56.0` (spend attribution)** is shipped
+(`2a2a018`, #52): `record_compute_debit` /
+`write_daily_cap_adjustment` take `actor_id`. Harness spend +
+hold/release and the built-in pass stamp the spending agent.
+Session `env` wins over `actor_env`. `record_spend` still bills
+after a mid-turn revoke. Shared project daily cap. Holds stay
+amount `0` with the literal `harness_session_turn` prefix and
+`hold_id`. No per-agent cap enforcement. No Fly. No
+`AGENT_LOOP_ENABLED`. **No migration** (0022 already has the
+column).
+
+**`0.57.0` (Crew UI)** is this branch: deployed-agents bay on
+the existing Crew tab (revoked rows stay visible); members-only
+roster read; OWNER mint / rotate / revoke token with a one-time
+reveal; OWNER/ADMIN suspend / revoke and OWNER resume; blame
+`sponsor`; checkpoint `sponsored_by`; ops `actor_*` +
+spend-by-agent from `compute_debits.actor_id`. HTTP stays
+human-only. `authorize()` refuses when session and MCP
+credentials both resolve and differ (no hold). Five tabs. No
+per-agent cap enforcement. No Fly. No `AGENT_LOOP_ENABLED`.
+**No migration.**
 
 **Next product step:** Lean REPL / LeanDojo remain later. `If` /
-ite remain later. Agent identity slice E (Crew UI / blame
-sponsor / ops actor fields) is next on this line. Does not
-enable the gateway child on Fly. Does not light
-`AGENT_LOOP_ENABLED`.
+ite remain later. Agent identity slice F (per-agent cap
+enforcement) is next on this line. Does not enable the gateway
+child on Fly. Does not light `AGENT_LOOP_ENABLED`.
