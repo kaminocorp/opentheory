@@ -24,11 +24,19 @@ behavior-off: no resolver, no mint, no ``ensure_is_member`` change.
 ``actors.agent_definition_id`` is **not** added — deferred with the
 ``agent_definitions`` catalog table (owner 2026-10-06).
 
-Indexes on existing large tables use ``CREATE INDEX CONCURRENTLY``
-(autocommit block) so we do not take a long SHARE lock on
-``checkpoints`` / ``compute_debits``. New empty tables use regular
-indexes. Backfills are set-based and idempotent (``WHERE … IS NULL``,
-``ON CONFLICT DO NOTHING``).
+The whole revision is **one transaction** (plain ``op.create_index`` /
+``op.drop_index``). ``CREATE INDEX CONCURRENTLY`` + ``autocommit_block``
+are deliberately not used: an autocommit mid-migration leaves a
+half-applied schema that a re-run cannot recover (``create_table`` is
+not idempotent), and a failed CONCURRENTLY unique build can leave an
+``INVALID`` index that ``if_not_exists`` would then skip — dropping the
+old one-agent-per-project guard with no valid replacement. Prod at
+review (2026-10-06, live Supabase read-only) is tiny: checkpoints 0,
+compute_debits 0, actors 2, agent actors 0, alembic at 0021 — the
+SHARE lock is negligible. A future large-table migration should
+revisit concurrency and must check ``pg_index.indisvalid`` before
+treating an existing index as done. Backfills are set-based and
+idempotent (``WHERE … IS NULL``, ``ON CONFLICT DO NOTHING``).
 """
 
 from collections.abc import Sequence
@@ -53,36 +61,6 @@ _UUID_RE = (
 
 def _uuid() -> postgresql.UUID:
     return postgresql.UUID(as_uuid=True)
-
-
-def _create_index_concurrently(
-    name: str,
-    table: str,
-    columns: list[str | sa.TextClause],
-    *,
-    unique: bool = False,
-    postgresql_where: sa.TextClause | None = None,
-) -> None:
-    """Build an index without a long SHARE lock on an existing live table."""
-    kwargs: dict[str, object] = {
-        "unique": unique,
-        "postgresql_concurrently": True,
-        "if_not_exists": True,
-    }
-    if postgresql_where is not None:
-        kwargs["postgresql_where"] = postgresql_where
-    with op.get_context().autocommit_block():
-        op.create_index(name, table, columns, **kwargs)
-
-
-def _drop_index_concurrently(name: str, table: str) -> None:
-    with op.get_context().autocommit_block():
-        op.drop_index(
-            name,
-            table_name=table,
-            postgresql_concurrently=True,
-            if_exists=True,
-        )
 
 
 def upgrade() -> None:
@@ -169,8 +147,8 @@ def upgrade() -> None:
         ["actor_id", "project_id", "revoked_at", "expires_at"],
     )
 
-    # 4–5. Nullable column adds on append-only tables (PG 11+ metadata-only) +
-    #      concurrent indexes so we do not block writers on a large table.
+    # 4–5. Nullable column adds on append-only tables (PG 11+ metadata-only)
+    #      plus regular indexes — same transaction as the rest of the revision.
     op.add_column(
         "checkpoints",
         sa.Column(
@@ -180,7 +158,7 @@ def upgrade() -> None:
             nullable=True,
         ),
     )
-    _create_index_concurrently(
+    op.create_index(
         "ix_checkpoints_sponsored_by_actor_id",
         "checkpoints",
         ["sponsored_by_actor_id"],
@@ -195,7 +173,7 @@ def upgrade() -> None:
             nullable=True,
         ),
     )
-    _create_index_concurrently(
+    op.create_index(
         "ix_compute_debits_actor_id",
         "compute_debits",
         ["actor_id"],
@@ -279,14 +257,16 @@ def upgrade() -> None:
     #       window where two Research-crew rows can land; then drop the old
     #       one-agent-per-project guard. Fails closed if two Research-crew
     #       rows already share a project_id (impossible under the old index).
-    _create_index_concurrently(
+    #       Same transaction as the rest of the revision — a failure rolls
+    #       both the new unique and the drop back together.
+    op.create_index(
         "uq_actors_one_research_crew_per_project",
         "actors",
         [sa.text("(actor_metadata ->> 'project_id')")],
         unique=True,
         postgresql_where=sa.text("type = 'AGENT' AND display_name = 'Research crew'"),
     )
-    _drop_index_concurrently("uq_actors_one_agent_per_project", "actors")
+    op.drop_index("uq_actors_one_agent_per_project", table_name="actors")
 
 
 def downgrade() -> None:
@@ -312,20 +292,22 @@ def downgrade() -> None:
         )
 
     # Recreate the stricter unique first, then drop the narrower one.
-    _create_index_concurrently(
+    op.create_index(
         "uq_actors_one_agent_per_project",
         "actors",
         [sa.text("(actor_metadata ->> 'project_id')")],
         unique=True,
         postgresql_where=sa.text("type = 'AGENT'"),
     )
-    _drop_index_concurrently("uq_actors_one_research_crew_per_project", "actors")
+    op.drop_index("uq_actors_one_research_crew_per_project", table_name="actors")
 
     op.execute(sa.text("UPDATE compute_debits SET actor_id = NULL"))
-    _drop_index_concurrently("ix_compute_debits_actor_id", "compute_debits")
+    op.drop_index("ix_compute_debits_actor_id", table_name="compute_debits")
     op.drop_column("compute_debits", "actor_id")
 
-    _drop_index_concurrently("ix_checkpoints_sponsored_by_actor_id", "checkpoints")
+    op.drop_index(
+        "ix_checkpoints_sponsored_by_actor_id", table_name="checkpoints"
+    )
     op.drop_column("checkpoints", "sponsored_by_actor_id")
 
     op.drop_index("ix_agent_session_tokens_lookup", table_name="agent_session_tokens")

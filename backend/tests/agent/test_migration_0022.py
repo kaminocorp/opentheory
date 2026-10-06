@@ -8,6 +8,7 @@ without ``TEST_DATABASE_URL``.
 from __future__ import annotations
 
 import importlib.util
+import inspect
 import os
 import re
 import subprocess
@@ -114,6 +115,21 @@ def test_owner_override_omits_agent_definition_id() -> None:
     assert "ADD COLUMN" not in source or "agent_definition_id" not in source
     assert "actors.agent_definition_id" in source  # named as deferred
     assert "op.add_column(\n        \"actors\"" not in source
+
+
+def test_indexes_are_transactional() -> None:
+    """0022 upgrade/downgrade is one transaction: no CONCURRENTLY / autocommit hedges."""
+    mod = _load_migration()
+    body = inspect.getsource(mod.upgrade) + inspect.getsource(mod.downgrade)
+    assert "CONCURRENTLY" not in body
+    assert "autocommit_block" not in body
+    assert "postgresql_concurrently" not in body
+    assert "if_not_exists" not in body
+    assert "if_exists" not in body
+    assert "op.create_index" in body
+    assert "op.drop_index" in body
+    assert not hasattr(mod, "_create_index_concurrently")
+    assert not hasattr(mod, "_drop_index_concurrently")
 
 
 def test_migration_is_not_append_only_on_the_new_tables() -> None:

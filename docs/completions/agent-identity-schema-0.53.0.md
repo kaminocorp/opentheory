@@ -93,22 +93,21 @@ CREATE INDEX ix_agent_session_tokens_lookup
 ALTER TABLE checkpoints
     ADD COLUMN sponsored_by_actor_id UUID
         REFERENCES actors(id) ON DELETE SET NULL;
-CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_checkpoints_sponsored_by_actor_id
+CREATE INDEX ix_checkpoints_sponsored_by_actor_id
     ON checkpoints (sponsored_by_actor_id);
 
 ALTER TABLE compute_debits
     ADD COLUMN actor_id UUID
         REFERENCES actors(id) ON DELETE SET NULL;
-CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_compute_debits_actor_id
+CREATE INDEX ix_compute_debits_actor_id
     ON compute_debits (actor_id);
 
 -- NOT added: actors.agent_definition_id (deferred with agent_definitions)
 
-CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS
-    uq_actors_one_research_crew_per_project
+CREATE UNIQUE INDEX uq_actors_one_research_crew_per_project
     ON actors ((actor_metadata ->> 'project_id'))
     WHERE type = 'AGENT' AND display_name = 'Research crew';
-DROP INDEX CONCURRENTLY IF EXISTS uq_actors_one_agent_per_project;
+DROP INDEX uq_actors_one_agent_per_project;
 ```
 
 Backfill (idempotent: `WHERE account_id IS NULL` / `actor_id IS NULL`,
@@ -157,11 +156,17 @@ restores Research-crew `account_id` to NULL.
 
 Do **not** apply until the owner reviews. Target is the live
 Supabase Postgres (`iaokmtutxponegwebvdu`) over
-`MIGRATION_DATABASE_URL` (direct session, not the pooler). Low
-traffic window if `compute_debits` is large; the AgentRun
-backfill is indexed on `agent_run_id`. Concurrent writers keep
-working: new checkpoints insert without a sponsor; new harness
-debits insert without `actor_id`.
+`MIGRATION_DATABASE_URL` (direct session, not the pooler).
+Review-time (2026-10-06, live read-only): **checkpoints 0,
+compute_debits 0, actors 2, agent actors 0, alembic at 0021**.
+The SHARE lock from transactional `CREATE INDEX` is negligible
+at that size. A future large-table migration should revisit
+`CREATE INDEX CONCURRENTLY` and must check `pg_index.indisvalid`
+before treating an existing index as done — a failed concurrent
+unique build can leave an `INVALID` index that `IF NOT EXISTS`
+would then skip. Concurrent writers keep working: new checkpoints
+insert without a sponsor; new harness debits insert without
+`actor_id`. The AgentRun backfill is indexed on `agent_run_id`.
 
 ### Pre-checks
 
@@ -225,9 +230,12 @@ cd backend
 uv run alembic upgrade 0022_agent_actor_identity
 ```
 
-`CREATE INDEX CONCURRENTLY` runs in an autocommit block so the
-revision does not hold a long SHARE lock on `checkpoints` /
-`compute_debits`.
+The revision is **one transaction** (plain `CREATE INDEX` /
+`DROP INDEX`). No `CONCURRENTLY`, no `autocommit_block`, no
+`IF NOT EXISTS` / `IF EXISTS` hedges. A failure rolls the
+whole revision back — `create_table` is not idempotent, so a
+mid-migration commit would leave a half-applied schema a
+re-run cannot recover.
 
 ### Verify
 
@@ -287,7 +295,11 @@ is NULL again and the old one-agent-per-project unique is back.
   when two agents share a project; roster unique pair; Research
   crew partial unique + named agent legal; invalid enum rejected;
   `create_checkpoint` / `record_compute_debit` leave the new
-  columns null; roster is mutable, Checkpoint is not.
+  columns null; roster is mutable, Checkpoint is not;
+  indexes are transactional (no CONCURRENTLY / autocommit);
+  an owner whose Account also owns a Research-crew agent still
+  resolves to their human Actor via bearer and MCP, and
+  member / actor / account listings do not double-count.
 - Existing suite green. Frontend untouched.
 
 ## Verification
