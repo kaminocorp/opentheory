@@ -36,7 +36,9 @@ always billed, including an attempted completion that then failed to parse.
 A refused start (drift / exhausted / turn cap / daily cap / room below
 floor) writes nothing: no tokens moved. ``0.50.0`` clamps the
 completion ``max_tokens`` to the authorize room and records a
-provider overshoot when usage exceeds that clamp.
+provider overshoot when usage exceeds that clamp. ``0.51.0``
+reserves the granted pot room on the same amount-0 hold so two
+overlapping authorizes cannot together spend past available.
 
 Exceptions still mint nothing. The MCP door is the only ledger writer.
 """

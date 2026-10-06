@@ -44,6 +44,11 @@ function HoldRow({ hold }: { hold: OpsHoldRead }) {
         />
         <span className="font-mono text-[12px] text-text-soft">{hold.tokens.toLocaleString()} tok</span>
         <span className="font-mono text-[11px] text-text-faint">{holdIdLabel(hold)}</span>
+        {hold.pot_hold ? (
+          <span className="font-mono text-[11px] text-text-faint">
+            pot {formatOpsMoney(hold.pot_hold, "USD")}
+          </span>
+        ) : null}
       </div>
       {hold.note ? <p className="text-[12px] text-text-faint">{hold.note}</p> : null}
     </li>
@@ -109,6 +114,11 @@ function OpsBody({ data }: { data: ProjectOpsRead }) {
           <MetricReadout
             label="Available"
             value={formatOpsMoney(budget.snapshot.available, currency)}
+          />
+          <MetricReadout
+            label="Open turns"
+            title="Harness pot reserved by open turns — not deducted from Available"
+            value={formatOpsMoney(budget.reserved_by_open_turns, currency)}
           />
         </dl>
       </div>

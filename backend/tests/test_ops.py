@@ -33,16 +33,20 @@ from app.services.harness_meter import (
     classify_harness_row,
     hold_notes,
     is_daily_cap_adjustment,
+    open_pot_holds,
     overshoot_tokens,
     pair_holds,
     parse_clamp,
     parse_hold_id,
     parse_overshoot,
+    parse_pot_hold,
     parse_pot_room,
     parse_price_known,
     peek_daily_token_cap,
     peek_hold_ttl_seconds,
     peek_turn_token_floor,
+    pot_available_after_holds,
+    pot_hold_usd,
     pot_tokens_from_available,
     price_is_known,
     release_notes,
@@ -132,6 +136,10 @@ def test_classify_and_parse_hold_id() -> None:
     assert classify_harness_row(release_notes(hold_id)) == "release"
     assert classify_harness_row(f"{SESSION_NOTES}; rate fallback: blended_fallback") == "spend"
     assert parse_hold_id(hold_notes(hold_id)) == hold_id
+    marked = hold_notes(hold_id, pot_hold=Decimal("0.05"))
+    assert classify_harness_row(marked) == "hold"
+    assert parse_hold_id(marked) == hold_id
+    assert parse_pot_hold(marked) == Decimal("0.05")
     assert parse_hold_id(f"{SESSION_NOTES}; extra") is None
     assert is_daily_cap_adjustment(hold_notes(hold_id))
     assert not is_daily_cap_adjustment(SESSION_NOTES)
@@ -165,6 +173,33 @@ def test_pair_holds_by_hold_id_and_legacy_fifo() -> None:
     assert len(legacy) == 2
     assert {item.status for item in legacy} == {"open", "released"}
     assert sum(1 for item in legacy if item.status == "open") == 1
+
+
+def test_pot_hold_notes_pair_and_legacy_reserves_nothing() -> None:
+    t0 = datetime(2026, 10, 6, 1, 0, tzinfo=UTC)
+    t1 = datetime(2026, 10, 6, 1, 1, tzinfo=UTC)
+    hid = uuid4()
+    marked = hold_notes(hid, pot_hold=Decimal("0.05"))
+    rows = [
+        _Row(50, marked, t0),
+        _Row(-50, release_notes(hid), t1),
+        _Row(25, hold_notes(uuid4()), t0),
+        _Row(10, f"{SESSION_NOTES}; daily_cap_hold", t1),
+    ]
+    paired = pair_holds(rows)
+    identified = next(item for item in paired if item.hold_id == hid)
+    assert identified.status == "released"
+    assert parse_pot_hold(identified.notes) == Decimal("0.05")
+    assert open_pot_holds(rows) == Decimal("0")
+    open_only = [_Row(50, marked, t0), _Row(25, hold_notes(uuid4()), t0)]
+    assert open_pot_holds(open_only) == Decimal("0.05")
+    assert parse_pot_hold(hold_notes(uuid4())) is None
+    assert parse_pot_hold(f"{SESSION_NOTES}; daily_cap_hold") is None
+    assert pot_hold_usd(tokens=50, rate_per_1k=Decimal("1.00")) == Decimal("0.05")
+    assert pot_hold_usd(tokens=20, rate_per_1k=Decimal("4.00")) == Decimal("0.08")
+    assert pot_available_after_holds(Decimal("0.05"), Decimal("0.02")) == Decimal("0.03")
+    assert pot_available_after_holds(Decimal("0.05"), Decimal("0.05")) == Decimal("0")
+    assert pot_available_after_holds(Decimal("0.05"), Decimal("0.08")) == Decimal("0")
 
 
 def test_refusals_are_not_invented() -> None:

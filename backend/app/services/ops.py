@@ -1,4 +1,4 @@
-"""Perpetual ops dashboard — derived read over the compute ledger (0.49.0 / 0.50.0).
+"""Perpetual ops dashboard — derived read over the compute ledger (0.49.0 / 0.51.0).
 
 ``GET /projects/{id}/ops``. Always-on. Mints nothing. Does not import
 ``app.harness``. The daily-cap numbers are the same meter
@@ -49,10 +49,12 @@ from app.services.harness_meter import (
     is_hold_stale,
     load_recent_harness_rows,
     load_today_adjustments,
+    open_pot_holds,
     pair_holds,
     parse_clamp,
     parse_hold_id,
     parse_overshoot,
+    parse_pot_hold,
     parse_pot_room,
     parse_price_known,
     peek_daily_token_cap,
@@ -190,6 +192,7 @@ async def project_ops(
         exhausted = used >= cap.value
 
     adjustments = await load_today_adjustments(db, project_id, now=moment)
+    reserved_by_open_turns = open_pot_holds(adjustments)
     holds = [
         OpsHoldRead(
             hold_id=item.hold_id,
@@ -207,6 +210,7 @@ async def project_ops(
                 if item.hold_id is None
                 else None
             ),
+            pot_hold=parse_pot_hold(item.notes),
         )
         for item in pair_holds(adjustments)
     ]
@@ -241,6 +245,7 @@ async def project_ops(
             snapshot=budget,
             state=state,
             note=_BUDGET_NOTES[state],
+            reserved_by_open_turns=reserved_by_open_turns,
         ),
         daily_cap=OpsDailyCapRead(
             utc_day=utc_day_start(moment).date().isoformat(),

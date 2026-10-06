@@ -1,4 +1,4 @@
-"""Perpetual ops dashboard — derived ledger read (0.49.0 / 0.50.0).
+"""Perpetual ops dashboard — derived ledger read (0.49.0 / 0.51.0).
 
 Public GET. Mints nothing. Every number is on the append-only
 ``ComputeDebit`` / funding ledgers or is a setting this API process
@@ -22,11 +22,16 @@ UnknownFlag = Literal["unknown"]
 
 
 class OpsBudgetRead(BaseModel):
-    """Project pot plus the honesty flag unfunded ≠ exhausted."""
+    """Project pot plus the honesty flag unfunded ≠ exhausted.
+
+    ``snapshot.available`` keeps its funded meaning (funded − spent −
+    agent-pass reserved). Open harness turns are a separate figure.
+    """
 
     snapshot: ProjectBudget
     state: BudgetState
     note: str
+    reserved_by_open_turns: Decimal = Decimal("0")
 
 
 class OpsDailyCapRead(BaseModel):
@@ -53,6 +58,7 @@ class OpsHoldRead(BaseModel):
     released_at: datetime | None
     stale: bool | None
     note: str | None = None
+    pot_hold: Decimal | None = None
 
 
 class OpsTurnRead(BaseModel):

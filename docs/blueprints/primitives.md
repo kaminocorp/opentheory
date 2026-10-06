@@ -381,7 +381,7 @@ Possible actor types:
 - `agent`
 - `system`
 
-An external harness-driven agent (`0.40.0`–`0.50.0`) is the same
+An external harness-driven agent (`0.40.0`–`0.51.0`) is the same
 `Actor` type — not a parallel data model. It must authenticate as a
 JWT Actor, pass membership, and write the ledger only through
 `run_instrument` / `create_checkpoint`. The live door, fail-closed

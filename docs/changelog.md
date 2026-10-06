@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.51.0` — **Harness pot-room reservation.** Closes the leftover 0.50.0 pot race: `authorize()` still locks the project row, releases stale holds, and clamps `min(daily room, pot room)` when pot room is applied; the same amount-0 hold now also carries `pot_hold=<usd>` (the clamp's dollar value at the clamp rate, Decimal) so a concurrent authorize subtracts unpaired open reservations. Ledger occupancy is the clamp — when daily is the bottleneck that still equals the remaining daily tokens (0.47/0.48 intact); when pot is tighter, a second authorize can see daily room and then clamp to remaining unreserved pot room or refuse below `OPENTHEORY_HARNESS_TURN_TOKEN_FLOOR` (no provider call, no debit, no hold). Release / convert / TTL-expired orphan frees the reservation. Legacy hold rows without the mark still pair and reserve nothing. Unfunded and unknown-price turns write no `pot_hold`. Funding / Overview `available` is unchanged (funded − spent − agent-pass reserved); Overview ops bay shows `reserved_by_open_turns` as a separate read-only figure. Hold/release amount stays `0` with the literal `harness_session_turn` prefix and `hold_id`. Unfunded ≠ exhausted. Debit only when `tokens_used > 0`. FastAPI still does not import `app.harness`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + frontend + docs — no schema, no migration.** Sits on shipped `0.50.0` (`af7ee43`, #44).
 - `0.50.0` — **Harness turn-room clamp.** Closes the leftover 0.46–0.48 single-turn overshoot: `authorize()` still locks the project row, releases stale holds, and holds remaining daily tokens so two overlapping authorizes cannot both debit past the cap; it now also computes a clamp (`min` of remaining daily tokens and tokens the pot can buy at a live/catalog *completion* rate when the project is funded and that price is known) and the gateway sets `max_tokens` to it. Unfunded + known price clamps to daily room (`pot_room=none`); the Overview note does not claim pot room was used. A caller-smaller `max_tokens` is kept; invalid `max_tokens` is 422. The authorize model is the same resolved id the completion uses. A room below `OPENTHEORY_HARNESS_TURN_TOKEN_FLOOR` (default **16**) is `TurnRefused` → 422, `tokens_used` 0, minted false, no OpenRouter call. Provider usage above the clamp is recorded in full and flagged on the turn result and the Overview last-turn readout. Price unknown → clamp is the daily room only; the blended settings rate is not invented. Unfunded ≠ exhausted. Debit only when `tokens_used > 0`. Hold/release amount stays `0`. FastAPI still does not import `app.harness`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + frontend + docs — no schema, no migration.** Sits on shipped `0.49.1` (`f2362b1`, #43).
 - `0.49.1` — **Perpetual ops Overview eyeball pass.** The leftover `0.49.0` browser walk: local FastAPI + Next against throwaway Postgres, seeded through the sanctioned writers / ledger fixtures. Unfunded ≠ exhausted on screen. Funded remaining, pot-exhausted, paired `hold_id` + legacy id-less hold, newest 20 harness rows, refusals honesty block, gateway/MCP `unknown`, invalid cap → cap unknown, missing project 404, five-tab contract, desktop + narrow 390. One honesty fix: `formatOpsMoney` keeps Numeric(12, 6) fraction digits so `$0.0004` is not rounded to `$0.00`. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Frontend + docs — no schema, no migration.** Sits on shipped `0.49.0` (`ba7055b`, #42).
 - `0.49.0` — **Perpetual ops dashboard.** A read-only operator snapshot of the budgeted perpetual setup: per-project pot vs spent (unfunded ≠ exhausted), today's `harness_session_turn` `ComputeDebit` sum against `OPENTHEORY_HARNESS_DAILY_TOKEN_CAP` (holds paired by `hold_id`; legacy id-less holds pair FIFO), recent harness rows, and whether the built-in loop / gateway is enabled. Refused starts mint nothing and are labeled as not recorded. Gateway / MCP-on-Fly is `unknown` to this API process. FastAPI still does not import `app.harness` (shared meter in `app.services.harness_meter`). Quiet Overview bay; no sixth tab; no Start / Fund controls. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Secrets never in `fly.toml [env]`. **Backend + frontend + docs — no schema, no migration.** Sits on shipped `0.48.0` (`7094d18`, #41).
@@ -123,6 +124,63 @@
 - `0.3.1` — Backend write path for threads, claims, and evidence, plus dev actors, two join tables, and the first real Alembic migration.
 - `0.2.0` — Added the initial Next.js frontend scaffold with Tailwind, TanStack Query, typed API client, project index, and project detail surfaces.
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
+
+---
+
+## 0.51.0
+
+**Harness pot-room reservation.** Two concurrent harness turns on a
+tightly funded project could each be clamped to the full pot room
+because the 0.47/0.48 hold reserved remaining *daily* tokens, not
+the pot dollars the clamp had granted. This slice reserves that pot
+room on the existing amount-0 hold. **No schema, no migration.**
+Sits on shipped `0.50.0` (`af7ee43`, #44). Does not flip
+`AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly.
+
+- **`pot_hold=<usd>` on the existing hold.** When pot room is applied
+  (funded + live/catalog price), hold notes carry the clamp's dollar
+  value at the clamp rate (`Decimal`, Numeric(12, 6), floored).
+  `authorize()` — still under the project-row `FOR UPDATE` — subtracts
+  unpaired open pot holds (paired by `hold_id`; same TTL orphan
+  release as 0.48) from funded leftover before computing pot room.
+  Amount stays `0`. Notes prefix stays literal. Legacy rows without
+  the mark reserve nothing and still pair / release.
+- **Occupancy is the clamp.** The ledger hold occupies the granted
+  room, not always the full daily remainder. When daily is the
+  bottleneck, clamp equals remaining daily tokens and the 0.47/0.48
+  race close is unchanged. When pot is tighter, a second concurrent
+  authorize can still see daily room, then clamps to remaining
+  unreserved pot room or is `TurnRefused` below
+  `OPENTHEORY_HARNESS_TURN_TOKEN_FLOOR` (no OpenRouter call, no
+  debit, no hold).
+- **Release frees the reservation.** A convert (`record_spend`) or
+  `release_hold` appends the matching credit (never an edit). A
+  stale unmatched hold older than
+  `OPENTHEORY_HARNESS_HOLD_TTL_SECONDS` is released on the next
+  authorize. Either path unpairs the hold and frees its pot
+  reservation.
+- **`available` meaning unchanged.** Funding / Overview
+  `project_budget.available` stays funded − spent − agent-pass
+  reserved. Overview ops bay shows `reserved_by_open_turns` as a
+  separate read-only figure. Unfunded and unknown-price turns are
+  unaffected (no pot room, no pot reservation).
+  `create_checkpoint` remains the only Checkpoint writer.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q      # 850 passed, 275 skipped (no TEST_DATABASE_URL)
+# +1 passed vs shipped 0.50.0 (849); +5 skipped (pot-hold race / remainder / release / TTL / legacy)
+cd backend && uv run pytest tests/harness -q
+# 91 passed, 40 skipped (no TEST_DATABASE_URL)
+cd frontend && npm run typecheck && npm run lint && npm test && npm run build
+# typecheck/lint/build clean; 64 tests
+```
+
+See `docs/completions/harness-pot-room-reservation-0.51.0.md`.
+
+**Not in this release:** Fly enablement of the gateway or MCP child;
+lighting `AGENT_LOOP_ENABLED`; a refusals table; a campaign table;
+Lean REPL / LeanDojo.
 
 ---
 

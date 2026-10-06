@@ -1,14 +1,15 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-10-06 · **Current release line:** `0.50.0`
-> (harness turn-room clamp), sitting on shipped `0.49.1`
-> (perpetual ops Overview eyeball pass, `f2362b1`, #43) on current
-> `main`. See `docs/completions/harness-turn-room-clamp-0.50.0.md`.
+> **Last updated:** 2026-10-06 · **Current release line:** `0.51.0`
+> (harness pot-room reservation), sitting on shipped `0.50.0`
+> (harness turn-room clamp, `af7ee43`, #44) on current
+> `main`. See `docs/completions/harness-pot-room-reservation-0.51.0.md`.
 >
 > **Next after this line:** Lean REPL / LeanDojo remain later.
 > Does not enable the gateway child on Fly.
 > Does not light `AGENT_LOOP_ENABLED`.
-> ~~Harness turn-room clamp~~ ✅ this branch as `0.50.0`.
+> ~~Harness pot-room reservation~~ ✅ this branch as `0.51.0`.
+> ~~Harness turn-room clamp~~ ✅ shipped as `0.50.0`.
 > ~~Perpetual ops Overview eyeball pass~~ ✅ shipped as `0.49.1`.
 > ~~Perpetual ops dashboard~~ ✅ shipped as `0.49.0`.
 
@@ -102,7 +103,22 @@ bypassing the checkpoint chokepoint or conflating funder / contributor / validat
 
 ## Recommended next releases
 
-### `0.50.x` — Harness turn-room clamp ✅ **this branch** (`0.50.0`)
+### `0.51.x` — Harness pot-room reservation ✅ **this branch** (`0.51.0`)
+
+Delivered: the leftover 0.50.0 pot race is closed. When pot room is
+applied, the existing amount-0 hold also carries `pot_hold=<usd>`
+so a concurrent authorize subtracts unpaired open reservations.
+Occupancy is the clamp (daily-tight turns still occupy remaining
+daily tokens; pot-tight turns leave daily room). Release / convert
+/ TTL orphan frees the reservation. Funding / Overview `available`
+is unchanged; Overview ops shows `reserved_by_open_turns`
+separately. **No schema, no migration, no campaign table.** See
+`docs/completions/harness-pot-room-reservation-0.51.0.md`.
+
+**Not in this release:** Fly enablement of the gateway or MCP child;
+lighting `AGENT_LOOP_ENABLED`; a refusals table; Lean REPL / LeanDojo.
+
+### `0.50.x` — Harness turn-room clamp ✅ **shipped** (`0.50.0`)
 
 Delivered: the leftover 0.46–0.48 single-turn overshoot is closed.
 `authorize()` still locks the project row and holds remaining daily
@@ -694,9 +710,12 @@ changing branch protection.
     ~~**Perpetual ops dashboard**~~ ✅ shipped as `0.49.0` —
     read-only pot / daily-cap / hold / enablement snapshot.
     ~~**Overview eyeball pass**~~ ✅ shipped as `0.49.1`.
-    ~~**Harness turn-room clamp**~~ ✅ this branch as `0.50.0` —
+    ~~**Harness turn-room clamp**~~ ✅ shipped as `0.50.0` —
     `max_tokens` bounded to remaining daily / pot room; below-floor
     refuse; provider overshoot recorded as truth.
+    ~~**Harness pot-room reservation**~~ ✅ this branch as `0.51.0` —
+    open pot holds reserve the granted dollars so overlapping
+    authorizes cannot together spend past available.
     Does not enable the gateway child. Does not light
     `AGENT_LOOP_ENABLED`.
 
@@ -750,6 +769,7 @@ changing branch protection.
 | `0.48.x` | Harness daily-cap orphan-hold release — a crash leftover hold no longer pins the UTC day |
 | `0.49.x` | Perpetual ops dashboard + Overview eyeball pass (`0.49.1`) |
 | `0.50.x` | Harness turn-room clamp — `max_tokens` bounded to remaining room |
+| `0.51.x` | Harness pot-room reservation — open turns reserve granted pot dollars |
 
 ## Success criteria for the next milestone
 
@@ -891,11 +911,16 @@ MCP-on-Fly is `unknown`. FastAPI still does not import
 on screen. Invalid cap is unknown. Five tabs. Ledger money is not
 rounded to an invented zero.
 
-**`0.50.0` (harness turn-room clamp)** is this branch: a single
-turn can no longer be sent unbounded against the remaining daily /
-pot room. Pot room uses the completion rate when present; unfunded
-is `pot_room=none`. Price unknown → daily room only. Provider
-overshoot is recorded as truth.
+**`0.50.0` (harness turn-room clamp)** is shipped (`af7ee43`, #44):
+a single turn can no longer be sent unbounded against the remaining
+daily / pot room. Pot room uses the completion rate when present;
+unfunded is `pot_room=none`. Price unknown → daily room only.
+Provider overshoot is recorded as truth.
+
+**`0.51.0` (harness pot-room reservation)** is this branch: when
+pot room is applied, the amount-0 hold also reserves those dollars
+(`pot_hold=<usd>`). A concurrent authorize subtracts unpaired open
+reservations. Funding / Overview `available` is unchanged.
 
 **Next product step:** Lean REPL / LeanDojo remain later. `If` /
 ite remain later. Does not enable the gateway child on Fly. Does

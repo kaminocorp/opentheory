@@ -1,4 +1,4 @@
-"""Session owner for an external DeepSeek Harness run (0.43.0 / 0.50.0).
+"""Session owner for an external DeepSeek Harness run (0.43.0 / 0.51.0).
 
 One :class:`HarnessSession` owns one campaign-bound run: the project, the
 process-local turn cap, the daily token cap, pre-LLM exhaust, and
@@ -39,8 +39,7 @@ project-row lock — appends a matching release for an unmatched hold
 older than ``OPENTHEORY_HARNESS_HOLD_TTL_SECONDS`` (default 300) and
 only then takes a new hold. A fresh in-flight hold is not released.
 
-``0.50.0`` closes the leftover single-turn overshoot: the hold still
-occupies remaining daily tokens (the 0.47/0.48 race close), and also
+``0.50.0`` closes the leftover single-turn overshoot: the hold
 carries a ``clamp`` — ``min(daily room, pot room)`` when pot room
 was applied (funded + live/catalog price). Pot dollars convert at
 the completion rate, or ``max(prompt, completion)`` when both are
@@ -51,7 +50,17 @@ unknown-price turns have no pot room and clamp to the daily room
 to that clamp. A room below
 ``OPENTHEORY_HARNESS_TURN_TOKEN_FLOOR`` (default 16) is
 ``TurnRefused``. Provider usage above the clamp is recorded in full
-and flagged. No campaign table.
+and flagged.
+
+``0.51.0`` closes the leftover pot race: when pot room is applied,
+the same amount-0 hold also carries ``pot_hold=<usd>`` (the clamp's
+dollar value at the clamp rate). Ledger occupancy is the clamp, so
+a second concurrent authorize can still see daily room when pot is
+the bottleneck, then computes ``available`` minus unpaired open pot
+holds. A stale TTL release (0.48) or convert/release frees that
+reservation. Unfunded and unknown-price turns write no ``pot_hold``.
+When daily is the bottleneck, clamp equals the daily remainder and
+the 0.47/0.48 race close is unchanged. No campaign table.
 """
 
 from __future__ import annotations
@@ -96,8 +105,11 @@ from app.services.harness_meter import (
     is_daily_cap_adjustment,
     is_hold_stale,
     load_today_adjustments,
+    open_pot_holds,
     overshoot_tokens,
     parse_hold_id,
+    pot_available_after_holds,
+    pot_hold_usd,
     pot_tokens_from_available,
     price_is_known,
     release_notes,
@@ -155,8 +167,11 @@ __all__ = [
     "is_daily_cap_adjustment",
     "is_hold_stale",
     "load_today_adjustments",
+    "open_pot_holds",
     "overshoot_tokens",
     "parse_hold_id",
+    "pot_available_after_holds",
+    "pot_hold_usd",
     "pot_tokens_from_available",
     "price_is_known",
     "release_notes",
@@ -188,19 +203,23 @@ class DailyCapHold:
 
     Expressed as a ``ComputeDebit`` row whose notes start with
     ``harness_session_turn`` so today's cap sum sees it. ``tokens`` is
-    the held remainder (``cap − used``) — the 0.47/0.48 race close.
-    Amount on that row is ``0`` — this is not a project-pot debit.
-    Release is a new credit row, never an edit. ``hold_id`` is written
-    into the notes so a later authorize can release only this hold
-    when it is stale — not a live turn.
+    the clamp — the daily tokens this turn was granted. When daily
+    is the bottleneck that equals ``cap − used`` (the 0.47/0.48
+    race close). When pot is tighter, occupying the clamp leaves
+    daily room for a concurrent authorize, which then subtracts
+    ``pot_hold``. Amount on that row is ``0`` — this is not a
+    project-pot debit. Release is a new credit row, never an edit.
+    ``hold_id`` is written into the notes so a later authorize can
+    release only this hold when it is stale — not a live turn.
 
     ``clamp`` is the honest ``max_tokens`` bound for this turn:
     ``min(daily_room, pot_room)`` when pot room was applied (funded
     project + known live/catalog price), otherwise the daily room.
     ``pot_room is None`` means it was not applied — unfunded, or
-    price unknown. Pot dollars convert at the completion rate (or
-    ``max(prompt, completion)``). Prompt cost is not reserved.
-    The blended settings rate is not used.
+    price unknown. ``pot_hold`` is the clamp's dollar value at the
+    clamp rate when pot room was applied. Pot dollars convert at
+    the completion rate (or ``max(prompt, completion)``). Prompt
+    cost is not reserved. The blended settings rate is not used.
     """
 
     tokens: int
@@ -209,6 +228,7 @@ class DailyCapHold:
     daily_room: int
     pot_room: int | None = None
     price_known: bool = False
+    pot_hold: Decimal | None = None
 
 
 def resolve_max_turns(env: Mapping[str, str] | None = None) -> int:
@@ -421,10 +441,10 @@ class HarnessSession:
     (question + roster), ``FundingAllocation`` (budget), and
     ``ComputeDebit`` (spend, including the daily token cap, the 0.47.0
     remaining-room hold / release pair, the 0.48.0 stale-hold
-    release, and the 0.50.0 turn-room clamp). Turn index is
-    process-local — a restart starts a new bound session at turn 0.
-    Today's harness token sum does not reset. No schema, no second
-    campaign table, no ``AgentRun``.
+    release, the 0.50.0 turn-room clamp, and the 0.51.0 pot-room
+    reservation). Turn index is process-local — a restart starts a
+    new bound session at turn 0. Today's harness token sum does not
+    reset. No schema, no second campaign table, no ``AgentRun``.
     """
 
     project_id: UUID | str
@@ -488,16 +508,19 @@ class HarnessSession:
 
         On a pass, locks the project row, releases unmatched holds older
         than the TTL, re-reads today's harness token sum (holds
-        included), computes the turn clamp, and appends a remaining-room
-        hold so a second concurrent authorize cannot also pass. The
-        ledger hold still occupies remaining daily tokens (0.47/0.48).
-        ``clamp`` is ``min(daily room, pot room)`` when the project is
-        funded and ``quote`` (or a live/catalog fetch for ``model``)
-        is a known price; pot dollars convert at the completion rate
-        (or ``max(prompt, completion)``). Unfunded and unknown-price
-        turns clamp to the daily room alone. Prompt cost is not
-        reserved. Returns the hold the caller must convert
-        (``record_spend``) or release.
+        included), computes the turn clamp, and appends a hold so a
+        second concurrent authorize cannot debit past the daily cap
+        or the pot. Ledger occupancy is the clamp (the granted
+        room). When pot room is applied, notes also carry
+        ``pot_hold=<usd>`` so the next authorize subtracts that
+        reservation from funded leftover. ``clamp`` is
+        ``min(daily room, pot room)`` when the project is funded and
+        ``quote`` (or a live/catalog fetch for ``model``) is a known
+        price; pot dollars convert at the completion rate (or
+        ``max(prompt, completion)``). Unfunded and unknown-price
+        turns clamp to the daily room alone and write no
+        ``pot_hold``. Prompt cost is not reserved. Returns the hold
+        the caller must convert (``record_spend``) or release.
         """
         assert_composition()
         assert_turn_in_budget(self.turn_index, self.resolved_max_turns())
@@ -528,35 +551,47 @@ class HarnessSession:
                 raise TurnRefused(REASON_DAILY_CAP)
             pot_room: int | None = None
             known = False
+            rate: Decimal | None = None
             if resolved_quote is not None and price_is_known(resolved_quote.source):
                 known = True
                 budget = await funding_service.project_budget(db, self.project_uuid)
                 if budget.funded > 0:
-                    pot_room = pot_tokens_from_available(
-                        budget.available,
-                        clamp_rate_per_1k(
-                            effective_rate_per_1k=resolved_quote.effective_rate_per_1k,
-                            prompt_rate_per_1k=resolved_quote.prompt_rate_per_1k,
-                            completion_rate_per_1k=resolved_quote.completion_rate_per_1k,
-                        ),
+                    rate = clamp_rate_per_1k(
+                        effective_rate_per_1k=resolved_quote.effective_rate_per_1k,
+                        prompt_rate_per_1k=resolved_quote.prompt_rate_per_1k,
+                        completion_rate_per_1k=resolved_quote.completion_rate_per_1k,
                     )
+                    adjustments = await load_today_adjustments(
+                        db,
+                        self.project_uuid,
+                        notes=self.notes,
+                    )
+                    reserved = open_pot_holds(adjustments)
+                    unreserved = pot_available_after_holds(budget.available, reserved)
+                    pot_room = pot_tokens_from_available(unreserved, rate)
             clamp = turn_clamp(daily_room=daily_room, pot_room=pot_room)
             assert_turn_room_above_floor(clamp, self.resolved_turn_token_floor())
             hold_id = uuid4()
+            pot_hold_amount: Decimal | None = None
+            if pot_room is not None and rate is not None:
+                reserved_usd = pot_hold_usd(tokens=clamp, rate_per_1k=rate)
+                if reserved_usd > 0:
+                    pot_hold_amount = reserved_usd
             await write_daily_cap_adjustment(
                 db,
                 self.project_uuid,
-                tokens_used=daily_room,
-                notes=hold_notes(hold_id),
+                tokens_used=clamp,
+                notes=hold_notes(hold_id, pot_hold=pot_hold_amount),
             )
             await db.commit()
             return DailyCapHold(
-                tokens=daily_room,
+                tokens=clamp,
                 hold_id=hold_id,
                 clamp=clamp,
                 daily_room=daily_room,
                 pot_room=pot_room,
                 price_known=known,
+                pot_hold=pot_hold_amount,
             )
 
     async def release_hold(self, hold: DailyCapHold | None) -> None:

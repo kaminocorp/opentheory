@@ -1,4 +1,4 @@
-"""Fail-closed OpenRouter gateway for the external DeepSeek Harness (0.50.0).
+"""Fail-closed OpenRouter gateway for the external DeepSeek Harness (0.51.0).
 
 Mirrors the OpenWorld gateway posture named in ``docs/harness/prior-art.md``:
 provider allowlist, ``allow_fallbacks: false``, ``require_parameters: true``,
@@ -47,7 +47,7 @@ from app.harness.session import (
     spend_notes,
 )
 
-VERSION = "0.50.0"
+VERSION = "0.51.0"
 DEFAULT_MODEL = "deepseek/deepseek-chat"
 DEFAULT_PROVIDERS: tuple[str, ...] = ("DeepSeek",)
 ALLOWED_OPENROUTER_HOSTS = frozenset({"openrouter.ai", "www.openrouter.ai"})
@@ -397,7 +397,7 @@ def create_gateway_app(
 
     Not mounted on the product FastAPI app. ``python -m app.harness.gateway``.
     ``gateway`` is the test injection seam (MockTransport client).
-    ``session`` is the 0.43.0 / 0.50.0 owner — turn cap, daily token
+    ``session`` is the 0.43.0 / 0.51.0 owner — turn cap, daily token
     cap (with a remaining-room hold, stale-hold release, and turn-room
     clamp), exhaust, and debit. When omitted,
     ``OPENTHEORY_PROJECT_ID`` binds one. The process entrypoint refuses

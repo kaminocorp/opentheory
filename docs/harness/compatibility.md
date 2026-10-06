@@ -1,6 +1,6 @@
 # External harness — compatibility
 
-> **Status — `0.50.0` turn-room clamp.** Pin is unchanged. Live
+> **Status — `0.51.0` pot-room reservation.** Pin is unchanged. Live
 > OpenRouter probe is implemented behind `OPENTHEORY_HARNESS_LIVE`.
 > An unmetered HTTP child is opt-in
 > (`OPENTHEORY_HARNESS_UNMETERED_PROBE`) and is not the campaign
@@ -11,7 +11,9 @@
 > unmatched hold older than `OPENTHEORY_HARNESS_HOLD_TTL_SECONDS`
 > (default 300) is released on the next authorize. A single turn is
 > clamped to remaining daily room, and to pot room when a funded pot
-> has a live/catalog price (completion rate). Room below `OPENTHEORY_HARNESS_TURN_TOKEN_FLOOR`
+> has a live/catalog price (completion rate). When pot room is
+> applied, that hold also carries `pot_hold=<usd>` so a concurrent
+> authorize subtracts open reservations. Room below `OPENTHEORY_HARNESS_TURN_TOKEN_FLOOR`
 > (default 16) refuses before the model.
 
 ## Pin

@@ -219,7 +219,7 @@ def test_fixture_probe_log_uses_protocol_maybe_log() -> None:
 
 
 def test_gateway_version_is_turn_room_clamp() -> None:
-    assert VERSION == "0.50.0"
+    assert VERSION == "0.51.0"
 
 
 def test_default_daily_token_cap_is_small_and_overridable() -> None:
@@ -380,7 +380,7 @@ async def test_health_reports_bound_session() -> None:
     async with AsyncClient(transport=ASGITransport(app=unbound), base_url="http://gw") as client:
         health = await client.get("/health")
     assert health.json()["session_owned"] is False
-    assert health.json()["version"] == "0.50.0"
+    assert health.json()["version"] == "0.51.0"
 
     session = open_session(
         "dddddddd-dddd-dddd-dddd-dddddddddddd",

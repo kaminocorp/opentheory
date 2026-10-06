@@ -1,15 +1,17 @@
-"""Shared harness ``ComputeDebit`` meter (0.50.0).
+"""Shared harness ``ComputeDebit`` meter (0.51.0).
 
 The session owner in ``app.harness.session`` *writes* remaining-room
 holds and spend against today's ``harness_session_turn`` prefix. The
 product ops dashboard *reads* the same ledger. This module is the
 shared meter so those two paths cannot drift.
 
-``0.50.0`` adds the turn-room clamp: remaining daily tokens, and — only
-when a live/catalog price is known — the tokens the pot can still buy.
-Math lives here so FastAPI can parse clamp / overshoot notes without
-importing ``app.harness``. A blended settings fallback is not a known
-price; do not invent one.
+``0.50.0`` added the turn-room clamp: remaining daily tokens, and —
+only when a live/catalog price is known — the tokens the pot can
+still buy. ``0.51.0`` also reserves that pot room on the same
+amount-0 hold (``pot_hold=<usd>``) so a concurrent authorize
+subtracts unpaired open reservations. Legacy rows without the mark
+reserve nothing. A blended settings fallback is not a known price;
+do not invent one.
 
 FastAPI may import this module. It must not import ``app.harness``.
 Nothing here writes. ``create_checkpoint`` is still the only Checkpoint
@@ -23,7 +25,7 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from decimal import ROUND_DOWN, Decimal
+from decimal import ROUND_DOWN, Decimal, InvalidOperation
 from typing import Literal, Protocol
 from uuid import UUID
 
@@ -46,10 +48,12 @@ HOLD_ID_MARK = "hold_id="
 CLAMP_MARK = "clamp="
 OVERSHOOT_MARK = "overshoot="
 POT_ROOM_MARK = "pot_room="
+POT_HOLD_MARK = "pot_hold="
 POT_ROOM_NONE = "none"
 PRICE_UNKNOWN_MARK = "price_unknown"
 HOLD_NOTES = f"{SESSION_NOTES}; {HOLD_NOTES_MARK}"
 RELEASE_NOTES = f"{SESSION_NOTES}; {RELEASE_NOTES_MARK}"
+MONEY_QUANTUM = Decimal("0.000001")
 KNOWN_PRICE_SOURCES = frozenset(
     {
         ComputeDebitRateSource.OPENROUTER_LIVE,
@@ -118,9 +122,65 @@ def is_daily_cap_adjustment(notes: str | None) -> bool:
     return HOLD_NOTES_MARK in text or RELEASE_NOTES_MARK in text
 
 
-def hold_notes(hold_id: UUID) -> str:
-    """Hold notes: literal ``harness_session_turn`` prefix plus ``hold_id``."""
-    return f"{HOLD_NOTES}; {HOLD_ID_MARK}{hold_id}"
+def hold_notes(hold_id: UUID, pot_hold: Decimal | None = None) -> str:
+    """Hold notes: literal ``harness_session_turn`` prefix plus ``hold_id``.
+
+    When pot room was applied, ``pot_hold=<usd>`` is the clamp's dollar
+    value at the clamp rate. Missing mark (pre-0.51.0) reserves nothing.
+    """
+    notes = f"{HOLD_NOTES}; {HOLD_ID_MARK}{hold_id}"
+    if pot_hold is None:
+        return notes
+    return f"{notes}; {POT_HOLD_MARK}{format_pot_hold(pot_hold)}"
+
+
+def format_pot_hold(amount: Decimal) -> str:
+    """Canonical Numeric(12, 6) dollars. Never scientific notation."""
+    quantized = amount.quantize(MONEY_QUANTUM, rounding=ROUND_DOWN)
+    return format(quantized, "f")
+
+
+def parse_pot_hold(notes: str | None) -> Decimal | None:
+    """Read ``pot_hold=<usd>``. Missing / unparseable / negative is none."""
+    for part in (notes or "").split(";"):
+        token = part.strip()
+        if not token.startswith(POT_HOLD_MARK):
+            continue
+        raw = token[len(POT_HOLD_MARK) :]
+        try:
+            value = Decimal(raw)
+        except InvalidOperation:
+            return None
+        if value < 0:
+            return None
+        return value
+    return None
+
+
+def pot_hold_usd(*, tokens: int, rate_per_1k: Decimal) -> Decimal:
+    """Dollar value of ``tokens`` at ``rate_per_1k``. Floors to Numeric(12, 6)."""
+    if tokens <= 0 or rate_per_1k <= 0:
+        return Decimal("0")
+    raw = (Decimal(tokens) * rate_per_1k) / Decimal(1000)
+    return raw.quantize(MONEY_QUANTUM, rounding=ROUND_DOWN)
+
+
+def open_pot_holds(rows: list[AdjustmentRow]) -> Decimal:
+    """Σ ``pot_hold`` USD on unmatched holds. Legacy rows without the mark are 0."""
+    total = Decimal("0")
+    for hold in unmatched_holds(rows):
+        reserved = parse_pot_hold(hold.notes)
+        if reserved is not None:
+            total += reserved
+    return total
+
+
+def pot_available_after_holds(available: object, reserved: object) -> Decimal:
+    """Funded leftover minus open pot reservations. Never negative."""
+    available_n = available if isinstance(available, Decimal) else Decimal(str(available))
+    reserved_n = reserved if isinstance(reserved, Decimal) else Decimal(str(reserved))
+    room = available_n - reserved_n
+    return room if room > 0 else Decimal("0")
 
 
 def release_notes(hold_id: UUID | None) -> str:

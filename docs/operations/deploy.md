@@ -257,7 +257,7 @@ run in production until both of these are set.
 
 Leave `AGENT_LOOP_ENABLED=false` until you intend to take live agent traffic.
 
-The **external DeepSeek Harness** path (`0.40.0`–`0.50.0`) is a different
+The **external DeepSeek Harness** path (`0.40.0`–`0.51.0`) is a different
 owner of the session. FastAPI does not import the package, Fly does not
 run the gateway or MCP child, and it must not be turned on by flipping
 `AGENT_LOOP_ENABLED`. The 0.43.0 session owner (`HarnessSession`) binds
@@ -278,7 +278,9 @@ the UTC day. `0.49.0` adds a read-only ops dashboard
 not start a campaign. `0.50.0` clamps each turn's `max_tokens` to
 remaining daily room (and pot room when a funded pot has a
 live/catalog price, at the completion rate) and records a provider
-overshoot as truth. The gateway talks to
+overshoot as truth. `0.51.0` reserves that pot room on the same
+amount-0 hold (`pot_hold=<usd>`) so overlapping authorizes cannot
+together spend past available. The gateway talks to
 OpenRouter only (`allow_fallbacks: false`, `require_parameters: true`,
 `data_collection: deny`, provider allowlist). Set
 `OPENROUTER_API_KEY` / `OPENTHEORY_GATEWAY_TOKEN` with `fly secrets set`

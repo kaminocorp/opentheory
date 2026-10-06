@@ -39,6 +39,12 @@ from app.models.checkpoint import Checkpoint
 from app.models.compute_debit import ComputeDebit
 from app.models.enums import ComputeDebitKind, ComputeDebitRateSource
 from app.services.compute import BUDGET_EXHAUSTED
+from app.services.harness_meter import (
+    POT_HOLD_MARK,
+    load_today_adjustments,
+    open_pot_holds,
+    parse_pot_hold,
+)
 from tests.principals import create_owned_project, make_dev_principal
 
 _OK_BODY = {
@@ -380,9 +386,10 @@ async def _add_daily_cap_hold(
     tokens_used: int,
     hold_id: UUID | None = None,
     created_at: datetime | None = None,
+    pot_hold: Decimal | None = None,
 ) -> UUID | None:
     """Append-only leftover hold. Amount 0 — not a pot debit."""
-    notes = HOLD_NOTES if hold_id is None else hold_notes(hold_id)
+    notes = HOLD_NOTES if hold_id is None else hold_notes(hold_id, pot_hold=pot_hold)
     async with session_factory() as session:
         row = ComputeDebit(
             project_id=UUID(project_id),
@@ -894,7 +901,10 @@ async def test_clamp_is_min_of_daily_and_pot_when_price_known(
     assert hold.pot_room == 50
     assert hold.clamp == 50
     assert hold.price_known is True
-    assert hold.tokens == 20_000
+    assert hold.tokens == 50
+    assert hold.pot_hold == Decimal("0.05")
+    notes = await _adjustment_notes(session_factory, project_id)
+    assert any(parse_pot_hold(row) == Decimal("0.05") for row in notes)
     await owner.release_hold(hold)
 
     tight = await create_owned_project(client, actor_id, "session-clamp-daily-tighter")
@@ -940,8 +950,12 @@ async def test_clamp_is_daily_room_when_price_unknown(
     assert hold is not None
     assert hold.price_known is False
     assert hold.pot_room is None
+    assert hold.pot_hold is None
     assert hold.daily_room == 80
     assert hold.clamp == 80
+    assert hold.tokens == 80
+    notes = await _adjustment_notes(session_factory, project_id)
+    assert all(POT_HOLD_MARK not in row for row in notes)
     await owner.release_hold(hold)
 
     no_quote = await owner.authorize()
@@ -1111,8 +1125,12 @@ async def test_unfunded_known_price_clamps_to_daily_room(
     assert hold is not None
     assert hold.price_known is True
     assert hold.pot_room is None
+    assert hold.pot_hold is None
     assert hold.daily_room == 80
     assert hold.clamp == 80
+    assert hold.tokens == 80
+    notes = await _adjustment_notes(session_factory, project_id)
+    assert all(POT_HOLD_MARK not in row for row in notes)
     await owner.release_hold(hold)
 
     app = create_metered_gateway_app(
@@ -1174,6 +1192,8 @@ async def test_pot_clamp_uses_completion_rate_not_live_mean(
     # Mean $2.50 / 1k would buy 32 tokens; completion $4 / 1k buys 20.
     assert hold.pot_room == 20
     assert hold.clamp == 20
+    assert hold.tokens == 20
+    assert hold.pot_hold == Decimal("0.08")
     await owner.release_hold(hold)
 
 
@@ -1280,3 +1300,252 @@ async def test_http_invalid_max_tokens_is_422(
     assert len(await _debit_rows(session_factory, project_id)) == 0
     async with session_factory() as session:
         assert await harness_tokens_used_today(session, UUID(project_id)) == 0
+
+
+async def _open_pot_reserved(
+    session_factory: async_sessionmaker, project_id: str
+) -> Decimal:
+    async with session_factory() as session:
+        rows = await load_today_adjustments(session, UUID(project_id))
+        return open_pot_holds(rows)
+
+
+async def test_overlapping_authorizes_cannot_clamp_past_pot(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    """Two overlapping authorizes on a tight pot cannot together exceed available."""
+    actor_id = await make_dev_principal(client, display_name="PotRace", roles=("internal",))
+    project_id = await create_owned_project(client, actor_id, "session-pot-hold-race")
+    funded = await client.post(
+        f"/api/v1/projects/{project_id}/funding",
+        json={"amount": "0.05", "currency": "USD", "kind": "top_up", "source": "native"},
+        headers={"X-Dev-Actor-Id": actor_id},
+    )
+    assert funded.status_code == 201, funded.text
+
+    left = HarnessSession(
+        project_id=project_id,
+        daily_token_cap=20_000,
+        session_factory=session_factory,
+    )
+    right = HarnessSession(
+        project_id=project_id,
+        daily_token_cap=20_000,
+        session_factory=session_factory,
+    )
+
+    async def _authorize(owner: HarnessSession):
+        try:
+            return ("ok", owner, await owner.authorize(model=DEFAULT_MODEL, quote=_live_quote()))
+        except TurnRefused as exc:
+            return ("refused", owner, exc)
+
+    outcomes = await asyncio.gather(_authorize(left), _authorize(right))
+    winners = [item for item in outcomes if item[0] == "ok"]
+    losers = [item for item in outcomes if item[0] == "refused"]
+    assert len(winners) == 1
+    assert len(losers) == 1
+    _, winner, hold = winners[0]
+    assert hold is not None
+    assert hold.clamp == 50
+    assert hold.pot_room == 50
+    assert hold.pot_hold == Decimal("0.05")
+    assert hold.tokens == 50
+    assert losers[0][2].reason == REASON_TURN_ROOM
+    assert await _open_pot_reserved(session_factory, project_id) == Decimal("0.05")
+    assert len(await _debit_rows(session_factory, project_id)) == 0
+    before = await _checkpoint_count(session_factory, project_id)
+
+    leftover = await create_owned_project(client, actor_id, "session-pot-hold-remainder")
+    funded_left = await client.post(
+        f"/api/v1/projects/{leftover}/funding",
+        json={"amount": "0.05", "currency": "USD", "kind": "top_up", "source": "native"},
+        headers={"X-Dev-Actor-Id": actor_id},
+    )
+    assert funded_left.status_code == 201, funded_left.text
+    await _add_daily_cap_hold(
+        session_factory,
+        leftover,
+        tokens_used=20,
+        hold_id=uuid4(),
+        pot_hold=Decimal("0.02"),
+    )
+    remainder = HarnessSession(
+        project_id=leftover,
+        daily_token_cap=20_000,
+        session_factory=session_factory,
+    )
+    remainder_hold = await remainder.authorize(model=DEFAULT_MODEL, quote=_live_quote())
+    assert remainder_hold is not None
+    assert remainder_hold.pot_room == 30
+    assert remainder_hold.clamp == 30
+    assert remainder_hold.pot_hold == Decimal("0.03")
+    await remainder.release_hold(remainder_hold)
+
+    tight = await create_owned_project(client, actor_id, "session-pot-hold-floor")
+    funded_tight = await client.post(
+        f"/api/v1/projects/{tight}/funding",
+        json={"amount": "0.05", "currency": "USD", "kind": "top_up", "source": "native"},
+        headers={"X-Dev-Actor-Id": actor_id},
+    )
+    assert funded_tight.status_code == 201, funded_tight.text
+    await _add_daily_cap_hold(
+        session_factory,
+        tight,
+        tokens_used=20,
+        hold_id=uuid4(),
+        pot_hold=Decimal("0.04"),
+    )
+    floor_owner = HarnessSession(
+        project_id=tight,
+        daily_token_cap=20_000,
+        session_factory=session_factory,
+    )
+    try:
+        await floor_owner.authorize(model=DEFAULT_MODEL, quote=_live_quote())
+        raise AssertionError("remaining pot room below floor must refuse")
+    except TurnRefused as exc:
+        assert exc.reason == REASON_TURN_ROOM
+    assert await _open_pot_reserved(session_factory, tight) == Decimal("0.04")
+    assert len(await _debit_rows(session_factory, tight)) == 0
+    assert await _checkpoint_count(session_factory, project_id) == before
+
+
+async def test_release_and_convert_free_pot_reservation(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    actor_id = await make_dev_principal(client, display_name="PotFree", roles=("internal",))
+    project_id = await create_owned_project(client, actor_id, "session-pot-hold-release")
+    funded = await client.post(
+        f"/api/v1/projects/{project_id}/funding",
+        json={"amount": "0.05", "currency": "USD", "kind": "top_up", "source": "native"},
+        headers={"X-Dev-Actor-Id": actor_id},
+    )
+    assert funded.status_code == 201, funded.text
+
+    owner = HarnessSession(
+        project_id=project_id,
+        daily_token_cap=20_000,
+        session_factory=session_factory,
+    )
+    first = await owner.authorize(model=DEFAULT_MODEL, quote=_live_quote())
+    assert first is not None
+    assert first.pot_hold == Decimal("0.05")
+    assert await _open_pot_reserved(session_factory, project_id) == Decimal("0.05")
+    await owner.release_hold(first)
+    assert await _open_pot_reserved(session_factory, project_id) == Decimal("0")
+
+    recovered = await owner.authorize(model=DEFAULT_MODEL, quote=_live_quote())
+    assert recovered is not None
+    assert recovered.clamp == 50
+    assert recovered.pot_hold == Decimal("0.05")
+    spent = await owner.record_spend(
+        tokens_used=20,
+        model=DEFAULT_MODEL,
+        prompt_tokens=15,
+        completion_tokens=5,
+        hold=recovered,
+    )
+    assert spent is True
+    assert await _open_pot_reserved(session_factory, project_id) == Decimal("0")
+    after = await owner.authorize(model=DEFAULT_MODEL, quote=_live_quote())
+    assert after is not None
+    assert after.pot_room is not None
+    assert after.pot_room < 50
+    assert after.pot_hold is not None
+    await owner.release_hold(after)
+
+
+async def test_stale_pot_hold_is_released_with_ttl(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    actor_id = await make_dev_principal(client, display_name="PotTtl", roles=("internal",))
+    project_id = await create_owned_project(client, actor_id, "session-pot-hold-ttl")
+    funded = await client.post(
+        f"/api/v1/projects/{project_id}/funding",
+        json={"amount": "0.05", "currency": "USD", "kind": "top_up", "source": "native"},
+        headers={"X-Dev-Actor-Id": actor_id},
+    )
+    assert funded.status_code == 201, funded.text
+    stale_id = uuid4()
+    await _add_daily_cap_hold(
+        session_factory,
+        project_id,
+        tokens_used=50,
+        hold_id=stale_id,
+        pot_hold=Decimal("0.05"),
+        created_at=datetime.now(UTC) - timedelta(seconds=301),
+    )
+    assert await _open_pot_reserved(session_factory, project_id) == Decimal("0.05")
+    owner = HarnessSession(
+        project_id=project_id,
+        daily_token_cap=20_000,
+        session_factory=session_factory,
+    )
+    hold = await owner.authorize(model=DEFAULT_MODEL, quote=_live_quote())
+    assert hold is not None
+    assert hold.clamp == 50
+    assert hold.pot_hold == Decimal("0.05")
+    notes = await _adjustment_notes(session_factory, project_id)
+    assert any(row == release_notes(stale_id) for row in notes)
+    assert parse_pot_hold(hold_notes(hold.hold_id, pot_hold=hold.pot_hold)) == Decimal("0.05")
+    await owner.release_hold(hold)
+
+
+async def test_legacy_hold_without_pot_mark_still_pairs(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    actor_id = await make_dev_principal(client, display_name="LegacyPot", roles=("internal",))
+    project_id = await create_owned_project(client, actor_id, "session-pot-hold-legacy")
+    funded = await client.post(
+        f"/api/v1/projects/{project_id}/funding",
+        json={"amount": "0.05", "currency": "USD", "kind": "top_up", "source": "native"},
+        headers={"X-Dev-Actor-Id": actor_id},
+    )
+    assert funded.status_code == 201, funded.text
+    legacy_id = uuid4()
+    await _add_daily_cap_hold(
+        session_factory,
+        project_id,
+        tokens_used=20,
+        hold_id=legacy_id,
+    )
+    assert await _open_pot_reserved(session_factory, project_id) == Decimal("0")
+    owner = HarnessSession(
+        project_id=project_id,
+        daily_token_cap=20_000,
+        session_factory=session_factory,
+    )
+    hold = await owner.authorize(model=DEFAULT_MODEL, quote=_live_quote())
+    assert hold is not None
+    assert hold.pot_room == 50
+    assert hold.clamp == 50
+    assert hold.pot_hold == Decimal("0.05")
+    await owner.release_hold(hold)
+
+    stale_legacy = await create_owned_project(client, actor_id, "session-pot-hold-legacy-ttl")
+    funded_stale = await client.post(
+        f"/api/v1/projects/{stale_legacy}/funding",
+        json={"amount": "0.05", "currency": "USD", "kind": "top_up", "source": "native"},
+        headers={"X-Dev-Actor-Id": actor_id},
+    )
+    assert funded_stale.status_code == 201, funded_stale.text
+    leftover_id = uuid4()
+    await _add_daily_cap_hold(
+        session_factory,
+        stale_legacy,
+        tokens_used=20,
+        hold_id=leftover_id,
+        created_at=datetime.now(UTC) - timedelta(seconds=301),
+    )
+    recovered = HarnessSession(
+        project_id=stale_legacy,
+        daily_token_cap=20_000,
+        session_factory=session_factory,
+    )
+    recovered_hold = await recovered.authorize(model=DEFAULT_MODEL, quote=_live_quote())
+    assert recovered_hold is not None
+    notes = await _adjustment_notes(session_factory, stale_legacy)
+    assert any(row == release_notes(leftover_id) for row in notes)
+    assert recovered_hold.clamp == 50
+    await recovered.release_hold(recovered_hold)
