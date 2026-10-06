@@ -508,6 +508,73 @@ async def test_owner_transfer_suspends_outgoing_and_crew_keeps_admin_deployed(
         assert str(crew_actor.account_id) == crew_account
 
 
+async def test_resume_active_is_409(
+    client: AsyncClient, session_factory: async_sessionmaker, internal_funder
+) -> None:
+    owner_id, owner_account = await internal_funder(client, roles=(), display_name="Owner")
+    project_id = await create_owned_project(client, owner_id, "resume-active")
+    agent_id, _ = await _insert_agent(
+        session_factory,
+        project_id=project_id,
+        display_name="Already running",
+        account_id=owner_account,
+        roster=True,
+        status=ProjectAgentStatus.ACTIVE,
+        deployed_by=owner_account,
+        responsible=owner_account,
+    )
+
+    async with session_factory() as session:
+        owner = await session.get(Actor, UUID(owner_id))
+        assert owner is not None
+        with pytest.raises(HTTPException) as exc:
+            await resume_project_agent(session, UUID(project_id), UUID(agent_id), owner)
+        assert exc.value.status_code == 409
+        assert exc.value.detail == "agent is already active"
+        row = await get_roster_row(session, UUID(project_id), UUID(agent_id))
+        assert row is not None
+        assert row.status == ProjectAgentStatus.ACTIVE
+        assert str(row.responsible_account_id) == owner_account
+
+
+async def test_resume_revoked_is_409_and_does_not_unrevoke_tokens(
+    client: AsyncClient, session_factory: async_sessionmaker, internal_funder
+) -> None:
+    owner_id, owner_account = await internal_funder(client, roles=(), display_name="Owner")
+    project_id = await create_owned_project(client, owner_id, "resume-revoked")
+    agent_id, token_id = await _insert_agent(
+        session_factory,
+        project_id=project_id,
+        display_name="Revoked researcher",
+        account_id=owner_account,
+        roster=True,
+        status=ProjectAgentStatus.REVOKED,
+        deployed_by=owner_account,
+        responsible=owner_account,
+        token=True,
+    )
+    async with session_factory() as session:
+        token = await session.get(AgentSessionToken, UUID(token_id))
+        assert token is not None
+        token.revoked_at = datetime.now(UTC)
+        session.add(token)
+        await session.commit()
+
+    async with session_factory() as session:
+        owner = await session.get(Actor, UUID(owner_id))
+        assert owner is not None
+        with pytest.raises(HTTPException) as exc:
+            await resume_project_agent(session, UUID(project_id), UUID(agent_id), owner)
+        assert exc.value.status_code == 409
+        assert exc.value.detail == "agent is revoked; deploy a new agent"
+        row = await get_roster_row(session, UUID(project_id), UUID(agent_id))
+        assert row is not None
+        assert row.status == ProjectAgentStatus.REVOKED
+        token = await session.get(AgentSessionToken, UUID(token_id))
+        assert token is not None
+        assert token.revoked_at is not None
+
+
 # --- invitee-side human assertion -------------------------------------------
 
 

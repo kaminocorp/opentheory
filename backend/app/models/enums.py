@@ -46,7 +46,8 @@ class ProjectAgentStatus(StrEnum):
 
     ``ACTIVE`` may write through ``ensure_is_member`` (0.54.0). ``SUSPENDED`` /
     ``REVOKED`` refuse subsequent writes; the row stays visible (revoked agents
-    remain on Crew). Re-deploy of the same Actor is a resume, not a second insert.
+    remain on Crew). Only ``SUSPENDED`` is resumable; ``REVOKED`` is terminal
+    (deploy a new agent).
     """
 
     ACTIVE = "active"

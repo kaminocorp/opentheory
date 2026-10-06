@@ -100,11 +100,14 @@ async def resume_project_agent(
     actor_id: UUID,
     acting: Actor,
 ) -> ProjectAgentMember:
-    """OWNER-only resume: ``ACTIVE`` + ``responsible_account_id`` = acting account.
+    """OWNER-only resume of a ``SUSPENDED`` row.
 
-    Does not rewrite ``Actor.account_id`` or ``deployed_by_account_id``.
-    Does not un-revoke tokens. Does not commit. Lazy-imports the manage
-    gate so this module and ``project_members`` do not cycle at import time.
+    ``REVOKED`` is terminal — deploy a new agent, do not flip this row.
+    ``ACTIVE`` is ``409`` (already running). Sets ``responsible_account_id``
+    to the acting owner's Account. Does not rewrite ``Actor.account_id`` or
+    ``deployed_by_account_id``. Does not un-revoke tokens. Does not commit.
+    Lazy-imports the manage gate so this module and ``project_members`` do
+    not cycle at import time.
     """
     from fastapi import HTTPException, status
 
@@ -114,6 +117,21 @@ async def resume_project_agent(
     row = await get_roster_row(db, project_id, actor_id)
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
+    if row.status == ProjectAgentStatus.ACTIVE:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="agent is already active",
+        )
+    if row.status == ProjectAgentStatus.REVOKED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="agent is revoked; deploy a new agent",
+        )
+    if row.status != ProjectAgentStatus.SUSPENDED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="agent is already active",
+        )
     row.status = ProjectAgentStatus.ACTIVE
     row.responsible_account_id = acting.account_id
     db.add(row)

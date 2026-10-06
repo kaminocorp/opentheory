@@ -2,7 +2,8 @@
 
 > **Status — Approved 2026-10-06; implementation in slices.**
 > Slice A (schema) shipped as `0.53.0` (`2b2a135`, #49).
-> Slice B (membership gate) is this branch as `0.54.0`.
+> Slice B (membership gate) is this branch as `0.54.0`
+> (`REVOKED` is terminal — resume is `SUSPENDED` only).
 > Slices C–G are not started. Precursor: shipped `0.52.0`
 > (PR #48) puts a human-member gate on
 > `HarnessSession.authorize()`; later slices swap that gate
@@ -229,8 +230,8 @@ register it in `models/append_only.py`.
 | --- | --- | --- |
 | **Add (deploy)** | Human `OWNER` / `ADMIN` via `ensure_can_manage` | Mint (or reuse) an `Actor(type=agent)` owned by the acting account; insert roster row `status=active`, `deployed_by_account_id=acting account`, `responsible_account_id=acting account`. One transaction. Re-adding an `(project, actor)` pair is a `409`, not a second row (`uq_project_agent_member`). |
 | **Suspend** | Same | `status=suspended`. In-place. Live tokens for that pair get `revoked_at` in the same transaction. Subsequent MCP writes and `authorize()` / `record_spend` identity-load refuse. Existing checkpoints, contributions, and debits are untouched. |
-| **Resume** | Human `OWNER` only (`ensure_can_manage(require_owner=True)`) | `status=active`. Sets `responsible_account_id` to the acting owner's Account (who is now on the hook). Does **not** rewrite `Actor.account_id` or `deployed_by_account_id`. Does not un-revoke tokens; the owner mints a new one. |
-| **Revoke** | `OWNER` / `ADMIN` | `status=revoked`. Active session tokens for that `(project, actor)` get `revoked_at`. The Actor row stays (provenance). The roster row stays and remains **visible on Crew**, marked revoked. Re-deploy of the *same* Actor is a resume, not a second insert. |
+| **Resume** | Human `OWNER` only (`ensure_can_manage(require_owner=True)`) | Only `SUSPENDED` is resumable (what OWNER-transfer produces). `status=active`. Sets `responsible_account_id` to the acting owner's Account (who is now on the hook). Does **not** rewrite `Actor.account_id` or `deployed_by_account_id`. Does not un-revoke tokens; the owner mints a new one. `ACTIVE` → `409` already active. `REVOKED` is terminal → `409` deploy a new agent (`0.54.0` review). |
+| **Revoke** | `OWNER` / `ADMIN` | `status=revoked`. Active session tokens for that `(project, actor)` get `revoked_at`. The Actor row stays (provenance). The roster row stays and remains **visible on Crew**, marked revoked. `REVOKED` is terminal — resume refuses; deploy a **new** Actor (`0.54.0` review; the unique pair still blocks a second insert of the same Actor). |
 | **Mint token** | Human `OWNER` only | See §3. ADMIN may deploy / suspend / revoke; ADMIN may not mint. |
 | **Rotate token** | Human `OWNER` only | Mint new, revoke old, return the new compact JWT once. Optional and explicit. |
 

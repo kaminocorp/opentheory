@@ -37,10 +37,23 @@ schema. No new table, no new column, no Alembic revision.
 - Dark-loop `start_agent_pass` 403s when a Research-crew Actor
   already exists without an ACTIVE roster. `run_agent_pass`
   re-checks after `get_or_create` (failed trace, mints nothing).
-- Service-level `resume_project_agent` (OWNER only):
-  `status=ACTIVE`, `responsible_account_id` = acting account.
-  Does not rewrite `Actor.account_id` / `deployed_by`. Does
-  not un-revoke tokens. No HTTP surface (Crew UI is slice E).
+- Service-level `resume_project_agent` (OWNER only): only
+  `SUSPENDED` is resumable (what OWNER-transfer produces).
+  Sets `status=ACTIVE` and `responsible_account_id` = acting
+  account. `ACTIVE` → `409` "agent is already active".
+  `REVOKED` is terminal → `409` "agent is revoked; deploy a
+  new agent". Does not rewrite `Actor.account_id` /
+  `deployed_by`. Does not un-revoke tokens. No HTTP surface
+  (Crew UI is slice E).
+- `get_or_create_project_agent_actor` heals a *missing*
+  roster row for an existing Research-crew Actor only on
+  paths that call it directly: `run_agent_pass` (`_execute`),
+  `orchestration.py` (pre-wave mint), and `campaigns.py`
+  (pre-cycle mint). `start_agent_pass` does **not** heal —
+  an existing un-rostered crew is `403` there. After
+  migration 0022 every migrated crew is rostered, so this
+  is an orphan / test-insert edge case. A `SUSPENDED` /
+  `REVOKED` row is never revived.
 
 ## What did not change
 
@@ -72,8 +85,10 @@ schema. No new table, no new column, no Alembic revision.
 - OWNER transfer: Research crew + outgoing-responsible
   suspend, their tokens get `revoked_at`; ADMIN-deployed
   stays `ACTIVE` with a live token; `account_id` /
-  `deployed_by` unchanged. Resume by the new OWNER sets
-  `responsible_account_id` and leaves old tokens revoked.
+  `deployed_by` unchanged. Resume by the new OWNER of a
+  `SUSPENDED` row sets `responsible_account_id` and leaves
+  old tokens revoked. Resume of `ACTIVE` / `REVOKED` is
+  `409` (revoked stays revoked; tokens stay revoked).
 - Agent sharing an invitee's `account_id` cannot accept.
 - Existing 0.51.1 / 0.52.0 pins updated to insert a raw
   un-rostered crew (so `get_or_create` cannot heal a seat).
