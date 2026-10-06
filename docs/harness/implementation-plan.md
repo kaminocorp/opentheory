@@ -1,8 +1,8 @@
 # External DeepSeek Harness — implementation plan
 
-> **Status — `0.49.1` closes the leftover 4b browser walk** on
-> shipped `0.49.0` (perpetual ops dashboard), sitting on shipped
-> `0.48.0` orphan-hold release,
+> **Status — `0.50.0` closes the leftover 4a single-turn overshoot**
+> on shipped `0.49.1` (Overview eyeball) / `0.49.0` (ops dashboard),
+> sitting on shipped `0.48.0` orphan-hold release,
 > `0.47.0` remaining-room hold, `0.46.0` daily token cap, `0.45.0`
 > `source.pin`, `0.44.0` fail-closed composition, `0.43.0` session
 > owner, `0.42.0` gateway, `0.41.0` live MCP, and `0.40.0`
@@ -48,7 +48,8 @@ meters token spend.
 | **4a leftover — `0.47.0`** | Remaining-room hold under a project-row lock so two overlapping authorizes cannot both debit past the cap | Ops dashboard; Fly enablement; `AGENT_LOOP_ENABLED`; a campaign table |
 | **4a leftover — `0.48.0`** | Release an unmatched hold older than the TTL on the next authorize so a crash leftover does not pin the UTC day; two live overlapping turns still cannot both debit past the cap | Ops dashboard; Fly enablement; `AGENT_LOOP_ENABLED`; a campaign table |
 | **4b — `0.49.0`** | Perpetual ops dashboard: read-only pot / daily-cap / hold / enablement snapshot | Fly enablement; `AGENT_LOOP_ENABLED`; a refusals table; Lean REPL / LeanDojo |
-| **4b leftover — `0.49.1` (this)** | Overview browser walk of the shipped bay; money-precision honesty (`$0.0004` stays `$0.0004`) | Fly enablement; `AGENT_LOOP_ENABLED`; a refusals table; Lean REPL / LeanDojo |
+| **4b leftover — `0.49.1`** | Overview browser walk of the shipped bay; money-precision honesty (`$0.0004` stays `$0.0004`) | Fly enablement; `AGENT_LOOP_ENABLED`; a refusals table; Lean REPL / LeanDojo |
+| **4a leftover — `0.50.0` (this)** | Turn-room clamp: `max_tokens` bounded to remaining daily / pot room; below-floor refuse; provider overshoot recorded as truth | Fly enablement; `AGENT_LOOP_ENABLED`; a refusals table; a schema change |
 
 Each slice stays small and deployable. A slice that cannot run in default CI
 without `OPENROUTER_API_KEY` is not done.

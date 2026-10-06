@@ -1,4 +1,4 @@
-"""Fail-closed OpenRouter gateway for the external DeepSeek Harness (0.48.0).
+"""Fail-closed OpenRouter gateway for the external DeepSeek Harness (0.50.0).
 
 Mirrors the OpenWorld gateway posture named in ``docs/harness/prior-art.md``:
 provider allowlist, ``allow_fallbacks: false``, ``require_parameters: true``,
@@ -37,9 +37,17 @@ from app.core.config import settings
 from app.core.openrouter_models import OPENROUTER_MODELS, VALID_MODEL_IDS
 from app.harness.auth import redact
 from app.harness.composition import PROJECT_ID_ENV, UNMETERED_PROBE_ENV
-from app.harness.session import DailyCapHold, HarnessSession, TurnRefused, session_from_env
+from app.harness.session import (
+    DailyCapHold,
+    HarnessSession,
+    TurnRefused,
+    clamp_max_tokens,
+    overshoot_tokens,
+    session_from_env,
+    spend_notes,
+)
 
-VERSION = "0.48.0"
+VERSION = "0.50.0"
 DEFAULT_MODEL = "deepseek/deepseek-chat"
 DEFAULT_PROVIDERS: tuple[str, ...] = ("DeepSeek",)
 ALLOWED_OPENROUTER_HOSTS = frozenset({"openrouter.ai", "www.openrouter.ai"})
@@ -325,6 +333,27 @@ def _optional_int(value: object) -> int | None:
         return None
 
 
+def _clamp_fields(hold: DailyCapHold | None, tokens_used: int) -> dict[str, Any]:
+    """Surface the authorize clamp and any provider overshoot. Never hide usage."""
+    if hold is None:
+        return {}
+    return {
+        "clamp": hold.clamp,
+        "overshoot": overshoot_tokens(tokens_used, hold.clamp),
+        "price_known": hold.price_known,
+    }
+
+
+def _spend_notes_for(hold: DailyCapHold | None, tokens_used: int) -> str | None:
+    if hold is None:
+        return None
+    return spend_notes(
+        clamp=hold.clamp,
+        overshoot=overshoot_tokens(tokens_used, hold.clamp),
+        price_known=hold.price_known,
+    )
+
+
 def _require_gateway_token(
     headers: Mapping[str, str], *, env: Mapping[str, str] | None = None
 ) -> None:
@@ -350,9 +379,9 @@ def create_gateway_app(
 
     Not mounted on the product FastAPI app. ``python -m app.harness.gateway``.
     ``gateway`` is the test injection seam (MockTransport client).
-    ``session`` is the 0.43.0 / 0.48.0 owner — turn cap, daily token
-    cap (with a remaining-room hold and stale-hold release), exhaust,
-    and debit. When omitted,
+    ``session`` is the 0.43.0 / 0.50.0 owner — turn cap, daily token
+    cap (with a remaining-room hold, stale-hold release, and turn-room
+    clamp), exhaust, and debit. When omitted,
     ``OPENTHEORY_PROJECT_ID`` binds one. The process entrypoint refuses
     an unbound child unless ``OPENTHEORY_HARNESS_UNMETERED_PROBE`` is
     set. In-process tests may still construct an unbound app.
@@ -387,9 +416,10 @@ def create_gateway_app(
         hold: DailyCapHold | None = None
         try:
             _require_gateway_token(request.headers, env=env)
-            if owner is not None:
-                hold = await owner.authorize()
-            raw = await request.json()
+            try:
+                raw = await request.json()
+            except Exception as exc:
+                raise GatewayError("body must be a JSON object") from exc
             if not isinstance(raw, dict):
                 raise GatewayError("body must be a JSON object")
             model = raw.get("model")
@@ -397,12 +427,18 @@ def create_gateway_app(
             if not isinstance(messages, list):
                 raise GatewayError("messages must be a list")
             extra = {key: value for key, value in raw.items() if key not in {"model", "messages"}}
+            requested_max = _optional_int(extra.pop("max_tokens", None))
+            if owner is not None:
+                hold = await owner.authorize(model=str(model) if model else None)
             client = gateway or GatewayClient(env=env)
             started = True
+            bound_max = (
+                clamp_max_tokens(requested_max, hold.clamp) if hold is not None else requested_max
+            )
             result = await client.complete(
                 model=str(model) if model else None,
                 messages=messages,
-                max_tokens=extra.pop("max_tokens", None),
+                max_tokens=bound_max,
                 extra=extra,
             )
         except TurnRefused as exc:
@@ -418,61 +454,66 @@ def create_gateway_app(
                 ),
             )
         except GatewayError as exc:
+            used = exc.tokens_used if started else 0
+            extras = _clamp_fields(hold, used) if started else {}
             if owner is not None:
                 await owner.record_spend(
-                    tokens_used=exc.tokens_used if started else 0,
+                    tokens_used=used,
                     model=None,
                     prompt_tokens=exc.prompt_tokens if started else None,
                     completion_tokens=exc.completion_tokens if started else None,
+                    notes=_spend_notes_for(hold, used) if hold is not None else None,
                     hold=hold,
                 )
                 hold = None
                 if started:
                     owner.advance()
+            payload: dict[str, Any] = {
+                "error": str(exc),
+                "tokens_used": exc.tokens_used,
+                "minted": False,
+            }
+            payload.update(extras)
             return JSONResponse(
                 status_code=422,
-                content=redact(
-                    {
-                        "error": str(exc),
-                        "tokens_used": exc.tokens_used,
-                        "minted": False,
-                    }
-                ),
+                content=redact(payload),
             )
         except Exception:
             if owner is not None and hold is not None:
                 await owner.release_hold(hold)
                 hold = None
             raise
+        extras = _clamp_fields(hold, result.tokens_used)
         if owner is not None:
             await owner.record_spend(
                 tokens_used=result.tokens_used,
                 model=result.model,
                 prompt_tokens=result.prompt_tokens,
                 completion_tokens=result.completion_tokens,
+                notes=_spend_notes_for(hold, result.tokens_used) if hold is not None else None,
                 hold=hold,
             )
             hold = None
             owner.advance()
-        return JSONResponse(
-            {
-                "id": "opentheory-gateway",
-                "object": "chat.completion",
-                "model": result.model,
-                "choices": [
-                    {
-                        "index": 0,
-                        "message": {"role": "assistant", "content": result.text},
-                        "finish_reason": "stop",
-                    }
-                ],
-                "usage": {
-                    "prompt_tokens": result.prompt_tokens,
-                    "completion_tokens": result.completion_tokens,
-                    "total_tokens": result.tokens_used,
-                },
-            }
-        )
+        body: dict[str, Any] = {
+            "id": "opentheory-gateway",
+            "object": "chat.completion",
+            "model": result.model,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": result.text},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": result.prompt_tokens,
+                "completion_tokens": result.completion_tokens,
+                "total_tokens": result.tokens_used,
+            },
+        }
+        body.update(extras)
+        return JSONResponse(body)
 
     return app
 

@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.models.checkpoint import Checkpoint
 from app.models.compute_debit import ComputeDebit
 from app.models.enums import ComputeDebitKind, ComputeDebitRateSource
-from app.services.harness_meter import SESSION_NOTES, hold_notes, release_notes
+from app.services.harness_meter import SESSION_NOTES, hold_notes, release_notes, spend_notes
 from tests.principals import create_owned_project, make_dev_principal
 
 
@@ -78,6 +78,7 @@ async def test_ops_empty_project_is_honest_unfunded(
     assert body["daily_cap"]["exhausted"] is False
     assert body["holds"] == []
     assert body["recent_turns"] == []
+    assert body["last_turn"] is None
     assert body["refusals"]["recorded"] is False
     assert body["enablement"]["loop"]["enabled"] is False
     assert body["enablement"]["gateway"]["enabled"] == "unknown"
@@ -197,3 +198,31 @@ async def test_ops_open_hold_and_exhausted_pot(
     assert body["holds"][0]["status"] == "open"
     assert body["holds"][0]["hold_id"] == str(open_id)
     assert body["holds"][0]["stale"] is False
+
+
+async def test_ops_last_turn_surfaces_clamp_and_overshoot(
+    client: AsyncClient, session_factory: async_sessionmaker
+) -> None:
+    actor_id = await make_dev_principal(client, display_name="Ada")
+    project_id = await create_owned_project(client, actor_id, "ops-last-turn")
+    await _add_debit(
+        session_factory,
+        project_id,
+        tokens_used=80,
+        amount=Decimal("0.40"),
+        notes=spend_notes(clamp=50, overshoot=30, price_known=True),
+    )
+    resp = await client.get(f"/api/v1/projects/{project_id}/ops")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    last = body["last_turn"]
+    assert last is not None
+    assert last["tokens_used"] == 80
+    assert last["clamp"] == 50
+    assert last["overshoot"] == 30
+    assert last["price_known"] is True
+    assert "overshoot 30" in last["note"]
+    spend = next(row for row in body["recent_turns"] if row["kind"] == "spend")
+    assert spend["clamp"] == 50
+    assert spend["overshoot"] == 30
+    assert spend["price_known"] is True

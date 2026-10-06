@@ -33,8 +33,10 @@ writer the built-in planner uses. Harness turns have no ``AgentRun`` (this
 path does not light ``AGENT_LOOP_ENABLED``), so ``agent_run_id`` is left
 null and ``notes`` carry ``harness_session_turn``. Tokens that moved are
 always billed, including an attempted completion that then failed to parse.
-A refused start (drift / exhausted / turn cap / daily cap) writes nothing:
-no tokens moved.
+A refused start (drift / exhausted / turn cap / daily cap / room below
+floor) writes nothing: no tokens moved. ``0.50.0`` clamps the
+completion ``max_tokens`` to the authorize room and records a
+provider overshoot when usage exceeds that clamp.
 
 Exceptions still mint nothing. The MCP door is the only ledger writer.
 """
@@ -68,7 +70,10 @@ from app.harness.session import (
     TurnRefused,
     assert_project_budget,
     assert_turn_in_budget,
+    clamp_max_tokens,
+    overshoot_tokens,
     resolve_max_turns,
+    spend_notes,
 )
 
 TURN_NOTES = SESSION_NOTES
@@ -110,6 +115,9 @@ class SupervisedTurn:
     checkpoint_id: str | None = None
     mcp: dict[str, Any] | None = None
     turn_index: int = 0
+    clamp: int | None = None
+    overshoot: int = 0
+    price_known: bool | None = None
     extras: dict[str, Any] = field(default_factory=dict)
 
 
@@ -168,7 +176,7 @@ async def supervise_turn(
         )
         factory = owner.session_factory or session_factory
         try:
-            hold = await owner.authorize()
+            hold = await owner.authorize(model=resolved_model)
         except TurnRefused as exc:
             return SupervisedTurn(
                 ok=False,
@@ -178,6 +186,7 @@ async def supervise_turn(
                 turn_index=turn_index,
             )
 
+    bound_max = clamp_max_tokens(max_tokens, hold.clamp) if hold is not None else max_tokens
     client = gateway or GatewayClient(env=env)
     response: GatewayResponse | None = None
     error: GatewayError | None = None
@@ -185,7 +194,7 @@ async def supervise_turn(
         response = await client.complete(
             model=resolved_model,
             messages=messages,
-            max_tokens=max_tokens,
+            max_tokens=bound_max,
         )
     except GatewayError as exc:
         error = exc
@@ -207,12 +216,24 @@ async def supervise_turn(
     )
 
     debit_recorded = False
+    clamp = hold.clamp if hold is not None else None
+    overshoot = overshoot_tokens(tokens_used, hold.clamp) if hold is not None else 0
+    price_known = hold.price_known if hold is not None else None
     if owner is not None:
         debit_recorded = await owner.record_spend(
             tokens_used=tokens_used,
             model=resolved_model,
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
+            notes=(
+                spend_notes(
+                    clamp=hold.clamp,
+                    overshoot=overshoot,
+                    price_known=hold.price_known,
+                )
+                if hold is not None
+                else None
+            ),
             hold=hold,
         )
         owner.advance()
@@ -230,6 +251,9 @@ async def supervise_turn(
             minted=False,
             checkpoint_id=None,
             turn_index=turn_index,
+            clamp=clamp,
+            overshoot=overshoot,
+            price_known=price_known,
         )
 
     assert response is not None
@@ -267,6 +291,9 @@ async def supervise_turn(
         checkpoint_id=checkpoint_id,
         mcp=mcp_result,
         turn_index=turn_index,
+        clamp=clamp,
+        overshoot=overshoot,
+        price_known=price_known,
     )
 
 

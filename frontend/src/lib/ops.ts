@@ -5,6 +5,7 @@ import type {
   OpsHarnessRowKind,
   OpsHoldRead,
   OpsHoldStatus,
+  OpsLastTurnRead,
 } from "@/types/ops";
 
 export function formatOpsMoney(amount: string, currency: string): string {
@@ -77,4 +78,21 @@ export function loopLine(enablement: OpsEnablementRead): string {
 
 export function unknownProcessLine(label: string, enabled: "unknown"): string {
   return `${label} ${enabled}`;
+}
+
+export function lastTurnLine(turn: OpsLastTurnRead): string {
+  const used = `${turn.tokens_used.toLocaleString()} used`;
+  if (turn.clamp === null) {
+    return `${used} · clamp unknown`;
+  }
+  const overshoot =
+    turn.overshoot && turn.overshoot > 0 ? ` · overshoot ${turn.overshoot.toLocaleString()}` : "";
+  const price = turn.price_known === false ? " · price unknown" : "";
+  return `${used} · clamp ${turn.clamp.toLocaleString()}${overshoot}${price}`;
+}
+
+export function lastTurnTone(turn: OpsLastTurnRead): "fail" | "mute" | "ok" {
+  if (turn.overshoot && turn.overshoot > 0) return "fail";
+  if (turn.clamp === null) return "mute";
+  return "ok";
 }

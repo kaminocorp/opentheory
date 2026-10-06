@@ -1,6 +1,6 @@
 # External harness actor path
 
-> **What is (`0.49.1`).** Milestone 0 composition + fixture, the live
+> **What is (`0.50.0`).** Milestone 0 composition + fixture, the live
 > MCP door (`live_mcp.py`), the fail-closed OpenRouter gateway, a
 > session owner (`HarnessSession`) plus the odd-perfect reference
 > campaign, a fail-closed campaign composition that cannot start the
@@ -9,9 +9,11 @@
 > day; survives a process restart), a remaining-room hold so two
 > overlapping authorizes cannot both debit past that cap, a
 > stale-hold release so a crash after authorize does not pin the UTC
-> day, and a read-only perpetual ops dashboard
-> (`GET /projects/{id}/ops`). Fly enablement is not shipped. If this
-> blueprint disagrees with `backend/app/harness/`, the code wins.
+> day, a turn-room clamp so one completion cannot be sent unbounded
+> against the remaining daily / pot room, and a read-only perpetual
+> ops dashboard (`GET /projects/{id}/ops`). Fly enablement is not
+> shipped. If this blueprint disagrees with `backend/app/harness/`,
+> the code wins.
 
 ## The rule
 
@@ -98,7 +100,13 @@ debit past the cap. Release is a new credit row after the model call.
 `0.48.0` puts a `hold_id` on those notes so the next authorize can
 release only an unmatched hold older than
 `OPENTHEORY_HARNESS_HOLD_TTL_SECONDS` (default 300) — a crash leftover
-no longer pins the UTC day.
+no longer pins the UTC day. `0.50.0` carries a clamp on that
+authorization: `min(daily room, pot room)` when a live or catalog
+price is known, else the daily room (never an invented blended
+rate). The gateway sets `max_tokens` to the clamp. A room below
+`OPENTHEORY_HARNESS_TURN_TOKEN_FLOOR` (default 16) refuses before
+the model. Provider usage above the clamp is recorded in full and
+flagged.
 
 ## Relationship to the built-in planner
 

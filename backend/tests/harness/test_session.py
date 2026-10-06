@@ -41,15 +41,19 @@ from app.harness.session import (
     DEFAULT_DAILY_TOKEN_CAP,
     DEFAULT_HOLD_TTL_SECONDS,
     DEFAULT_MAX_TURNS,
+    DEFAULT_TURN_TOKEN_FLOOR,
     HOLD_NOTES,
     HOLD_TTL_ENV,
     PROJECT_ID_ENV,
     REASON_DAILY_CAP,
     REASON_TURN_BUDGET,
+    REASON_TURN_ROOM,
     RELEASE_NOTES,
     SESSION_NOTES,
+    TURN_TOKEN_FLOOR_ENV,
     HarnessSession,
     assert_daily_tokens_in_budget,
+    assert_turn_room_above_floor,
     harness_notes_prefix_match,
     hold_notes,
     is_daily_cap_adjustment,
@@ -58,6 +62,7 @@ from app.harness.session import (
     release_notes,
     resolve_daily_token_cap,
     resolve_hold_ttl_seconds,
+    resolve_turn_token_floor,
     session_from_env,
     unmatched_holds,
     utc_day_start,
@@ -153,17 +158,20 @@ def test_session_from_env_unbound_without_project() -> None:
     assert bound.resolved_max_turns() == DEFAULT_MAX_TURNS
     assert bound.resolved_daily_token_cap() == DEFAULT_DAILY_TOKEN_CAP
     assert bound.resolved_hold_ttl_seconds() == DEFAULT_HOLD_TTL_SECONDS
+    assert bound.resolved_turn_token_floor() == DEFAULT_TURN_TOKEN_FLOOR
     assert bound.notes == SESSION_NOTES
     overridden = session_from_env(
         {
             PROJECT_ID_ENV: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
             DAILY_TOKEN_CAP_ENV: "50",
             HOLD_TTL_ENV: "120",
+            TURN_TOKEN_FLOOR_ENV: "32",
         }
     )
     assert overridden is not None
     assert overridden.resolved_daily_token_cap() == 50
     assert overridden.resolved_hold_ttl_seconds() == 120
+    assert overridden.resolved_turn_token_floor() == 32
 
 
 def test_open_session_does_not_invent_an_actor() -> None:
@@ -210,8 +218,8 @@ def test_fixture_probe_log_uses_protocol_maybe_log() -> None:
             assert node.name != "_write_message"
 
 
-def test_gateway_version_is_daily_cap_release() -> None:
-    assert VERSION == "0.48.0"
+def test_gateway_version_is_turn_room_clamp() -> None:
+    assert VERSION == "0.50.0"
 
 
 def test_default_daily_token_cap_is_small_and_overridable() -> None:
@@ -276,6 +284,19 @@ def test_hold_ttl_is_small_and_overridable() -> None:
     assert is_hold_stale(created, ttl_seconds=300, now=now) is True
     assert is_hold_stale(now - timedelta(seconds=299), ttl_seconds=300, now=now) is False
     assert is_hold_stale(created, ttl_seconds=0, now=now) is False
+
+
+def test_turn_token_floor_is_small_and_overridable() -> None:
+    assert resolve_turn_token_floor({}) == DEFAULT_TURN_TOKEN_FLOOR == 16
+    assert resolve_turn_token_floor({TURN_TOKEN_FLOOR_ENV: "32"}) == 32
+    with pytest.raises(Exception, match="must be an integer"):
+        resolve_turn_token_floor({TURN_TOKEN_FLOOR_ENV: "nope"})
+    with pytest.raises(Exception, match="must be >= 1"):
+        resolve_turn_token_floor({TURN_TOKEN_FLOOR_ENV: "0"})
+    assert_turn_room_above_floor(16, 16)
+    assert_turn_room_above_floor(20, 16)
+    with pytest.raises(Exception, match=REASON_TURN_ROOM):
+        assert_turn_room_above_floor(15, 16)
 
 
 def test_unmatched_holds_pair_by_hold_id_and_legacy_fifo() -> None:
@@ -359,7 +380,7 @@ async def test_health_reports_bound_session() -> None:
     async with AsyncClient(transport=ASGITransport(app=unbound), base_url="http://gw") as client:
         health = await client.get("/health")
     assert health.json()["session_owned"] is False
-    assert health.json()["version"] == "0.48.0"
+    assert health.json()["version"] == "0.50.0"
 
     session = open_session(
         "dddddddd-dddd-dddd-dddd-dddddddddddd",
