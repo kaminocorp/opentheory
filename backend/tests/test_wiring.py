@@ -19,6 +19,9 @@ WRITE_PATHS = [
     "/api/v1/projects/{project_id}/merges",
     "/api/v1/projects/{project_id}/tags",
     "/api/v1/projects/{project_id}/funding",
+    "/api/v1/projects/{project_id}/agents/{actor_id}/tokens",
+    "/api/v1/projects/{project_id}/agents/{actor_id}/tokens/{jti}/rotate",
+    "/api/v1/projects/{project_id}/agents/{actor_id}/tokens/{jti}/revoke",
 ]
 
 # Checkpoints/refs and validations are append-only: no endpoint may mutate them.

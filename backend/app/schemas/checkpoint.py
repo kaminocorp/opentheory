@@ -72,6 +72,9 @@ class CheckpointRead(BaseModel):
     # Enriched provenance (0.3.4): the creating actor and the kind of contribution this
     # checkpoint recorded. None if the author actor was removed.
     author: ActorSummary | None = None
+    # Human who minted the agent session (0.55.0). Null on human-authored rows.
+    # Blame ``sponsor: BlameActor`` is slice E — this is the raw FK only.
+    sponsored_by_actor_id: UUID | None = None
     contribution_kind: str | None = None
     stage: ThreadStage | None
     summary: str

@@ -2,12 +2,17 @@ from decimal import Decimal
 from functools import lru_cache
 from typing import Annotated
 
-from pydantic import AnyHttpUrl, Field, field_validator
+from pydantic import AliasChoices, AnyHttpUrl, Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        populate_by_name=True,
+    )
 
     app_env: str = "local"
     app_name: str = "OpenTheory API"
@@ -38,6 +43,20 @@ class Settings(BaseSettings):
     # When True, the X-Dev-Actor-Id header path stays active (local + tests). In production
     # this is False and only a verified bearer token is accepted (api/deps.py).
     auth_dev_header_enabled: bool = False
+    # Agent session JWT (0.55.0). HS256 secret — Fly secret / env, never fly.toml [env].
+    # Missing/blank fails closed: mint/rotate 503, a typ=agent_session bearer is 401
+    # (never falls through to the Supabase verifier).
+    agent_session_jwt_secret: str | None = None
+    # Max TTL for an OWNER-minted agent session token. Default 30 days. A mint
+    # may request shorter, never longer. Env: OPENTHEORY_AGENT_SESSION_MAX_TTL_SECONDS.
+    agent_session_max_ttl_seconds: int = Field(
+        default=2_592_000,
+        validation_alias=AliasChoices(
+            "OPENTHEORY_AGENT_SESSION_MAX_TTL_SECONDS",
+            "AGENT_SESSION_MAX_TTL_SECONDS",
+            "agent_session_max_ttl_seconds",
+        ),
+    )
     # Emails granted the `internal` role on JIT provisioning — gates native funding
     # (Decision #4). Comma-split like backend_cors_origins; compared case-insensitively.
     internal_actor_emails: Annotated[list[str], NoDecode] = []

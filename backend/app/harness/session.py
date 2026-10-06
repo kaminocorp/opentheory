@@ -522,6 +522,11 @@ async def assert_turn_member(
         raise TurnRefused(REASON_ACTOR)
     try:
         actor = await resolve_mcp_actor(db, env)
+        from app.services.agent_tokens import token_project_of
+
+        bound = token_project_of(actor)
+        if bound is not None and bound != project_id:
+            raise TurnRefused(REASON_NOT_MEMBER)
         await ensure_is_member(db, project_id, actor)
     except HTTPException as exc:
         if exc.status_code == 401:
@@ -628,10 +633,12 @@ class HarnessSession:
         """Refuse before the LLM call on drift, membership, turn cap, daily cap, pot, or floor.
 
         Membership is first among the DB checks: resolve the acting
-        actor and ``ensure_is_member`` before the project-row lock,
-        stale-hold release, or remaining-room hold. A non-member,
-        un-rostered agent, or ``system`` actor cannot take a hold or
-        call the provider.
+        actor (agent session token, or human JWT / flagged dev-id)
+        and ``ensure_is_member`` before the project-row lock,
+        stale-hold release, or remaining-room hold. An agent session
+        whose ``proj`` is not this session's project refuses here.
+        A non-member, un-rostered agent, or ``system`` actor cannot
+        take a hold or call the provider.
 
         On a pass, locks the project row, releases unmatched holds older
         than the TTL, re-reads today's harness token sum (holds

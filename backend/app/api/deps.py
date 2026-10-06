@@ -147,13 +147,28 @@ async def _resolve_dev_actor(db: AsyncSession, x_dev_actor_id: str | None) -> Ac
     return actor
 
 
-async def resolve_actor_from_bearer(db: AsyncSession, token: str) -> Actor:
-    """Verify ``token`` and map it to the account's primary ``human`` Actor.
+AGENT_SESSION_HTTP_DETAIL = "agent sessions are only valid on the harness"
 
-    Shared by the FastAPI ``ActingActor`` dependency and the live MCP door
-    (``0.41.0``) so there is one JWT → Account → Actor path. A bad/expired
-    token is ``401``; first login JIT-provisions through ``_resolve_or_provision``.
+
+async def resolve_actor_from_bearer(db: AsyncSession, token: str) -> Actor:
+    """Verify a **human** bearer and map it to the account's primary Actor.
+
+    The HTTP ``ActingActor`` path (0.55.0 review): a ``typ=agent_session``
+    bearer is ``403`` — it must not fall through to the Supabase verifier and
+    must not become an HTTP principal. Agent sessions are accepted only by
+    ``resolve_mcp_actor`` / ``authorize()``.
+
+    Otherwise the existing Supabase JWT → Account → primary ``human`` Actor
+    path (``0.41.0``). A bad/expired token is ``401``; first login
+    JIT-provisions through ``_resolve_or_provision``.
     """
+    from app.services.agent_tokens import looks_like_agent_session
+
+    if looks_like_agent_session(token):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AGENT_SESSION_HTTP_DETAIL,
+        )
     try:
         # verify_bearer_token is synchronous and, on a JWKS cache miss/rotation, does a
         # blocking network fetch. Run it off the event loop so one cold verification can't
@@ -202,6 +217,7 @@ async def get_acting_actor(
     """
     token = _bearer_token(authorization)
     if token is not None:
+        # Agent sessions never become an HTTP ActingActor (harness/MCP only).
         return await resolve_actor_from_bearer(db, token)
 
     if settings.auth_dev_header_enabled:

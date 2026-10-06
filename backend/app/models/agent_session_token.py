@@ -2,8 +2,8 @@
 
 Mutable (revoke in place). Not a ledger primitive and **not** append-only —
 do **not** register it in ``models/append_only.py``. Hash of the compact JWT
-is stored; the bearer is shown once at mint. This slice ships the table only:
-no mint, no verify, no resolver change.
+is stored; the bearer is shown once at mint. Mint / verify / resolver landed
+in ``0.55.0``.
 """
 
 from datetime import datetime

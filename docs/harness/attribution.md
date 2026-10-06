@@ -1,11 +1,18 @@
 # External harness — actor attribution (`0.51.1` / `0.52.0`)
 
+> **0.55.0.** OWNER-only agent session mint / rotate / revoke.
+> Harness/MCP resolver verifies `typ=agent_session`. HTTP
+> `ActingActor` refuses that bearer (`403`). MCP writes with
+> that bearer author as the agent and snapshot
+> `sponsored_by_actor_id` from the minting human.
+> `authorize()` accepts the agent token (and still accepts a
+> human JWT / flagged rostered-agent `DEV_ACTOR_ID`). Sit on
+> shipped `0.54.0` (`7a1fa0c`, #50).
+>
 > **0.54.0.** `ensure_is_member` is type-aware: a rostered
 > `type=agent` Actor passes research writes; an un-rostered /
-> suspended / revoked agent is `403`. `authorize()` still calls
-> that same helper (human JWT / flagged `OPENTHEORY_DEV_ACTOR_ID`).
-> Token mint and the agent-session swap are later. Sit on shipped
-> `0.53.0` (`2b2a135`, #49).
+> suspended / revoked agent is `403`. Token mint landed in
+> `0.55.0`. Sit on shipped `0.53.0` (`2b2a135`, #49).
 >
 > **0.52.0.** The leftover spend-path gap is closed. Live MCP writes
 > still attribute to the JWT-resolved **Actor** and still pass

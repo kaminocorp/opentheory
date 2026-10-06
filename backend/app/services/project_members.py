@@ -117,6 +117,16 @@ async def ensure_is_member(db: AsyncSession, project_id: UUID, actor: Actor) -> 
     and stays correct if a lower-privilege member role is added later.
     """
     project = await _get_project_or_404(db, project_id)
+    # Defense in depth (0.55.0): a bound agent-session ``proj`` cannot be
+    # used on another project even when the actor is rostered there.
+    from app.services.agent_tokens import token_project_of
+
+    bound = token_project_of(actor)
+    if bound is not None and bound != project_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not a member of this project",
+        )
     if actor.type == ActorType.HUMAN:
         if actor.account_id is None or await _membership(db, project_id, actor.account_id) is None:
             raise HTTPException(

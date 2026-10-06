@@ -2,12 +2,12 @@
 
 > **Status — Approved 2026-10-06; implementation in slices.**
 > Slice A (schema) shipped as `0.53.0` (`2b2a135`, #49).
-> Slice B (membership gate) is this branch as `0.54.0`
-> (`REVOKED` is terminal — resume is `SUSPENDED` only).
-> Slices C–G are not started. Precursor: shipped `0.52.0`
+> Slice B (membership gate) shipped as `0.54.0` (`7a1fa0c`, #50).
+> Slice C (agent session token) is this branch as `0.55.0`.
+> Slices D–G are not started. Precursor: shipped `0.52.0`
 > (PR #48) puts a human-member gate on
-> `HarnessSession.authorize()`; later slices swap that gate
-> to the agent roster and replace the ~1h Supabase access JWT.
+> `HarnessSession.authorize()`; this slice swaps that gate
+> onto the agent session token (human Console JWT unchanged).
 > If this doc disagrees with `backend/app/` on this branch,
 > the code is what exists here and this file is the approved
 > change.
@@ -207,7 +207,7 @@ Roster role is a separate enum, `ProjectAgentRole`, v1 value
 
 | May | Must not |
 | --- | --- |
-| `run_instrument`, `create_checkpoint` (MCP and, if a token is presented to HTTP, the same two chokepoints) | `ensure_can_manage` actions |
+| `run_instrument`, `create_checkpoint` (**MCP / harness only** — an agent session on the human HTTP API is `403`) | `ensure_can_manage` actions |
 | `list_claims`, `get_thread_context`, `get_budget` | mint `FundingAllocation` |
 | debit the project pot via the session-owned gateway, once rostered and token-bound | mint `Validation` |
 | | mint a session token for itself or for a human |
@@ -529,15 +529,21 @@ secret. **Not** in `fly.toml [env]`. Hash of the compact JWT
 bearer is shown once at mint and then only exists in the `0600`
 file.
 
-Resolver algorithm (`resolve_mcp_actor` / `get_acting_actor`),
-order matters:
+Resolver algorithm, order matters. **HTTP `ActingActor` /
+`resolve_actor_from_bearer` refuse `typ=agent_session`**
+(`403` "agent sessions are only valid on the harness") and
+never fall through to the Supabase verifier. Acceptance is
+**only** `resolve_mcp_actor` / `authorize()`:
 
-1. Read the bearer (file / env / `Authorization`).
+1. Read the bearer (file / env — not the Console
+   `Authorization` header).
 2. If it verifies as `typ=agent_session` with our secret: load
    `agent_session_tokens` by `jti`, require
    `revoked_at IS NULL`, `expires_at > now()`,
    `token_hash` matches, `actor_id = sub`, `project_id = proj`,
    actor `type=agent`, roster `status=active` for that pair.
+   A bound `proj` that differs from the requested project is
+   `403` (defense in depth on `ensure_is_member`).
    Return **that agent Actor**. Never the minting human.
 3. Else existing Supabase / dev-id path. That path returns a
    **human** (or a flagged dev Actor). It must refuse a token
@@ -1364,7 +1370,7 @@ MCP behavior change, no UI, no Fly, no `AGENT_LOOP_ENABLED`.
 | --- | --- | --- |
 | **1 — schema** | The inventory above. **Shipped `0.53.0`.** | Everything in "Not in slice one" |
 | **B — membership gate** | `ensure_is_member` type-aware; `ensure_can_manage` rejects agents; `ensure_is_human_member` on funding / validation / invites. OWNER-transfer hook: suspend Research crew + `responsible_account_id = outgoing` rows, revoke their tokens; ADMIN-deployed agents whose responsible account is not the outgoing owner stay active. `get_or_create_project_agent_actor` ensures a roster row. Dark loop, when later lit, uses this same roster gate. Account-less crew without a roster still `403`. **This branch as `0.54.0`.** | Token mint; Fly |
-| **C — agent token** | OWNER-only mint / rotate / revoke API; 30-day default; max TTL via settings (not `fly.toml [env]`); resolver in `deps.py` + `harness/auth.py`; secret setting. MCP writes with an agent file attribute to the agent + sponsor snapshot. **Swaps** the `0.52.0` human JWT on `authorize()` for the agent session token. Human Console JWT path unchanged. | Fly; UI mint; `AGENT_LOOP_ENABLED`; per-agent cap enforcement |
+| **C — agent token** | OWNER-only mint / rotate / revoke API; 30-day default; max TTL via settings (not `fly.toml [env]`); resolver in `deps.py` + `harness/auth.py`; secret setting. MCP writes with an agent file attribute to the agent + sponsor snapshot. **Swaps** the `0.52.0` human JWT on `authorize()` for the agent session token. Human Console JWT path unchanged. **This branch as `0.55.0`.** | Fly; UI mint; `AGENT_LOOP_ENABLED`; per-agent cap enforcement |
 | **D — spend** | `record_compute_debit` / `write_daily_cap_adjustment` take `actor_id`. `HarnessSession` binds the agent; `authorize` / `record_spend` load `jti` + roster. Outsider override closed. Hold notes / amount 0 / prefix / `hold_id` unchanged. Shared project daily cap (no per-agent split). Unfunded ≠ exhausted. Debit only when `tokens_used > 0` for spend. | Per-agent cap enforcement; Fly |
 | **E — Crew UI** | Deployed-agents bay on the Crew tab (revoked rows visible, marked revoked); OWNER mint / rotate reveal; members-only roster read; blame sponsor; ops `actor_*` + spend-by-agent. | New tab; Fly; lighting the loop |
 | **F — optional caps** | Enforce `token_budget_cap` / `usd_budget_cap` at `authorize` when non-null. Crew edit. | Splitting the project daily cap per agent; funding rows |

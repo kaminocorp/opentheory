@@ -103,6 +103,7 @@ async def run_instrument(
     branch_id: UUID | None = None,
     claim_id: UUID | None = None,
     relation_kind: str | None = None,
+    sponsored_by: UUID | None = None,
 ) -> ToolRunResult:
     """Run ``instrument`` in ``project_id`` and land the result in the ledger, atomically.
 
@@ -308,6 +309,7 @@ async def run_instrument(
         extra_refs=extra_refs,
         tool_invocations=[invocation],
         contribution_action=contributions.ACTION_TOOL_RUN,
+        sponsored_by=sponsored_by,
     )
 
     return ToolRunResult(

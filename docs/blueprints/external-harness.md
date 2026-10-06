@@ -55,9 +55,10 @@ reads the same `ComputeDebit` meter through
 
 ## What does not exist yet
 
-- Token mint / verify (tables exist in `0.53.0`; membership is
-  type-aware as of `0.54.0`, but `authorize()` still resolves the
-  human JWT / flagged dev actor — the agent-session swap is later)
+- Token mint / verify shipped in `0.55.0` (OWNER-only; hash at
+  rest). `authorize()` accepts an agent session token (and still
+  accepts a human JWT / flagged rostered-agent `DEV_ACTOR_ID`).
+  `record_compute_debit(actor_id=)` is later (slice D)
 - Fly enablement of the gateway or MCP child
 - A live `dsh` loop in production (`AGENT_LOOP_ENABLED` stays false)
 - A refusals table (refused starts mint nothing)
