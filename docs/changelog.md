@@ -163,10 +163,15 @@ not enable the gateway or MCP child on Fly.
 
 ```bash
 cd backend && uv run ruff check .   # clean
-cd backend && uv run pytest -q      # counts filled after verification
+cd backend && uv run pytest -q
+# 854 passed, 275 skipped (no TEST_DATABASE_URL)
+# +2 skipped vs shipped 0.51.0 (273): account-less agent 403 + outsider debit
+# with TEST_DATABASE_URL: 1125 passed, 4 skipped
 cd backend && uv run pytest tests/harness -q
+# 95 passed, 41 skipped (no TEST_DATABASE_URL)
+# with TEST_DATABASE_URL: 136 passed
 cd frontend && npm run typecheck && npm run lint && npm test && npm run build
-# frontend untouched
+# typecheck/lint/build clean; 64 tests (untouched)
 ```
 
 See `docs/completions/harness-actor-attribution-audit-0.51.1.md`.

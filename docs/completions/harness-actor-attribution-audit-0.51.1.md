@@ -79,7 +79,12 @@ bypass the gate, or need a schema change. Adding
 
 ## Verification
 
-Filled after the verification commands in this slice.
+- `ruff check .` clean.
+- Default pytest (no `TEST_DATABASE_URL`): **854 passed, 275 skipped**.
+  +2 skipped vs shipped `0.51.0` (273) — the new ledger regressions.
+- With `TEST_DATABASE_URL`: **1125 passed, 4 skipped**. Harness
+  suite **136 passed**. Lean / Mathlib stay off.
+- Frontend untouched: typecheck / lint / build clean; **64 tests**.
 
 ## Unverified
 
