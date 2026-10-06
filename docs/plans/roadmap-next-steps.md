@@ -1,19 +1,21 @@
 # Roadmap Next Steps
 
-> **Last updated:** 2026-10-06 · **Current release line:** `0.58.1`
-> (lock public PostgREST: forced empty RLS + revoke
-> `anon`/`authenticated`), sitting on shipped `0.58.0`
+> **Last updated:** 2026-10-06 · **Current release line:** `0.59.0`
+> (definition catalog + built-in pass cap clamp), sitting on
+> `0.58.1` (#57, public PostgREST lock) / shipped `0.58.0`
 > (`c1a4ca5`, #55) on current `main`. See
-> `docs/completions/lock-public-api-rls-0.58.1.md`.
+> `docs/completions/agent-identity-catalog-0.59.0.md`.
 >
 > **Next after this line:** Lean REPL / LeanDojo remain later.
 > Does not enable the gateway child on Fly.
 > Does not light `AGENT_LOOP_ENABLED`.
-> Public API RLS lock is this branch as `0.58.1`. Slice G
-> (definition catalog, #56) must rebase so catalog `0023`
-> becomes `0024` revising this lock. Do not merge either PR
-> until the 0022 Fly deploy is verified.
-> ~~Public PostgREST lock~~ ✅ this branch as `0.58.1`.
+> Agent identity slice G is this branch as `0.59.0`. Catalog
+> revision is `0024_agent_definitions` revising
+> `0023_lock_public_api_rls` (#57). This finishes the
+> identity design's slices. Do not merge #56 or #57 until
+> the 0022 deploy is verified (live prod is still at 0021).
+> ~~Agent identity definition catalog~~ ✅ this branch as `0.59.0`.
+> ~~Public PostgREST lock~~ ✅ #57 as `0.58.1`.
 > ~~Agent identity per-agent caps~~ ✅ shipped as `0.58.0`.
 > ~~Frontend version-skew hotfix~~ ✅ shipped as `0.57.1`.
 > ~~Agent identity Crew UI~~ ✅ shipped as `0.57.0`.
@@ -1004,19 +1006,25 @@ project daily cap stays (hold occupancy is not split).
 Unfunded ≠ exhausted. No migration. No slice G. No Fly
 deploy. No live Supabase apply.
 
-**`0.58.1` (public PostgREST lock)** is this branch.
-`0023_lock_public_api_rls` revises `0022_agent_actor_identity`.
-Idempotent ENABLE+FORCE on every `public` table (`pg_tables`
-loop) plus REVOKE ALL tables/sequences/default privileges from
-`anon` / `authenticated`. No policies. Downgrade reverses
-FORCE/ENABLE and does not re-GRANT. Alembic-head pytest fails
-CI if any public table lacks RLS+FORCE. Live is already
-locked out-of-band; this records it. No Fly deploy. No live
-Supabase write. Slice G (#56) must rebase so catalog
-`0023_agent_definitions` becomes `0024` revising this lock.
+**`0.58.1` (public PostgREST lock)** is #57 (ready, not
+merged). `0023_lock_public_api_rls` revises
+`0022_agent_actor_identity`. Idempotent ENABLE+FORCE on
+every `public` table (`pg_tables` loop) plus REVOKE ALL
+from `anon` / `authenticated`. No policies. Downgrade does
+not re-GRANT.
+
+**`0.59.0` (definition catalog)** is this branch. Slice G:
+`agent_definitions` + `actors.agent_definition_id` in
+`0024` revising the 0.58.1 lock. Deploy-time pointer;
+upgrade = new Actor + revoke; read-only family rollup.
+`LOCK_PUBLIC_TABLES_SQL` runs in the same revision.
+Built-in pass token budget is clamped to remaining at
+start. Leftover overshoot is at most one pass budget per
+concurrent pass. Frontend skew-tolerant. No Fly deploy.
+No live Supabase apply. Merge waits on the 0022 deploy.
 
 **Next product step:** Lean REPL / LeanDojo remain later. `If` /
-ite remain later. Agent identity slice G (definition catalog)
-rebases onto this lock as `0024`. Do not merge this PR or #56
-until the 0022 Fly deploy is verified. Does not enable the
-gateway child on Fly. Does not light `AGENT_LOOP_ENABLED`.
+ite remain later. The agent-actor identity design's slices
+are finished. Do not merge #56 or #57 until the 0022 Fly
+deploy is verified. Does not enable the gateway child on
+Fly. Does not light `AGENT_LOOP_ENABLED`.

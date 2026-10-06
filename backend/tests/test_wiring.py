@@ -23,6 +23,9 @@ WRITE_PATHS = [
     "/api/v1/projects/{project_id}/agents/{actor_id}/tokens",
     "/api/v1/projects/{project_id}/agents/{actor_id}/tokens/{jti}/rotate",
     "/api/v1/projects/{project_id}/agents/{actor_id}/tokens/{jti}/revoke",
+    "/api/v1/projects/{project_id}/agents/{actor_id}/upgrade",
+    "/api/v1/agent-definitions",
+    "/api/v1/agent-definitions/{definition_id}/versions",
 ]
 
 # Checkpoints/refs and validations are append-only: no endpoint may mutate them.
@@ -56,6 +59,10 @@ def test_new_paths_exist() -> None:
     assert "get" in paths["/api/v1/projects/{project_id}/overview"]
     assert "get" in paths["/api/v1/projects/{project_id}/agents"]
     assert "patch" in paths["/api/v1/projects/{project_id}/agents/{actor_id}"]
+    assert "get" in paths["/api/v1/agent-definitions"]
+    assert "get" in paths["/api/v1/agent-definitions/families/{family_id}"]
+    assert "get" in paths["/api/v1/agent-definitions/{definition_id}"]
+    assert "patch" in paths["/api/v1/agent-definitions/{definition_id}"]
     assert "get" in paths["/api/v1/projects/{project_id}/validations"]
     assert "get" in paths["/api/v1/claims/{claim_id}/validations"]
     assert "get" in paths["/api/v1/validations/{validation_id}"]

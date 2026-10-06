@@ -25,6 +25,9 @@ export const queryKeys = {
   members: (projectId: string) => ["members", projectId] as const,
   // Deployed-agent roster (0.57.0) — members-only; never keyed by token bytes.
   agents: (projectId: string) => ["agents", projectId] as const,
+  // Agent definition catalog (0.59.0) — account-owned; 404 = backend unavailable.
+  agentDefinitions: ["agent-definitions"] as const,
+  agentFamily: (familyId: string) => ["agent-family", familyId] as const,
   // The curated OpenRouter model catalog (0.8.10) — static, so it can cache indefinitely.
   agentModelCatalog: ["agent-models", "catalog"] as const,
   // The toolbench instrument catalog (0.9.x) — reflects the code registry, so it is static and

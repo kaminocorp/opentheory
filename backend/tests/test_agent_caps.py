@@ -1,7 +1,6 @@
-"""0.58.0 — lifetime per-seat agent caps on authorize and the built-in pass.
+"""0.58.0 / 0.59.0 — lifetime per-seat agent caps + built-in pass clamp.
 
 DB-gated. The shared project daily cap stays; this is not a split.
-Definition catalog (slice G) stays out.
 """
 
 from decimal import Decimal
@@ -40,9 +39,10 @@ from app.services.agent_actors import get_or_create_project_agent_actor
 from app.services.agent_caps import (
     AgentCapRoom,
     agent_token_room_for_clamp,
+    pass_token_budget,
     refuse_reason,
 )
-from app.services.agent_runs import AGENT_CAP_EXHAUSTED_REASON, run_agent_pass
+from app.services.agent_runs import AGENT_CAP_EXHAUSTED_REASON, TokenBudgetClamp, run_agent_pass
 from app.services.harness_meter import turn_clamp
 from tests.principals import create_owned_project
 
@@ -217,6 +217,17 @@ def test_refuse_reason_and_clamp_room_are_lifetime_math() -> None:
     assert agent_token_room_for_clamp(leftover, rate_per_1k=Decimal("1.00")) == 50
     assert agent_token_room_for_clamp(leftover, rate_per_1k=None) == 990
     assert turn_clamp(daily_room=20_000, pot_room=80, agent_room=50) == 50
+    assert pass_token_budget(unlimited, rate_per_1k=Decimal("1.00"), safety_cap=200_000) == 200_000
+    assert pass_token_budget(leftover, rate_per_1k=Decimal("1.00"), safety_cap=200_000) == 50
+
+    class _Allow:
+        def check(self, *, tokens_used: int, ran_count: int) -> bool:
+            del tokens_used, ran_count
+            return True
+
+    generous = TokenBudgetClamp(_Allow(), max_tokens=21)
+    assert generous.check(tokens_used=20, ran_count=0) is True
+    assert generous.check(tokens_used=21, ran_count=0) is False
 
 
 async def test_null_caps_still_authorize(
@@ -582,3 +593,65 @@ async def test_built_in_pass_skips_remaining_after_planning_hits_cap(
         ).scalar_one()
         assert debit.tokens_used == 21
         assert str(debit.actor_id) == agent_id
+
+
+async def test_built_in_pass_clamps_injected_policy_to_remaining(
+    client: AsyncClient,
+    session_factory: async_sessionmaker,
+    internal_funder,
+) -> None:
+    """An injected BudgetPolicy that would allow the pass is still clamped."""
+    owner_id, _ = await internal_funder(client, roles=(), display_name="Owner")
+    project_id = await create_owned_project(client, owner_id, "caps-pass-clamp")
+    agent_id = await _roster_crew(session_factory, project_id)
+    await _set_caps(client, project_id, agent_id, owner_id, token_budget_cap=21)
+    thread = await client.post(
+        f"/api/v1/projects/{project_id}/threads",
+        json={"title": "T", "question": "q?"},
+        headers=_headers(owner_id),
+    )
+    assert thread.status_code == 201, thread.text
+    note = await client.post(
+        f"/api/v1/projects/{project_id}/checkpoints",
+        json={"summary": "fork", "thread_id": thread.json()["id"]},
+        headers=_headers(owner_id),
+    )
+    assert note.status_code == 201, note.text
+    async with session_factory() as session:
+        project = await session.get(Project, UUID(project_id))
+        assert project is not None
+        project.agent_models = {"researcher": "anthropic/claude-sonnet-4"}
+        session.add(project)
+        agent_run = AgentRun(
+            project_id=UUID(project_id),
+            thread_id=UUID(thread.json()["id"]),
+            triggered_by_actor_id=UUID(owner_id),
+            role="researcher",
+            status=AgentRunStatus.RUNNING,
+        )
+        session.add(agent_run)
+        await session.commit()
+        run_id = agent_run.id
+
+    class _Allow:
+        def check(self, *, tokens_used: int, ran_count: int) -> bool:
+            del tokens_used, ran_count
+            return True
+
+    planner = _stub_planner(
+        PlanResult(
+            runnable=[
+                PlannedRun(instrument="calc.eval", inputs={"expression": "1 == 1"})
+            ],
+            proposed_count=1,
+            tokens_used=21,
+        )
+    )
+    async with session_factory() as session:
+        result = await run_agent_pass(
+            session, run_id, planner=planner, budget_policy=_Allow()
+        )
+        assert result.status is AgentRunStatus.COMPLETED, result.error
+        skipped = [step for step in (result.steps or []) if step.get("status") == "skipped"]
+        assert skipped
+        assert skipped[0].get("reason") == AGENT_CAP_EXHAUSTED_REASON

@@ -134,6 +134,22 @@ async def load_agent_cap_room(
     )
 
 
+def pass_token_budget(
+    room: AgentCapRoom, *, rate_per_1k: Decimal | None, safety_cap: int
+) -> int:
+    """This pass's token ceiling: ``min(safety cap, remaining)``.
+
+    Used by the built-in pass after the start check (0.59.0). Two
+    concurrent passes can both observe the same remaining after the
+    project-row lock is released; each is then bounded to this number.
+    Leftover overshoot is at most one pass budget per concurrent pass.
+    """
+    room_tokens = agent_token_room_for_clamp(room, rate_per_1k=rate_per_1k)
+    if room_tokens is None:
+        return safety_cap
+    return min(int(safety_cap), int(room_tokens))
+
+
 def agent_token_room_for_clamp(
     room: AgentCapRoom, *, rate_per_1k: Decimal | None
 ) -> int | None:

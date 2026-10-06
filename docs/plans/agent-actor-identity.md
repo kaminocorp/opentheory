@@ -7,8 +7,9 @@
 > Slice D (spend attribution) shipped as `0.56.0` (`2a2a018`, #52).
 > Slice E (Crew UI) shipped as `0.57.0` (`16bf679`, #53).
 > `0.57.1` is a frontend-only version-skew hotfix (`2ed3d23`, #54).
-> Slice F (per-agent caps) this branch as `0.58.0`. Slice G is
-> not started. Precursor: shipped `0.52.0`
+> Slice F (per-agent caps) shipped as `0.58.0` (`c1a4ca5`, #55).
+> Slice G (definition catalog) this branch as `0.59.0`.
+> Precursor: shipped `0.52.0`
 > (PR #48) puts a human-member gate on
 > `HarnessSession.authorize()`; this slice swaps that gate
 > onto the agent session token (human Console JWT unchanged).
@@ -373,8 +374,15 @@ roster slot in the same family.
 
 Until slice G, every agent Actor has no definition pointer
 and no cross-project rollup. That is honest — there is no
-catalog yet. Slice G adds the table **and**
+catalog yet. Slice G (`0.59.0`) adds the table **and**
 `actors.agent_definition_id` (nullable FK) together.
+
+**Built-in pass leftover (documented in `0.59.0`).** The
+start check still releases the project-row lock so 0.32
+campaign cycles can overlap. Each pass then clamps its token
+budget to remaining-at-start. Two starts that both pass the
+check can each spend that clamped budget, so leftover
+overshoot is at most one pass budget per concurrent pass.
 
 ### Ownership transfer
 
@@ -1366,12 +1374,12 @@ MCP behavior change, no UI, no Fly, no `AGENT_LOOP_ENABLED`.
 **Not in slice one (later):**
 
 - `actors.agent_definition_id` and `agent_definitions`
-  (slice G, after the first multi-agent campaign)
+  (slice G — this branch as `0.59.0`)
 - Type-aware `ensure_is_member` / transfer hook (slice B)
 - Token mint / resolver / `authorize()` gate-swap (slice C)
 - `record_compute_debit(..., actor_id=)` wiring (slice D)
-- Crew UI / blame sponsor / ops actor fields (slice E — shipped `0.57.0`; `0.57.1` frontend skew hotfix on this branch)
-- Per-agent cap **enforcement** (slice F — this branch as `0.58.0`)
+- Crew UI / blame sponsor / ops actor fields (slice E — shipped `0.57.0`; `0.57.1` frontend skew hotfix)
+- Per-agent cap **enforcement** (slice F — shipped `0.58.0`)
 - Fly enablement / secret-file injection (enablement-time)
 
 | Slice | Ships | Must stay out |
@@ -1381,8 +1389,8 @@ MCP behavior change, no UI, no Fly, no `AGENT_LOOP_ENABLED`.
 | **C — agent token** | OWNER-only mint / rotate / revoke API; 30-day default; max TTL via settings (not `fly.toml [env]`); resolver in `deps.py` + `harness/auth.py`; secret setting. MCP writes with an agent file attribute to the agent + sponsor snapshot. **Swaps** the `0.52.0` human JWT on `authorize()` for the agent session token. Human Console JWT path unchanged. **Shipped `0.55.0`.** | Fly; UI mint; `AGENT_LOOP_ENABLED`; per-agent cap enforcement |
 | **D — spend** | `record_compute_debit` / `write_daily_cap_adjustment` take `actor_id`. `HarnessSession` binds the agent; `authorize` / `record_spend` load `jti` + roster. Outsider override closed. Hold notes / amount 0 / prefix / `hold_id` unchanged; holds carry `actor_id` for audit. Shared project daily cap (no per-agent split). Unfunded ≠ exhausted. Debit only when `tokens_used > 0` for spend. **This branch as `0.56.0`.** | Per-agent cap enforcement; Fly; Crew / ops actor_* reads |
 | **E — Crew UI** | Deployed-agents bay on the Crew tab (revoked rows visible, marked revoked); OWNER mint / rotate reveal; members-only roster read; blame sponsor; ops `actor_*` + spend-by-agent. **Shipped `0.57.0`.** `0.57.1` is the frontend skew hotfix so a pre-0.53 Fly response does not throw. | New tab; Fly; lighting the loop |
-| **F — optional caps** | Enforce `token_budget_cap` / `usd_budget_cap` at `authorize` when non-null. Crew edit. **This branch as `0.58.0`.** Lifetime per roster seat (design names no period). Built-in pass too. Turn clamp is `min(daily, pot, agent remaining)`; hold occupancy stays the whole remaining daily room. | Splitting the project daily cap per agent; funding rows |
-| **G — definition catalog** (after first multi-agent campaign) | `agent_definitions` table **and** `actors.agent_definition_id` (nullable FK) in the same revision; deploy-time pointer; read-only family rollup. Upgrade = new version + new project Actor. | Merging Actors; rewriting `author_id`; lighting the loop |
+| **F — optional caps** | Enforce `token_budget_cap` / `usd_budget_cap` at `authorize` when non-null. Crew edit. **Shipped `0.58.0`.** Lifetime per roster seat (design names no period). Built-in pass too. Turn clamp is `min(daily, pot, agent remaining)`; hold occupancy stays the whole remaining daily room. | Splitting the project daily cap per agent; funding rows |
+| **G — definition catalog** (after first multi-agent campaign) | `agent_definitions` table **and** `actors.agent_definition_id` (nullable FK) in the same revision; deploy-time pointer; read-only family rollup. Upgrade = new version + new project Actor. **This branch as `0.59.0`.** Built-in pass leftover: clamp each pass's token budget to remaining at start. Known limit: leftover overshoot is at most one pass budget per concurrent pass (start check still releases the project-row lock for 0.32 overlap). | Merging Actors; rewriting `author_id`; lighting the loop |
 
 Slice one can deploy alone. Slices C–D are the first time a
 live MCP child can honestly speak as an agent and run longer

@@ -46,9 +46,9 @@ behavior change.
 - No policies that open any table.
 - `AGENT_LOOP_ENABLED` stays dark. Gateway / MCP child stay
   dark. Five tabs.
-- Slice G (`agent_definitions`) is not this PR. #56 must
-  rebase so catalog `0023` becomes `0024` revising this lock.
-  Neither PR merges until the 0022 Fly deploy is verified.
+- Slice G (`agent_definitions`) is #56, rebased onto this
+  lock as `0024`. Neither PR merges until the 0022 Fly
+  deploy is verified.
 
 ## Judgment calls
 

@@ -53,13 +53,14 @@ def test_revision_linkage() -> None:
     assert mod.down_revision == _DOWN
 
 
-def test_it_is_the_only_head() -> None:
+def test_it_is_revised_by_0024() -> None:
+    """0024 (definition catalog) revises 0023; a second head is a deploy footgun."""
     down_revisions = {
         match.group(1)
         for path in _VERSIONS.glob("*.py")
         if (match := re.search(r'down_revision[^=]*=\s*"([^"]+)"', path.read_text()))
     }
-    assert _REVISION not in down_revisions
+    assert _REVISION in down_revisions
 
 
 def test_upgrade_is_a_pg_tables_loop_not_a_hard_coded_list() -> None:

@@ -2,6 +2,7 @@
 
 ## Index
 
+- `0.59.0` — **Definition catalog + built-in pass cap clamp.** Slice G of the approved agent-actor identity design. `agent_definitions` (versioned agent kind owned by an Account, unique `(family_id, version)`) and `actors.agent_definition_id` (nullable FK) land in the same revision (`0024_agent_definitions`, revises the 0.58.1 public RLS lock). Deploy-time pointer; upgrade = new version + new project Actor (previous revoked, visible). Same-Actor retarget rejected. Read-only family rollup (Σ checkpoints authored, incoming validations targeting those checkpoints, billed `ComputeDebit`). Cosmetic rename keeps the version; a config-fingerprint change is a new version. Built-in pass leftover from `0.58.0`: each pass's token budget is `min(agent_pass_max_tokens, remaining at start)` so two concurrent starts cannot each spend the full safety cap. Known limit: leftover overshoot is at most one pass budget per concurrent pass (the start check still releases the project-row lock for 0.32 overlap). Frontend roster/catalog fields are optional; catalog `404` is a quiet "not on this backend yet" line (skew vs a pre-0.59 Fly). Rebased onto `0.58.1` (`0023_lock_public_api_rls`); this revision ENABLE+FORCE RLS on the new table. **Does not depend on 0022 being live** — merge waits on that deploy. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Five tabs only. Sits on `0.58.1` (#57).
 - `0.58.1` — **Lock public PostgREST.** Records the live public-schema lock in the repo. `0023_lock_public_api_rls` revises `0022_agent_actor_identity`: idempotent `ENABLE` + `FORCE` RLS on every `public` base table (`pg_tables` loop, not a hard-coded list) and `REVOKE ALL` tables/sequences + default privileges from `anon` / `authenticated`. No policies — empty forced RLS denies non-bypass roles. The backend connects as `postgres` (owner / `bypassrls`); app traffic is unaffected. Frontend uses Supabase Auth only, never PostgREST table access. Downgrade reverses FORCE/ENABLE and does **not** re-GRANT (deliberate ops step). Alembic-head pytest fails CI if a later public table lacks ENABLE+FORCE. Live was already locked out-of-band; this revision is a no-op match. Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Five tabs only. No slice G. Sits on shipped `0.58.0` (`c1a4ca5`, #55).
 - `0.58.0` — **Per-agent lifetime caps.** Slice F of the approved agent-actor identity design. `token_budget_cap` / `usd_budget_cap` on `project_agent_members` are enforced at `HarnessSession.authorize()` and on the built-in pass. Remaining room is lifetime billed `ComputeDebit` for that `(project_id, actor_id)` (`tokens_used > 0`, holds/releases excluded) plus that agent's outstanding remaining-room holds, under the project-row lock. Cap reached is `TurnRefused` with a distinct reason and no hold. The turn clamp is `min(daily room, pot room, agent remaining)`. The ledger hold still occupies the whole remaining daily room — not a per-agent split. Null cap = no per-agent limit. Unfunded ≠ exhausted. Debit only when `tokens_used > 0`. Mid-turn spend after a successful authorize still writes. Crew edit via existing `PATCH`; ops `spend_by_agent` and roster reads expose optional `*_cap_reached` (frontend derives if a pre-0.58 backend omits them). **No migration** (columns exist on 0022). Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Five tabs only. No slice G. Sits on shipped `0.57.1` (`2ed3d23`, #54).
 - `0.57.1` — **Frontend version-skew hotfix.** Vercel ships `main`'s frontend while live Fly is still pre-0.53 (0022 unapplied). `GET /ops` omits `spend_by_agent` / `actor_*`; `GET /projects/{id}/agents` is 404. Overview no longer throws on `undefined.length`. Crew roster 404 is a quiet "not on this backend yet" line — no raw error, no deploy controls. New 0.57.0 read fields (ops, blame `sponsor`, checkpoint `sponsored_by`) are optional. **Frontend + docs — no schema, no migration, no backend change.** Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway or MCP child on Fly. Five tabs only. Sits on shipped `0.57.0` (`16bf679`, #53).
@@ -136,6 +137,79 @@
 - `0.1.0` — Added the initial FastAPI backend scaffold, domain model foundation, Alembic setup, and smoke-test tooling.
 
 ---
+
+## 0.59.0
+
+**Definition catalog + built-in pass cap clamp.** Slice G of
+the approved agent-actor identity design
+(`docs/plans/agent-actor-identity.md`). Sits on `0.58.1`
+(#57, public PostgREST lock).
+Does not flip `AGENT_LOOP_ENABLED`. Does not enable the gateway
+or MCP child on Fly.
+
+- **Catalog.** `agent_definitions`: `id`, `account_id` (FK
+  `accounts` SET NULL), `family_id`, `version`, `display_name`,
+  `config_fingerprint` (sha256 of model id + harness pin +
+  Cordis inventory + persona hash), `config` JSON, timestamps.
+  Unique `(family_id, version)`. Indexes on `account_id`,
+  `family_id`. Mutable catalog row — not append-only.
+- **Pointer.** `actors.agent_definition_id` nullable FK
+  `agent_definitions` SET NULL, same revision. Set at deploy
+  (named agents only). Research crew has no pointer.
+  `UPDATE actors.agent_definition_id` is rejected (ORM
+  `before_update` + no PATCH field).
+- **Versioning.** Cosmetic rename = same row / same version.
+  Fingerprint change = new row, same `family_id`,
+  `version += 1`. Upgrade = revoke the current seat and mint
+  a new project Actor pointing at the newer version. Caps
+  copy. Blame stays on the project Actor that wrote.
+- **Rollup.** `GET /agent-definitions/families/{family_id}`
+  is a read join: versions, pointing actors, Σ checkpoints
+  authored, incoming `Validation` rows targeting those
+  checkpoints, billed `ComputeDebit`. Never `UPDATE`s an
+  Actor, never rewrites `author_id`.
+- **HTTP.** Human-only (`ActingActor`). Writes require the
+  acting Account. Catalog list is the acting account's kinds.
+  Family read is the owner or a member of a project with a
+  pointing actor. `POST …/agents/{actor_id}/upgrade`.
+- **Built-in pass clamp.** After the start cap check (and
+  after the 0.32 lock release), this pass's token budget is
+  `min(agent_pass_max_tokens, remaining at start)`. The
+  reserve envelope and `BudgetPolicy` (injected or default)
+  wrap with that ceiling. Mid-pass stop still prefers
+  `agent_budget_cap_exhausted` when the seat is gone.
+  **Known limit:** two concurrent starts that both pass the
+  start check can each spend up to that clamped budget, so
+  leftover overshoot is at most one pass budget per
+  concurrent pass.
+- **Skew.** New roster fields and catalog routes are
+  optional on the client. Catalog `404` is a quiet line —
+  deploy-by-name still works against a pre-0.59 backend.
+- **Migration.** `0024_agent_definitions` revises
+  `0023_lock_public_api_rls`. One transaction; after
+  `create_table` it runs `LOCK_PUBLIC_TABLES_SQL` so the new
+  table is ENABLE+FORCE. Downgrade drops the column then the
+  table. Live prod is still at 0021; this merge waits until
+  0022 is verified on Fly.
+
+```bash
+cd backend && uv run ruff check .   # clean
+cd backend && uv run pytest -q
+# with TEST_DATABASE_URL: 1219 passed, 4 skipped
+# +14 vs 0.58.1 (1205): pass-budget clamp + injected-policy wrap,
+# fingerprint, catalog create/version/PATCH, deploy pointer +
+# Research-crew 422, upgrade + ORM retarget, family rollup,
+# catalog HTTP 403, 0024 linkage/head/round-trip/unique/RLS
+# (0.58.1 already added +6 lock tests vs 0.58.0)
+cd frontend && npm run typecheck && npm run lint && npm test && npm run build
+# typecheck/lint/build clean; frontend tests 76 passed (+1 vs 0.58.1)
+```
+
+See `docs/completions/agent-identity-catalog-0.59.0.md`.
+
+**Not in this release:** merging Actors; rewriting
+`author_id`; lighting the loop; Fly enablement; applying
+0022/0023/0024 to live Supabase.
 
 ## 0.58.1
 

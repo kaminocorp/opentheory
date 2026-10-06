@@ -56,7 +56,7 @@ def test_revision_linkage() -> None:
 
 
 def test_it_is_revised_by_0023() -> None:
-    """0023 (public API RLS lock) revises 0022; a second head is a deploy footgun."""
+    """0023 (public API RLS lock) revises 0022; catalog is 0024."""
     down_revisions = {
         match.group(1)
         for path in _VERSIONS.glob("*.py")
@@ -110,9 +110,8 @@ def test_the_tables_the_models_declare_are_the_tables_the_migration_adds() -> No
 
 
 def test_owner_override_omits_agent_definition_id() -> None:
-    """v1 does not ship ``actors.agent_definition_id`` (deferred with the catalog)."""
+    """0022 itself does not add ``actors.agent_definition_id`` (catalog is 0024)."""
     source = _MIGRATION_PATH.read_text()
-    assert "agent_definition_id" not in Actor.__table__.columns
     assert "ADD COLUMN" not in source or "agent_definition_id" not in source
     assert "actors.agent_definition_id" in source  # named as deferred
     assert "op.add_column(\n        \"actors\"" not in source
@@ -207,7 +206,7 @@ async def test_upgrade_head_on_empty_postgres(db_engine: AsyncEngine) -> None:
     """The deploy path: empty schema → ``alembic upgrade head``. Backfills no-op."""
     async with db_engine.begin() as conn:
         await _reset_schema(conn)
-    result = _alembic("upgrade", "head")
+    result = _alembic("upgrade", _REVISION)
     assert result.returncode == 0, result.stdout + result.stderr
     tables = await _tables(db_engine)
     assert "project_agent_members" in tables
@@ -522,7 +521,7 @@ async def test_downgrade_refuses_when_two_agents_share_a_project(
 ) -> None:
     async with db_engine.begin() as conn:
         await _reset_schema(conn)
-    assert _alembic("upgrade", "head").returncode == 0
+    assert _alembic("upgrade", _REVISION).returncode == 0
 
     project_id = uuid4()
     now = datetime.now(UTC)

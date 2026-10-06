@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.routes import (
     accounts,
     actors,
+    agent_definitions,
     agent_models,
     agent_runs,
     agent_tokens,
@@ -57,6 +58,9 @@ api_router.include_router(invitations.router)
 # Agent roster (0.57.0) — GET list (members) + POST deploy + PATCH lifecycle.
 # Token mint / rotate / revoke stay on agent_tokens. HTTP is human-only.
 api_router.include_router(agents.router)
+# Agent definition catalog (0.59.0) — account-owned kinds + family rollup.
+# HTTP is human-only. Frontend treats 404 as backend-unavailable (skew).
+api_router.include_router(agent_definitions.router)
 # Agent session tokens span /projects/{id}/agents/{actor_id}/tokens (+ rotate / revoke).
 # OWNER-only; fail closed without AGENT_SESSION_JWT_SECRET. No Fly flag.
 api_router.include_router(agent_tokens.router)

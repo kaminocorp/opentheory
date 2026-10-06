@@ -94,6 +94,25 @@ class BudgetPolicy(Protocol):
     def check(self, *, tokens_used: int, ran_count: int) -> bool: ...
 
 
+class TokenBudgetClamp:
+    """Bound one pass to a token budget snapshotted at start (0.59.0).
+
+    Two concurrent built-in passes can both pass the start check after the
+    project-row lock is released (0.32 overlap). Each pass then spends at
+    most this budget, so leftover overshoot is at most one pass budget per
+    concurrent pass. Wraps the injected or default ``BudgetPolicy``.
+    """
+
+    def __init__(self, inner: BudgetPolicy, max_tokens: int) -> None:
+        self.inner = inner
+        self.max_tokens = max_tokens
+
+    def check(self, *, tokens_used: int, ran_count: int) -> bool:
+        if tokens_used >= self.max_tokens:
+            return False
+        return self.inner.check(tokens_used=tokens_used, ran_count=ran_count)
+
+
 async def _open_claims(db: AsyncSession, thread_id: UUID) -> list[Claim]:
     """The thread's claims still in play on the validation axis (signal ≠ validated)."""
     return await claim_service.open_claims_for_planner(db, thread_id)
@@ -400,6 +419,9 @@ async def _execute(
     # Release the row lock before the planner so concurrent campaign cycles
     # (0.32.0) can still overlap. A later start re-takes the lock. Tokens
     # billed after this commit are visible to the next check / mid-pass stop.
+    # Known limit (0.59.0): two starts that both pass this check can each
+    # spend up to the clamped pass budget, so leftover overshoot is at most
+    # one pass budget per concurrent pass.
     await db.commit()
 
     # 2. Resolve the role's model. An unassigned role is a recorded failed trace (mints nothing) —
@@ -425,6 +447,14 @@ async def _execute(
     price_quote = await quote_model_price(model)
     enforce_project_ceiling = budget_policy is None
     rate = price_quote.effective_rate_per_1k
+    this_pass_budget = agent_caps_service.pass_token_budget(
+        cap_room,
+        rate_per_1k=rate,
+        safety_cap=settings.agent_pass_max_tokens,
+    )
+    clamp_this_pass = agent_caps_service.agent_token_room_for_clamp(
+        cap_room, rate_per_1k=rate
+    )
     if budget_policy is None:
         reserved = agent_run.reserved_amount
         if reserved is None or reserved <= 0:
@@ -434,7 +464,10 @@ async def _execute(
                     db, agent_run, status=AgentRunStatus.FAILED, error=BUDGET_EXHAUSTED
                 )
             reserved = await compute_service.reserve_compute_for_pass(
-                db, agent_run, rate_per_1k=rate
+                db,
+                agent_run,
+                rate_per_1k=rate,
+                max_tokens=this_pass_budget,
             )
             if reserved is None:
                 return await _finalize(
@@ -442,6 +475,8 @@ async def _execute(
                 )
             await db.commit()
         budget_policy = ProjectBudgetPolicy(Decimal(reserved), rate_per_1k=rate)
+    if clamp_this_pass is not None:
+        budget_policy = TokenBudgetClamp(budget_policy, this_pass_budget)
 
     # 3. Plan → observe → replan. The *initial* planning call happens BEFORE any branch fork, so a
     #    planner failure (down provider / unparseable plan) is a recorded failed trace that mints
@@ -569,6 +604,12 @@ async def _execute(
     signals_now = signals_before
 
     async def _stop_reason() -> str | None:
+        if agent_run.agent_actor_id is not None:
+            room = await agent_caps_service.load_agent_cap_room(
+                db, agent_run.project_id, agent_run.agent_actor_id
+            )
+            if agent_caps_service.refuse_reason(room) is not None:
+                return AGENT_CAP_EXHAUSTED_REASON
         if budget_policy is not None and not budget_policy.check(
             tokens_used=tokens_used, ran_count=ran_count
         ):
@@ -577,12 +618,6 @@ async def _execute(
             remaining = await funding_service.project_budget(db, agent_run.project_id)
             if remaining.available <= 0:
                 return BUDGET_EXHAUSTED_REASON
-        if agent_run.agent_actor_id is not None:
-            room = await agent_caps_service.load_agent_cap_room(
-                db, agent_run.project_id, agent_run.agent_actor_id
-            )
-            if agent_caps_service.refuse_reason(room) is not None:
-                return AGENT_CAP_EXHAUSTED_REASON
         return None
 
     while True:

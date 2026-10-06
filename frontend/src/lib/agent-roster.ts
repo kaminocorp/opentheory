@@ -5,10 +5,66 @@ import type { ProjectAgentStatus } from "@/types/agent-roster";
 export const ROSTER_UNAVAILABLE_LINE =
   "The agent roster isn't available on this backend yet.";
 
+/** Quiet Crew copy when live Fly has no definition catalog yet (pre-0.59). */
+export const CATALOG_UNAVAILABLE_LINE =
+  "The agent catalog isn't available on this backend yet.";
+
 /** Same 404 shapes as `request()` / `isNotFoundError` — kept local so node tests resolve. */
 export function isRosterUnavailable(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   return error.message.startsWith("404:") || error.message === "Request failed with 404";
+}
+
+export function isCatalogUnavailable(error: unknown): boolean {
+  return isRosterUnavailable(error);
+}
+
+/** Pointer copy. Missing 0.59 fields → null (do not throw). */
+export function agentDefinitionLine(agent: {
+  definition_display_name?: string | null;
+  definition_version?: number | null;
+  family_id?: string | null;
+  agent_definition_id?: string | null;
+}): string | null {
+  if (!agent.agent_definition_id && !agent.family_id && !agent.definition_display_name) {
+    return null;
+  }
+  const name = agent.definition_display_name?.trim() || "catalog kind";
+  if (agent.definition_version == null) return name;
+  return `${name} · v${agent.definition_version}`;
+}
+
+/** Latest version per family from a catalog list. Empty / malformed → []. */
+export function latestDefinitionsByFamily(
+  definitions: Array<{
+    id: string;
+    family_id: string;
+    version: number;
+    display_name: string;
+  }> | null | undefined,
+): Array<{ id: string; family_id: string; version: number; display_name: string }> {
+  if (!Array.isArray(definitions)) return [];
+  const latest = new Map<string, { id: string; family_id: string; version: number; display_name: string }>();
+  for (const row of definitions) {
+    if (!row || typeof row.family_id !== "string" || typeof row.version !== "number") continue;
+    const current = latest.get(row.family_id);
+    if (current == null || row.version > current.version) latest.set(row.family_id, row);
+  }
+  return [...latest.values()].sort((a, b) => a.display_name.localeCompare(b.display_name));
+}
+
+export function newerFamilyVersion(
+  agent: { family_id?: string | null; definition_version?: number | null },
+  definitions: Array<{ id: string; family_id: string; version: number }> | null | undefined,
+): { id: string; family_id: string; version: number } | null {
+  if (!agent.family_id || !Array.isArray(definitions)) return null;
+  const current = agent.definition_version ?? 0;
+  let newer: { id: string; family_id: string; version: number } | null = null;
+  for (const row of definitions) {
+    if (row.family_id !== agent.family_id || row.version <= current) continue;
+    if (newer == null || row.version > newer.version) newer = row;
+  }
+  return newer;
 }
 
 /** Status pill tone. Revoked is fail-weight — honesty over comfort. */

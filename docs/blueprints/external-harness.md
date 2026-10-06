@@ -15,7 +15,10 @@
 > orphan, and a read-only perpetual
 > ops dashboard (`GET /projects/{id}/ops`). `0.58.0` adds optional
 > lifetime per-seat caps on `authorize()` / the built-in pass
-> without splitting the project daily hold. Fly enablement is not
+> without splitting the project daily hold. `0.59.0` clamps each
+> built-in pass's token budget to remaining at start (leftover
+> overshoot ≤ one pass budget per concurrent pass) and adds the
+> definition catalog (not on the harness path). Fly enablement is not
 > shipped. If this blueprint disagrees with `backend/app/harness/`,
 > the code wins.
 

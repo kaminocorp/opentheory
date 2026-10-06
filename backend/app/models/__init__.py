@@ -1,5 +1,6 @@
 from app.models.account import Account
 from app.models.actor import Actor
+from app.models.agent_definition import AgentDefinition
 from app.models.agent_run import AgentRun
 from app.models.agent_session_token import AgentSessionToken
 from app.models.append_only import AppendOnlyError
@@ -25,6 +26,7 @@ from app.models.validation import Validation
 __all__ = [
     "Account",
     "Actor",
+    "AgentDefinition",
     "AgentRun",
     "AgentSessionToken",
     "AppendOnlyError",

@@ -1,11 +1,12 @@
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import JSON, Enum, ForeignKey, Index, String, text
+from sqlalchemy import JSON, Enum, ForeignKey, Index, String, event, inspect, text
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, IdMixin, TimestampMixin
+from app.models.agent_definition import AgentDefinition
 from app.models.enums import ActorType
 
 
@@ -37,6 +38,7 @@ class Actor(IdMixin, TimestampMixin, Base):
             unique=True,
             postgresql_where=text("type = 'AGENT' AND display_name = 'Research crew'"),
         ),
+        Index("ix_actors_agent_definition_id", "agent_definition_id"),
     )
 
     type: Mapped[ActorType] = mapped_column(Enum(ActorType, name="actor_type"), nullable=False)
@@ -51,8 +53,16 @@ class Actor(IdMixin, TimestampMixin, Base):
         PgUUID(as_uuid=True),
         ForeignKey("accounts.id", ondelete="SET NULL"),
     )
+    # Deploy-time pointer at a catalog version (0.59.0). Null for Research
+    # crew and for a named deploy that omitted a definition. Same-Actor
+    # retarget is rejected (see ``_reject_agent_definition_retarget``).
+    agent_definition_id: Mapped[UUID | None] = mapped_column(
+        PgUUID(as_uuid=True),
+        ForeignKey("agent_definitions.id", ondelete="SET NULL"),
+    )
 
     account = relationship("Account", back_populates="actors")
+    agent_definition = relationship(AgentDefinition, back_populates="actors")
     contributions = relationship("Contribution", back_populates="actor")
     # Pinned: checkpoints also have ``sponsored_by_actor_id`` → actors (0.53.0).
     checkpoints = relationship(
@@ -61,3 +71,12 @@ class Actor(IdMixin, TimestampMixin, Base):
         foreign_keys="Checkpoint.author_id",
     )
     validations = relationship("Validation", back_populates="actor")
+
+
+@event.listens_for(Actor, "before_update")
+def _reject_agent_definition_retarget(mapper: Any, connection: Any, target: Actor) -> None:
+    """Same-Actor retarget is the merge the catalog slice forbids."""
+    del mapper, connection
+    history = inspect(target).attrs.agent_definition_id.history
+    if history.has_changes():
+        raise ValueError("actors.agent_definition_id is deploy-time only")

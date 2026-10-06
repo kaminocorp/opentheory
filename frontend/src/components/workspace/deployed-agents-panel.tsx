@@ -16,23 +16,31 @@ import {
   StatusPill,
 } from "@/components/console";
 import {
+  createAgentDefinition,
   deployProjectAgent,
+  listAgentDefinitions,
   listProjectAgents,
   mintAgentToken,
   patchProjectAgent,
   rotateAgentToken,
   revokeAgentToken,
+  upgradeProjectAgent,
 } from "@/lib/api";
 import {
+  CATALOG_UNAVAILABLE_LINE,
   ROSTER_UNAVAILABLE_LINE,
   agentCapLine,
+  agentDefinitionLine,
   agentSpendLine,
   agentStatusLabel,
   agentStatusTone,
   agentTokenCapReached,
   agentUsdCapReached,
   formatAgentWhen,
+  isCatalogUnavailable,
   isRosterUnavailable,
+  latestDefinitionsByFamily,
+  newerFamilyVersion,
 } from "@/lib/agent-roster";
 import { queryKeys } from "@/lib/query-keys";
 import { useActingIdentity } from "@/lib/use-identity";
@@ -68,6 +76,8 @@ export function DeployedAgentsPanel({
   const [displayName, setDisplayName] = useState("");
   const [deployTokenCap, setDeployTokenCap] = useState("");
   const [deployUsdCap, setDeployUsdCap] = useState("");
+  const [deployDefinitionId, setDeployDefinitionId] = useState("");
+  const [kindName, setKindName] = useState("");
   const [revealed, setRevealed] = useState<RevealedToken | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -76,13 +86,22 @@ export function DeployedAgentsPanel({
     queryFn: () => listProjectAgents(projectId),
     enabled: isAuthed,
   });
+  const catalogQuery = useQuery({
+    queryKey: queryKeys.agentDefinitions,
+    queryFn: () => listAgentDefinitions(),
+    enabled: isAuthed && canManage,
+    retry: false,
+  });
   const agents = rosterQuery.data ?? [];
   const activeCount = agents.filter((row) => row.status === "active").length;
   const rosterUnavailable = rosterQuery.isError && isRosterUnavailable(rosterQuery.error);
+  const catalogUnavailable = catalogQuery.isError && isCatalogUnavailable(catalogQuery.error);
+  const catalogKinds = latestDefinitionsByFamily(catalogQuery.data);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.agents(projectId) });
     queryClient.invalidateQueries({ queryKey: queryKeys.ops(projectId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.agentDefinitions });
   };
 
   const deployMutation = useMutation({
@@ -95,13 +114,28 @@ export function DeployedAgentsPanel({
         ...(parsedOptionalDecimal(deployUsdCap) !== undefined
           ? { usd_budget_cap: parsedOptionalDecimal(deployUsdCap) }
           : {}),
+        ...(deployDefinitionId ? { agent_definition_id: deployDefinitionId } : {}),
       }),
     onSuccess: () => {
       setDisplayName("");
       setDeployTokenCap("");
       setDeployUsdCap("");
+      setDeployDefinitionId("");
       invalidate();
     },
+  });
+  const kindMutation = useMutation({
+    mutationFn: (name: string) => createAgentDefinition({ display_name: name, config: {} }),
+    onSuccess: (created) => {
+      setKindName("");
+      setDeployDefinitionId(created.id);
+      invalidate();
+    },
+  });
+  const upgradeMutation = useMutation({
+    mutationFn: ({ actorId, definitionId }: { actorId: string; definitionId: string }) =>
+      upgradeProjectAgent(projectId, actorId, { agent_definition_id: definitionId }),
+    onSuccess: invalidate,
   });
   const patchMutation = useMutation({
     mutationFn: ({ actorId, payload }: { actorId: string; payload: AgentRosterPatch }) =>
@@ -163,13 +197,17 @@ export function DeployedAgentsPanel({
     patchMutation.isPending ||
     mintMutation.isPending ||
     rotateMutation.isPending ||
-    revokeTokenMutation.isPending;
+    revokeTokenMutation.isPending ||
+    kindMutation.isPending ||
+    upgradeMutation.isPending;
   const error =
     deployMutation.error ??
     patchMutation.error ??
     mintMutation.error ??
     rotateMutation.error ??
-    revokeTokenMutation.error;
+    revokeTokenMutation.error ??
+    kindMutation.error ??
+    upgradeMutation.error;
 
   return (
     <Bay density="narrative" className="grid gap-3">
@@ -211,6 +249,7 @@ export function DeployedAgentsPanel({
               busy={busy}
               canManage={canManage}
               isOwner={isOwner}
+              newer={newerFamilyVersion(agent, catalogQuery.data)}
               onPatch={(payload) => patchMutation.mutate({ actorId: agent.actor_id, payload })}
               onMint={() =>
                 mintMutation.mutate({ actorId: agent.actor_id, displayName: agent.display_name })
@@ -224,6 +263,9 @@ export function DeployedAgentsPanel({
               }
               onRevokeToken={(jti) =>
                 revokeTokenMutation.mutate({ actorId: agent.actor_id, jti })
+              }
+              onUpgrade={(definitionId) =>
+                upgradeMutation.mutate({ actorId: agent.actor_id, definitionId })
               }
             />
           ))}
@@ -248,6 +290,50 @@ export function DeployedAgentsPanel({
           }}
         >
           <ReadoutLabel>Deploy an agent</ReadoutLabel>
+          {!catalogUnavailable && catalogKinds.length > 0 ? (
+            <select
+              value={deployDefinitionId}
+              onChange={(event) => setDeployDefinitionId(event.target.value)}
+              aria-label="Catalog kind"
+              className="h-8 min-w-0 max-w-full rounded-built bg-panel-2 px-2 text-[12px] text-text"
+              style={{ border: "1px solid var(--hairline)" }}
+            >
+              <option value="">No catalog kind</option>
+              {catalogKinds.map((kind) => (
+                <option key={kind.id} value={kind.id}>
+                  {kind.display_name} · v{kind.version}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          {catalogUnavailable ? (
+            <p className="text-[11px] text-text-faint">{CATALOG_UNAVAILABLE_LINE}</p>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                value={kindName}
+                onChange={(event) => setKindName(event.target.value)}
+                placeholder="New catalog kind"
+                aria-label="New catalog kind name"
+                spellCheck={false}
+                autoComplete="off"
+                className="h-8 min-w-0 flex-1"
+              />
+              <ActionGhost
+                type="button"
+                size="sm"
+                pending={kindMutation.isPending}
+                disabled={!kindName.trim() || busy}
+                onClick={() => {
+                  const name = kindName.trim();
+                  if (!name) return;
+                  kindMutation.mutate(name);
+                }}
+              >
+                Register kind
+              </ActionGhost>
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             <Input
               value={displayName}
@@ -326,26 +412,31 @@ function AgentRow({
   busy,
   canManage,
   isOwner,
+  newer,
   onPatch,
   onMint,
   onRotate,
   onRevokeToken,
+  onUpgrade,
 }: {
   agent: AgentRosterRead;
   busy: boolean;
   canManage: boolean;
   isOwner: boolean;
+  newer: { id: string; version: number } | null;
   onPatch: (payload: AgentRosterPatch) => void;
   onMint: () => void;
   onRotate: (jti: string) => void;
   onRevokeToken: (jti: string) => void;
+  onUpgrade: (definitionId: string) => void;
 }) {
-  const live = agent.live_tokens[0] ?? null;
+  const live = agent.live_tokens?.[0] ?? null;
   const responsible = agent.responsible
     ? `${agent.responsible.display_name} @${agent.responsible.username}`
     : "unassigned";
   const tokenReached = agentTokenCapReached(agent);
   const usdReached = agentUsdCapReached(agent);
+  const definitionLine = agentDefinitionLine(agent);
 
   return (
     <li
@@ -368,6 +459,9 @@ function AgentRow({
         <span className="text-text-faint"> · last used {formatAgentWhen(agent.last_used_at)}</span>
       </p>
       <p className="font-mono text-[11px] text-text-faint">{agentCapLine(agent)}</p>
+      {definitionLine ? (
+        <p className="text-[12px] text-text-soft">Kind {definitionLine}</p>
+      ) : null}
       {canManage ? (
         <div className="flex flex-wrap items-center gap-2">
           {isOwner && agent.status === "active" ? (
@@ -400,6 +494,16 @@ function AgentRow({
                 Revoke token
               </ActionDestructive>
             </>
+          ) : null}
+          {canManage && newer && agent.status === "active" ? (
+            <Action
+              size="sm"
+              disabled={busy}
+              onClick={() => onUpgrade(newer.id)}
+              aria-label={`Upgrade ${agent.display_name} to v${newer.version}`}
+            >
+              Upgrade to v{newer.version}
+            </Action>
           ) : null}
           {agent.status === "active" ? (
             <ActionGhost

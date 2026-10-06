@@ -68,6 +68,10 @@ def test_pass_reserve_amount_clamps_to_available_and_the_safety_cap(
     assert pass_reserve_amount(Decimal("5.00"), rate_per_1k=Decimal("1.00")) == Decimal("1.000000")
     assert pass_reserve_amount(Decimal("0.25"), rate_per_1k=Decimal("1.00")) == Decimal("0.25")
     assert pass_reserve_amount(Decimal("0"), rate_per_1k=Decimal("1.00")) == Decimal("0")
+    # 0.59.0 — a remaining agent cap shrinks the envelope below the safety cap.
+    assert pass_reserve_amount(
+        Decimal("5.00"), rate_per_1k=Decimal("1.00"), max_tokens=21
+    ) == Decimal("0.021000")
 
 
 def test_usage_to_cost_live_split_does_not_use_the_blended_default() -> None:
