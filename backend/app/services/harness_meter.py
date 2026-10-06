@@ -7,11 +7,12 @@ shared meter so those two paths cannot drift.
 
 ``0.50.0`` added the turn-room clamp: remaining daily tokens, and —
 only when a live/catalog price is known — the tokens the pot can
-still buy. ``0.51.0`` also reserves that pot room on the same
-amount-0 hold (``pot_hold=<usd>``) so a concurrent authorize
-subtracts unpaired open reservations. Legacy rows without the mark
-reserve nothing. A blended settings fallback is not a known price;
-do not invent one.
+still buy. The ledger hold occupies the whole remaining daily room
+so two overlapping authorizes cannot both pass. ``0.51.0`` requires
+the hold TTL to be strictly greater than the provider request
+timeout plus a margin, so a live turn is never released as an
+orphan. A blended settings fallback is not a known price; do not
+invent one.
 
 FastAPI may import this module. It must not import ``app.harness``.
 Nothing here writes. ``create_checkpoint`` is still the only Checkpoint
@@ -25,7 +26,7 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from decimal import ROUND_DOWN, Decimal, InvalidOperation
+from decimal import ROUND_DOWN, Decimal
 from typing import Literal, Protocol
 from uuid import UUID
 
@@ -38,9 +39,12 @@ from app.models.enums import ComputeDebitRateSource
 DAILY_TOKEN_CAP_ENV = "OPENTHEORY_HARNESS_DAILY_TOKEN_CAP"
 HOLD_TTL_ENV = "OPENTHEORY_HARNESS_HOLD_TTL_SECONDS"
 TURN_TOKEN_FLOOR_ENV = "OPENTHEORY_HARNESS_TURN_TOKEN_FLOOR"
+TURN_TIMEOUT_ENV = "AGENT_LLM_TIMEOUT_S"
 DEFAULT_DAILY_TOKEN_CAP = 20_000
 DEFAULT_HOLD_TTL_SECONDS = 300
 DEFAULT_TURN_TOKEN_FLOOR = 16
+DEFAULT_TURN_TIMEOUT_SECONDS = 60.0
+TURN_DURATION_MARGIN_SECONDS = 5.0
 SESSION_NOTES = "harness_session_turn"
 HOLD_NOTES_MARK = "daily_cap_hold"
 RELEASE_NOTES_MARK = "daily_cap_release"
@@ -48,12 +52,10 @@ HOLD_ID_MARK = "hold_id="
 CLAMP_MARK = "clamp="
 OVERSHOOT_MARK = "overshoot="
 POT_ROOM_MARK = "pot_room="
-POT_HOLD_MARK = "pot_hold="
 POT_ROOM_NONE = "none"
 PRICE_UNKNOWN_MARK = "price_unknown"
 HOLD_NOTES = f"{SESSION_NOTES}; {HOLD_NOTES_MARK}"
 RELEASE_NOTES = f"{SESSION_NOTES}; {RELEASE_NOTES_MARK}"
-MONEY_QUANTUM = Decimal("0.000001")
 KNOWN_PRICE_SOURCES = frozenset(
     {
         ComputeDebitRateSource.OPENROUTER_LIVE,
@@ -122,65 +124,30 @@ def is_daily_cap_adjustment(notes: str | None) -> bool:
     return HOLD_NOTES_MARK in text or RELEASE_NOTES_MARK in text
 
 
-def hold_notes(hold_id: UUID, pot_hold: Decimal | None = None) -> str:
-    """Hold notes: literal ``harness_session_turn`` prefix plus ``hold_id``.
-
-    When pot room was applied, ``pot_hold=<usd>`` is the clamp's dollar
-    value at the clamp rate. Missing mark (pre-0.51.0) reserves nothing.
-    """
-    notes = f"{HOLD_NOTES}; {HOLD_ID_MARK}{hold_id}"
-    if pot_hold is None:
-        return notes
-    return f"{notes}; {POT_HOLD_MARK}{format_pot_hold(pot_hold)}"
+def hold_notes(hold_id: UUID) -> str:
+    """Hold notes: literal ``harness_session_turn`` prefix plus ``hold_id``."""
+    return f"{HOLD_NOTES}; {HOLD_ID_MARK}{hold_id}"
 
 
-def format_pot_hold(amount: Decimal) -> str:
-    """Canonical Numeric(12, 6) dollars. Never scientific notation."""
-    quantized = amount.quantize(MONEY_QUANTUM, rounding=ROUND_DOWN)
-    return format(quantized, "f")
+def max_turn_duration_seconds(
+    provider_timeout_s: float,
+    *,
+    margin_s: float = TURN_DURATION_MARGIN_SECONDS,
+) -> float:
+    """Longest a live hold may stay open: provider request plus authorize margin."""
+    return provider_timeout_s + margin_s
 
 
-def parse_pot_hold(notes: str | None) -> Decimal | None:
-    """Read ``pot_hold=<usd>``. Missing / unparseable / negative is none."""
-    for part in (notes or "").split(";"):
-        token = part.strip()
-        if not token.startswith(POT_HOLD_MARK):
-            continue
-        raw = token[len(POT_HOLD_MARK) :]
-        try:
-            value = Decimal(raw)
-        except InvalidOperation:
-            return None
-        if value < 0:
-            return None
-        return value
-    return None
-
-
-def pot_hold_usd(*, tokens: int, rate_per_1k: Decimal) -> Decimal:
-    """Dollar value of ``tokens`` at ``rate_per_1k``. Floors to Numeric(12, 6)."""
-    if tokens <= 0 or rate_per_1k <= 0:
-        return Decimal("0")
-    raw = (Decimal(tokens) * rate_per_1k) / Decimal(1000)
-    return raw.quantize(MONEY_QUANTUM, rounding=ROUND_DOWN)
-
-
-def open_pot_holds(rows: list[AdjustmentRow]) -> Decimal:
-    """Σ ``pot_hold`` USD on unmatched holds. Legacy rows without the mark are 0."""
-    total = Decimal("0")
-    for hold in unmatched_holds(rows):
-        reserved = parse_pot_hold(hold.notes)
-        if reserved is not None:
-            total += reserved
-    return total
-
-
-def pot_available_after_holds(available: object, reserved: object) -> Decimal:
-    """Funded leftover minus open pot reservations. Never negative."""
-    available_n = available if isinstance(available, Decimal) else Decimal(str(available))
-    reserved_n = reserved if isinstance(reserved, Decimal) else Decimal(str(reserved))
-    room = available_n - reserved_n
-    return room if room > 0 else Decimal("0")
+def hold_ttl_covers_turn(
+    ttl_seconds: int,
+    provider_timeout_s: float,
+    *,
+    margin_s: float = TURN_DURATION_MARGIN_SECONDS,
+) -> bool:
+    """True when TTL is strictly greater than provider timeout + margin."""
+    if ttl_seconds < 1 or provider_timeout_s <= 0 or margin_s < 0:
+        return False
+    return ttl_seconds > max_turn_duration_seconds(provider_timeout_s, margin_s=margin_s)
 
 
 def release_notes(hold_id: UUID | None) -> str:

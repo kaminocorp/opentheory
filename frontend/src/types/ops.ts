@@ -13,7 +13,6 @@ export type OpsBudgetRead = {
   snapshot: ProjectBudget;
   state: OpsBudgetState;
   note: string;
-  reserved_by_open_turns: string;
 };
 
 export type OpsDailyCapRead = {
@@ -36,7 +35,6 @@ export type OpsHoldRead = {
   released_at: string | null;
   stale: boolean | null;
   note: string | null;
-  pot_hold: string | null;
 };
 
 export type OpsTurnRead = {

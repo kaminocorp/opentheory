@@ -27,7 +27,12 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.harness.gateway import create_gateway_app
-from app.harness.session import PROJECT_ID_ENV, HarnessSession, session_from_env
+from app.harness.session import (
+    PROJECT_ID_ENV,
+    HarnessSession,
+    TurnRefused,
+    session_from_env,
+)
 from app.schemas.project import AGENT_ROLE_FIELDS
 
 SLUG = "odd-perfect-numbers"
@@ -112,7 +117,10 @@ def require_bound_session(
     env: Mapping[str, str] | None = None,
 ) -> HarnessSession:
     """Refuse to serve the campaign child when no project is bound."""
-    session = session_from_env(env)
+    try:
+        session = session_from_env(env)
+    except TurnRefused as exc:
+        raise SystemExit(f"refusing campaign child — {exc.reason}") from exc
     if session is None:
         raise SystemExit(
             f"session=unbound ({PROJECT_ID_ENV} unset) — not starting gateway"

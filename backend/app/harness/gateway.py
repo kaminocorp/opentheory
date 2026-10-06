@@ -41,6 +41,7 @@ from app.harness.session import (
     DailyCapHold,
     HarnessSession,
     TurnRefused,
+    assert_composition,
     clamp_max_tokens,
     overshoot_tokens,
     session_from_env,
@@ -404,6 +405,7 @@ def create_gateway_app(
     an unbound child unless ``OPENTHEORY_HARNESS_UNMETERED_PROBE`` is
     set. In-process tests may still construct an unbound app.
     """
+    assert_composition(env=env)
     bound = session if session is not None else session_from_env(env)
 
     app = FastAPI(title="OpenTheory OpenRouter gateway", version=VERSION)
@@ -554,7 +556,11 @@ def assert_process_may_serve(
     may start a child that looks like the harness.
     """
     lookup = env if env is not None else os.environ
-    session = session_from_env(lookup)
+    try:
+        assert_composition(env=lookup)
+        session = session_from_env(lookup)
+    except TurnRefused as exc:
+        raise SystemExit(f"refusing gateway — {exc.reason}") from exc
     if session is not None:
         return session
     if unmetered_probe_enabled(lookup):

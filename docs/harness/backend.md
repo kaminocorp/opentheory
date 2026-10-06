@@ -1,6 +1,6 @@
 # External harness — backend skeleton
 
-> **Status — `0.51.0` pot-room reservation.** Package exists. FastAPI
+> **Status — `0.51.0` serialization guard.** Package exists. FastAPI
 > does not import it. Fly does not run it. The product ops read uses
 > `app.services.harness_meter`, not this package.
 
@@ -15,7 +15,7 @@ backend/app/harness/
   auth.py                 JWT-file / JWT-env / flagged dev-actor; redaction
   protocol.py             shared stdio JSON-RPC framing
   gateway.py              fail-closed OpenRouter client + HTTP proxy
-  session.py              HarnessSession — turn cap, daily token cap + remaining-room hold + stale-hold release + turn-room clamp + pot-room reservation, exhaust, debit
+  session.py              HarnessSession — turn cap, daily token cap + remaining-room hold + stale-hold release + turn-room clamp + hold TTL covers turn, exhaust, debit
   campaign.py             odd-perfect reference campaign (instrument-only)
   turns.py                library helper; composes HarnessSession
   probe.py                composition + fixture; opt-in live OpenRouter
@@ -37,7 +37,8 @@ gateway, and does not need the SDK.
 | Keep the shared daily-cap meter (`harness_session_turn` prefix, `hold_id` pairing) readable from the product API without importing this package | Import `app.harness` from FastAPI |
 | Keep refusing when today's `harness_session_turn` token sum has hit the cap (default 20_000 / UTC day) | Reset that sum on process restart (the ledger is the meter) |
 | Clamp `max_tokens` to remaining daily room, and to pot room when a funded pot has a live/catalog price (completion rate; prompt cost is not reserved) | Invent a blended settings price; treat unfunded as pot-bound; hide a provider overshoot |
-| Reserve granted pot room on the existing amount-0 hold (`pot_hold=<usd>`) so a concurrent authorize subtracts unpaired open reservations | Change Funding / Overview `available`; treat a legacy hold without the mark as a reservation |
+| Keep occupying the whole remaining daily room so a second overlapping authorize is always refused | Reserve pot dollars; clamp occupancy to pot room; add an Open-turns readout |
+| Refuse composition / session / gateway start unless the hold TTL is strictly greater than the provider timeout plus a margin | Auto-release a live in-flight hold; start with TTL ≤ max turn duration |
 | Keep the process-local turn cap and the funded-pot check | Treat unfunded as exhausted; debit when `tokens_used <= 0` |
 | Keep `OPENTHEORY_HARNESS_DAILY_TOKEN_CAP` and `OPENTHEORY_HARNESS_HOLD_TTL_SECONDS` operator-overridable | Add a campaign table, a refusals table, or a second Checkpoint writer |
 | Skip the live probe without a key | Require `dsh` / the `[harness]` extra / `OPENROUTER_API_KEY` in default CI |

@@ -70,7 +70,6 @@ async def test_ops_empty_project_is_honest_unfunded(
     assert body["notes_prefix"] == SESSION_NOTES
     assert body["budget"]["state"] == "unfunded"
     assert Decimal(body["budget"]["snapshot"]["funded"]) == Decimal("0")
-    assert Decimal(body["budget"]["reserved_by_open_turns"]) == Decimal("0")
     assert "not exhausted" in body["budget"]["note"]
     assert body["daily_cap"]["tokens_used_today"] == 0
     assert body["daily_cap"]["cap"] == 20_000
@@ -253,36 +252,3 @@ async def test_ops_last_turn_does_not_claim_unused_pot_room(
     assert last["clamp"] == 80
     assert "pot room was not applied" in last["note"]
     assert "min of daily room and pot room" not in last["note"]
-
-
-async def test_ops_open_turns_are_separate_from_available(
-    client: AsyncClient, session_factory: async_sessionmaker
-) -> None:
-    actor_id = await make_dev_principal(client, display_name="Ada", roles=("internal",))
-    project_id = await create_owned_project(client, actor_id, "ops-open-turns")
-    funded = await client.post(
-        f"/api/v1/projects/{project_id}/funding",
-        json={"amount": "0.05", "currency": "USD", "kind": "top_up", "source": "native"},
-        headers={"X-Dev-Actor-Id": actor_id},
-    )
-    assert funded.status_code == 201, funded.text
-    open_id = uuid4()
-    await _add_debit(
-        session_factory,
-        project_id,
-        tokens_used=50,
-        amount=Decimal("0"),
-        notes=hold_notes(open_id, pot_hold=Decimal("0.05")),
-    )
-
-    resp = await client.get(f"/api/v1/projects/{project_id}/ops")
-    assert resp.status_code == 200, resp.text
-    body = resp.json()
-    assert body["budget"]["state"] == "available"
-    assert Decimal(body["budget"]["snapshot"]["available"]) == Decimal("0.05")
-    assert Decimal(body["budget"]["snapshot"]["spent"]) == Decimal("0")
-    assert Decimal(body["budget"]["reserved_by_open_turns"]) == Decimal("0.05")
-    assert Decimal(body["holds"][0]["pot_hold"]) == Decimal("0.05")
-    budget = await client.get(f"/api/v1/projects/{project_id}/budget")
-    assert budget.status_code == 200, budget.text
-    assert Decimal(budget.json()["available"]) == Decimal("0.05")

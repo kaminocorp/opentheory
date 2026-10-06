@@ -1,6 +1,6 @@
 # External harness — MCP tool contracts
 
-> **Status — `0.51.0` pot-room reservation + live door.** Stems are pinned. The
+> **Status — `0.51.0` serialization guard + live door.** Stems are pinned. The
 > fixture in `backend/app/harness/fixture_mcp.py` still **mints nothing**
 > (M0 probes). The live server is `backend/app/harness/live_mcp.py`.
 > LLM tokens are metered by the session-owned gateway, not by these
@@ -46,7 +46,7 @@ hospitality tools and must not appear in this inventory.
   Gateway token metering (`0.43.0` session owner, `0.44.0` fail-closed
   campaign child, `0.46.0` daily token cap, `0.47.0` remaining-room
   hold, `0.48.0` stale-hold release, `0.50.0` turn-room clamp,
-  `0.51.0` pot-room reservation)
+  `0.51.0` serialization guard)
   debits `ComputeDebit` for LLM tokens on the path
   `dsh → llm-pi-ai → python -m app.harness.campaign` — including
   attempted completions that spent tokens — or refuses to start.
@@ -56,9 +56,10 @@ hospitality tools and must not appear in this inventory.
   older than the TTL is released on the next authorize. A single
   turn is clamped to remaining daily room (and pot room when a
   funded pot has a live/catalog price, at the completion rate).
-  When pot room is applied, the hold also reserves those dollars so
-  two overlapping authorizes cannot together spend past available.
-  Unfunded is not exhausted.
+  The hold occupies remaining daily tokens, so a second overlapping
+  authorize is refused. The hold TTL must exceed the provider
+  timeout plus a margin so a live turn is never released as an
+  orphan. Unfunded is not exhausted.
 
 ## Auth injection (do not put the bearer on a tool argument)
 

@@ -76,7 +76,6 @@ describe("holds and turns", () => {
       released_at: null,
       stale: null,
       note: "Pre-0.48.0 leftover hold (no hold_id).",
-      pot_hold: null,
     };
     assert.equal(holdIdLabel(hold), "unknown hold_id");
     assert.equal(holdStatusLabel("open", null), "Open (stale unknown)");

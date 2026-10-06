@@ -278,9 +278,10 @@ the UTC day. `0.49.0` adds a read-only ops dashboard
 not start a campaign. `0.50.0` clamps each turn's `max_tokens` to
 remaining daily room (and pot room when a funded pot has a
 live/catalog price, at the completion rate) and records a provider
-overshoot as truth. `0.51.0` reserves that pot room on the same
-amount-0 hold (`pot_hold=<usd>`) so overlapping authorizes cannot
-together spend past available. The gateway talks to
+overshoot as truth. `0.51.0` keeps that daily-room occupancy
+(0.50 already serializes overlapping authorizes) and requires the
+hold TTL to exceed the provider timeout plus a margin so a live
+turn cannot be released as an orphan. The gateway talks to
 OpenRouter only (`allow_fallbacks: false`, `require_parameters: true`,
 `data_collection: deny`, provider allowlist). Set
 `OPENROUTER_API_KEY` / `OPENTHEORY_GATEWAY_TOKEN` with `fly secrets set`

@@ -1,14 +1,14 @@
 # Roadmap Next Steps
 
 > **Last updated:** 2026-10-06 · **Current release line:** `0.51.0`
-> (harness pot-room reservation), sitting on shipped `0.50.0`
+> (harness serialization guard), sitting on shipped `0.50.0`
 > (harness turn-room clamp, `af7ee43`, #44) on current
-> `main`. See `docs/completions/harness-pot-room-reservation-0.51.0.md`.
+> `main`. See `docs/completions/harness-serialization-guard-0.51.0.md`.
 >
 > **Next after this line:** Lean REPL / LeanDojo remain later.
 > Does not enable the gateway child on Fly.
 > Does not light `AGENT_LOOP_ENABLED`.
-> ~~Harness pot-room reservation~~ ✅ this branch as `0.51.0`.
+> ~~Harness serialization guard~~ ✅ this branch as `0.51.0`.
 > ~~Harness turn-room clamp~~ ✅ shipped as `0.50.0`.
 > ~~Perpetual ops Overview eyeball pass~~ ✅ shipped as `0.49.1`.
 > ~~Perpetual ops dashboard~~ ✅ shipped as `0.49.0`.
@@ -103,17 +103,17 @@ bypassing the checkpoint chokepoint or conflating funder / contributor / validat
 
 ## Recommended next releases
 
-### `0.51.x` — Harness pot-room reservation ✅ **this branch** (`0.51.0`)
+### `0.51.x` — Harness serialization guard ✅ **this branch** (`0.51.0`)
 
-Delivered: the leftover 0.50.0 pot race is closed. When pot room is
-applied, the existing amount-0 hold also carries `pot_hold=<usd>`
-so a concurrent authorize subtracts unpaired open reservations.
-Occupancy is the clamp (daily-tight turns still occupy remaining
-daily tokens; pot-tight turns leave daily room). Release / convert
-/ TTL orphan frees the reservation. Funding / Overview `available`
-is unchanged; Overview ops shows `reserved_by_open_turns`
-separately. **No schema, no migration, no campaign table.** See
-`docs/completions/harness-pot-room-reservation-0.51.0.md`.
+Delivered: `0.50.0` already serializes harness turns per project
+via the whole-daily-room hold, so no pot race exists. This slice
+adds a Postgres regression for that (known price, price-unknown,
+mid-flight pot top-up → daily-cap refuse, no provider / debit /
+hold) and requires `OPENTHEORY_HARNESS_HOLD_TTL_SECONDS` to be
+strictly greater than the provider request timeout plus a margin
+so a live turn cannot be released as an orphan. **No schema, no
+migration, no campaign table.** See
+`docs/completions/harness-serialization-guard-0.51.0.md`.
 
 **Not in this release:** Fly enablement of the gateway or MCP child;
 lighting `AGENT_LOOP_ENABLED`; a refusals table; Lean REPL / LeanDojo.
@@ -247,7 +247,7 @@ for M0 probes. FastAPI still does not import the package.
 (`0.42.0`); reference campaign; ops dashboard; lighting the built-in
 planner.
 
-### `0.42.x` — OpenRouter gateway + turn supervision ✅ **this branch** (`0.42.0`)
+### `0.42.x` — OpenRouter gateway + turn supervision ✅ **shipped** (`0.42.0`)
 
 Delivered: fail-closed OpenRouter gateway (provider allowlist,
 `allow_fallbacks: false`, `require_parameters: true`,
@@ -594,7 +594,7 @@ migration.** Sits on `0.35.0`. See
 auto-validate / auto-fund / auto-merge; content-addressed commit ids;
 rewriting claim field history; browser eyeball.
 
-### `0.36.3` — Honesty polish ✅ **this branch**
+### `0.36.3` — Honesty polish ✅ **shipped**
 
 Delivered: `BranchCreate` / `ValidationCreate` OpenAPI copy describes
 the signed-in JWT actor, not the local-only header; the planner prompt
@@ -713,9 +713,9 @@ changing branch protection.
     ~~**Harness turn-room clamp**~~ ✅ shipped as `0.50.0` —
     `max_tokens` bounded to remaining daily / pot room; below-floor
     refuse; provider overshoot recorded as truth.
-    ~~**Harness pot-room reservation**~~ ✅ this branch as `0.51.0` —
-    open pot holds reserve the granted dollars so overlapping
-    authorizes cannot together spend past available.
+    ~~**Harness serialization guard**~~ ✅ this branch as `0.51.0` —
+    0.50 already serializes via the daily-room hold; TTL must
+    exceed max turn duration so a live turn is never an orphan.
     Does not enable the gateway child. Does not light
     `AGENT_LOOP_ENABLED`.
 
@@ -769,7 +769,7 @@ changing branch protection.
 | `0.48.x` | Harness daily-cap orphan-hold release — a crash leftover hold no longer pins the UTC day |
 | `0.49.x` | Perpetual ops dashboard + Overview eyeball pass (`0.49.1`) |
 | `0.50.x` | Harness turn-room clamp — `max_tokens` bounded to remaining room |
-| `0.51.x` | Harness pot-room reservation — open turns reserve granted pot dollars |
+| `0.51.x` | Harness serialization guard — 0.50 occupancy + hold TTL covers turn |
 
 ## Success criteria for the next milestone
 
@@ -917,10 +917,11 @@ daily / pot room. Pot room uses the completion rate when present;
 unfunded is `pot_room=none`. Price unknown → daily room only.
 Provider overshoot is recorded as truth.
 
-**`0.51.0` (harness pot-room reservation)** is this branch: when
-pot room is applied, the amount-0 hold also reserves those dollars
-(`pot_hold=<usd>`). A concurrent authorize subtracts unpaired open
-reservations. Funding / Overview `available` is unchanged.
+**`0.51.0` (harness serialization guard)** is this branch:
+`0.50.0` already serializes turns per project via the
+whole-daily-room hold, so no pot race exists. This slice adds a
+regression for that and requires the hold TTL to exceed the max
+turn duration.
 
 **Next product step:** Lean REPL / LeanDojo remain later. `If` /
 ite remain later. Does not enable the gateway child on Fly. Does
