@@ -1,9 +1,11 @@
 # External harness — backend skeleton
 
-> **Status — `0.51.1` attribution audit.** Package exists. FastAPI
+> **Status — `0.52.0` turn-spend membership.** Package exists. FastAPI
 > does not import it. Fly does not run it. The product ops read uses
-> `app.services.harness_meter`, not this package. Actor attribution
-> of live MCP writes and `ComputeDebit` spend is recorded in
+> `app.services.harness_meter`, not this package. `authorize()` now
+> membership-checks the actor the session / turn is running for
+> before a hold or a provider call. Actor attribution of live MCP
+> writes and `ComputeDebit` spend is recorded in
 > `docs/harness/attribution.md`.
 
 ## Where it lives
@@ -17,7 +19,7 @@ backend/app/harness/
   auth.py                 JWT-file / JWT-env / flagged dev-actor; redaction
   protocol.py             shared stdio JSON-RPC framing
   gateway.py              fail-closed OpenRouter client + HTTP proxy
-  session.py              HarnessSession — turn cap, daily token cap + remaining-room hold + stale-hold release + turn-room clamp + hold TTL covers turn, exhaust, debit
+  session.py              HarnessSession — turn cap, daily token cap + remaining-room hold + stale-hold release + turn-room clamp + hold TTL covers turn, exhaust, debit, membership on authorize
   campaign.py             odd-perfect reference campaign (instrument-only)
   turns.py                library helper; composes HarnessSession
   probe.py                composition + fixture; opt-in live OpenRouter
@@ -32,11 +34,11 @@ The package is **not** mounted on `api/router.py` and is **not** imported
 from `app.main`. Booting the API does not load Cordis, does not start the
 gateway, and does not need the SDK.
 
-## What 0.51.1 will and will not do
+## What 0.52.0 will and will not do
 
 | Will | Will not |
 | --- | --- |
-| Keep live MCP writes attributed to the JWT-resolved member Actor; refuse account-less / non-member agents (`docs/harness/attribution.md`) | Remap those writes onto the built-in `Research crew` agent; add `ComputeDebit.actor_id` |
+| Keep live MCP writes attributed to the JWT-resolved member Actor; refuse account-less / non-member agents on writes *and* on `authorize()` spend (`docs/harness/attribution.md`) | Remap those writes onto the built-in `Research crew` agent; add `ComputeDebit.actor_id` |
 | Keep the shared daily-cap meter (`harness_session_turn` prefix, `hold_id` pairing) readable from the product API without importing this package | Import `app.harness` from FastAPI |
 | Keep refusing when today's `harness_session_turn` token sum has hit the cap (default 20_000 / UTC day) | Reset that sum on process restart (the ledger is the meter) |
 | Clamp `max_tokens` to remaining daily room, and to pot room when a funded pot has a live/catalog price (completion rate; prompt cost is not reserved) | Invent a blended settings price; treat unfunded as pot-bound; hide a provider overshoot |

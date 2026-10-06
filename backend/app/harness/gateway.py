@@ -1,4 +1,4 @@
-"""Fail-closed OpenRouter gateway for the external DeepSeek Harness (0.51.0).
+"""Fail-closed OpenRouter gateway for the external DeepSeek Harness (0.52.0).
 
 Mirrors the OpenWorld gateway posture named in ``docs/harness/prior-art.md``:
 provider allowlist, ``allow_fallbacks: false``, ``require_parameters: true``,
@@ -50,7 +50,7 @@ from app.harness.session import (
     spend_notes,
 )
 
-VERSION = "0.51.0"
+VERSION = "0.52.0"
 REASON_TURN_DEADLINE = "provider call exceeded turn deadline"
 REASON_STREAM = "stream is not supported"
 DEFAULT_MODEL = "deepseek/deepseek-chat"
