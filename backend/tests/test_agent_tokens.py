@@ -33,7 +33,7 @@ from app.services.agent_tokens import (
 from app.services.project_members import ensure_is_member
 from tests.principals import create_owned_project
 
-TEST_SECRET = "test-agent-session-secret-0.55.0"
+TEST_SECRET = "test-agent-session-secret-0.55.0-32b!!"
 
 
 def _headers(actor_id: str) -> dict[str, str]:
@@ -324,7 +324,7 @@ async def test_resolver_stamps_last_used_and_never_returns_human(
             "iat": datetime.now(UTC),
             "exp": datetime.now(UTC) + timedelta(days=1),
         },
-        "other-secret",
+        "other-secret-not-the-real-one!!",
         algorithm="HS256",
         headers={"typ": TYP},
     )
@@ -462,7 +462,6 @@ async def test_agent_token_authorize_and_cross_project_refuse(
     )
     hold = await ok.authorize()
     assert hold is not None
-    await ok.record_spend(tokens_used=0, hold=hold)
 
     other = HarnessSession(
         project_id=project_b,
@@ -515,14 +514,20 @@ async def test_agent_token_cannot_fund_or_validate(
         json={"title": "T", "question": "q?"},
         headers=_headers(owner_id),
     )
+    assert thread.status_code == 201, thread.text
     claim = await client.post(
         f"/api/v1/threads/{thread.json()['id']}/claims",
-        json={"statement": "s"},
+        json={"kind": "hypothesis", "statement": "s"},
         headers=_headers(owner_id),
     )
+    assert claim.status_code == 201, claim.text
     validated = await client.post(
         f"/api/v1/projects/{project_id}/validations",
-        json={"target_type": "claim", "target_id": claim.json()["id"], "outcome": "supports"},
+        json={
+            "target_type": "claim",
+            "target_id": claim.json()["id"],
+            "outcome": "passed",
+        },
         headers=bearer,
     )
     assert validated.status_code == 403
