@@ -1,14 +1,15 @@
-# Design: first-class agent Actor identity (proposal)
+# Design: first-class agent Actor identity
 
-> **Status — design proposal only** (revised after owner review).
-> No production code, no Alembic revision, no tests, no changelog
-> bump, no roadmap banner. Sits on `3eeeaf5` (`0.51.1`, #46).
-> **Precursor on the harness line:** shipped `0.52.0` (PR #48)
-> puts a human-member gate on `HarnessSession.authorize()`; this
+> **Status — Approved 2026-10-06; implementation in slices.**
+> Design only on this branch: no production code, no Alembic
+> revision, no tests, no changelog bump, no roadmap banner.
+> Sits on `3eeeaf5` (`0.51.1`, #46). **Precursor on the
+> harness line:** shipped `0.52.0` (PR #48) puts a
+> human-member gate on `HarnessSession.authorize()`; this
 > design swaps that gate to the agent roster and replaces the
 > ~1h Supabase access JWT the gateway now holds. If this doc
 > disagrees with `backend/app/` on this branch, the code is
-> what exists here and this file is the proposed change.
+> what exists here and this file is the approved change.
 >
 > Does not light `AGENT_LOOP_ENABLED`. Does not enable the gateway
 > or MCP child on Fly. FastAPI still must not import `app.harness`.
@@ -264,17 +265,21 @@ Migration (§6):
    slot: `uq_actors_one_research_crew_per_project` on
    `(actor_metadata->>'project_id') WHERE type = 'AGENT' AND
    display_name = 'Research crew'`.
-5. Leave `display_name = "Research crew"`. Renaming remains an
-   open question (§9). The Crew tab's existing "Research crew" bay
+5. Keep `display_name = "Research crew"` (**decided**). The
+   Crew tab's existing "Research crew" bay
    (`ResearchCrewPanel`) stays the **model-assignment** surface
    for the four dark-loop roles (`project.agent_models`). The new
-   bay is the **roster**. Do not collapse them in v1 — one is
+   bay is the **roster**. Do not collapse them — one is
    config, one is identity.
 
 `get_or_create_project_agent_actor` keeps its flush-not-commit
 discipline. After the schema slice it must (a) find the existing
 Research-crew Actor, (b) ensure a roster row exists, (c) not
-invent a second display-name. The dark loop still does not run.
+invent a second display-name. The dark loop still does not run
+(`AGENT_LOOP_ENABLED` stays false), but **when it someday
+lights it must also require a roster row** — one gate for all
+agent authorship. A commissioning human passing the route is
+not enough.
 
 Named harness agents (`display_name` ≠ `"Research crew"`) are
 unconstrained at the Actor-metadata index; uniqueness is the
@@ -303,16 +308,14 @@ projects — checkpoints authored, validations *received* (a
 human validated that Actor's work), spend. That rollup is a
 **read join**, not a second Actor and not a merge.
 
-**v1 ships the seam, not the catalog.** Add nullable
-`actors.agent_definition_id UUID` with **no foreign key** in
-the first schema slice (an untyped UUID is the placeholder).
-Leave it `NULL` on every migrated `Research crew` row and
-every v1 deploy. Do **not** create `agent_definitions` in v1
-— an empty table would invite writes we are not ready to
-govern. A later catalog slice creates the table and then
-`ALTER … ADD CONSTRAINT` the FK.
+**Not in slice one. Not in v1.** Do **not** add
+`actors.agent_definition_id` until the catalog slice. A
+nullable column with no FK target is noise; adding a nullable
+column later, in the same revision as `agent_definitions`, is
+cheap. The catalog lands **after the first multi-agent
+campaign** (slice G).
 
-Future `agent_definitions` (catalog slice, not v1):
+Future `agent_definitions` (catalog slice):
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -363,10 +366,10 @@ fingerprints with no snapshot on the checkpoint, and it is
 the merge we just forbade in another coat. Upgrade is a new
 roster slot in the same family.
 
-v1 deploys with `agent_definition_id IS NULL` have no
-cross-project rollup. That is honest — there is no catalog
-yet. The column is there so the catalog slice does not
-rewrite `actors` shape a second time.
+Until slice G, every agent Actor has no definition pointer
+and no cross-project rollup. That is honest — there is no
+catalog yet. Slice G adds the table **and**
+`actors.agent_definition_id` (nullable FK) together.
 
 ### Ownership transfer
 
@@ -389,9 +392,10 @@ composing step in that same transaction — the helper
    whose **`responsible_account_id`** is the outgoing owner
    (at first deploy this equals `deployed_by_account_id`;
    after a later resume it is whoever last took
-   responsibility). Agents an ADMIN deployed, and whose
+   responsibility).    Agents an ADMIN deployed, and whose
    responsible account is not the outgoing owner, stay
-   active — that ADMIN did not lose the project.
+   active (**decided**) — that ADMIN did not lose the
+   project.
 4. The new owner **explicitly resumes** each agent they want
    running. Resume (OWNER only) sets
    `responsible_account_id` to the new owner's Account and
@@ -753,9 +757,9 @@ moment spend carries an `actor_id`.
 still Σ `ComputeDebit.amount` (holds are 0). Concurrent
 occupancy and the daily token cap stay **project-scoped**
 (`harness_session_turn` prefix, one remaining-room hold, second
-overlapping authorize refused). Do not per-agent the daily cap
-in v1 — that would re-open a pot race the `0.47`–`0.51` line
-just closed.
+overlapping authorize refused). **Decided: one shared project
+daily cap. No per-agent split** — splitting would re-open the
+race `0.47`–`0.51` closed.
 
 Optional per-agent ceilings live on the roster row, not on
 funding:
@@ -781,7 +785,10 @@ agent cap of 0 as "exhausted" on an unfunded project.
 ### Built-in loop
 
 `AGENT_LOOP_ENABLED` stays false. When a future slice lights it,
-`record_compute_debit` should pass
+the dark loop **must require a roster row** for the agent
+Actor it authors as — one gate for all agent authorship, same
+as the harness. A commissioning human passing the HTTP route
+is not enough. `record_compute_debit` should pass
 `actor_id=AgentRun.agent_actor_id` so the column is honest on
 both planners. That is not this proposal's enablement.
 
@@ -789,7 +796,9 @@ both planners. That is not this proposal's enablement.
 
 ## 6. Schema
 
-Head revision today is `0021_concurrent_campaign_cycles`. The
+Slice one's exact inventory (enums, tables, columns, indexes,
+data migrations vs later) is listed in §9. Head revision
+today is `0021_concurrent_campaign_cycles`. The
 implementation slice that first touches schema is the next
 Alembic revision (likely `0022`). `create_all` and Alembic stay
 in lockstep: every new constraint is declared on the model
@@ -892,13 +901,8 @@ Constraints / indexes:
   bypasses ORM guards by design; that is the documented caveat
   in `models/append_only.py`). Do not ORM-update debit rows.
 
-**`actors.agent_definition_id`**
-
-- UUID, nullable, **no FK in v1**
-- Index `ix_actors_agent_definition_id`
-- The catalog-slice seam (§2). All v1 rows stay `NULL`.
-  Later `agent_definitions` table + `ALTER … ADD CONSTRAINT`
-  the FK. Do not create the table in v1.
+**Not in slice one:** `actors.agent_definition_id`. Lands
+with `agent_definitions` in slice G.
 
 ### 6.5 Index surgery on `actors`
 
@@ -935,7 +939,8 @@ the deploy helper require `account_id IS NOT NULL` and
 - No `AgentRun` on the harness path.
 - No refusals table.
 - No campaign table.
-- No `agent_definitions` table in v1 (column only).
+- No `agent_definitions` table and no
+  `actors.agent_definition_id` until slice G.
 - No `ProjectAgentRole.validator`.
 
 ### 6.7 Migration + backfill plan (reversible, live-safe)
@@ -952,9 +957,7 @@ append-only tables).
 4. `ADD COLUMN` `checkpoints.sponsored_by_actor_id` NULL + FK
    + index. PG 11+ additive nullable column is metadata-only.
 5. `ADD COLUMN` `compute_debits.actor_id` NULL + FK + index.
-6. `ADD COLUMN` `actors.agent_definition_id` NULL (no FK) +
-   index. All existing actors stay `NULL`.
-7. Backfill Research crew (set-based, no row loop in Python if
+6. Backfill Research crew (set-based, no row loop in Python if
    it can be avoided):
 
    ```sql
@@ -973,8 +976,7 @@ append-only tables).
    invalid UUID). Set `deployed_by_account_id` **and**
    `responsible_account_id` to the owner Account.
    `ON CONFLICT DO NOTHING` on `uq_project_agent_member`.
-   `agent_definition_id` stays `NULL`.
-8. Backfill debit actors from the dark loop:
+7. Backfill debit actors from the dark loop:
 
    ```sql
    UPDATE compute_debits AS d
@@ -986,16 +988,16 @@ append-only tables).
    ```
 
    Leave all `harness_session_turn` rows null.
-9. `DROP INDEX uq_actors_one_agent_per_project`.
-10. `CREATE UNIQUE INDEX uq_actors_one_research_crew_per_project …`.
+8. `DROP INDEX uq_actors_one_agent_per_project`.
+9. `CREATE UNIQUE INDEX uq_actors_one_research_crew_per_project …`.
    If two Research-crew rows already share a project_id
    (should be impossible under the old index), the create
    fails closed — fix data before retry; do not DISTINCT-on
    guess.
 
-Steps 1–6 are rollback-safe by drop. Steps 7–8 are
+Steps 1–5 are rollback-safe by drop. Steps 6–7 are
 reconstructible (crew account_id from owner; debit actor from
-`agent_runs`). Steps 9–10 are the only structural tightening;
+`agent_runs`). Steps 8–9 are the only structural tightening;
 downgrade recreates the old index only if the new multi-agent
 rows are gone (downgrade **refuses** if a project has two
 `type=agent` actors — fail closed rather than silently
@@ -1010,9 +1012,8 @@ deleting).
 3. `UPDATE compute_debits SET actor_id = NULL`.
 4. Drop column `compute_debits.actor_id`.
 5. Drop column `checkpoints.sponsored_by_actor_id`.
-6. Drop column `actors.agent_definition_id`.
-7. Drop `agent_session_tokens`, `project_agent_members`, enums.
-8. Optionally `UPDATE actors SET account_id = NULL WHERE type =
+6. Drop `agent_session_tokens`, `project_agent_members`, enums.
+7. Optionally `UPDATE actors SET account_id = NULL WHERE type =
    'AGENT' AND display_name = 'Research crew'` to restore
    Decision #3 account-lessness.
 
@@ -1154,9 +1155,10 @@ human on `checkpoints.sponsored_by_actor_id`; stamp nullable
 `Actor.account_id` / `deployed_by` alone on OWNER transfer;
 suspend outgoing-responsible agents and revoke their tokens
 until the new owner resumes (`responsible_account_id`).
-Project-scoped Actors; nullable `agent_definition_id` as a
-read-only rollup seam. Reuse and migrate `Research crew`.
-No validator agent role.
+Project-scoped Actors; definition catalog (table + column
+together) after the first multi-agent campaign. Reuse and
+migrate `Research crew` (keep the display name). No validator
+agent role.
 
 That is the smallest change that makes the end vision true
 without punching a hole in membership, without making Account
@@ -1174,8 +1176,8 @@ an Actor, and without letting an agent fund or self-validate.
   every pre-identity harness turn. Honest; not pretty.
 - Project-scoped Actors mean the same "kind" of agent is a
   different UUID per project. Blame stays readable; the
-  definition seam is how a human sees history across
-  projects without merging those UUIDs.
+  later definition catalog is how a human sees history
+  across projects without merging those UUIDs.
 - A 30-day token is a longer-lived secret than 12h. Revoke
   on next DB read is the kill switch; Crew / Overview
   spend-by-agent is the detection. That is the trade
@@ -1268,13 +1270,14 @@ an Actor, and without letting an agent fund or self-validate.
 
 ---
 
-## 9. Phased rollout, tests, decided / open questions
+## 9. Phased rollout, tests, decided questions
 
 Each slice stays small, deployable, and **dark**: no Fly
 enablement, `AGENT_LOOP_ENABLED` default `false`, FastAPI does
 not import `app.harness`, five tabs. Version numbers below are
 placeholders after `0.52.0`; the owner assigns them when a
-slice is scheduled. This proposal is not itself a release.
+slice is scheduled. This file is the approved design, not a
+release.
 
 **Precursor (already shipped):** `0.52.0` (PR #48) — human
 `ensure_is_member` on `HarnessSession.authorize()`;
@@ -1282,17 +1285,91 @@ slice is scheduled. This proposal is not itself a release.
 slices below **swap** that gate; they do not invent a second
 one.
 
+### Slice one (schema) — exact inventory
+
+Schema-on, behavior-off. Models + `__init__.py` exports.
+`create_all` lockstep with Alembic. No resolver change, no
+MCP behavior change, no UI, no Fly, no `AGENT_LOOP_ENABLED`.
+
+**Enums (new):**
+
+- `project_agent_role` — `RESEARCHER` only
+- `project_agent_status` — `ACTIVE`, `SUSPENDED`, `REVOKED`
+
+**Tables (new):**
+
+- `project_agent_members` — `id`, `project_id`, `actor_id`,
+  `deployed_by_account_id`, `responsible_account_id`, `role`,
+  `status`, `token_budget_cap` (nullable; stored, not
+  enforced), `usd_budget_cap` (nullable; stored, not
+  enforced), `created_at`, `updated_at`
+- `agent_session_tokens` — `id` (`jti`), `project_id`,
+  `actor_id`, `minted_by_account_id`, `minted_by_actor_id`,
+  `token_hash`, `expires_at`, `revoked_at`, `last_used_at`,
+  `created_at`, `updated_at`
+
+**Columns (add):**
+
+- `checkpoints.sponsored_by_actor_id` UUID NULL FK `actors.id`
+  ON DELETE SET NULL
+- `compute_debits.actor_id` UUID NULL FK `actors.id`
+  ON DELETE SET NULL
+
+**Indexes / constraints:**
+
+- `uq_project_agent_member` UNIQUE `(project_id, actor_id)`
+- `ix_project_agent_members_project_status` `(project_id, status)`
+- `ix_project_agent_members_actor_id` `(actor_id)`
+- `ix_project_agent_members_responsible` `(project_id, responsible_account_id)`
+- `uq_agent_session_tokens_hash` UNIQUE `(token_hash)`
+- `ix_agent_session_tokens_lookup` `(actor_id, project_id, revoked_at, expires_at)`
+- `ix_agent_session_tokens_project_id` `(project_id)`
+- `ix_checkpoints_sponsored_by_actor_id`
+- `ix_compute_debits_actor_id`
+- **Drop** `uq_actors_one_agent_per_project`
+- **Create** `uq_actors_one_research_crew_per_project`
+  UNIQUE `(actor_metadata->>'project_id')`
+  WHERE `type = 'AGENT' AND display_name = 'Research crew'`
+
+**Data migrations (this slice):**
+
+1. Research crew: `UPDATE actors SET account_id = owner`
+   for account-less `display_name = 'Research crew'` rows
+   whose `actor_metadata->>'project_id'` matches a project
+   that has an `OWNER`; then `INSERT` matching
+   `project_agent_members` rows
+   (`deployed_by_account_id` = `responsible_account_id` =
+   owner, `status = active`, `role = researcher`). Skip
+   orphans (missing project / owner). Keep
+   `display_name = 'Research crew'`.
+2. ComputeDebit: `UPDATE compute_debits SET actor_id =
+   agent_runs.agent_actor_id` where `agent_run_id` is set
+   and that run has `agent_actor_id`. Historical
+   `harness_session_turn` rows stay `NULL`.
+
+**Not in slice one (later):**
+
+- `actors.agent_definition_id` and `agent_definitions`
+  (slice G, after the first multi-agent campaign)
+- Type-aware `ensure_is_member` / transfer hook (slice B)
+- Token mint / resolver / `authorize()` gate-swap (slice C)
+- `record_compute_debit(..., actor_id=)` wiring (slice D)
+- Crew UI / blame sponsor / ops actor fields (slice E)
+- Per-agent cap **enforcement** (slice F) — columns exist,
+  stay unused
+- Fly enablement / secret-file injection (enablement-time)
+
 | Slice | Ships | Must stay out |
 | --- | --- | --- |
-| **A — schema** | Alembic: enums, both tables (`responsible_account_id` on the roster), `sponsored_by_actor_id`, `compute_debits.actor_id`, `actors.agent_definition_id` (no FK), crew + AgentRun backfill, index swap. Models + `__init__.py` exports. `create_all` lockstep. No resolver change. | MCP behavior change; `agent_definitions` table; UI; Fly; lighting the loop |
-| **B — membership gate** | `ensure_is_member` type-aware; `ensure_can_manage` rejects agents; `ensure_is_human_member` on funding / validation / invites. OWNER-transfer hook: suspend Research crew + `responsible_account_id = outgoing` rows, revoke their tokens. `get_or_create_project_agent_actor` ensures a roster row. Account-less crew without a roster still `403`. | Token mint; Fly |
+| **1 — schema** | The inventory above. | Everything in "Not in slice one" |
+| **B — membership gate** | `ensure_is_member` type-aware; `ensure_can_manage` rejects agents; `ensure_is_human_member` on funding / validation / invites. OWNER-transfer hook: suspend Research crew + `responsible_account_id = outgoing` rows, revoke their tokens; ADMIN-deployed agents whose responsible account is not the outgoing owner stay active. `get_or_create_project_agent_actor` ensures a roster row. Dark loop, when later lit, uses this same roster gate. Account-less crew without a roster still `403`. | Token mint; Fly |
 | **C — agent token** | OWNER-only mint / rotate / revoke API; 30-day default; max TTL via settings (not `fly.toml [env]`); resolver in `deps.py` + `harness/auth.py`; secret setting. MCP writes with an agent file attribute to the agent + sponsor snapshot. **Swaps** the `0.52.0` human JWT on `authorize()` for the agent session token. Human Console JWT path unchanged. | Fly; UI mint; `AGENT_LOOP_ENABLED`; per-agent cap enforcement |
-| **D — spend** | `record_compute_debit` / `write_daily_cap_adjustment` take `actor_id`. `HarnessSession` binds the agent; `authorize` / `record_spend` load `jti` + roster. Outsider override closed. Hold notes / amount 0 / prefix / `hold_id` unchanged. Unfunded ≠ exhausted. Debit only when `tokens_used > 0` for spend. | Per-agent cap enforcement; Fly |
+| **D — spend** | `record_compute_debit` / `write_daily_cap_adjustment` take `actor_id`. `HarnessSession` binds the agent; `authorize` / `record_spend` load `jti` + roster. Outsider override closed. Hold notes / amount 0 / prefix / `hold_id` unchanged. Shared project daily cap (no per-agent split). Unfunded ≠ exhausted. Debit only when `tokens_used > 0` for spend. | Per-agent cap enforcement; Fly |
 | **E — Crew UI** | Deployed-agents bay on the Crew tab (revoked rows visible, marked revoked); OWNER mint / rotate reveal; members-only roster read; blame sponsor; ops `actor_*` + spend-by-agent. | New tab; Fly; lighting the loop |
-| **F — optional caps** | Enforce `token_budget_cap` / `usd_budget_cap` at `authorize` when non-null. Crew edit. | Changing the project daily cap to per-agent; funding rows |
-| **G — definition catalog** (later) | `agent_definitions` table + FK on `actors.agent_definition_id`; deploy-time pointer; read-only family rollup. Upgrade = new version + new project Actor. | Merging Actors; rewriting `author_id`; lighting the loop |
+| **F — optional caps** | Enforce `token_budget_cap` / `usd_budget_cap` at `authorize` when non-null. Crew edit. | Splitting the project daily cap per agent; funding rows |
+| **G — definition catalog** (after first multi-agent campaign) | `agent_definitions` table **and** `actors.agent_definition_id` (nullable FK) in the same revision; deploy-time pointer; read-only family rollup. Upgrade = new version + new project Actor. | Merging Actors; rewriting `author_id`; lighting the loop |
 
-Slice A can deploy alone. Slices C–D are the first time a
+Slice one can deploy alone. Slices C–D are the first time a
 live MCP child can honestly speak as an agent and run longer
 than a Supabase access JWT; they still do not run on Fly.
 
@@ -1313,6 +1390,9 @@ DB-gated unless noted. Default CI already provisions Postgres.
   stems (`0.51.1` pin stays).
 - Agent with owner's `account_id` but no roster row is `403`.
 - Agent with roster `suspended` / `revoked` is `403`.
+- Dark-loop commission without a roster row is `403` (one
+  gate; pin even while `AGENT_LOOP_ENABLED` is false if the
+  service is unit-tested).
 - `ensure_can_manage` as the agent is `403` (cannot invite,
   cannot PATCH models, cannot fund).
 - `POST …/validations` and `POST …/funding` as the agent are
@@ -1341,7 +1421,9 @@ DB-gated unless noted. Default CI already provisions Postgres.
   `authorize()` refuses. `Actor.account_id` and
   `deployed_by_account_id` unchanged. Resume by the new
   OWNER sets `responsible_account_id` and does not un-revoke
-  old tokens.
+  old tokens. An ADMIN-deployed agent whose
+  `responsible_account_id` is not the outgoing owner stays
+  `active`.
 
 **Spend**
 
@@ -1372,50 +1454,25 @@ DB-gated unless noted. Default CI already provisions Postgres.
 - Five tab ids in `project-tab.ts`.
 - Composition pin and disabled-tool set unchanged.
 
-### Decided (owner)
+### Decided (owner, 2026-10-06)
 
 | Decision | Rationale |
 | --- | --- |
 | Only **OWNER** mints / rotates / revokes tokens (not ADMIN). | A live token is a weeks-long capability grant, not an invite; ADMIN already deploys and can suspend. |
 | Roster `GET` is **members only**. | Deployed agents are a capability surface (and a theft-detection surface), not a public contributor list. Human `GET …/members` staying public does not force this one open. |
-| Per-agent caps are **stored in v1, enforced in slice F**. | Identity + the `0.52.0` gate-swap must not change daily-cap occupancy math in the same release. |
+| Per-agent caps are **stored in slice one, enforced in slice F**. | Identity + the `0.52.0` gate-swap must not change daily-cap occupancy math in the same release. |
 | **No validator agent role, ever.** | Contributor and validator stay on separate tables; an agent must not assess its own work. The enum has no room for it. |
 | **Revoked agents stay visible on Crew**, marked revoked. | Hiding them loses "who burned the pot" and the forensic trail after a revoke. |
 | Default token TTL **30 days**, instantly revocable, no self-renew; max TTL via settings (not `fly.toml [env]`). | Weeks of autonomous research cannot require a human to re-mint twice a day; `revoked_at` on the next DB read is the control. |
 | OWNER transfer **does not rewrite** `Actor.account_id` / `deployed_by`; suspends outgoing-responsible agents + Research crew; new owner resumes and mints. | Provenance stays honest; the incoming owner chooses the roster. |
+| Keep the **`Research crew` display name**. | Preserves the dark-loop unique-index predicate and the existing Crew bay's language. |
+| **One shared project daily cap.** No per-agent split. | Splitting would re-open the overlapping-authorize race `0.47`–`0.51` closed. |
+| The dark built-in loop **must require a roster row**. | One gate for all agent authorship. A commissioning human passing the HTTP route is not enough. |
+| Fly secret-file injection is an **enablement-time item**, not an open design question. | Same secret discipline as `OPENTHEORY_GATEWAY_TOKEN`; choose volume vs operator-side file when Fly enablement is scheduled, not in slice one. |
+| Definition catalog (table **and** `actors.agent_definition_id`) lands **after the first multi-agent campaign**. | A column with no FK target in slice one is noise; adding both later is cheap. |
+| An ADMIN-deployed agent whose `responsible_account_id` is **not** the outgoing owner **keeps running** across a transfer. | That ADMIN did not lose the project; only outgoing-responsible rows + Research crew suspend. |
 
-### Remaining open questions for the owner
-
-1. **Rename `Research crew` on migrate, or keep the string?**
-   Keeping it preserves the dark-loop unique index and the
-   existing bay's language. Renaming needs a coordinated
-   unique-index predicate change.
-2. **Shared daily cap when two agents run on one project.**
-   This doc keeps one project-wide 20_000 / UTC day and one
-   remaining-room hold (serializes overlapping turns). A
-   per-agent daily cap is a later change and must not re-open
-   the `0.47` race.
-3. **When `AGENT_LOOP_ENABLED` someday lights, does the
-   built-in loop require a roster row for `Research crew`, or
-   keep "commissioning human already passed the route gate"?**
-   This doc's recommendation is still: require the roster
-   (one rule). The migrate step already inserts that row.
-4. **Ops on Fly after identity ships.** This proposal does
-   not enable the gateway or MCP child. When that *is*
-   scheduled, the 30-day agent token file has to exist on
-   that machine without landing in `fly.toml [env]` — same
-   secret discipline as `OPENTHEORY_GATEWAY_TOKEN`. Confirm
-   the injection story (Fly secrets volume vs operator-side
-   file) before that enablement, not in slice A.
-5. **Definition catalog timing.** v1 ships only the nullable
-   `agent_definition_id` column. When does slice G land, and
-   does the first catalog row backfill `Research crew` into
-   one family or leave historical crew Actors `NULL`?
-6. **May an ADMIN deploy but never resume after a transfer?**
-   Resume is OWNER-only in this doc (responsibility + mint
-   sit together). Confirm that an ADMIN-deployed agent whose
-   responsible account is *not* the outgoing owner stays
-   running across a transfer (this doc's default: yes).
+No remaining open design questions. Fly injection stays listed above as enablement-time, not unresolved.
 
 ---
 
