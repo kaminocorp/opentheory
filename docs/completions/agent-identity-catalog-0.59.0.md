@@ -4,18 +4,21 @@
 agent-actor identity design, and close the leftover 0.58.0
 soft cap on the built-in pass. Stay dark: no Fly, no
 `AGENT_LOOP_ENABLED`. No live Supabase apply. Sits on shipped
-`0.58.0` (`c1a4ca5`, #55). Live prod is still at 0021; Phil
-deploys 0022 tomorrow and this merge waits on that verify.
+`0.58.1` (#57, public PostgREST lock) / shipped `0.58.0`
+(`c1a4ca5`, #55). Live prod is still at 0021; this merge
+waits on that verify. Rebased onto #57 so the catalog
+revision is `0024`.
 
-**Decision.** One `0.59.0` PR, not a separate `0.58.1` for
-the clamp. The built-in loop is dark, so the soft cap is not
-a live hole; the clamp ships with the catalog it will sit
-next to.
+**Decision.** The clamp still ships in this `0.59.0` PR (not
+a separate patch). `0.58.1` (#57) is the public PostgREST
+lock, stacked under this branch.
 
-**Shape.** Migration `0023_agent_definitions` revises
-`0022_agent_actor_identity`. One transaction (plain
+**Shape.** Migration `0024_agent_definitions` revises
+`0023_lock_public_api_rls`. One transaction (plain
 `CREATE INDEX` / `DROP INDEX`; no `CONCURRENTLY` /
-autocommit). Downgrade drops `actors.agent_definition_id`
+autocommit). After `create_table` it runs
+`LOCK_PUBLIC_TABLES_SQL` so `agent_definitions` is
+ENABLE+FORCE. Downgrade drops `actors.agent_definition_id`
 then `agent_definitions`.
 
 ## What shipped
@@ -108,9 +111,10 @@ hold occupies the whole remaining daily room.
 - Family rollup counts checkpoints, incoming validations,
   billed tokens; project member can read; outsider `404`.
 - Agent session on catalog HTTP is `403`.
-- 0023 linkage, only head, transactional indexes, not
-  append-only, upgrade-head schema, downgrade round-trip,
-  unique `(family_id, version)`.
+- 0024 linkage, only head, transactional indexes, not
+  append-only, upgrade-head schema (including RLS+FORCE on
+  `agent_definitions`), downgrade round-trip, unique
+  `(family_id, version)`.
 - Pass token budget = `min(safety, remaining)`; reserve
   envelope shrinks; injected `BudgetPolicy` still clamped;
   existing mid-pass skip still `agent_budget_cap_exhausted`.
@@ -130,4 +134,4 @@ hold occupies the whole remaining daily room.
 - Browser walk of Crew kind / upgrade against a seeded
   project (depends on local Next + FastAPI + throwaway
   Postgres).
-- Applying 0022 or 0023 to live Supabase.
+- Applying 0022 / 0023 / 0024 to live Supabase.

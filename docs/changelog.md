@@ -199,7 +199,7 @@ cd backend && uv run pytest -q
 # +14 vs 0.58.0 (1199): pass-budget clamp + injected-policy wrap,
 # fingerprint, catalog create/version/PATCH, deploy pointer +
 # Research-crew 422, upgrade + ORM retarget, family rollup,
-# catalog HTTP 403, 0023 linkage/head/round-trip/unique
+# catalog HTTP 403, 0024 linkage/head/round-trip/unique/RLS
 cd frontend && npm run typecheck && npm run lint && npm test && npm run build
 # typecheck/lint/build clean; frontend tests 76 passed (+1 vs 0.58.0)
 ```

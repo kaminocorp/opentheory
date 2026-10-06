@@ -1,7 +1,7 @@
 """agent definition catalog + actors.agent_definition_id
 
-Revision ID: 0023_agent_definitions
-Revises: 0022_agent_actor_identity
+Revision ID: 0024_agent_definitions
+Revises: 0023_lock_public_api_rls
 Create Date: 2026-10-06
 
 0.59.0 — slice G of the approved agent-actor identity design
@@ -11,10 +11,15 @@ Create Date: 2026-10-06
 (nullable FK) in the same revision. Additive. The pointer is
 deploy-time; same-Actor retarget is rejected in the ORM.
 
+Rebases after ``0023_lock_public_api_rls`` (0.58.1). After
+``create_table`` this revision runs ``LOCK_PUBLIC_TABLES_SQL``
+so the new public table is ENABLE+FORCE RLS in the same
+transaction. No policies. No GRANT to anon/authenticated.
+
 The whole revision is **one transaction** (plain ``op.create_index`` /
 ``op.drop_index``). No ``CREATE INDEX CONCURRENTLY`` / autocommit.
 Live prod at review is still at 0021; this revision chains after
-0022 and must not assume 0022 is already applied on Fly.
+0023 and must not assume 0022 is already applied on Fly.
 """
 
 from collections.abc import Sequence
@@ -23,9 +28,10 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
+from app.db.rls_lock import LOCK_PUBLIC_TABLES_SQL
 
-revision: str = "0023_agent_definitions"
-down_revision: str | None = "0022_agent_actor_identity"
+revision: str = "0024_agent_definitions"
+down_revision: str | None = "0023_lock_public_api_rls"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -68,6 +74,7 @@ def upgrade() -> None:
     op.create_index(
         "ix_actors_agent_definition_id", "actors", ["agent_definition_id"]
     )
+    op.execute(sa.text(LOCK_PUBLIC_TABLES_SQL))
 
 
 def downgrade() -> None:

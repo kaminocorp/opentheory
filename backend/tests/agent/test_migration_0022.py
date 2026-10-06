@@ -110,7 +110,7 @@ def test_the_tables_the_models_declare_are_the_tables_the_migration_adds() -> No
 
 
 def test_owner_override_omits_agent_definition_id() -> None:
-    """0022 itself does not add ``actors.agent_definition_id`` (catalog is 0023)."""
+    """0022 itself does not add ``actors.agent_definition_id`` (catalog is 0024)."""
     source = _MIGRATION_PATH.read_text()
     assert "ADD COLUMN" not in source or "agent_definition_id" not in source
     assert "actors.agent_definition_id" in source  # named as deferred
