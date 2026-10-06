@@ -49,9 +49,10 @@ export type OpsTurnRead = {
   overshoot: number | null;
   price_known: boolean | null;
   pot_room: number | null;
-  actor_id: string | null;
-  actor_display_name: string | null;
-  actor_type: ActorType | null;
+  // 0.57.0 — omitted on a pre-identity backend (Vercel can ship ahead of Fly).
+  actor_id?: string | null;
+  actor_display_name?: string | null;
+  actor_type?: ActorType | null;
 };
 
 export type OpsLastTurnRead = {
@@ -61,9 +62,9 @@ export type OpsLastTurnRead = {
   price_known: boolean | null;
   pot_room: number | null;
   note: string;
-  actor_id: string | null;
-  actor_display_name: string | null;
-  actor_type: ActorType | null;
+  actor_id?: string | null;
+  actor_display_name?: string | null;
+  actor_type?: ActorType | null;
 };
 
 export type OpsActorSpendRead = {
@@ -105,7 +106,8 @@ export type ProjectOpsRead = {
   holds: OpsHoldRead[];
   recent_turns: OpsTurnRead[];
   last_turn: OpsLastTurnRead | null;
-  spend_by_agent: OpsActorSpendRead[];
+  // 0.57.0 — missing on a pre-identity backend. Readers must default to [].
+  spend_by_agent?: OpsActorSpendRead[];
   refusals: OpsRefusalsRead;
   enablement: OpsEnablementRead;
 };

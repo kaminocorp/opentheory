@@ -16,7 +16,9 @@ import {
   lastTurnLine,
   lastTurnTone,
   loopLine,
+  opsSpendByAgent,
   spendByAgentLine,
+  turnActorLabel,
   turnKindLabel,
   unknownProcessLine,
 } from "@/lib/ops";
@@ -75,9 +77,7 @@ function TurnRow({ turn }: { turn: OpsTurnRead }) {
           {turn.tokens_used.toLocaleString()} tok
         </span>
         <span className="text-[12px] text-text-faint">{formatWhen(turn.created_at)}</span>
-        <span className="text-[12px] text-text-faint">
-          {turn.actor_display_name ?? (turn.actor_id ? "unknown actor" : "unattributed")}
-        </span>
+        <span className="text-[12px] text-text-faint">{turnActorLabel(turn)}</span>
       </div>
       {turn.notes ? (
         <p className="truncate font-mono text-[11px] text-text-faint">{turn.notes}</p>
@@ -93,10 +93,10 @@ function OpsBody({ data }: { data: ProjectOpsRead }) {
     holds,
     recent_turns: turns,
     last_turn: lastTurn,
-    spend_by_agent: spendByAgent,
     refusals,
     enablement,
   } = data;
+  const spendByAgent = opsSpendByAgent(data);
   const currency = budget.snapshot.currency;
 
   return (

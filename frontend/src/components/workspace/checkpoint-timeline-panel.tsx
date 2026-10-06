@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import { Action, Bay, BayHeader, Icon, Input, Textarea } from "@/components/console";
 import { createCheckpoint, listCheckpoints, listTags } from "@/lib/api";
+import { checkpointSponsorSuffix } from "@/lib/blame";
 import { queryKeys } from "@/lib/query-keys";
 import { useProjectWriteAccess } from "@/lib/use-project-write-access";
 
@@ -245,9 +246,7 @@ export function CheckpointTimelinePanel({
                       <span>
                         by {checkpoint.author.display_name}
                         {checkpoint.author.type === "agent" ? " · agent" : ""}
-                        {checkpoint.sponsored_by
-                          ? ` · sponsored by ${checkpoint.sponsored_by.display_name}`
-                          : ""}
+                        {checkpointSponsorSuffix(checkpoint.sponsored_by)}
                       </span>
                     ) : null}
                   </p>
@@ -258,9 +257,7 @@ export function CheckpointTimelinePanel({
                   {!checkpoint.contribution_kind && checkpoint.author ? (
                     <span>
                       · by {checkpoint.author.display_name}
-                      {checkpoint.sponsored_by
-                        ? ` · sponsored by ${checkpoint.sponsored_by.display_name}`
-                        : ""}
+                      {checkpointSponsorSuffix(checkpoint.sponsored_by)}
                     </span>
                   ) : null}
                   {checkpoint.stage ? (

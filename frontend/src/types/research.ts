@@ -307,8 +307,9 @@ export type Checkpoint = {
   branch_id: string | null;
   author_id: string | null;
   author: ActorSummary | null;
-  sponsored_by_actor_id: string | null;
-  sponsored_by: ActorSummary | null;
+  // 0.57.0 — omitted on a pre-identity backend.
+  sponsored_by_actor_id?: string | null;
+  sponsored_by?: ActorSummary | null;
   contribution_kind: string | null;
   stage: ThreadStage | null;
   summary: string;
@@ -561,7 +562,8 @@ export type ClaimBlameStep = {
   branch_id: string | null;
   parent_ids: string[];
   author: BlameActor | null;
-  sponsor: BlameActor | null;
+  // 0.57.0 — omitted on a pre-identity backend.
+  sponsor?: BlameActor | null;
   contribution_kind: string | null;
   roles: string[];
   instruments: BlameInstrument[];

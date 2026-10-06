@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  ROSTER_UNAVAILABLE_LINE,
   agentSpendLine,
   agentStatusLabel,
   agentStatusTone,
   formatAgentWhen,
+  isRosterUnavailable,
   tokenRevealCacheKey,
 } from "./agent-roster.ts";
 
@@ -28,5 +30,13 @@ describe("agent roster readout", () => {
 
   it("never turns token plaintext into a cache key", () => {
     assert.equal(tokenRevealCacheKey("eyJhbGciOiJIUzI1NiJ9.payload.sig"), null);
+  });
+
+  it("treats a roster 404 as backend-unavailable, not a raw error", () => {
+    assert.equal(isRosterUnavailable(new Error("404: Not Found")), true);
+    assert.equal(isRosterUnavailable(new Error("Request failed with 404")), true);
+    assert.equal(isRosterUnavailable(new Error("403: Not a member of this project")), false);
+    assert.equal(isRosterUnavailable(new Error("500: boom")), false);
+    assert.match(ROSTER_UNAVAILABLE_LINE, /isn't available on this backend yet/);
   });
 });
