@@ -117,7 +117,11 @@ hold occupies the whole remaining daily room.
 
 ## Verification
 
-Filled after ruff / pytest / frontend checks.
+- `ruff check .` clean.
+- With `TEST_DATABASE_URL`: **1213 passed, 4 skipped**. +14 vs
+  `0.58.0` (1199). Lean / Mathlib stay off.
+- Frontend typecheck / lint / test (**76 passed**, +1 vs
+  `0.58.0`) / build clean.
 
 ## Unverified
 
